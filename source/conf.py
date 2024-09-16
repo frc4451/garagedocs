@@ -34,4 +34,12 @@ html_static_path = ["_static"]
 
 html_theme_options = {
     "show_nav_level": 1,
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/frc4451/garagedocs",
+            "icon": "fa-brands fa-github",
+            "type": "fontawesome",
+        }
+    ],
 }
