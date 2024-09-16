@@ -37,6 +37,7 @@ Welcome to the documentation and showcase for the Programming Team of FRC 4451, 
 
    badges/index
 
-.. contributors:: frc4451/garagedocs
-   :avatars:
-   :order: ASC
+.. When we're ready to show off contributors, you can use this
+.. .. contributors:: frc4451/garagedocs
+..    :avatars:
+..    :order: ASC
