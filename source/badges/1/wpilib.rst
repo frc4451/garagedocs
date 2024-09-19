@@ -12,3 +12,5 @@ Versions of WPILib use the `YYYY.MM.<patch number>` structure. Make sure that th
 It is recommended that you install WPILib on your personal computer in order to contribute from home. We will discuss robots-at-home later in Badge 1.
 
 https://docs.wpilib.org/en/stable/docs/zero-to-robot/step-2/wpilib-setup.html
+
+We will follow the WPILib documentation for additional context to lessons learned. Make sure you are capable of navigating the WPILib documentation.

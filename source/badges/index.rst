@@ -52,17 +52,19 @@ Links to rubrics to return to the Programming Mentor are as follows:
    :hidden:
 
    1/wpilib
-   1/git
    1/java
    1/data_structures
-   1/controllers
+   1/driver_station
+   1/joysticks
    1/motors
    1/radio
    1/advantagescope
    1/basic_control_systems
    1/subsystems
+   1/commands
    1/simulation
    1/triggers
+   1/git
 
 
 .. toctree::
@@ -72,6 +74,8 @@ Links to rubrics to return to the Programming Mentor are as follows:
    2/advantagekit
    2/control_loops
    2/pid_controls
+   2/feedforward
+   2/trapezoid_profiles
    2/odometry
    2/pathplanner
    2/photonvision
@@ -83,5 +87,6 @@ Links to rubrics to return to the Programming Mentor are as follows:
 
    3/choreo
    3/mechanisms
+   3/superstructures
    3/network_tables
    3/advanced_coprocessors
