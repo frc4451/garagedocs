@@ -51,6 +51,7 @@ Links to rubrics to return to the Programming Mentor are as follows:
    :caption: Badge 1: Beginners
    :hidden:
 
+   1/pretest
    1/wpilib
    1/java
    1/data_structures
