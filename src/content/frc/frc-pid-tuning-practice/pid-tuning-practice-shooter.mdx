@@ -7,62 +7,73 @@ groupLabel: PID Tuning Practice
 groupOrder: 6
 order: 4
 difficulty: intermediate
-duration: 55 min
-description: ""
+duration: 45 min
+description: "Velocity tuning for a simulated shooter flywheel by the two-setpoint method: kS at a low speed, kV at a high speed, alternate until neither moves, then a small kP for disturbances. How it differs from tuning a position mechanism."
+durationFixed: true
 ---
 
-### Overview
+A shooter is a velocity loop: the goal is to hold a speed, not reach a position. That changes what the gains do. `kV` carries almost all of the output, `kS` covers friction, `kP` is small and exists to recover from a disturbance such as a game piece passing through, and `kD` and `kI` are usually zero. This session tunes the practice project's flywheel that way.
 
-This lesson demonstrates PID tuning for a shooter mechanism using velocity control. Shooters differ from position-controlled mechanisms because they need to maintain a constant speed (RPM) rather than reach a specific position. You'll learn how to tune velocity feedforward (kV) by first using duty cycle mode (kS) to find the value that produces one rotation per second, then copy that to kV. You'll also learn about unit conversions and adding small proportional (kP) control to handle disturbances.
+<RulesBox title="Before you start">
 
-<RulesBox title="Browser practice">
+The [Setup](/frc/pid-tuning-practice-setup) page done, the *Shooter* mechanism chosen, its live tuning widget added, and every gain at zero. Graph `measurement/velocity` and `closedloop/setpoint/velocity` on one axis and `motor/outputVoltage` on the other. Do not put position on the velocity graph; a flywheel's position climbs without bound and squashes the velocity trace.
 
-Open [PID Simulation](/pid-simulation) on Mantik for a zero-install first pass. Choose **Flywheel**, pick REV or CTRE to match your hardware, and tune with SpringTune while watching wheel RPM on TraceView. Setpoint and gains use **motor rot/s** in code (same as SparkMax / Talon FX velocity mode); the graph shows **wheel RPM**.
+The procedure is the [flywheel recipe](/frc/manual-tuning-flywheel) from Manual Tuning, in volts. The video below demonstrates a shortcut (finding `kV` through the `kS` field at one rotation per second); the steps here run the two-setpoint method, which is the one to use on a real shooter because it separates friction from back-EMF instead of lumping them.
 
 </RulesBox>
 
-### Video Tutorial
-
-Watch this video for a complete walkthrough of shooter velocity control tuning:
+### Video walkthrough
 
 <YouTubeEmbed id="guKZn1h-oeI" title="PID Practice: Flywheel" />
 
-### Prerequisites
+### Units first
 
-Ensure AdvantageScope 2026 is installed. If it isn't, download it. Simulation should already be running.
+The practice flywheel is a four-inch, one-pound wheel on a 12:1 reduction with a soft limit of 1000 RPM at the wheel. YAMS reports velocity in the units the graph is set to; the tuning table's setpoint is in the mechanism's own units. Before tuning, put both on the same unit so the setpoint and the measurement can sit on one line. AdvantageScope converts a trace's units from its menu (the three dots on the graph entry, *Edit Units*, angular velocity). Rotations per second is the sensible choice: it is what SparkMax and TalonFX velocity loops use, and the conversion from a shooter's usual RPM is a division by 60.
 
-### Initial Setup
+<StepsBox title="Shooter steps">
 
-Enable teleoperated mode (teleop). Turn on live tuning. Open AdvantageScope 2026. Graph velocity (do not graph position, as it interferes with the display). Turn on the tunable numbers button.
-
-<StepsBox title="Tuning Steps">
-
-1. Tune kS (static feedforward). kS compensates for static friction - the minimum voltage needed to start the flywheel moving. Start with kS = 0.1. Set the setpoint to a nonzero value (e.g., 1 rotation per second). In simulation, this may not be necessary due to lack of friction, but it's important for real hardware. If needed, adjust kS to find the minimum voltage that gets the flywheel moving. Make kS as small as possible while still starting motion. Zoom the graph to show 1-2 seconds of data (prevents lag later).
-2. Tune kV (velocity feedforward) using kS temporarily. kV is the voltage required to maintain 1 rotation per second. Temporarily use the kS parameter to find this value:
-   - Set the velocity setpoint to 1
-   - Start with a very small kS value (e.g., 0.1)
-   - Watch the velocity graph - it should reach and maintain 1 rotation per second
-   - If the velocity is too low, double the kS value (0.1 to 0.2 to 0.4 to ...)
-   - Keep doubling until the velocity hovers around 1 rotation per second
-   - Fine-tune by decreasing slightly if it stays slightly above 1, or increasing if it's below
-   - Once stable at 1 rotation per second, copy this kS value into kV
-   - Note: kV depends on velocity, so we use kS to tune at 1 rotation per second before setting up P
-3. Convert units in AdvantageScope. The velocity graph shows rotations per second, but the setpoint uses degrees per second. Click the three dots on the velocity graph. Select "Edit Units". Choose "Angular Velocity" (not regular velocity - angular is for rotation/spinning). Convert from **rotations per second** to **degrees per second**. Ignore any "extra factor" mentioned in the conversion dialog. The graph should now match the setpoint units.
-4. Set target velocity. Convert from RPM to degrees per second to set your setpoint. Say you want to set the flywheel to 417 RPM. To convert from RPM to rotations per second, divide by 60 (60 seconds in a minute). Example: 417 ÷ 60 = 6.94 rotations per second. To convert from rotations per second to degrees per second, multiply by 360 (one rotation equals 360 degrees). Example: 6.94 × 360 = 2500 degrees per second. Set the setpoint to this calculated value. Verify the flywheel reaches and maintains this velocity. If it can't reach the target, it may exceed the motor's maximum capability - reduce to a realistic value.
-5. Tune kP (proportional gain). kP helps the motor recover quickly from disturbances (like when a ball passes through). kP values are typically very small (three decimal places, e.g., 0.001). Even though the number looks small, it can add significant voltage. Example: 2500 degrees per second times 0.001 equals 2.5 volts. This 2.5V is added on top of the kV voltage. Increase if the flywheel is slow to reach setpoint or recover from disturbances. kV should do most of the work; kP helps with accuracy and disturbance rejection.
+1. **Zero every gain.**
+2. **Set a low setpoint**, about 10 % of the top speed: 100 RPM, which is 1.67 rot/s.
+3. **Set `kP` very small**, such as 0.001, so the loop responds at all. Kept this small it cannot hide a wrong `kS` or `kV`.
+4. **Raise `kS`** by doubling until the wheel reaches the low setpoint. At low speed friction dominates and `kV` barely matters, so this isolates `kS`. In the simulator the model has little friction and `kS` comes out small; on hardware it does not.
+5. **Set a high setpoint**, about 80 % of the top speed: 800 RPM, 13.3 rot/s.
+6. **Raise `kV`** until the wheel reaches the high setpoint. At high speed back-EMF dominates and `kS` barely matters.
+7. **Back to the low setpoint.** Adding `kV` usually makes it overshoot; lower `kS`.
+8. **Repeat 4 to 7** until neither number changes between passes. Two or three round trips is usual.
+9. **At the high setpoint, raise `kP`** by doubling from 0.001 until the velocity trace oscillates around the setpoint, then back off to just below. A shooter's `kP` is small because the error is large: 100 rot/s of error times `kP = 0.01` is a full volt.
+10. **Test a disturbance.** With the wheel at speed, command a brief duty-cycle pulse (a joystick button) or drop the setpoint and raise it again, and watch how quickly the trace returns. If recovery is slow, `kP` has room to rise; if the trace rings, it is too high.
+11. **Verify** at the speeds the shooter will be commanded to. If the gains found at 10 % and 80 % do not hold at the real operating points, redo the procedure with those as the low and high setpoints.
 
 </StepsBox>
 
-<RulesBox title="Key Points" subtitle="Process and important notes:">
+<RulesBox title="What the graph should show">
 
-- Process: Graph velocity, use kS temporarily at 1 rps to find kV, copy to kV, convert units (rotations/sec to degrees/sec), set target (RPM ÷60 ×360), fine-tune kP
-- Mechanisms: Flywheel/Shooter uses velocity-based (kV, kP). Arm/Turret uses position-based. Elevator uses kG + position control
-- Units: Velocity graph shows rotations per second, setpoint may use degrees per second (convert with ×360). Phoenix Tuner/REV Hardware Client also use rotations per second - always verify units
-- kV is critical for velocity control (does most work), kP is very small (0.001-0.01), kI/kD usually 0. Watch velocity graph, not position
-- Common mistakes: Wrong units, kP too high (causes oscillation), kV incorrect, forgetting kS in real hardware, wrong setpoint for finding kV (must use 1 rps)
-- Real hardware: Verify tuning on physical mechanism, kS more important in real life, test with game pieces, same process applies to Phoenix Tuner/REV Hardware Client
+- With only `kS` and `kV`, the velocity trace rises and settles on the setpoint with no correction: that is feedforward doing its job, and it is the shape to get before touching `kP`.
+- Under a disturbance the trace dips and returns. The return is `kP`; the depth of the dip is the wheel's inertia and is not a gain problem.
+- Voltage sits at a steady value at speed. If it climbs toward 12 V as the setpoint rises, the setpoint is beyond what the motor can deliver through this reduction; pick a lower one.
 
 </RulesBox>
 
-<LinkGrid links={[{"label":"Shooter Example","id":"shooter-example"},{"label":"PID Control","id":"frc-pid-control"},{"label":"PID Tuning Practice - Setup","id":"pid-tuning-practice-setup"},{"label":"PID Tuning Practice - Arm","id":"pid-tuning-practice-arm"},{"label":"PID Tuning Practice - Elevator","id":"pid-tuning-practice-elevator"},{"label":"WPILib: Feedforward Control","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/feedforward.html"}]} title="Resources" section="frc" />
+<RulesBox title="Common mistakes">
 
+- **Finding `kS` by "when it starts to move".** That is static friction; a spinning wheel needs kinetic friction, which is what the low setpoint measures.
+- **A large `kP` while finding `kS` and `kV`.** It reaches the setpoint on its own and hides both.
+- **Stopping after one pass.** The low and high setpoints disturb each other; go round until neither number moves.
+- **Setpoint and measurement in different units.** A wheel commanded to 800 while the graph reads 13.3 looks broken and is not.
+- **Tuning `kD`.** On a velocity loop it fights the disturbance recovery `kP` provides. Leave it at zero unless the trace rings and `kP` cannot come down.
+
+</RulesBox>
+
+### On the real robot
+
+The same two-setpoint procedure runs in Phoenix Tuner or the REV Hardware Client, where the velocity signal is already in rotations per second. On hardware `kS` is real, the disturbance is a game piece, and the verification step is shooting: the speed the wheel holds while a piece passes through is what decides the shot. How FRC 4451's shooter runs this loop on the controller, with the setpoint chosen from distance, is in [Shooter Example](/frc/shooter-example).
+
+<Sources items={[
+  {"url": "https://github.com/itkan-robotics/mantik-pid-practice/blob/main/src/main/java/frc/robot/subsystems/ShooterSubsystem.java", "label": "mantik-pid-practice ShooterSubsystem.java", "note": "Four-inch, one-pound wheel, 12:1, 1000 RPM soft limit."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/manual-pid-tuning.html#flywheel-tuning-with-torquecurrentfoc", "note": "The two-setpoint kS/kV method."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/feedforward.html", "note": "<code>SimpleMotorFeedforward</code> in volts."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "The team's shooter running this loop on the controller."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/flywheel/FlywheelFollower.java", "note": "The flywheel pair."}
+]} />
+
+<LinkGrid links={[{"label":"Manual Tuning: Flywheel","id":"manual-tuning-flywheel"},{"label":"Shooter Example","id":"shooter-example"},{"label":"Feedforward","id":"feedforward"},{"label":"PID Tuning Practice - Setup","id":"pid-tuning-practice-setup"},{"label":"WPILib: Feedforward Control","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/feedforward.html"}]} title="Next" section="frc" />

@@ -1,0 +1,179 @@
+---
+title: "Control Requests: The Full Catalogue"
+lessonId: control-requests
+section: frc
+group: frc-advanced-motor-config
+groupLabel: "Advanced Motor Control"
+groupOrder: 5
+order: 3
+difficulty: advanced
+duration: 40 min
+description: "Every Phoenix 6 control request as a grid of loop type × output type (open-loop, Position, Velocity, Motion Magic, Motion Magic Velocity, Motion Magic Expo, Dynamic), plus followers, neutral modes and the request modifiers; which ones Cobra sends from where, what units the gains take for each, which need a Pro licence, and a decision guide by mechanism."
+---
+
+Phoenix 6 has more than thirty control request classes, and their names look like a random walk: `VoltageOut`, `PositionVoltage`, `MotionMagicVoltage`, `MotionMagicVelocityTorqueCurrentFOC`, `DynamicMotionMagicDutyCycle`. They are not random. Every name is **what the loop does** followed by **what the output is**, and once you read them that way the whole family fits in one table. This lesson is that table, with FRC 4451's usage and the choices behind it. [Why Motion Magic](/frc/motion-magic-why) is the reasoning; this is the reference.
+
+### The grid
+
+A request is a *loop type* (what the controller computes) crossed with an *output type* (what it drives the motor with). Read a class name from the left: the loop, then the output.
+
+<ContentTable
+  headers={["Loop type ↓ / Output type →", "DutyCycle", "Voltage", "TorqueCurrentFOC"]}
+  rows={[
+    ["<strong>Open loop</strong>: you give the output directly", "<code>DutyCycleOut</code>", "<code>VoltageOut</code>", "<code>TorqueCurrentFOC</code>"],
+    ["<strong>Position</strong>: PID on position, no profile", "<code>PositionDutyCycle</code>", "<code>PositionVoltage</code>", "<code>PositionTorqueCurrentFOC</code>"],
+    ["<strong>Velocity</strong>: PID on velocity, no profile", "<code>VelocityDutyCycle</code>", "<code>VelocityVoltage</code>", "<code>VelocityTorqueCurrentFOC</code>"],
+    ["<strong>Motion Magic</strong>: profiled position (trapezoid / S-curve)", "<code>MotionMagicDutyCycle</code>", "<code>MotionMagicVoltage</code>", "<code>MotionMagicTorqueCurrentFOC</code>"],
+    ["<strong>Motion Magic Velocity</strong>: profiled velocity", "<code>MotionMagicVelocityDutyCycle</code>", "<code>MotionMagicVelocityVoltage</code>", "<code>MotionMagicVelocityTorqueCurrentFOC</code>"],
+    ["<strong>Motion Magic Expo</strong>: exponential profile from kV/kA", "<code>MotionMagicExpoDutyCycle</code>", "<code>MotionMagicExpoVoltage</code>", "<code>MotionMagicExpoTorqueCurrentFOC</code>"],
+    ["<strong>Dynamic Motion Magic</strong>: profile limits set per request (Pro + CANivore)", "<code>DynamicMotionMagicDutyCycle</code>", "<code>DynamicMotionMagicVoltage</code>", "<code>DynamicMotionMagicTorqueCurrentFOC</code>"]
+  ]}
+/>
+
+There is no `MotionMagicPositionVoltage`. The profiled position request is `MotionMagicVoltage`, and the unprofiled position request is `PositionVoltage`. The word "Position" appears only when there is no profile; "Velocity" appears in both the unprofiled and the profiled velocity requests.
+
+### The output types
+
+The column decides what the number at the end of the pipeline means, and therefore what units every gain takes.
+
+<ContentTable
+  headers={["Output", "The motor receives", "Gains and feedforward are in", "Battery sag", "Needs", "Character"]}
+  rows={[
+    ["<strong>DutyCycle</strong>", "A fraction of whatever the supply voltage is, −1 … 1", "Fractions of full output per unit error", "Passes straight through: 80 % of 11 V is less than 80 % of 12.6 V", "Nothing", "Simplest. Fine for open-loop things a driver is watching. Poor for closed loops that must repeat"],
+    ["<strong>Voltage</strong>", "A voltage, compensated against the measured supply", "Volts (kS in V, kV in V/rps, kA in V/rps², kP in V/rot)", "Compensated, until the battery cannot supply the request", "Nothing", "The default for most closed loops. Characterization tools (SysId, the library's routine) produce volt units"],
+    ["<strong>TorqueCurrentFOC</strong>", "A stator current, which is proportional to torque", "Amps (kS in A, kV in A/rps, kA in A/rps², kP in A/rot)", "Immune, because torque is torque regardless of voltage, until the supply cannot deliver the current", "<strong>Pro licence</strong>; FOC", "Best disturbance rejection and the most linear; current limits become torque limits (<code>PeakForwardTorqueCurrent</code>). FRC 4451's choice wherever the motor is a Kraken"]
+  ]}
+/>
+
+The one thing that bites when switching a mechanism between columns: **the gains do not carry over.** A kP of 5 in volts and a kP of 5 in amps are different mechanisms. Cobra's shooter runs kS 16 / kV 0.125 in *amps*; the same wheel on voltage output would be roughly kS 0.2 / kV 0.12 in *volts*. Re-characterise when you change the output type.
+
+`withEnableFOC(true)` on a DutyCycle or Voltage request turns on field-oriented commutation for the motor without changing the output type, for more torque per amp and less heat; it is still Pro-licensed. TorqueCurrentFOC requests are FOC by definition.
+
+### The loop types
+
+<ContentTable
+  headers={["Loop", "You give it", "The controller computes", "The profile", "When"]}
+  rows={[
+    ["Open loop", "The output itself", "Nothing", "None", "Driver-controlled things; characterization sweeps; a test binding"],
+    ["Position", "A position", "kP × error + kD × (−velocity) + kS + kG + <code>withFeedForward</code>", "None; a step", "Short moves where a profile's latency is unwanted (swerve steer in Cobra); holding a position"],
+    ["Velocity", "A velocity", "kP × error + kV × target + kS + <code>withFeedForward</code>", "None", "Flywheels that must recover instantly; drive wheels following a trajectory"],
+    ["Motion Magic", "A position", "Profile reference → kV × ref velocity + kA × ref accel + kS + kG + PID on the reference", "Trapezoid, or S-curve with jerk", "Elevators, arms, turrets: any positioned mechanism with a top speed"],
+    ["Motion Magic Velocity", "A velocity", "Same, on a ramped velocity target", "Acceleration (and jerk) on the velocity", "Flywheel spin-up that must not brown out; rollers"],
+    ["Motion Magic Expo", "A position", "Same, on an exponential reference", "Expo kV / kA, optional cruise", "Offered by the library's CANcoder TalonFX IO through <code>setGoalTorque</code>; Cobra's hood and end-effector run <code>MotionMagicVoltage</code> today, and swerve steer has Expo gains configured but sends <code>PositionVoltage</code>"],
+    ["Dynamic Motion Magic", "A position <em>and</em> cruise / acceleration / jerk", "Same, with the limits from the request", "Per-request trapezoid", "Different speeds for different moves (slow with a game piece, fast without) without re-applying configs"]
+  ]}
+/>
+
+All closed-loop requests share `.withSlot(n)` to choose which of `Slot0`–`Slot2` supplies the gains. Cobra uses `Slot0` everywhere; a second slot is the tool for a mechanism whose dynamics change with state (an elevator carrying versus empty; an arm holding a piece): configure both, switch slots per command.
+
+### Everything that is not in the grid
+
+<ContentTable
+  headers={["Request", "Does", "Cobra"]}
+  rows={[
+    ["<code>NeutralOut</code>", "No output; obey the configured neutral mode (brake or coast)", "<code>stop()</code> in every IO"],
+    ["<code>CoastOut</code> / <code>StaticBrake</code>", "No output and coast, or no output and brake, overriding the configured neutral mode for this request", "Not used; <code>NeutralOut</code> + config instead"],
+    ["<code>Follower(leaderId, opposeDirection)</code>", "Mirror the leader's output, optionally inverted relative to it", "The shooter's second Kraken in <code>FollowRollersIOTalonFX</code>"],
+    ["<code>StrictFollower(leaderId)</code>", "Mirror the leader, ignoring this device's own invert config", "Not used"],
+    ["<code>Differential…</code> family", "Two-motor differential mechanisms (a differential elevator/arm) with an average and a difference loop", "Not used"],
+    ["<code>MusicTone</code>", "Play a frequency through the motor (the Orchestra API)", "Not used"]
+  ]}
+/>
+
+### The modifiers
+
+Every request is an object you build once and mutate per call: `voltageOut.withOutput(volts)`, not `new VoltageOut(volts)` every loop. The object is what Phoenix sends, and allocating one per loop creates garbage the roboRIO cannot afford. The `with…` methods return the same object:
+
+<ContentTable
+  headers={["Modifier", "On", "Effect"]}
+  rows={[
+    ["<code>withSlot(n)</code>", "Closed-loop requests", "Which gain slot"],
+    ["<code>withEnableFOC(bool)</code>", "DutyCycle and Voltage requests", "FOC commutation (Pro)"],
+    ["<code>withFeedForward(x)</code>", "Closed-loop requests", "An arbitrary term added to the output, in the output's units: a custom gravity or friction model, or a trajectory's acceleration feedforward"],
+    ["<code>withOverrideBrakeDurNeutral(bool)</code> / <code>withOverrideCoastDurNeutral</code>", "Most", "What to do when the request's output is exactly zero"],
+    ["<code>withLimitForwardMotion(bool)</code> / <code>withLimitReverseMotion</code>", "Most", "A software limit switch on this request: stop forward output while true"],
+    ["<code>withUpdateFreqHz(hz)</code>", "All", "How often the request is re-sent. <code>0</code> means send once and rely on it persisting; FRC 4451 sets this on some requests to save bus bandwidth, and the default re-sends at 100 Hz so a dropped frame recovers"],
+    ["<code>withVelocity / withAcceleration / withJerk</code>", "Dynamic Motion Magic", "The per-request profile limits"]
+  ]}
+/>
+
+### What Cobra sends from where
+
+Read from the IO classes, so this is what the robot actually does:
+
+<ContentTable
+  headers={["IO", "Method", "Request"]}
+  rows={[
+    ["<code>SingleRollerIOTalonFX</code>", "<code>runVolts</code> / <code>runPercentOutput</code> / <code>runTorqueCurrent</code>", "<code>VoltageOut</code> / <code>DutyCycleOut</code> / <code>TorqueCurrentFOC</code>"],
+    ["", "<code>setVelocityTorqueCurrent</code>", "<code>VelocityTorqueCurrentFOC</code>, unprofiled"],
+    ["", "<code>setGoal</code> / <code>setGoalTorque</code>", "<code>MotionMagicVoltage</code> / <code>MotionMagicTorqueCurrentFOC</code>"],
+    ["", "(also constructed) ", "<code>MotionMagicVelocityVoltage</code>, <code>PositionTorqueCurrentFOC</code>"],
+    ["<code>SingleRollerIOTalonFXWithCANCoder</code>", "<code>setGoal</code> / <code>setGoalTorque</code>", "<code>MotionMagicVoltage</code> / <code>MotionMagicExpoTorqueCurrentFOC</code>; the hood and end-effector call <code>setGoal</code>, so the voltage form is the one in use"],
+    ["<code>FollowRollersIOTalonFX</code>", "<code>setVelocityTorqueCurrent</code>", "<code>MotionMagicVelocityTorqueCurrentFOC</code> (the plain velocity request is commented out beside it)"],
+    ["", "follower", "<code>Follower</code>"],
+    ["<code>ModuleIOTalonFX</code> (swerve)", "drive open-loop / closed-loop", "<code>VoltageOut</code> or <code>TorqueCurrentFOC</code>; <code>VelocityVoltage</code> or <code>VelocityTorqueCurrentFOC</code>, chosen by <code>TunerConstants</code>' <code>ClosedLoopOutputType</code> (currently <code>Voltage</code> for both)"],
+    ["", "steer", "<code>PositionVoltage</code> or <code>PositionTorqueCurrentFOC</code>, unprofiled, although <code>turnConfig.MotionMagic</code> is populated"],
+    ["All", "<code>stop</code>", "<code>NeutralOut</code>"]
+  ]}
+/>
+
+Two things in that table are worth a second look, and both are covered in [Why Motion Magic](/frc/motion-magic-why#the-numbers-cobra-runs): the steer motor's Motion Magic configuration is inert because the request sent is `PositionVoltage`, and the shooter pair is profiled while the single-roller velocity path is not.
+
+### Choosing, by mechanism
+
+<ContentTable
+  headers={["Mechanism", "Start with", "Because"]}
+  rows={[
+    ["Flywheel / shooter", "<code>VelocityTorqueCurrentFOC</code>; add the Motion Magic Velocity variant if spin-up current is a problem", "Torque control rejects the disturbance of a ball; the profile caps inrush at the cost of recovery time"],
+    ["Elevator", "<code>MotionMagicVoltage</code> or <code>MotionMagicTorqueCurrentFOC</code> with <code>GravityType.Elevator_Static</code>", "Constant gravity, clear top speed, repeatable timing matters for scoring sequences"],
+    ["Arm / pivot / hood", "<code>MotionMagicExpoTorqueCurrentFOC</code> with <code>GravityType.Arm_Cosine</code> (recommended); Cobra currently runs <code>MotionMagicVoltage</code> on both", "Achievable acceleration changes with angle; Expo follows it. Cosine gravity needs the zero at horizontal"],
+    ["Turret", "<code>MotionMagicExpoVoltage</code>, or <code>PositionVoltage</code> if it tracks a moving target every loop", "Profile for slew-to-angle; plain position for continuous aiming"],
+    ["Swerve steer", "<code>PositionVoltage</code> (as Cobra) or <code>MotionMagicExpoVoltage</code>", "Very short moves; a profile adds latency but removes ringing. Test both in simulation"],
+    ["Swerve drive", "<code>VelocityTorqueCurrentFOC</code>", "Wheel velocity following a trajectory; torque control handles carpet and load"],
+    ["Intake / indexer rollers", "<code>VoltageOut</code> or <code>TorqueCurrentFOC</code> open-loop; <code>VelocityTorqueCurrentFOC</code> if the speed matters", "Most rollers do not need a loop; a torque request is a natural stall limit"],
+    ["Climber", "<code>MotionMagicTorqueCurrentFOC</code>, with <code>PeakReverseTorqueCurrent</code> as the safety", "Torque limits are the guard against tearing the robot apart; a profile keeps the pull-up controlled"],
+    ["Anything a driver holds a stick for", "<code>VoltageOut</code> with a slew-rate limiter in the command", "A loop between a human and a motor feels wrong"]
+  ]}
+/>
+
+### Licensing, in one place
+
+Anything with `FOC` in the name (`TorqueCurrentFOC` outputs and `withEnableFOC(true)`) needs a **Pro licence** on the device; unlicensed devices fall back and set a fault. **Dynamic Motion Magic** needs Pro and a CANivore. `FusedCANcoder` feedback ([CANcoder](/frc/cancoder-absolute-position#wiring-it-to-the-talonfx)) needs Pro. Everything else in the grid runs on an unlicensed TalonFX. Cobra's mechanisms sit on a CANivore (`susBus`) and use FOC and `FusedCANcoder` throughout, which implies Pro-licensed devices; a Kit Bot on SparkMaxes has none of this and its Voltage-output equivalents are the [Kit Bot R07](/kit-bot/r07-launcher-io) path.
+
+<RulesBox title="Common mistakes">
+
+- **<code>new XxxOut()</code> every loop.** Build once, <code>with…()</code> per call.
+- **Switching output type and keeping the gains.** Volts and amps are different numbers. Re-characterise.
+- **Expecting a profile from a <code>Position…</code> request.** Only <code>MotionMagic…</code> requests run the profile, however carefully <code>MotionMagicConfigs</code> is filled in.
+- **A torque request on an unlicensed device.** It faults and does nothing; check the <code>UnlicensedFeatureInUse</code> fault in Tuner X or the logged faults before blaming the code.
+- **<code>withUpdateFreqHz(0)</code> on a request you change often.** Send-once means a lost frame is lost. Use it for set-and-hold outputs only.
+- **Slot gains tuned with the wrong <code>GravityType</code>.** kG is a constant for an elevator and a cosine for an arm; the wrong one tunes gravity into kP.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "ctre", "path": "docs/api-reference/api-usage/control-requests.html", "note": "The request grid: output type by loop type, modifiers, <code>withSlot</code>, <code>withUpdateFreqHz</code>."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/open-loop-requests.html", "note": "<code>DutyCycleOut</code>, <code>VoltageOut</code>, <code>TorqueCurrentFOC</code>."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/closed-loop-requests.html", "note": "Position, velocity and Motion Magic requests; gravity feedforward; slots."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/motion-magic.html", "note": "Motion Magic, Motion Magic Velocity and Expo."},
+  {"source": "ctre", "path": "docs/licensing/licensing.html", "note": "Pro licensing and what FOC requires."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFX.java", "note": "Which request each library method sends."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFXWithCANCoder.java", "note": "Requests with a fused remote sensor."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollersIOTalonFX.java", "note": "The <code>Follower</code> request on the second motor."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOTalonFX.java", "note": "Swerve drive and steer requests."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "Velocity torque-current on the flywheels."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "Duty-cycle on a roller."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "Motion Magic on a position mechanism."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/generated/TunerConstants.java", "note": "The closed-loop output type the swerve modules are generated with."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Why Motion Magic: Profiles Before Gains","id":"motion-magic-why"},
+  {"label":"Motor Configuration","id":"motor-controller-configuration"},
+  {"label":"CANcoder: Absolute Position","id":"cancoder-absolute-position"},
+  {"label":"Shooter Example","id":"shooter-example"},
+  {"label":"CTRE: Control requests","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/api-usage/control-requests.html"},
+  {"label":"CTRE: Open-loop requests","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/open-loop-requests.html"},
+  {"label":"CTRE: Closed-loop requests","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/closed-loop-requests.html"},
+  {"label":"CTRE: Motion Magic®","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html"}
+]} title="Resources" section="frc" />

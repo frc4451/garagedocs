@@ -7,11 +7,17 @@ groupLabel: Command-Based Programming
 groupOrder: 3
 order: 4
 difficulty: beginner
-duration: 25 min
+duration: 15 min
 description: Creating subsystems, setting default commands, and composing triggers into button bindings.
 ---
 
-### Overview
+<RulesBox title="You have done this in Kit Bot">
+
+The `RobotContainer` you wired in Kit Bot ([R05](/kit-bot/r05-commands-and-triggers), [R12](/kit-bot/r12-real-vs-sim)) is the starting point. Cobra's differs in scale: a mode switch with three branches, an autonomous manager, and bindings on a custom controller class. This lesson covers those.
+
+</RulesBox>
+
+### Connect subsystems, commands, and controls
 
 `RobotContainer` is the central hub of command-based programming. It creates subsystems, configures default commands, and binds controller inputs to commands.
 
@@ -24,7 +30,7 @@ description: Creating subsystems, setting default commands, and composing trigge
 
 </RulesBox>
 
-Everything here is configuration. No loop logic belongs in `RobotContainer` — behaviour lives in commands.
+Everything here is configuration. No loop logic belongs in `RobotContainer`; behaviour lives in commands.
 
 ### Basic RobotContainer
 
@@ -50,11 +56,11 @@ public class RobotContainer {
 }
 ```
 
-Bindings call the subsystem's own [command factories](/frc/commands). `intake.setIntakeCommand(0.6)` already requires the intake, so there is nothing to declare and nothing to forget.
+Bindings call the subsystem's own [command factories](/frc/commands#subsystem-command-factories). `intake.setIntakeCommand(0.6)` already requires the intake, so there is nothing to declare and nothing to forget.
 
 ### Button Bindings
 
-`CommandXboxController` — and `CommandPS4Controller` / `CommandPS5Controller` for other hardware — expose each button as a `Trigger`:
+`CommandXboxController` (and `CommandPS4Controller` / `CommandPS5Controller` for other hardware) exposes each button as a `Trigger`:
 
 <ContentTable
   headers={["Trigger method", "Runs when"]}
@@ -86,7 +92,7 @@ controller.povUp().whileTrue(intake.intakeHomeCommand());
 Triggers combine with `and`, `or`, and `negate`, which is how one button becomes a modifier for another:
 
 ```java
-// R2 intakes — but only when R1 and triangle are not held
+// R2 intakes, but only when R1 and triangle are not held
 controller.R2().and(controller.R1().negate()).and(controller.triangle().negate())
     .whileTrue(intake.deployAndIntakeCommand());
 ```
@@ -102,7 +108,7 @@ controller.R1().whileTrue(new SmartShootCommand(drive, shooter, transfer, convey
         () -> -controller.getLeftX()));
 ```
 
-A `Trigger` is not limited to buttons — any `BooleanSupplier` works, so sensor conditions bind the same way:
+A `Trigger` is not limited to buttons. Any `BooleanSupplier` works, so sensor conditions bind the same way:
 
 ```java
 new Trigger(intake::hasGamePiece).onTrue(leds.flashGreenCommand());
@@ -128,7 +134,7 @@ drive.setDefaultCommand(
 
 <RulesBox title="Default commands are how mechanisms stop">
 
-Release the trigger, the command is unscheduled, and the scheduler immediately starts the default command — which commands zero.
+Release the trigger, the command is unscheduled, and the scheduler immediately starts the default command, which commands zero.
 
 Without one, the last value stays applied and the roller keeps spinning. Every mechanism that can be left running needs a default command.
 
@@ -138,7 +144,7 @@ Note the joystick axes are passed as **suppliers**, not values. A value read onc
 
 ### Constructing Subsystems
 
-Subsystems that use an [IO layer](/frc/io-layer) are constructed differently depending on the runtime mode, and `RobotContainer` is the only place that makes that choice:
+Subsystems that use an [IO layer](/frc/io-layer#swapping-implementations) are constructed differently depending on the runtime mode, and `RobotContainer` is the only place that makes that choice:
 
 ```java
 switch (Constants.currentMode) {
@@ -154,7 +160,7 @@ switch (Constants.currentMode) {
 }
 ```
 
-Everything else — subsystems that talk to hardware directly — is constructed once, unconditionally.
+Everything else, meaning subsystems that talk to hardware directly, is constructed once, unconditionally.
 
 ### The Auto Chooser
 
@@ -178,7 +184,7 @@ public Command getAutonomousCommand() {
 
 `LoggedDashboardChooser` is AdvantageKit's drop-in replacement for `SendableChooser`. It behaves identically on the dashboard but **records the selection into the log**, so a replay picks the same auto the robot ran. With a plain `SendableChooser`, that choice is invisible afterwards.
 
-Adding characterization routines as chooser options is a convenient way to run them from the dashboard without a separate code path. See [Tunable Constants and Characterization](/frc/tunable-constants).
+Adding characterization routines as chooser options is a convenient way to run them from the dashboard without a separate code path. See [Tunable Constants and Characterization](/frc/tunable-constants#measure-feedforward-do-not-guess-it).
 
 <RulesBox title="Common mistakes">
 
@@ -189,5 +195,19 @@ Adding characterization routines as chooser options is a convenient way to run t
 - **Two bindings whose commands require the same subsystem,** so pressing one silently cancels the other.
 
 </RulesBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/commandbased/binding-commands-to-triggers.html", "note": "<code>Trigger</code>, <code>onTrue</code>, <code>whileTrue</code>, <code>toggleOnTrue</code>, composing triggers."},
+  {"source": "wpilib", "path": "docs/software/commandbased/structuring-command-based-project.html", "note": "<code>RobotContainer</code>'s role and the default template."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/button/CommandXboxController.html", "note": "Buttons and axes as triggers and suppliers."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "Construction by mode, <code>configureButtonBindings</code>, the auto chooser."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/commands/DriveCommands.java", "note": "The joystick drive factories bound as default commands."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/GarageCommandXboxController.java", "note": "The team's controller wrapper."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "<code>Mode</code> used to choose IO."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOTalonFX.java", "note": "Real module IO chosen in REAL mode."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOSim.java", "note": "Simulated module IO chosen in SIM mode."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/GyroIOPigeon2.java", "note": "Real gyro IO."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "A subsystem bound to buttons."}
+]} />
 
 <LinkGrid links={[{"label":"Commands","id":"commands"},{"label":"Command Groups","id":"command-groups"},{"label":"Controllers & Inputs","id":"controllers-and-bindings"},{"label":"WPILib RobotContainer Documentation","url":"https://docs.wpilib.org/en/stable/docs/software/commandbased/structuring-command-based-project.html"},{"label":"WPILib Binding Commands to Triggers","url":"https://docs.wpilib.org/en/stable/docs/software/commandbased/binding-commands-to-triggers.html"}]} title="Resources" section="frc" />

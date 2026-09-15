@@ -7,18 +7,18 @@ groupLabel: "Functions as Data"
 groupOrder: 7
 order: 4
 difficulty: intermediate
-duration: 30 min
+duration: 25 min
 description: The standard one-method interfaces Java provides so you stop writing your own, with Supplier examined closely because it defers work.
 ---
 
 ### Stop defining your own
 
-In the first lesson of this module you wrote a `ReadingTest` interface. It was useful for understanding the mechanism, but you should almost never need to write one — Java ships the common shapes in `java.util.function`.
+In the first lesson of this module you wrote a `ReadingTest` interface. It was useful for understanding the mechanism, but you should rarely need to write one, because Java ships the common shapes in `java.util.function`.
 
 A functional interface is fully described by how many arguments it takes and whether it returns anything. There are only a few useful combinations.
 
 <ContentTable
-  title="The interfaces you will actually use"
+  title="The interfaces you will use"
   headers={["Interface", "Method", "Takes", "Returns", "Use for"]}
   rows={[
     ["<code>Supplier&lt;T&gt;</code>", "<code>get()</code>", "nothing", "a <code>T</code>", "Producing or reading a value later"],
@@ -33,7 +33,7 @@ A functional interface is fully described by how many arguments it takes and whe
 
 So the earlier `filter` method should have been written:
 
-```java
+```java norun
 static <T> List<T> filter(List<T> items, Predicate<T> test) {
     List<T> result = new ArrayList<>();
     for (T item : items) {
@@ -51,15 +51,15 @@ Using the standard interface means it composes with everything else in the libra
 
 `Supplier` deserves its own treatment because it does something the others do not: it defers *when* a value is read.
 
-```java
+```java norun
 Supplier<Double> reading = () -> sensor.getDistance();
 ```
 
-Nothing has been read yet. The sensor is queried only when someone calls `reading.get()` — and every call reads it again, returning the current value.
+Nothing has been read yet. The sensor is queried only when someone calls `reading.get()`, and every call reads it again, returning the current value.
 
 Contrast passing the value itself:
 
-```java
+```java norun
 double snapshot = sensor.getDistance();     // read once, frozen
 Supplier<Double> live = () -> sensor.getDistance();   // read on demand
 ```
@@ -68,9 +68,9 @@ The first is a number from a moment in the past. The second is a way to ask "wha
 
 <RulesBox title="Why this matters in robot code">
 
-Almost every value a robot cares about changes constantly — joystick positions, encoder counts, sensor distances. Code written when the robot starts must reference values that will not exist until later.
+Almost every value a robot cares about changes constantly: joystick positions, encoder counts, sensor distances. Code written when the robot starts must reference values that will not exist until later.
 
-```java
+```java norun
 // wrong: captures the joystick position at construction, once, forever
 new DriveCommand(joystick.getY());
 
@@ -84,7 +84,7 @@ This distinction is behind most "why does my robot only use the first value" con
 
 `DoubleSupplier` avoids boxing when the value is a primitive, which matters in a loop running fifty times a second:
 
-```java
+```java norun
 DoubleSupplier reading = () -> sensor.getDistance();
 double now = reading.getAsDouble();
 ```
@@ -93,7 +93,7 @@ double now = reading.getAsDouble();
 
 The second use for `Supplier`: skipping work that might not be needed.
 
-```java
+```java norun
 // the message is built even when the condition is false
 log(isDebug, "state: " + buildExpensiveReport());
 
@@ -111,7 +111,7 @@ Java evaluates arguments before calling a method, so the first version always pa
 
 The standard library uses this in `Optional`:
 
-```java
+```java norun
 String name = maybeName.orElseGet(() -> computeDefault());   // lazy
 String name2 = maybeName.orElse(computeDefault());           // always computes
 ```
@@ -126,6 +126,7 @@ Generics cannot hold primitives, so `Function<Integer, Integer>` boxes every val
   headers={["Boxed", "Primitive version"]}
   rows={[
     ["<code>Supplier&lt;Double&gt;</code>", "<code>DoubleSupplier</code>"],
+    ["<code>Supplier&lt;Boolean&gt;</code>", "<code>BooleanSupplier</code>"],
     ["<code>Consumer&lt;Integer&gt;</code>", "<code>IntConsumer</code>"],
     ["<code>Predicate&lt;Integer&gt;</code>", "<code>IntPredicate</code>"],
     ["<code>Function&lt;Integer,Integer&gt;</code>", "<code>IntUnaryOperator</code>"],
@@ -133,7 +134,7 @@ Generics cannot hold primitives, so `Function<Integer, Integer>` boxes every val
   ]}
 />
 
-For ordinary code the boxed versions are fine and clearer. Reach for the primitive ones only when profiling shows the boxing matters.
+For ordinary code the boxed versions are fine and clearer. Reach for the primitive ones only when profiling shows the boxing matters, or when a library asks for them: WPILib's `Trigger` takes a `BooleanSupplier`, and its joystick and motor APIs hand out `DoubleSupplier`s, because a robot loop is exactly the hot loop the primitive versions exist for.
 
 ### Composing them
 
@@ -154,7 +155,7 @@ Function<Integer, String> combined = doubled.andThen(describe);
 System.out.println(combined.apply(5));      // "value: 10"
 ```
 
-`andThen` runs the first, then feeds its result to the second. `compose` does the reverse order. Getting them backwards is a common slip — `a.andThen(b)` means a first.
+`andThen` runs the first, then feeds its result to the second. `compose` does the reverse order. Getting them backwards is a common slip; `a.andThen(b)` means a first.
 
 <RulesBox title="Common mistakes">
 
@@ -168,11 +169,13 @@ System.out.println(combined.apply(5));      // "value: 10"
 
 </RulesBox>
 
+<JavaPlayground id="java-fn-supplier" />
+
 <ExerciseBox title="Practice">
 
 1. Rewrite your `ReadingTest` filter using `Predicate<Integer>`.
 2. Write a method taking a `Consumer<String>` and calling it with three different names.
-3. Write a `logLazy(boolean, Supplier<String>)` method and demonstrate that the message is not built when the flag is false — print something inside the supplier to prove it.
+3. Write a `logLazy(boolean, Supplier<String>)` method and demonstrate that the message is not built when the flag is false; print something inside the supplier to prove it.
 4. Build a `Function<Integer,String>` by composing a doubling function with a formatting function, and verify the order.
 5. Write a `Supplier<Double>` reading from a mutable field, then change the field and call `get()` again to confirm you see the new value.
 
@@ -183,7 +186,7 @@ System.out.println(combined.apply(5));      // "value: 10"
 2. Parameter type `Consumer<String>`; call `accept` three times.
 3. Put a `System.out.println("building")` inside the supplier body. With the flag false it should never print.
 4. `doubled.andThen(describe)`. Try `compose` too and note the difference.
-5. This is the key exercise — it shows a supplier reads live rather than capturing a snapshot.
+5. This exercise shows a supplier reads live rather than capturing a snapshot.
 
 </details>
 
@@ -197,6 +200,20 @@ System.out.println(combined.apply(5));      // "value: 10"
     {"label":"The Command Pattern","id":"java-dp-command"}
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "java-api", "path": "java.base/java/util/function/package-summary.html", "note": "The <code>java.util.function</code> interfaces."},
+  {"source": "java-api", "path": "java.base/java/util/function/Supplier.html", "note": "<code>Supplier</code>."},
+  {"source": "java-api", "path": "java.base/java/util/function/Function.html", "note": "<code>andThen</code>, <code>compose</code>."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/button/Trigger.html", "note": "WPILib's <code>BooleanSupplier</code> consumer."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/function/DoubleSupplier.html", "note": "<code>DoubleSupplier</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/Double.html", "note": "<code>Double</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/Optional.html", "note": "<code>Optional</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/function/Consumer.html", "note": "<code>Consumer</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/function/BooleanSupplier.html", "note": "<code>BooleanSupplier</code> API reference."}
+]} />
 
 <LinkGrid
   title="Related"

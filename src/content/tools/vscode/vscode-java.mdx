@@ -1,0 +1,146 @@
+---
+title: "Editing Java in VS Code"
+lessonId: vscode-java
+section: tools
+group: vscode
+groupLabel: "Visual Studio Code"
+groupOrder: 4
+order: 3
+difficulty: beginner
+description: "Use Java diagnostics, autocomplete, documentation, refactoring, formatting, and run controls in VS Code."
+---
+
+### What is underneath
+
+Java extensions run a **language server** that analyzes code and supplies diagnostics, completion, and navigation. Its analysis is separate from the Gradle build, so a clean Problems panel does not guarantee that the project builds.
+
+WPILib includes Java tooling. In a regular VS Code installation, install the **Extension Pack for Java** and a suitable JDK. Follow [Java setup](/java/java-setup) for this curriculum's version requirements.
+
+The Java status item indicates when the project is loading. Some features are unavailable or incomplete until loading finishes. Large dependency sets can make the first load slower.
+
+### Squiggles and the Problems panel
+
+Error and warning underlines represent diagnostics from the editor's tools. Hover to read them. Warnings deserve review, but do not all indicate incorrect behavior; an unused variable or deprecated API may need a different response.
+
+Open **Problems** (`Ctrl+Shift+M` / `Cmd+Shift+M`) to read diagnostics by file. `F8` moves between them. Fix relevant errors, then run the build to check the project configuration and tasks as well.
+
+Start with the earliest relevant error. One syntax mistake can produce several later messages. Fix it, let diagnostics refresh, and check what remains.
+
+<ContentTable
+  headers={["Message", "Usually means"]}
+  rows={[
+    ["<code>cannot find symbol</code> / <code>X cannot be resolved</code>", "A typo in a name, or a missing <code>import</code>. <code>Ctrl+.</code> will offer the import if the class exists"],
+    ["<code>';' expected</code>", "Exactly that, usually at the end of the <em>previous</em> line"],
+    ["<code>incompatible types: double cannot be converted to int</code>", "A double value cannot be assigned directly to an int. Choose the intended type; a cast discards the fractional part and may not be the right fix"],
+    ["<code>missing return statement</code>", "Some path through the method reaches the end without returning"],
+    ["<code>non-static method cannot be referenced from a static context</code>", "You called an instance method from <code>main</code> without an object. See <a href=\"/java/java-static-final#static-methods\">static methods</a>"],
+    ["<code>The type X must implement the inherited abstract method</code>", "You wrote <code>implements</code> or <code>extends</code> and have not written every required method. <code>Ctrl+.</code> can add stubs"],
+    ["<code>unreachable code</code>", "A statement after a <code>return</code>, <code>break</code> or <code>throw</code>"]
+  ]}
+/>
+
+### Autocomplete
+
+Start typing and a list appears; `Tab` or `Enter` accepts the highlighted entry, arrow keys move through it, `Escape` dismisses it. `Ctrl+Space` brings it back if it has gone.
+
+Java completion uses type information to suggest members. After `motor.`, inspect the method signature and documentation before accepting an entry. Suggestions depend on the available project information and may include other completion sources.
+
+Two things to know:
+
+- It filters as you type and matches on **initials**: `gAR` finds `getAllUnreadResults`. You rarely need more than three or four characters.
+- When you accept a method, VS Code inserts the brackets and puts the cursor inside. `Ctrl+Shift+Space` (`Cmd+Shift+Space`) shows **parameter hints**. They identify the current argument and its required type, and reappear after every comma.
+
+**Snippets** are autocomplete entries that expand into a block. The ones worth knowing in Java: `sysout` → `System.out.println();`, `main` → a main method, `fori` → a counting for loop, `foreach` → an enhanced for loop. Type the snippet name, accept it, and `Tab` moves between the blanks it leaves.
+
+### Hover and go to definition
+
+Hover over a name to read its type and available documentation. Add Javadoc to your own methods where callers need to understand behavior, units, or constraints.
+
+`F12` on a name opens where it is defined. On your own code that is another file in the project. On library code it opens the source if the library ships it (WPILib does) and otherwise a decompiled view, which can still show what parameters a constructor takes. `Alt+←` (`Ctrl+-` on macOS) brings you back.
+
+`Alt+F12` (`Option+F12`) opens **Peek Definition** in an inline window. Press `Escape` to close it.
+
+`Shift+F12` lists every place a name is **used**. Before you change a method, this tells you what else changes.
+
+For an interface method, `F12` opens its declaration. `Ctrl+F12` (`Cmd+F12`) finds implementations, such as real and simulated IO classes. [IO Layers](/frc/io-layer#swapping-implementations) explains that robot architecture.
+
+### Quick fixes and refactoring
+
+A lightbulb in the margin, or `Ctrl+.` (`Cmd+.`) anywhere, opens the **code actions** for that spot. What appears depends on where you are:
+
+<ContentTable
+  headers={["Cursor on", "Offers"]}
+  rows={[
+    ["An unresolved class name", "<em>Import 'Foo' (package)</em>: pick the right package if there are several"],
+    ["A class that <code>implements</code> an interface incompletely", "<em>Add unimplemented methods</em>: stubs for every missing one"],
+    ["A selected block of statements", "<em>Extract to method</em>: pulls it into a new method and replaces it with a call"],
+    ["A repeated expression", "<em>Extract to local variable</em> / <em>constant</em>"],
+    ["A field name", "<em>Generate getters and setters</em>"],
+    ["A class name", "<em>Generate constructors</em>, <em>Generate toString()</em>, <em>Generate hashCode() and equals()</em>"],
+    ["A variable that is only assigned once", "<em>Add final modifier</em>"]
+  ]}
+/>
+
+Two useful refactorings:
+
+**`F2`: Rename.** Uses Java symbol information to update references. Preview or review the edits, particularly when reflection, strings, or code outside the project may refer to the old name.
+
+**`Shift+Alt+O` (`Shift+Option+O`): Organize Imports.** Sorts imports, removes unused ones, and can offer missing imports. Resolve ambiguous class names deliberately. To run on explicit saves, configure `editor.codeActionsOnSave` with `"source.organizeImports": "explicit"`.
+
+### Formatting
+
+**Format Document** applies the selected formatter: `Shift+Alt+F` on Windows, `Shift+Option+F` on macOS, and `Ctrl+Shift+I` on Linux. `editor.formatOnSave` runs formatting when you save.
+
+Use the team's formatter configuration to avoid unrelated whitespace changes. Cobra configures Spotless in `build.gradle` and makes `compileJava` depend on `spotlessApply`, so a build can modify source formatting. Review those changes before committing.
+
+### Navigating a file
+
+- **Outline** (in the Explorer side bar) lists every member of the current file. Click to jump.
+- **Breadcrumbs**: the path along the top of the editor, `frc.robot › subsystems › Drive.java › Drive › arcadeDrive(double, double)`. Click any segment for a dropdown of its siblings.
+- **`Ctrl+Shift+O`** (`Cmd+Shift+O`): the same list as a searchable popup. Type `:` after it to group by kind.
+- **Folding**: the small arrows in the gutter, or `Ctrl+Shift+[` / `]`. `Ctrl+K Ctrl+0` folds everything, which turns a 400-line class into a table of contents.
+
+### Running a single file
+
+For a supported Java file with a `main` method, the Java extensions provide **Run | Debug** links. Standalone files are supported, but open the full project folder when dependencies or build configuration are needed. Use the integrated terminal for examples that read keyboard input, such as `Scanner`.
+
+For a robot project, use the WPILib build and simulation commands rather than treating it as a standalone lesson file. [Kit Bot R00](/kit-bot/r00-wpilib-setup#step-6-simulate-the-robot) covers simulation.
+
+<RulesBox title="Common mistakes">
+
+- **Following every error independently.** Check whether later messages result from an earlier syntax error.
+- **Ignoring warnings.** Read the message and decide whether it affects correctness or maintenance.
+- **Accepting a suggested fix without review.** Check types, imports, and the resulting behavior.
+- **Conflicting formatters.** Use the formatter settings agreed for the project.
+- **Incomplete project loading.** Wait for analysis to finish before interpreting a lack of diagnostics as success.
+
+</RulesBox>
+
+<ExerciseBox title="Practice">
+
+Open a lesson file from [Java Training](/java) in a folder, or a robot project.
+
+1. Delete an `import` line and watch the error appear. Put the cursor on the red name and use `Ctrl+.` to restore it. Then `Shift+Alt+O` and confirm the imports are sorted.
+2. Type `sysout` and accept the snippet. Inside the brackets type `Math.` and read three methods from the autocomplete list you did not know existed.
+3. `F2` on a method name; rename it; `Shift+F12` on the new name to see every call site updated.
+4. Select five lines that belong together and use `Ctrl+.` → *Extract to method*. Read the signature it chose. Every variable the block used from outside became a parameter.
+5. Write a class that `implements Comparable<...>` and nothing else. Use the lightbulb to generate the missing method.
+6. Hover over `System.out.println` and read the documentation without leaving the editor.
+
+</ExerciseBox>
+
+<Sources items={[
+  {"source": "vscode", "path": "java/java-tutorial", "note": "Java in VS Code and the Extension Pack for Java."},
+  {"source": "vscode", "path": "java/java-editing", "note": "Autocomplete, navigation, quick fixes."},
+  {"source": "vscode", "path": "java/java-refactoring", "note": "Refactoring."},
+  {"source": "vscode", "path": "java/java-project", "note": "Project management and the language server."},
+  {"source": "vscode", "path": "editing/editingevolved", "note": "Go to definition, hover, Problems panel."},
+  {"source": "wpilib", "path": "docs/software/vscode-overview/3rd-party-libraries.html", "note": "Vendordeps the language server resolves."}
+]} />
+
+<LinkGrid title="Next" section="tools" links={[
+  {"label":"Debugging in VS Code","id":"vscode-debugging"},
+  {"label":"Hotkeys: Understanding code","url":"/tools/vscode-hotkeys#understanding-code"},
+  {"label":"Packages: why one file is not a project","url":"/java/java-packages#one-file-is-not-a-project"},
+  {"label":"VS Code docs: Java","url":"https://code.visualstudio.com/docs/java/java-tutorial"}
+]} />

@@ -13,11 +13,11 @@ description: Submitting tasks to a managed pool instead of creating threads by h
 
 ### The problem with new Thread()
 
-Creating a thread is expensive — it allocates a stack and asks the operating system for a scheduling resource. Doing it per task wastes most of the time on setup:
+Creating a thread is expensive: it allocates a stack and asks the operating system for a scheduling resource. Doing it per task wastes most of the time on setup:
 
-```java
+```java norun
 for (int i = 0; i < 1000; i++) {
-    new Thread(() -> handle(i)).start();     // 1000 threads — bad
+    new Thread(() -> handle(i)).start();     // 1000 threads: bad
 }
 ```
 
@@ -25,7 +25,7 @@ Beyond the cost, nothing limits how many exist at once. A thousand threads compe
 
 An **executor** separates *what to run* from *how it is run*. You submit tasks; a small pool of reusable threads works through them.
 
-```java
+```java norun
 import java.util.concurrent.*;
 
 ExecutorService pool = Executors.newFixedThreadPool(4);
@@ -60,7 +60,7 @@ int cores = Runtime.getRuntime().availableProcessors();
 ExecutorService pool = Executors.newFixedThreadPool(cores);
 ```
 
-For work that mostly *waits* — network calls, file reads — more threads than cores is fine, since most are idle.
+For work that mostly *waits* (network calls, file reads), more threads than cores is fine, since most are idle.
 
 <RulesBox title="Be careful with cached pools">
 
@@ -74,7 +74,7 @@ Prefer a fixed pool unless you know the task rate is bounded.
 
 `Runnable` returns nothing. `Callable<T>` returns a value, and `submit` hands you a `Future<T>` to collect it:
 
-```java
+```java norun
 ExecutorService pool = Executors.newFixedThreadPool(2);
 
 Future<Integer> future = pool.submit(() -> {
@@ -89,7 +89,7 @@ int result = future.get();            // blocks until the value is ready
 
 `get()` waits for completion. Two exceptions to handle:
 
-```java
+```java norun
 try {
     int result = future.get();
 } catch (InterruptedException e) {
@@ -99,11 +99,11 @@ try {
 }
 ```
 
-`ExecutionException` wraps whatever the task threw. Calling `getCause()` is how you see the real problem — a detail worth knowing, because the wrapper alone tells you almost nothing.
+`ExecutionException` wraps whatever the task threw. Calling `getCause()` is how you see the real problem; the wrapper alone tells you almost nothing.
 
 Use the timeout form to avoid waiting forever:
 
-```java
+```java norun
 int result = future.get(2, TimeUnit.SECONDS);   // throws TimeoutException
 ```
 
@@ -113,7 +113,7 @@ A task submitted with `submit()` that throws does **not** print a stack trace. T
 
 This makes silently-failing background work a common and confusing bug. Either call `get()`, or wrap the task body in a try/catch that logs.
 
-`execute()` behaves differently — an exception there does surface on the default handler.
+`execute()` behaves differently: an exception there does surface on the default handler.
 
 </RulesBox>
 
@@ -121,7 +121,7 @@ This makes silently-failing background work a common and confusing bug. Either c
 
 `invokeAll` submits a batch and waits for all of them:
 
-```java
+```java norun
 List<Callable<Integer>> tasks = List.of(
     () -> compute(1),
     () -> compute(2),
@@ -135,11 +135,11 @@ for (Future<Integer> f : results) {
 }
 ```
 
-`invokeAny` returns as soon as *one* succeeds and cancels the rest — useful when several approaches could answer the same question.
+`invokeAny` returns as soon as *one* succeeds and cancels the rest, which is useful when several approaches could answer the same question.
 
 ### Scheduled work
 
-```java
+```java norun
 ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
 // once, after a delay
@@ -157,7 +157,7 @@ Note that if a repeating task throws, the repetition **stops silently**. Wrap th
 
 An executor's threads are non-daemon by default, so the program will not exit while a pool is alive.
 
-```java
+```java norun
 pool.shutdown();                       // no new tasks; finish what is queued
 
 try {
@@ -180,13 +180,13 @@ try {
   ]}
 />
 
-`shutdownNow` only *interrupts* — a task ignoring interruption keeps going. Long-running loops should check `Thread.currentThread().isInterrupted()` and exit when set.
+`shutdownNow` only *interrupts*; a task ignoring interruption keeps going. Long-running loops should check `Thread.currentThread().isInterrupted()` and exit when set.
 
 ### CompletableFuture
 
 For chaining work without blocking on `get()`:
 
-```java
+```java norun
 CompletableFuture
     .supplyAsync(() -> fetchReading())
     .thenApply(reading -> reading * 2)
@@ -208,6 +208,8 @@ Each stage runs after the previous one completes, without a thread sitting idle 
 
 </RulesBox>
 
+<JavaPlayground id="java-executors" />
+
 <ExerciseBox title="Practice">
 
 1. Submit 20 tasks that each sleep briefly to a fixed pool of 4, printing which thread ran each. Note that only four names appear.
@@ -221,7 +223,7 @@ Each stage runs after the previous one completes, without a thread sitting idle 
 
 1. `Thread.currentThread().getName()`.
 2. `Future<Integer>` and handle both exceptions.
-3. This is the swallowed-exception trap — worth seeing once.
+3. This is the swallowed-exception trap, worth seeing once.
 4. `invokeAll` returns futures in the same order as the input.
 5. `scheduleAtFixedRate`, then `shutdown()` and `awaitTermination`.
 
@@ -236,6 +238,18 @@ Each stage runs after the previous one completes, without a thread sitting idle 
     { "label": "Concurrent Collections", "id": "java-concurrent-collections" }
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "java-tutorial", "path": "essential/concurrency/executors.html", "note": "Executors."},
+  {"source": "java-tutorial", "path": "essential/concurrency/pools.html", "note": "Thread pools."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/ExecutorService.html", "note": "<code>submit</code>, <code>invokeAll</code>, <code>invokeAny</code>, <code>shutdown</code>."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/Executors.html", "note": "Factory methods."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/Future.html", "note": "<code>Future.get</code> and <code>ExecutionException</code>."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/Callable.html", "note": "<code>Callable</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/ExecutionException.html", "note": "<code>ExecutionException</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/Runnable.html", "note": "<code>Runnable</code> API reference."}
+]} />
 
 <LinkGrid
   title="Related"

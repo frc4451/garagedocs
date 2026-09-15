@@ -7,27 +7,27 @@ groupLabel: "Functions as Data"
 groupOrder: 7
 order: 3
 difficulty: intermediate
-duration: 25 min
-description: Naming an existing method instead of wrapping it in a lambda, the four forms, and when the shorthand actually helps.
+duration: 30 min
+description: Naming an existing method instead of wrapping it in a lambda, the four forms, and when the shorthand helps.
 ---
 
 ### When a lambda just forwards
 
 Some lambdas do nothing but call an existing method with the same arguments:
 
-```java
+```java norun
 names.forEach(name -> System.out.println(name));
 ```
 
-The lambda takes `name` and passes it straight to `println`. The parameter adds nothing — it exists only to be handed along.
+The lambda takes `name` and passes it straight to `println`. The parameter adds nothing; it exists only to be handed along.
 
 A method reference names the method directly:
 
-```java
+```java norun
 names.forEach(System.out::println);
 ```
 
-Same behaviour, and the noise is gone. This is sugar over a lambda, which is itself sugar over an anonymous class — three layers of shorthand for the same underlying object.
+Same behaviour, and the noise is gone. This is sugar over a lambda, which is itself sugar over an anonymous class: three layers of shorthand for the same underlying object.
 
 <RulesBox title="The test for using one">
 
@@ -72,9 +72,9 @@ Predicate<String> a = prefix::startsWith;   // specific object
 Function<String, Integer> b = String::length; // arbitrary instance
 ```
 
-In the first, `prefix` is a particular object. Calling the predicate with `"x"` runs `prefix.startsWith("x")` — the object is fixed, the argument varies.
+In the first, `prefix` is a particular object. Calling the predicate with `"x"` runs `prefix.startsWith("x")`: the object is fixed, the argument varies.
 
-In the second, no object is named. Calling the function with `"hello"` runs `"hello".length()` — the argument *becomes* the object the method is called on.
+In the second, no object is named. Calling the function with `"hello"` runs `"hello".length()`: the argument *becomes* the object the method is called on.
 
 So `String::length` describes a function from a `String` to its length. The first parameter becomes the receiver.
 
@@ -111,7 +111,7 @@ Which constructor gets used is decided by the functional interface's shape. A `S
 
 ### Where they read well
 
-```java
+```java norun
 // parsing a list of strings into numbers
 List<Integer> numbers = raw.stream()
                            .map(Integer::parseInt)
@@ -127,18 +127,18 @@ names.removeIf(String::isBlank);
 new Thread(this::periodic).start();
 ```
 
-That last one is common in robot code — `this::periodic` refers to a method on the current object, which is the "specific object" form with `this` as the object.
+That last one is common in robot code. `this::periodic` refers to a method on the current object, which is the "specific object" form with `this` as the object.
 
 <RulesBox title="Where they read badly">
 
 A method reference is only clearer when the method name explains itself. When the target is obscure, the explicit lambda is easier to follow:
 
-```java
+```java norun
 list.forEach(Helper::process);         // process what? how?
 list.forEach(item -> Helper.process(item));   // marginally clearer
 ```
 
-Neither is really good — the fix is a better method name. Do not treat method references as automatically superior; the goal is a reader understanding the code quickly.
+Neither reads well; the fix is a better method name. Do not treat method references as automatically superior; the goal is a reader understanding the code quickly.
 
 </RulesBox>
 
@@ -151,7 +151,7 @@ Occasionally the compiler cannot tell which overload you mean:
 // Helper::process may be ambiguous depending on the target type
 ```
 
-When that happens, write the lambda instead — the argument types make it explicit. This is uncommon, but the error message can be cryptic, so it helps to know the cause.
+When that happens, write the lambda instead; the argument types make it explicit. This is uncommon, but the error message can be cryptic, so it helps to know the cause.
 
 <RulesBox title="Common mistakes">
 
@@ -163,12 +163,14 @@ When that happens, write the lambda instead — the argument types make it expli
 
 </RulesBox>
 
+<JavaPlayground id="java-fn-method-references" />
+
 <ExerciseBox title="Practice">
 
 1. Rewrite `list.forEach(s -> System.out.println(s))` as a method reference.
 2. Convert a `List<String>` of digits into a `List<Integer>` using a method reference.
 3. Sort a list of your own objects by an integer field using `Comparator.comparingInt` and a method reference.
-4. Use a constructor reference to create a `Supplier` that produces empty `ArrayList` objects, and call it twice — confirm you get two distinct lists.
+4. Use a constructor reference to create a `Supplier` that produces empty `ArrayList` objects, and call it twice; confirm you get two distinct lists.
 5. Write a lambda that cannot become a method reference, and explain in a comment why not.
 
 <details>
@@ -177,7 +179,7 @@ When that happens, write the lambda instead — the argument types make it expli
 1. `System.out::println`.
 2. `.map(Integer::parseInt)` on a stream, or a loop calling it.
 3. `Comparator.comparingInt(Motor::getPort)`.
-4. `Supplier<List<String>> s = ArrayList::new;` then call `get()` twice and compare with `==` — they should differ.
+4. `Supplier<List<String>> s = ArrayList::new;` then call `get()` twice and compare with `==`; they should differ.
 5. Anything with an extra argument, reordered parameters, or arithmetic around the call. `x -> compute(x, 10)` will do.
 
 </details>
@@ -191,6 +193,19 @@ When that happens, write the lambda instead — the argument types make it expli
     {"label":"Supplier and the Functional Interfaces","id":"java-fn-supplier"}
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "dev-java", "path": "lambdas/method-references/", "note": "The four kinds."},
+  {"source": "java-tutorial", "path": "java/javaOO/methodreferences.html", "note": "Method references tutorial."},
+  {"source": "jls", "path": "jls-15.html", "note": "Method reference expressions (section 15.13)."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/function/Supplier.html", "note": "<code>Supplier</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/Comparator.html", "note": "<code>Comparator</code> API reference."}
+]} />
 
 <LinkGrid
   title="Related"

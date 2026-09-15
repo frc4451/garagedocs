@@ -1,0 +1,108 @@
+---
+title: "Log Replay"
+lessonId: log-replay
+section: frc
+group: frc-simulation
+groupLabel: Simulation
+groupOrder: 3.5
+order: 7
+difficulty: advanced
+duration: 20 min
+durationFixed: true
+description: "The third mode: feeding a recorded match log back through your current code on a laptop to reproduce a bug on demand, test a fix against real data, and add the logging you wish you had, with the rules that make replay exact and the things it cannot do."
+---
+
+### The question replay answers
+
+Simulation answers what the robot would do. Replay answers what it did, and whether a fix would have changed it.
+
+In `REPLAY` mode there is no physics model and the robot does not react. Every **input** the code recorded during a real run (every encoder reading, every camera result, every joystick value, every loop) is fed back in, in order, at the original timestamps, and your *current* code processes them. Whatever it computes from those inputs is written to a second log. Since the inputs are identical to the match, any difference between the two logs is the difference your code change made.
+
+This is what the IO layer's inputs class was really for. `updateInputs` fills a struct that AdvantageKit records on the robot and replays on the laptop; the subsystem reads the struct either way. [Hardware Abstraction with IO Layers](/frc/io-layer#what-autolog-generates) shows the mechanism; this lesson is what you do with it.
+
+### Replaying a match
+
+<StepsBox title="From a match log to an answer">
+
+1. **Get the log.** On the robot AdvantageKit writes to the USB stick at `/U/logs`; without a stick there is no log. Copy the match's `.wpilog` to your laptop.
+2. **Set the mode.** In `Constants.java`, `simMode = Mode.REPLAY`.
+3. **Run it.** `WPILib: Simulate Robot Code`. No extensions are needed, because the log is driving the robot. `LogFileUtil.findReplayLog()` asks for the file (it also checks the `AKIT_LOG_PATH` environment variable and the most recently opened log in AdvantageScope, which is usually the one you want).
+4. **Wait a few seconds.** `setUseTiming(false)` in the replay branch removes the 20 ms wait between loops, so a two-and-a-half-minute match replays in about ten seconds.
+5. **Open both logs in AdvantageScope.** The replay wrote `<original>_sim.wpilog` next to the source. Open the original, then File → *Merge* the replay; every key from the replay appears with a suffix so the two can be graphed on one axis.
+6. **Compare outputs.** Inputs are identical by construction. Outputs (commanded voltages, setpoints, state, poses) are where the original and the replay diverge, and the first divergence is your answer.
+
+</StepsBox>
+
+FRC 4451's `Robot.java` has the branch ready:
+
+```java
+case REPLAY:
+  setUseTiming(false);                                  // run as fast as possible
+  String logPath = LogFileUtil.findReplayLog();
+  Logger.setReplaySource(new WPILOGReader(logPath));
+  Logger.addDataReceiver(new WPILOGWriter(LogFileUtil.addPathSuffix(logPath, "_sim")));
+  break;
+```
+
+and `RobotContainer` constructs every subsystem with an empty IO, `new SingleRollerIO() {}`, because in replay, `updateInputs` does nothing; the inputs come from the log.
+
+### Three things replay is for
+
+**Reproducing the once-per-event bug.** The shooter did something odd in match 43 and nobody saw why. Replay match 43 with a breakpoint in the shooter's `periodic` set to fire at the timestamp on the video; step through your own code with the exact inputs the robot had. No robot, field, battery or luck required. [Debugging in VS Code](/tools/vscode-debugging#breakpoints-that-only-sometimes-fire) covers conditional breakpoints; `Timer.getTimestamp() > 87.2` is the condition you want.
+
+**Adding logging you did not have.** Because the inputs were recorded, you can add `Logger.recordOutput` lines to a subsystem now and replay. The new outputs are computed from the real inputs as if they had been logged during the match. A value you forgot to record is not lost if it was derived from inputs.
+
+**Testing a fix against real data.** Change the code, replay the same log, compare. If the commanded voltage now does what you intended at 87.2 s, the fix works on the exact situation that failed, before the robot sees it again.
+
+AdvantageKit also ships **`ReplayWatch`**, a Gradle task that re-runs the replay every time a source file is saved, so the edit-replay-look loop is a save and a glance.
+
+### The rules that make replay exact
+
+Replay is deterministic only if the code is. Two things break it:
+
+<ContentTable
+  headers={["Breaks replay", "Why", "Instead"]}
+  rows={[
+    ["Reading hardware outside an IO layer", "A <code>talon.getPosition()</code> inside a subsystem was never recorded as an input; in replay it returns nothing", "Every hardware read goes through <code>updateInputs</code>"],
+    ["<code>Timer.getFPGATimestamp()</code> / <code>System.currentTimeMillis()</code>", "Wall-clock time in replay is the laptop's, not the match's", "<code>Timer.getTimestamp()</code>; AdvantageKit substitutes the logged time"],
+    ["<code>Math.random()</code>, unseeded", "Different numbers every run", "Seed it, or log the value as an input"],
+    ["Iterating a <code>HashMap</code> where order matters", "Order can differ between JVM runs", "<code>LinkedHashMap</code>, or sort"],
+    ["Static state that survives between runs", "The replay starts from a fresh JVM; the robot did not", "Initialise everything in constructors"]
+  ]}
+/>
+
+The first row is the important one, and it is the reason FRC 4451's subsystems read *only* from their inputs class. A subsystem that cheats once is a subsystem that cannot be replayed, and you find out at the event.
+
+### What replay cannot do
+
+- **It cannot show what a different command would have made the robot do.** The robot does not react, because the inputs are fixed. If your fix changes the voltage, replay shows the new voltage; it does not show the mechanism moving differently, because the recorded encoder keeps saying what it said. For "what would have happened", that is [simulation](/frc/physics-sim-io).
+- **It cannot recover inputs that were not logged.** A camera whose results went straight into the estimator without passing through an inputs struct left nothing to replay.
+- **It cannot replay a log from different code structure.** Rename an inputs field and the replay reads nothing for it. Keep field names stable within a season.
+
+<RulesBox title="Common mistakes">
+
+- **Forgetting to set <code>simMode</code> back to <code>SIM</code>.** The next person to simulate gets a file picker and no physics.
+- **Comparing inputs.** They are identical by definition; look at outputs.
+- **Reading the <code>_sim</code> log alone.** Merge it with the original; the divergence is only visible side by side.
+- **Expecting the mechanism to move.** It cannot. Replay is your code against a recording, not a second match.
+- **Editing the log's code and the subsystem's field names at the same time.** Rename after the event, not during.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "advantagekit", "path": "getting-started/what-is-advantagekit/", "note": "Deterministic replay and its rules."},
+  {"source": "advantagekit", "path": "getting-started/replay-watch", "note": "Running a replay from a log."},
+  {"source": "advantagekit", "path": "data-flow/recording-inputs/annotation-logging", "note": "<code>@AutoLog</code> inputs, the boundary replay reads from."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "The REPLAY branch: <code>WPILOGReader</code> and the replayed log path."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "<code>Mode.REPLAY</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "Empty IO in replay."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIO.java", "note": "An inputs class replay feeds."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Simulation First","id":"simulation-first"},
+  {"label":"Hardware Abstraction with IO Layers","id":"io-layer"},
+  {"label":"AdvantageKit","id":"advantagekit"},
+  {"label":"Unit Tests That Run the Simulation","id":"unit-tests-in-sim"},
+  {"label":"AdvantageKit docs: What is AdvantageKit?","url":"https://docs.advantagekit.org/getting-started/what-is-advantagekit/"}
+]} title="Next" section="frc" />

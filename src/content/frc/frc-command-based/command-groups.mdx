@@ -7,11 +7,17 @@ groupLabel: Command-Based Programming
 groupOrder: 3
 order: 5
 difficulty: intermediate
-duration: 25 min
+duration: 15 min
 description: Composing commands into sequences and parallel groups, waiting on conditions without blocking the scheduler, and where a composition belongs.
 ---
 
-### Overview
+<RulesBox title="You have done this in Kit Bot">
+
+Sequencing was [Kit Bot R14](/kit-bot/r14-time-based-autonomous): `Commands.sequence`, `waitSeconds`, a chooser. This lesson covers the full composition vocabulary (parallel, race, deadline, `until`, `finallyDo`) as Cobra's scoring sequences use it.
+
+</RulesBox>
+
+### Compose command sequences
 
 Command groups combine multiple commands to create complex behaviors. Use them for autonomous routines or coordinated mechanism movements.
 
@@ -25,7 +31,7 @@ Command groups combine multiple commands to create complex behaviors. Use them f
 
 ### The Commands Factories
 
-WPILib offers two equivalent ways to build a group: the `SequentialCommandGroup` / `ParallelCommandGroup` constructors, and static factories on `Commands`. Prefer the factories — they read better when nested and they compose without a `new` on every line.
+WPILib offers two equivalent ways to build a group: the `SequentialCommandGroup` / `ParallelCommandGroup` constructors, and static factories on `Commands`. Prefer the factories. They read better when nested and they compose without a `new` on every line.
 
 ```java
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -66,7 +72,7 @@ public Command deployAndIntakeCommand() {
 }
 ```
 
-Read it top to bottom: drop the pivot, wait until it gets there (but no longer than half a second), then start the rollers. Every step is a factory that already exists on the subsystem, so composing them needs no constructor, no imports, and no new file — and everything the intake can do stays in one place.
+Read it top to bottom: drop the pivot, wait until it gets there (but no longer than half a second), then start the rollers. Every step is a factory that already exists on the subsystem, so composing them needs no constructor, no imports, and no new file, and everything the intake can do stays in one place.
 
 ### Waiting Without Blocking
 
@@ -91,7 +97,7 @@ while (!withinTolerance()) {
 setIntakePosition(INTAKE_PIVOT_UP);
 ```
 
-This does not work. The whole robot runs on one thread, so that `while` loop stops the scheduler — including the updates to `pivot.getPosition()`, which is exactly what the condition reads. The drivetrain stops responding and the loop overruns.
+This does not work. The whole robot runs on one thread, so that `while` loop stops the scheduler, including the updates to `pivot.getPosition()`, which is what the condition reads. The drivetrain stops responding and the loop overruns.
 
 `Commands.waitUntil(this::withinTolerance)` expresses the same intent and yields between checks. **Any time you want to wait, that is the tool.**
 
@@ -101,7 +107,7 @@ Pair `waitUntil` with a timeout whenever the condition depends on hardware. If t
 
 ### Repeating
 
-`.repeatedly()` restarts a sequence as soon as it ends — how a mechanism shakes a stuck game piece loose:
+`.repeatedly()` restarts a sequence as soon as it ends. This is how a mechanism shakes a stuck game piece loose:
 
 ```java
 public Command agitateCommand() {
@@ -114,7 +120,7 @@ public Command agitateCommand() {
 }
 ```
 
-Rollers on, pivot to 28, wait, pivot to 32, wait, start over — until the button is released.
+Rollers on, pivot to 28, wait, pivot to 32, wait, start over, until the button is released.
 
 ### Compose at the Binding
 
@@ -143,7 +149,7 @@ public Command getAutoCommand() {
 }
 ```
 
-For anything path-based, PathPlanner generates these for you from event markers — see [PathPlanner](/frc/pathplanner).
+For anything path-based, the path tools generate these for you from event markers; see [PathPlanner](/frc/pathplanner#event-markers-and-named-commands) in the Autonomous group at the end of the section.
 
 <ContentTable
   title="Where a composition belongs"
@@ -166,10 +172,18 @@ public Command agitateCommand() {
 }
 ```
 
-That assignment executes while `RobotContainer` is building bindings — at startup — not each time the button is pressed. Anything that must happen at schedule time belongs inside a `runOnce` or `run` body.
+That assignment executes while `RobotContainer` is building bindings, at startup, not each time the button is pressed. Anything that must happen at schedule time belongs inside a `runOnce` or `run` body.
 
 **`runOnce` steps end immediately.** A sequence of nothing but `runOnce` commands finishes in a single loop and commands the last setpoint straight away. The `waitUntil` between steps is what makes a sequence take time.
 
 </RulesBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/commandbased/command-compositions.html", "note": "Sequential, parallel, race and deadline compositions; requirement rules."},
+  {"source": "wpilib", "path": "docs/software/commandbased/index.html", "note": "Command-based index."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Commands.html", "note": "<code>sequence</code>, <code>parallel</code>, <code>race</code>, <code>deadline</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "Compositions built from subsystem factories."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/autonomous/AutonomousManager.java", "note": "Auto routines as compositions."}
+]} />
 
 <LinkGrid links={[{"label":"Commands","id":"commands"},{"label":"Subsystems","id":"subsystems"},{"label":"WPILib Command-Based","url":"https://docs.wpilib.org/en/stable/docs/software/commandbased/index.html"},{"label":"Command Groups Documentation","url":"https://docs.wpilib.org/en/stable/docs/software/commandbased/command-groups.html"}]} title="Resources" section="frc" />

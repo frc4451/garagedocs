@@ -5,9 +5,9 @@ section: java
 group: java-oop
 groupLabel: "Object-Oriented Programming"
 groupOrder: 4
-order: 6
+order: 7
 difficulty: intermediate
-duration: 25 min
+duration: 30 min
 description: Declaring a method every subclass must supply, sharing real code alongside it, and preventing a half-finished class from being instantiated.
 ---
 
@@ -19,7 +19,7 @@ You could give the parent an empty method and hope subclasses remember to overri
 
 ```java
 class Subsystem {
-    void periodic() { }         // does nothing — easy to forget to override
+    void periodic() { }         // does nothing; easy to forget to override
 }
 ```
 
@@ -33,9 +33,9 @@ abstract class Subsystem {
         this.name = name;
     }
 
-    abstract void periodic();       // no body — subclasses must supply one
+    abstract void periodic();       // no body; subclasses must supply one
 
-    void describe() {               // ordinary method — inherited as usual
+    void describe() {               // ordinary method, inherited as usual
         System.out.println("subsystem: " + name);
     }
 }
@@ -58,20 +58,20 @@ Omit `periodic` in `Intake` and the code will not compile. The requirement is en
 
 ### Abstract classes cannot be instantiated
 
-```java
+```java norun
 Subsystem s = new Subsystem("thing");   // compile error
 Subsystem s = new Intake();             // fine
 ```
 
-This is the other half of the point. A `Subsystem` with no `periodic` is not a usable object, so Java refuses to create one. You can still *use* the type as a variable, parameter, or return type — you just cannot construct it directly.
+This is the other half of the point. A `Subsystem` with no `periodic` is not a usable object, so Java refuses to create one. You can still use the type as a variable, parameter, or return type. You cannot construct it directly.
 
 <RulesBox title="The two effects of `abstract`">
 
 **On a method:** no body, and every concrete subclass must provide one.
 
-**On a class:** cannot be instantiated. Required if the class has any abstract method, but also usable on its own when you simply want to prevent direct construction.
+**On a class:** cannot be instantiated. Required if the class has any abstract method, but also usable on its own when you want to prevent direct construction.
 
-A class with an abstract method *must* be declared abstract. The reverse is not true — an abstract class may have no abstract methods at all.
+A class with an abstract method *must* be declared abstract. The reverse is not true: an abstract class may have no abstract methods at all.
 
 </RulesBox>
 
@@ -88,12 +88,12 @@ abstract class Subsystem {
         this.name = name;
     }
 
-    // concrete — shared by every subclass
+    // concrete: shared by every subclass
     void enable()  { enabled = true; }
     void disable() { enabled = false; }
     boolean isEnabled() { return enabled; }
 
-    // abstract — each subclass decides
+    // abstract: each subclass decides
     abstract void periodic();
 
     // concrete, but built on the abstract part
@@ -107,13 +107,13 @@ abstract class Subsystem {
 
 `update` is interesting: it is finished code in the parent that calls a method the parent has not written. The parent controls *when* the work happens; the subclass controls *what* the work is.
 
-Marking `update` as `final` means subclasses cannot change that ordering — they can only fill in `periodic`. That combination, a fixed skeleton with subclass-supplied steps, is a common and useful shape.
+Marking `update` as `final` means subclasses cannot change that ordering; they can only fill in `periodic`. That combination, a fixed skeleton with subclass-supplied steps, is a common and useful shape.
 
 ### Partial implementations
 
 An abstract class may extend another abstract class and implement only some of the inherited abstract methods, leaving the rest for further subclasses:
 
-```java
+```java norun
 abstract class Subsystem {
     abstract void periodic();
     abstract void stop();
@@ -128,7 +128,7 @@ abstract class MotorSubsystem extends Subsystem {
     void stop() {                    // supplied here for all motor subsystems
         motor.set(0);
     }
-    // periodic() left abstract — still each subclass's job
+    // periodic() left abstract; still each subclass's job
 }
 
 class Intake extends MotorSubsystem {
@@ -139,7 +139,7 @@ class Intake extends MotorSubsystem {
 }
 ```
 
-`MotorSubsystem` is still abstract because `periodic` remains unimplemented — but it has removed duplication for everything below it.
+`MotorSubsystem` is still abstract because `periodic` remains unimplemented, but it has removed duplication for everything below it.
 
 ### Abstract class or interface
 
@@ -149,7 +149,7 @@ Both let you write code against a type rather than a specific class. The distinc
   headers={["", "Abstract class", "Interface"]}
   rows={[
     ["How many can a class have?", "One", "Many"],
-    ["Instance fields", "Yes", "No &mdash; constants only"],
+    ["Instance fields", "Yes", "No; constants only"],
     ["Constructors", "Yes", "No"],
     ["Method bodies", "Yes", "Yes, via <code>default</code>"],
     ["Private / protected members", "Yes", "Mostly public"],
@@ -159,7 +159,7 @@ Both let you write code against a type rather than a specific class. The distinc
 
 <RulesBox title="Choosing between them">
 
-Use an **abstract class** when subclasses share **state** — fields, a constructor, or partially-finished behaviour that operates on those fields.
+Use an **abstract class** when subclasses share **state**: fields, a constructor, or partially-finished behaviour that operates on those fields.
 
 Use an **interface** when you are describing a **capability** that unrelated classes might have, or when a class needs to fill several roles at once.
 
@@ -169,7 +169,7 @@ When both would work, prefer the interface. Single inheritance is a scarce resou
 
 ### A template method
 
-The `update`/`periodic` split above has a name — the template method pattern. The parent defines the sequence; subclasses fill in steps.
+The `update`/`periodic` split above has a name, the template method pattern. The parent defines the sequence; subclasses fill in steps.
 
 ```java
 abstract class AutoRoutine {
@@ -197,11 +197,13 @@ Distinguishing required steps (`abstract`) from optional hooks (concrete, empty)
 - **An abstract method in a non-abstract class.** The class must be abstract too.
 - **Trying to instantiate an abstract class.**
 - **Forgetting a subclass is still abstract** if it leaves any abstract method unimplemented.
-- **`private abstract`** — contradictory, since a private method cannot be overridden. It does not compile.
+- **`private abstract`** is contradictory, since a private method cannot be overridden. It does not compile.
 - **Calling an abstract method from the constructor.** The subclass's version runs before its fields are initialised.
 - **Using an abstract class where an interface would do**, spending the one inheritance slot for nothing.
 
 </RulesBox>
+
+<JavaPlayground id="java-abstract-classes" />
 
 <ExerciseBox title="Practice">
 
@@ -231,6 +233,15 @@ Distinguishing required steps (`abstract`) from optional hooks (concrete, empty)
     { "label": "Runtime Polymorphism", "id": "java-runtime-polymorphism" }
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "dev-java", "path": "inheritance/abstract-classes/", "note": "Abstract classes and methods."},
+  {"source": "jls", "path": "jls-8.html", "note": "Abstract classes and methods (sections 8.1.1.1, 8.4.3.1)."},
+  {"url": "https://en.wikipedia.org/wiki/Template_method_pattern", "label": "Wikipedia: Template method pattern", "note": "The <code>update</code>/<code>periodic</code> shape."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."}
+]} />
 
 <LinkGrid
   title="Related"

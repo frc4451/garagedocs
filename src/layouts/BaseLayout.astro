@@ -5,9 +5,12 @@ import HeaderBehavior from '@/components/layout/HeaderBehavior.astro';
 import Sidebar from '@/components/layout/Sidebar.astro';
 import SidebarBehavior from '@/components/layout/SidebarBehavior.astro';
 import KeyboardShortcuts from '@/components/layout/KeyboardShortcuts.astro';
+import PreferencesDrawer from '@/components/islands/PreferencesDrawer.astro';
 import Search from '@/components/layout/Search.astro';
 import { siteConfig } from '@/config/navigation';
 import { withBase } from '@/lib/url';
+import { CHEERPJ_LOADER, ECJ_FILENAME } from '@/lib/java-playground/constants';
+import { LAUNCHER_FILENAME, playgroundPublicUrl } from '@/lib/java-playground/assets';
 import type { SidebarGroup } from '@/lib/content';
 
 interface Props {
@@ -17,6 +20,8 @@ interface Props {
   sidebarGroups?: SidebarGroup[];
   showSidebar?: boolean;
   canonical?: string;
+  /** Java lessons hydrate runnable examples; warm the runtime fetches early. */
+  javaExamples?: boolean;
 }
 
 const {
@@ -26,11 +31,14 @@ const {
   sidebarGroups = [],
   showSidebar = false,
   canonical,
+  javaExamples = false,
 } = Astro.props;
 
 const fullTitle = title === siteConfig.title ? title : `${title} | Mantik`;
 const canonicalUrl = canonical ?? new URL(withBase(currentPath), siteConfig.url).href;
 const ogImageUrl = new URL(withBase(siteConfig.brand.ogImage), siteConfig.url).href;
+const ecjHref = playgroundPublicUrl(ECJ_FILENAME);
+const launcherHref = playgroundPublicUrl(LAUNCHER_FILENAME);
 ---
 
 <!doctype html>
@@ -78,11 +86,30 @@ const ogImageUrl = new URL(withBase(siteConfig.brand.ogImage), siteConfig.url).h
 
     <link rel="icon" href={withBase(siteConfig.brand.iconLight)} type="image/svg+xml" />
 
+    {javaExamples && <link rel="preconnect" href="https://cjrtnc.leaningtech.com" />}
+    {javaExamples && <link rel="preload" as="script" href={CHEERPJ_LOADER} crossorigin="anonymous" />}
+    {javaExamples && <link rel="preload" as="fetch" href={ecjHref} crossorigin="anonymous" />}
+    {javaExamples && <link rel="preload" as="fetch" href={launcherHref} crossorigin="anonymous" />}
+
     <script is:inline>
+      /* Reader preferences, applied before first paint so nothing flashes.
+         Mirrors src/lib/prefs.ts (which cannot be imported inline). */
       (function () {
-        var t = localStorage.getItem('mantik-theme');
-        if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches))
-          document.documentElement.setAttribute('data-theme', 'dark');
+        var h = document.documentElement, p = {};
+        try {
+          var raw = localStorage.getItem('mantik-prefs');
+          if (raw) p = JSON.parse(raw) || {};
+          else { var t = localStorage.getItem('mantik-theme'); if (t === 'light' || t === 'dark') p.theme = t; }
+        } catch (e) {}
+        var ok = function (v, list, d) { return list.indexOf(v) >= 0 ? v : d; };
+        var theme = ok(p.theme, ['system', 'light', 'dark'], 'system');
+        if (theme === 'system') theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        h.setAttribute('data-theme', theme);
+        h.style.colorScheme = theme;
+        h.setAttribute('data-text', ok(p.text, ['sm', 'md', 'lg', 'xl'], 'md'));
+        h.setAttribute('data-spacing', ok(p.spacing, ['normal', 'relaxed'], 'normal'));
+        h.setAttribute('data-contrast', ok(p.contrast, ['normal', 'high'], 'normal'));
+        h.setAttribute('data-motion', ok(p.motion, ['system', 'reduce'], 'system'));
       })();
     </script>
   </head>
@@ -100,6 +127,7 @@ const ogImageUrl = new URL(withBase(siteConfig.brand.ogImage), siteConfig.url).h
 
     <KeyboardShortcuts />
     <Search />
+    <PreferencesDrawer />
     <HeaderBehavior />
     <SidebarBehavior />
 

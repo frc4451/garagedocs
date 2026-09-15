@@ -7,7 +7,7 @@ groupLabel: Command-Based Programming
 groupOrder: 3
 order: 7
 difficulty: intermediate
-duration: 45 min
+duration: 20 min
 description: Package layout, constants, and naming conventions for a command-based project that stays readable through a season.
 unlisted: true
 ---
@@ -18,15 +18,15 @@ A command-based project separates three concerns:
 
 **Subsystems:** Physical hardware (drivetrain, intake, shooter) and the methods that control it.
 
-**Commands:** Actions and logic — what to do and when.
+**Commands:** Actions and logic: what to do and when.
 
-**RobotContainer:** Setup and wiring — subsystem construction, button bindings, the auto chooser.
+**RobotContainer:** Setup and wiring: subsystem construction, button bindings, the auto chooser.
 
 [WPILib Guide](https://docs.wpilib.org/en/stable/docs/software/commandbased/structuring-command-based-project.html)
 
 ### Directory Layout
 
-Give each subsystem its own **package**, not just its own file. Simple projects sometimes put every subsystem directly in `subsystems/`, and that works until a subsystem grows past one class — at which point hardware abstractions, simulation implementations, and helpers all pile into one directory with no indication of what belongs to what.
+Give each subsystem its own **package**, not just its own file. Simple projects sometimes put every subsystem directly in `subsystems/`, and that works until a subsystem grows past one class. At that point hardware abstractions, simulation implementations, and helpers all pile into one directory with no indication of what belongs to what.
 
 ```
 src/main/java/frc/robot/
@@ -49,7 +49,7 @@ src/main/java/frc/robot/
 │   └── vision/
 │       ├── Vision.java
 │       ├── VisionIO.java
-│       └── VisionIOLimelight.java
+│       └── VisionIOPhoton.java
 ├── commands/                  // Multi-subsystem commands only
 │   ├── DriveCommands.java
 │   └── SmartShootCommand.java
@@ -60,7 +60,7 @@ src/main/java/frc/robot/
 
 <RulesBox title="Note what is not in commands/">
 
-There is no `RunIntakeCommand` and no `SetShooterSpeedCommand`. Single-subsystem actions are **factory methods on the subsystem itself** — see [Commands](/frc/commands).
+There is no `RunIntakeCommand` and no `SetShooterSpeedCommand`. Single-subsystem actions are **factory methods on the subsystem itself**; see [Commands](/frc/commands#subsystem-command-factories).
 
 The `commands/` package holds only commands that coordinate several subsystems and cannot be written as a factory. Keeping it small is the point: everything the intake can do lives in `Intake.java`, so you find it by opening one file instead of searching a directory.
 
@@ -74,7 +74,7 @@ Use a `Constants` class so no CAN ID or setpoint is ever typed twice. Organize i
 package frc.robot;
 
 public final class Constants {
-    // Runtime mode — see Simulation Basics
+    // Runtime mode; see Simulation First
     public static final Mode currentMode = RobotBase.isReal() ? Mode.REAL : simMode;
     public static final boolean tuningMode = true;
 
@@ -110,7 +110,7 @@ public class Intake extends SubsystemBase {
     TalonFX pivot = new TalonFX(INTAKE_PIVOT_MOTOR_PORT);
 ```
 
-Not `Constants.IntakeConstants.INTAKE_PIVOT_MOTOR_PORT` on every line. The static import is what makes the short form legal — and it is also why constant names should be long and specific. `INTAKE_PIVOT_MOTOR_PORT` is unambiguous once imported into a file; `PORT` would not be.
+Not `Constants.IntakeConstants.INTAKE_PIVOT_MOTOR_PORT` on every line. The static import is what makes the short form legal, and it is also why constant names should be long and specific. `INTAKE_PIVOT_MOTOR_PORT` is unambiguous once imported into a file; `PORT` would not be.
 
 ### Naming Conventions
 
@@ -122,7 +122,7 @@ Not `Constants.IntakeConstants.INTAKE_PIVOT_MOTOR_PORT` on every line. The stati
     ["Fields", "Plain names, no prefix", "<code>pivot</code>, <code>conveyor</code>, <code>rightShooter</code>"],
     ["Subsystem classes", "The mechanism name", "<code>Intake</code>, <code>Shooter</code>, <code>Drive</code>"],
     ["IO interfaces", "Subsystem + <code>IO</code>", "<code>ModuleIO</code>, <code>GyroIO</code>, <code>VisionIO</code>"],
-    ["IO implementations", "Interface + hardware", "<code>ModuleIOTalonFX</code>, <code>VisionIOLimelight</code>"],
+    ["IO implementations", "Interface + hardware", "<code>ModuleIOTalonFX</code>, <code>VisionIOPhoton</code>"],
     ["Command factories", "Verb + <code>Command</code>", "<code>deployAndIntakeCommand()</code>"],
     ["Log keys", "Slash-separated paths", "<code>\"Intake/Position\"</code>, <code>\"Shooter/leftVelocity\"</code>"],
     ["Indentation", "2 spaces", "&mdash;"]
@@ -181,7 +181,7 @@ public class Conveyor extends SubsystemBase {
 
 - **One subsystem per package.** The package holds the subsystem plus any IO interfaces it needs.
 - **All IDs and setpoints from `Constants`,** static-imported.
-- **Configure in the constructor,** and retry the apply — see [Subsystems](/frc/subsystems).
+- **Configure in the constructor,** and retry the apply; see [Subsystems](/frc/subsystems#configuration-can-fail-silently).
 - **Simple methods.** The subsystem knows *how*; commands decide *when*.
 - **Command factories belong here.** A single-subsystem action is a method on the subsystem, not a class elsewhere.
 - **Keep `periodic()` nearly empty.** Logging and safety checks only; behaviour lives in commands.
@@ -199,7 +199,7 @@ public double getIntakePosition() {
 }
 ```
 
-Log viewers such as AdvantageScope build their tree from the slashes, so `Intake/Position` and `Intake/velocity` group together automatically. Start every key with the subsystem name and stay consistent — a key nobody can find during a match may as well not have been recorded.
+Log viewers such as AdvantageScope build their tree from the slashes, so `Intake/Position` and `Intake/velocity` group together automatically. Start every key with the subsystem name and stay consistent. A key nobody can find during a match may as well not have been recorded.
 
 ### RobotContainer
 
@@ -219,7 +219,7 @@ public class RobotContainer {
     private final LoggedDashboardChooser<Command> autoChooser;
 
     public RobotContainer() {
-        drive = new Drive(/* IO implementations — see Simulation Basics */);
+        drive = new Drive(/* IO implementations; see Physics in the IO Layer */);
         intake = new Intake();
         shooter = new Shooter();
 
@@ -248,7 +248,7 @@ public class RobotContainer {
 <RulesBox title="RobotContainer Guidelines" subtitle="Organization rules:">
 
 - **Group by function:** separate methods for bindings, named commands, and auto setup.
-- **No loop logic.** Configuration only — behaviour belongs in commands.
+- **No loop logic.** Configuration only; behaviour belongs in commands.
 - **Every subsystem gets a default command,** or it never stops.
 - **Bind factories directly.** `intake.deployAndIntakeCommand()` reads better than `new DeployAndIntakeCommand(intake)`.
 - **Provide `getAutonomousCommand()`.**
@@ -273,7 +273,7 @@ public class PhoenixUtil {
 }
 ```
 
-Others worth having: deadband and clamp helpers, a tunable-constant wrapper (see [Tunable Constants and Characterization](/frc/tunable-constants)), and a logged pathfinder wrapper if you use PathPlanner with AdvantageKit.
+Others worth having: deadband and clamp helpers, a tunable-constant wrapper (see [Tunable Constants and Characterization](/frc/tunable-constants#declaring-a-tunable)), and a logged pathfinder wrapper if you use PathPlanner with AdvantageKit.
 
 <RulesBox title="General Organization Rules" subtitle="Best practices:">
 
@@ -285,5 +285,29 @@ Others worth having: deadband and clamp helpers, a tunable-constant wrapper (see
 - **Descriptive names.** `INTAKE_PIVOT_DOWN` beats `POS_2`.
 
 </RulesBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/commandbased/structuring-command-based-project.html", "note": "The default project layout."},
+  {"source": "wpilib", "path": "docs/software/commandbased/organizing-command-based.html", "note": "Where to put what."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Main.java", "note": "Entry point."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "Lifecycle and logging."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "Wiring."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "Global constants and mode."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/generated/TunerConstants.java", "note": "Generated constants kept apart from hand-written ones."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "A subsystem folder with IO variants."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIO.java", "note": "IO interface."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOTalonFX.java", "note": "Real IO."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOSim.java", "note": "Sim IO."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/GyroIO.java", "note": "Gyro IO interface."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/GyroIOPigeon2.java", "note": "Gyro IO, real."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/commands/DriveCommands.java", "note": "Commands that belong to no subsystem."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "A mechanism subsystem."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/IntakeConstants.java", "note": "Per-mechanism constants next to the subsystem."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "A second mechanism subsystem."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/ShooterConstants.java", "note": "Its constants."},
+  {"source": "cobra", "path": "src/main/java/org/littletonrobotics/FieldConstants.java", "note": "Field geometry in its own package."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/util/PhoenixUtil.java", "note": "Shared utilities."},
+  {"source": "cobra", "path": "src/main/java/org/littletonrobotics/LoggedTunableNumber.java", "note": "Shared utilities from Team 6328."}
+]} />
 
 <LinkGrid links={[{"label":"Subsystems","id":"subsystems"},{"label":"Commands","id":"commands"},{"label":"Hardware Abstraction with IO Layers","id":"io-layer"},{"label":"Command-Based Intro","id":"intro-to-command-based"}]} title="Resources" section="frc" />

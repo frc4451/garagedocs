@@ -1,0 +1,186 @@
+---
+title: "Setting a Static IP"
+lessonId: static-ip
+section: tools
+group: networking
+groupLabel: "Networking"
+groupOrder: 2
+order: 2
+difficulty: beginner
+description: "Set a static IPv4 address on Windows, macOS, or Linux, verify it, and restore DHCP afterward."
+---
+
+### When you need one
+
+Use a static address when the network plan requires one, such as a direct connection to a device on a fixed subnet. A `169.254.x.x` address can indicate that DHCP did not supply a lease, but link-local addressing can also be intentional. Confirm the expected configuration before changing it.
+
+- **Nothing is handing them out.** A laptop on a cable straight to a device, with no router in between. The symptom is a `169.254.x.x` address. [How a Network Works](/tools/how-a-network-works#addresses) explains why.
+- **Other devices need to find you by number.** A dashboard on the laptop that a device pushes data to.
+- **The network's DHCP is unreliable** and you would rather not wait for it.
+
+Get the address, subnet mask, and any gateway or DNS settings from the network administrator or device documentation.
+
+<ContentTable
+  headers={["Setting", "What it is", "Example"]}
+  rows={[
+    ["<strong>IP address</strong>", "The address you are claiming. Must be on the same network as the device you want to reach, and not already in use", "<code>10.0.0.20</code>"],
+    ["<strong>Subnet mask</strong>", "Must match what the other devices use. Some screens ask for prefix length instead: <code>255.255.255.0</code> is <code>24</code>, <code>255.0.0.0</code> is <code>8</code>", "<code>255.255.255.0</code> / <code>24</code>"],
+    ["<strong>Gateway</strong> (router)", "Where to send packets for other networks. On a cable straight to one device there is none, so leave it blank", "<code>10.0.0.1</code> or blank"]
+  ]}
+/>
+
+DNS may be needed for local names even without internet access. Use the server specified for the network; leave it unset for an isolated connection that uses addresses only.
+
+The example below uses `10.0.0.20 / 255.255.255.0`. Substitute the numbers for your network. For an FRC robot, [The Robot Network](/frc/robot-network#which-device-owns-which-address) has them.
+
+### Which connection
+
+Select the adapter connected to the network you intend to configure. Record its current settings first so you can restore them. Changing the address can interrupt an active connection.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+Get-NetAdapter                    # Name and Status of every adapter; note the Name you want
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+networksetup -listallnetworkservices    # macOS: service names, e.g. "Ethernet", "USB 10/100/1000 LAN"
+nmcli connection show                   # Linux: connection names and the device each one uses
+```
+
+</CodeTab>
+</CodeTabs>
+
+The commands in the rest of this page are specific to one operating system, so each section shows only its own.
+
+### Windows
+
+**Settings.** *Settings → Network & internet → Ethernet* (or *Wi-Fi → the network's properties*). Find **IP assignment**, click *Edit*, switch from *Automatic (DHCP)* to *Manual*, turn **IPv4** on, and fill in IP address, subnet mask (older builds ask for prefix length instead), and gateway. Save.
+
+**PowerShell**, in a window started with *Run as administrator*:
+
+```powershell
+# PrefixLength 24 = 255.255.255.0; use 8 for 255.0.0.0.
+# Add -DefaultGateway 10.0.0.1 if the network has a router.
+New-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 10.0.0.20 -PrefixLength 24
+
+# Check it took:
+Get-NetIPAddress -InterfaceAlias "Ethernet" -AddressFamily IPv4
+```
+
+If the address already exists, inspect the adapter's current IPv4 settings before adding or removing an address. Use the GUI to replace an old static configuration when that is clearer.
+
+### macOS
+
+**System Settings.** *System Settings → Network → the connection → Details… → TCP/IP*. Change **Configure IPv4** from *Using DHCP* to *Manually*, fill in IP address, subnet mask and router (blank if there is none). *OK*, then *Apply* if asked.
+
+For a connection without a router, use the settings screen and leave Router blank. The following Terminal example assumes the network has a router at `10.0.0.1`.
+
+**Terminal:**
+
+```bash
+# Service name from networksetup -listallnetworkservices. The router argument is
+# shown below is a router at 10.0.0.1. Do not use a device address as a substitute router.
+sudo networksetup -setmanual "Ethernet" 10.0.0.20 255.255.255.0 10.0.0.1
+
+# Check it took (en0 is usually the built-in port; a USB adapter may be en5 or higher):
+ifconfig | grep "inet "
+```
+
+### Linux
+
+These Linux instructions require **NetworkManager**. If your system uses a different network manager, use its documentation.
+
+**Settings.** *Settings → Network → the gear next to the connection → IPv4*. Change **IPv4 Method** to *Manual*, add the address with its netmask and (optionally) gateway, *Apply*, then toggle the connection off and on.
+
+**Terminal:**
+
+```bash
+# Connection name from nmcli connection show. The /24 is the mask (use /8 for 255.0.0.0).
+sudo nmcli connection modify "Wired connection 1" ipv4.method manual ipv4.addresses 10.0.0.20/24 ipv4.gateway ""
+# Replace the empty gateway with 10.0.0.1 if that is the network's router.
+sudo nmcli connection up "Wired connection 1"
+
+# Check it took:
+ip addr
+```
+
+### Check it worked
+
+Check the adapter settings, then test a device whose address you know:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+ipconfig                    # the adapter should now show your address and mask
+ping 10.0.0.5               # the device you set this up to reach
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+ifconfig                    # macOS; on Linux:  ip addr
+ping -c 4 10.0.0.5          # the device you set this up to reach
+```
+
+</CodeTab>
+</CodeTabs>
+
+If ping fails, continue with [Network diagnostics](/tools/network-diagnostics#rung-2-can-i-reach-anything). A correct displayed address does not rule out local routing or firewall problems, and some devices do not answer ping.
+
+### Back to DHCP
+
+Restore the previous configuration when you finish. If the adapter normally uses DHCP, use the following procedure. Keep any intentional static configuration documented rather than replacing it automatically.
+
+**Windows:** *IP assignment → Edit → Automatic (DHCP)*, or in an administrator PowerShell:
+
+```powershell
+Remove-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 10.0.0.20 -Confirm
+# Only if you added this default gateway:
+# Remove-NetRoute -InterfaceAlias "Ethernet" -DestinationPrefix "0.0.0.0/0" -NextHop 10.0.0.1 -Confirm
+Set-NetIPInterface -InterfaceAlias "Ethernet" -AddressFamily IPv4 -Dhcp Enabled
+ipconfig /renew
+```
+
+**macOS:** *Configure IPv4 → Using DHCP*, or:
+
+```bash
+sudo networksetup -setdhcp "Ethernet"
+```
+
+**Linux:** *IPv4 Method → Automatic (DHCP)*, or:
+
+```bash
+sudo nmcli connection modify "Wired connection 1" ipv4.method auto ipv4.addresses "" ipv4.gateway ""
+sudo nmcli connection up "Wired connection 1"
+```
+
+<RulesBox title="Common mistakes">
+
+- **Setting it on the wrong adapter.** Wi-Fi instead of Ethernet, or the built-in port instead of the USB adapter that is actually plugged in. Check the adapter list first.
+- **An incorrect mask.** Compare the configured mask with the network plan.
+- **An address already in use.** Check the allocation record. A ping reply shows something is using the address, but no reply does not prove it is free.
+- **Leaving temporary settings in place.** Restore and verify the previous configuration before leaving.
+- **Unexpected extra addresses.** Inspect the adapter configuration and remove only settings you intend to replace.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "powershell", "path": "module/nettcpip/new-netipaddress", "note": "<code>New-NetIPAddress</code>: setting a static address from PowerShell."},
+  {"source": "powershell", "path": "module/nettcpip/get-netipaddress", "note": "Checking the result."},
+  {"url": "https://support.apple.com/guide/mac-help/change-tcp-ip-settings-mchlp2718/mac", "label": "macOS: change TCP/IP settings", "note": "Static addressing in System Settings."},
+  {"url": "https://man7.org/linux/man-pages/man8/ip.8.html", "label": "Linux man page: ip", "note": "<code>ip addr add</code> on Linux."},
+  {"source": "wpilib", "path": "docs/networking/networking-introduction/ip-configurations.html", "note": "The <code>10.TE.AM.5</code> / <code>255.0.0.0</code> convention."}
+]} />
+
+<LinkGrid title="Next" section="tools" links={[
+  {"label":"Network Diagnostics","id":"network-diagnostics"},
+  {"label":"How a Network Works","id":"how-a-network-works"},
+  {"label":"FRC: The Robot Network","url":"/frc/robot-network#which-device-owns-which-address"}
+]} />

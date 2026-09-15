@@ -1,0 +1,101 @@
+---
+title: "A21: Scouting CSV"
+lessonId: a21-scouting-csv
+section: assignments
+group: objects
+groupLabel: "Track 2 — Objects"
+groupOrder: 2
+order: 21
+difficulty: advanced
+duration: 90 min
+description: Write scouting rows to a file and read them back unchanged, including the notes with commas in them.
+---
+
+**Topic:** reading and writing CSV, parsing lines, try-with-resources, defensive line handling.
+**Cites:** [Try/Catch](/java/java-try-catch), [Arrays](/java/java-arrays).
+**Difficulty:** medium–hard. **Estimated time:** 90 minutes.
+
+### Scenario
+
+Scouting data outlives the laptop it was typed into. CSV is how it gets from a tablet
+in the stands to a spreadsheet in the pit to your pick-list program, and it is a format
+that looks trivial until the first scout writes *"fast, but tips on defence"* in the
+notes column.
+
+Two lessons hide in here: escaping, and refusing to lose 40 good rows because row 12
+is broken.
+
+### What to build
+
+**`TeamEntry`** holding `teamNumber`, `teamName`, `drivetrain`, `avgPoints`,
+`climbsHigh` and `notes`. Validate in the constructor: `avgPoints` not negative, and
+`drivetrain` one of `TANK`, `MECANUM`, `SWERVE`, `OTHER`.
+
+**`CsvIO`** with two static methods:
+
+```java
+public static void writeAll(String path, TeamEntry[] entries) throws IOException;
+public static TeamEntry[] readAll(String path) throws IOException;
+```
+
+**Writing** — open with try-with-resources, write the header
+`teamNumber,teamName,drivetrain,avgPoints,climbsHigh,notes`, then one line per entry.
+**Escape `notes`** when it contains a comma or a quote: wrap it in `"..."` and double
+any internal `"`. Only `notes` needs it; the other fields are simple by construction.
+
+**Reading** — skip the header, parse each line honouring those quotes, and when a line
+is malformed, **print a warning and skip it** rather than abandoning the load.
+
+<RulesBox title="How the browser version differs" items={[
+  "The full assignment builds on the records from <a href=\"/assignments/a18-records\">A18</a>. The starter uses a plain class so the <code>toString</code> the checks compare stays visible, but records work in the editor if you would rather rewrite it.",
+  "Print skip warnings with <code>System.out</code>, not <code>System.err</code>. The checker treats anything on stderr as a crashed program, so a correct solution that warns on stderr would look like a failure.",
+  "<code>main</code> and <code>dataDir</code> are written for you. <code>dataDir</code> picks a directory writable both locally and in the in-page editor."
+]} />
+
+
+<RulesBox title="Plan it as sessions" items={[
+  "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>All four rows survive the round trip</em>, <em>A comma inside notes does not split the row</em>, <em>A quote inside notes survives escaping</em>.",
+  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Nothing changes across the round trip</em>, <em>Bad rows are skipped, good ones still load</em>."
+]} />
+
+<JavaPlayground id="a21-scouting-csv" />
+
+<RulesBox title="Hints" items={[
+  "<strong><code>split(\",\")</code> cannot do this.</strong> It has no idea which commas are inside quotes. Walk the line character by character with an <code>inQuotes</code> flag: a comma splits only when the flag is false. It is about fifteen lines and it is the heart of the assignment.",
+  "<strong>A doubled quote is one quote.</strong> Inside a quoted field, <code>\"\"</code> means a literal <code>\"</code>. When you meet a quote while inside quotes, peek at the next character: another quote means append one and skip ahead, anything else means the field ended.",
+  "<strong>Escape on the way out, unescape on the way in.</strong> They are mirror images, and a round trip is the test — write, read, compare every field. If a value survives one trip it will survive a hundred.",
+  "<strong>One bad row is not a bad file.</strong> Wrap the parse of <em>each line</em> in its own try/catch, warn, and carry on with the next. Wrapping the whole loop instead throws away everything after the first problem."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Functionality", "60", "Header written and skipped on read. Every entry survives a round trip with all six fields intact. Both methods use try-with-resources."],
+    ["Edge cases", "15", "Notes containing a comma and notes containing a quote both round-trip. A short row, an unknown drivetrain and a negative score are each skipped with a warning while the valid rows still load."],
+    ["Code quality", "20", "Escaping and unescaping are their own methods rather than inline. The per-line try/catch is around one line, not the whole loop. Validation lives in the constructor."],
+    ["Comments", "5", "Author header, and a note on which CSV rules you chose to support and which you deliberately did not."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Handle a newline *inside* a quoted field, which real CSV permits. This changes the
+  shape of the reader: you can no longer assume one row is one line.
+- Add `appendAll` that adds rows to an existing file without rewriting it, and work out
+  what has to be true about the header for that to be safe.
+
+### References
+
+- JavaDoc: [`java.io.PrintWriter`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/io/PrintWriter.html)
+- RFC 4180: [Common Format for CSV Files](https://www.rfc-editor.org/rfc/rfc4180)
+- Wikipedia: [Comma-separated values](https://en.wikipedia.org/wiki/Comma-separated_values)
+
+<Sources items={[
+  {"source": "csce146", "note": "String parsing."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>split</code>, <code>trim</code>, <code>strip</code>."},
+  {"source": "dev-java", "path": "numbers-strings/strings/", "note": "Strings."},
+  {"source": "dev-java", "path": "numbers-strings/string-builders/", "note": "<code>StringBuilder</code>."}
+]} />

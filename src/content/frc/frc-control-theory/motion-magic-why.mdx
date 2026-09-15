@@ -1,0 +1,151 @@
+---
+title: "Why Motion Magic: Profiles Before Gains"
+lessonId: motion-magic-why
+section: frc
+group: frc-control-theory
+groupLabel: "Control Theory"
+groupOrder: 4
+order: 5
+difficulty: advanced
+duration: 35 min
+description: "What goes wrong when a PID loop is handed a step, and what a motion profile fixes: trapezoidal, S-curve, Expo and velocity profiles as the TalonFX generates them, what each gain does once a profile is in charge, the configs that shape the profile, the reference signals to watch in AdvantageScope, and the numbers Cobra actually runs."
+---
+
+Every closed-loop lesson so far has said "use Motion Magic" and moved on. This one is the reason. It matters because the choice between a plain position loop and a profiled one is not a tuning detail. It changes what the gains mean, what the mechanism experiences, and whether a number tuned on Tuesday still works on Saturday with a tired battery.
+
+### What a step does to a PID loop
+
+Give a position loop a new target 50 rotations away. At the first loop the error is 50 rotations; the output is `kP × 50`, which for any useful kP is the rail. The controller commands maximum output until the error is small enough for `kP × error` to drop below the rail, then it is a PID loop for the last little bit.
+
+Everything bad about that is visible on a graph:
+
+- **The whole move is open-loop.** From the first millisecond to the last few rotations the output is saturated, so the loop has no authority. It is not controlling the motion; it is waiting for the motion to end. The speed the mechanism reaches is whatever the motor and the battery allow that day.
+- **Overshoot is built in.** Arriving at full speed, the loop needs kD to brake, and kD large enough to stop a fast mechanism makes it jittery when slow. Every kP/kD pair is a compromise between "fast" and "does not overshoot".
+- **The current spike is the maximum the motor can draw.** Stall current at the start of every move means possible brownout on a big mechanism, a tripped breaker on a bad day, and the mechanical shock of full torque applied instantly to a chain or a belt.
+- **Time-to-target is not repeatable.** Battery at 12.8 V and battery at 11.9 V give different moves, so an autonomous routine tuned in the pit runs differently in a match.
+- **Feedforward cannot help.** kV and kA need a *velocity* and an *acceleration* to multiply; a step setpoint has neither. All the work falls on feedback.
+
+### What a profile fixes
+
+A **motion profile** is a plan: instead of handing the loop the final target, generate a sequence of intermediate setpoints (position, velocity, acceleration at every millisecond) that gets from here to there within limits you chose. The loop then tracks a target that is always close, so its error is small, its output is moderate, and it is in control for the whole move.
+
+<ContentTable
+  headers={["", "Step to a PID loop", "Motion profile + loop"]}
+  rows={[
+    ["Loop error during the move", "Large: the full remaining distance", "Small: the gap between where the profile says and where you are"],
+    ["Output", "Saturated, then a PID tail", "Mostly feedforward; feedback corrects the residual"],
+    ["Peak current", "Stall current at every start", "Set by the acceleration you chose"],
+    ["Speed", "Whatever the battery allows", "The cruise velocity you chose"],
+    ["Time to target", "Varies with battery, load, temperature", "Repeatable to the millisecond"],
+    ["Gains", "A compromise between fast and stable", "Stability only; speed is the profile's job"],
+    ["Feedforward", "Useless (no velocity/acceleration to feed)", "Does most of the work; kV and kA have something to multiply"]
+  ]}
+/>
+
+That last row is the one to internalise. Under a profile, **feedforward is the primary controller and PID is the error-correction**. If the mechanism is characterised well ([Tunable Constants and Characterization](/frc/tunable-constants#measure-feedforward-do-not-guess-it)), the profile's velocity times kV, plus its acceleration times kA, plus kS and kG, is very nearly the right output on its own. kP only has to handle what the model got wrong.
+
+### Motion Magic is the profile, generated on the controller
+
+You can generate a profile on the roboRIO with WPILib's `TrapezoidProfile` and feed a `ProfiledPIDController` at 50 Hz; the Kit Bot's simulated launcher does that in [`SingleRollerIOSim`](/frc/physics-sim-io#the-sim-io-pattern). **Motion Magic** is CTRE's implementation running inside the TalonFX at 1 kHz: the profile, the feedforward and the PID all execute on the controller, twenty times more often than the robot loop, with none of the CAN latency. You hand it the final target once; it does the rest and reports where it is in the plan through status signals.
+
+Four flavours of profile, all configured through `MotionMagicConfigs`:
+
+<ContentTable
+  headers={["Profile", "Shape", "Configured by", "Best for"]}
+  rows={[
+    ["<strong>Trapezoidal</strong> (Motion Magic)", "Accelerate at a fixed rate, cruise, decelerate at the same rate. Velocity vs time is a trapezoid", "<code>MotionMagicCruiseVelocity</code>, <code>MotionMagicAcceleration</code>", "Anything with a clear top speed and a mechanism that tolerates a sharp change in acceleration"],
+    ["<strong>S-curve</strong> (Motion Magic + jerk)", "The trapezoid's corners rounded: acceleration ramps up and down instead of switching", "…plus <code>MotionMagicJerk</code>", "Long arms, elevators with slop, anything that rattles when acceleration changes instantly. Costs a little time; raise acceleration to compensate"],
+    ["<strong>Expo</strong> (Motion Magic Expo)", "Exponential approach derived from the system's own kV and kA: fast where the motor has headroom, gentle where it does not", "<code>MotionMagicExpo_kV</code>, <code>MotionMagicExpo_kA</code>, optional cruise velocity", "Mechanisms whose achievable acceleration changes with speed, which is most of them. Less overshoot and less time than a trapezoid tuned to be safe everywhere"],
+    ["<strong>Velocity</strong> (Motion Magic Velocity)", "Profiles the <em>velocity</em> target: ramps at <code>MotionMagicAcceleration</code> instead of stepping", "<code>MotionMagicAcceleration</code> (and jerk)", "Flywheels and rollers: a spin-up that does not draw stall current, and a spin-down that does not fight itself"]
+  ]}
+/>
+
+The Expo profile's kV and kA are **separate from the slot gains** and deliberately so: they are in V/rps and V/(rps/s), they describe the profile's idea of what the system can do, and, unlike slot gains, it is safer to start them high (a slower profile) and lower them. Dividing the supply voltage by the Expo kV gives the profile's maximum velocity, which is why a cruise velocity is optional here: the profile already knows how fast the motor can go.
+
+### The numbers Cobra runs
+
+<ContentTable
+  headers={["Mechanism", "Request", "Profile settings", "Read it as"]}
+  rows={[
+    ["Shooter flywheel pair", "<code>MotionMagicVelocityTorqueCurrentFOC</code>; the un-profiled <code>VelocityTorqueCurrentFOC</code> line sits commented out beside it in <code>FollowRollersIOTalonFX</code>", "cruise 80 rps, acceleration 400 rps²", "Reach 80 rps in 0.2 s. The acceleration cap is what keeps a 2-Kraken spin-up from browning out the robot"],
+    ["Hood / end-effector pivot", "<code>MotionMagicVoltage</code> through <code>setGoal</code>. The CANcoder TalonFX IO also carries a <code>MotionMagicExpoTorqueCurrentFOC</code> for <code>setGoalTorque</code>, which Cobra's bindings do not call", "Hood: cruise 4 rps, acceleration 16 rps², jerk 64 rps³", "A trapezoid with a jerk limit on a short-travel pivot; Expo is available in the library and untested on these mechanisms"],
+    ["Swerve steer (<code>ModuleIOTalonFX</code>)", "<code>PositionVoltage</code>, which is <strong>not</strong> a Motion Magic request, even though <code>turnConfig.MotionMagic</code> is fully populated", "cruise = 100 / steer ratio rps, acceleration = cruise / 0.1 s, Expo kV = 0.12 × ratio, Expo kA = 0.1", "Those profile values are inert: a profile only runs when a <code>MotionMagic*</code> request is sent. Steer is a plain position loop with kP 100. Swapping the request for <code>MotionMagicExpoVoltage</code> would switch the configured profile on; that is an experiment for simulation"],
+    ["Elevator (library <code>Elevator</code>)", "<code>MotionMagicVoltage</code> / <code>MotionMagicTorqueCurrentFOC</code>", "cruise and acceleration in rotor-side rps", "Same rise time every match; kG holds it between moves"]
+  ]}
+/>
+
+Note the swerve steer acceleration: `cruise / 0.100` means "reach cruise in 100 ms". Writing the profile in terms of a time like that is a good habit, because it says what you are choosing.
+
+### What the gains mean under a profile
+
+With Motion Magic running, `Slot0Configs` gains have specific jobs, and tuning them in this order is the whole procedure:
+
+<StepsBox title="Tuning a profiled mechanism">
+
+1. **kS, kV, kA from characterization**, not by hand. [Tunable Constants](/frc/tunable-constants#measure-feedforward-do-not-guess-it). For torque-current output they are in amps; for voltage output, volts.
+2. **kG** for anything gravity acts on, with the right `GravityType`: <code>Elevator_Static</code> (constant) or <code>Arm_Cosine</code> (scaled by the cosine of the arm's angle, which needs the sensor's zero to be horizontal). Get this right before touching kP or the loop will "tune" gravity into the P term.
+3. **Set the profile** (cruise velocity and acceleration, or Expo kV/kA) from what the mechanism should do, not from what it can. Start slower than you want.
+4. **kP** until the measured line sits on the profile's reference line in AdvantageScope. If the feedforward is right, kP is small; if you need a large kP to track, go back to step 1.
+5. **kD** only if there is residual oscillation at the end of moves. Under a good profile it is usually zero.
+6. **kI** almost never. Steady-state error under a profile is a kS or kG problem.
+7. **Raise the profile** toward the speed you want, watching current and mechanical behaviour, and stop before the mechanism does something it will regret.
+
+</StepsBox>
+
+The profile is the speed knob and the gains are the accuracy knob. Keeping them separate is what makes a Motion Magic mechanism tuneable in an afternoon instead of a week.
+
+### Reading it in AdvantageScope
+
+The TalonFX publishes the profile's state, and FRC 4451's IO logs it: `SingleRollerIOTalonFX.updateInputs` records `positionSetpoint` from `getClosedLoopReference()` and `velocitySetpoint` from `getClosedLoopReferenceSlope()`. Three lines on one graph tell you everything:
+
+<ContentTable
+  headers={["Line", "Key (library naming)", "What it is"]}
+  rows={[
+    ["Goal", "<code>Mechanism/PositionGoal</code>", "Where you asked to go: a step"],
+    ["Reference", "<code>Mechanism/PositionSetpoint</code>", "Where the profile says you should be right now: a curve from here to the goal"],
+    ["Measured", "<code>Mechanism/Position</code>", "Where you are"]
+  ]}
+/>
+
+**Measured should sit on Reference, not on Goal.** A gap between measured and reference is a gains problem (feedforward first, then kP). A reference that never reaches the goal, or reaches it late, is a profile problem (cruise, acceleration, Expo kV/kA). A measured line that tracks the reference closely and still arrives too slowly is not a tuning problem. The profile is doing what it was told, and the answer is to ask for a faster profile. Most "the PID is bad" complaints on a Motion Magic mechanism are the third case.
+
+Add `Mechanism/AppliedVoltage` (or torque current) on the right axis and `Mechanism/VelocitySetpoint` under it: the voltage should look like the velocity profile scaled by kV plus a bump at each acceleration change, which is the feedforward doing its job. If it looks like a square wave, the loop is saturating and the profile is faster than the mechanism can follow.
+
+### When not to use it
+
+- **A flywheel that must recover in milliseconds after a shot.** The velocity profile's acceleration cap that protects the battery on spin-up also caps how fast the wheel can recover after a ball takes energy out of it. Cobra chose the profiled request for the shooter and left the plain `VelocityTorqueCurrentFOC` line commented out beside it; the single-roller library IO uses the plain one. Measure recovery time on your mechanism before deciding; it is one line to swap.
+- **A mechanism you want to move by hand-feel**, such as a stick driving a turret. Profiles add latency between the input and the motion; a velocity loop or open-loop with a rate limiter feels better.
+- **When the target changes every loop**, as in path following or aiming at a moving pose. A profile re-planned every 20 ms toward a target that keeps moving can behave oddly; a position or velocity loop with feedforward from the trajectory is the usual shape. Dynamic Motion Magic (per-request constraints, Pro + CANivore) exists for the middle ground.
+- **When you have not characterised the mechanism.** Motion Magic without kV and kA is a profile with no feedforward, and you are back to making kP do everything, with extra steps.
+
+<RulesBox title="Common mistakes">
+
+- **Tuning kP against the goal.** Tune against the <em>reference</em>. The goal is not where you are supposed to be yet.
+- **Raising kP to make it faster.** Speed is the profile. kP is accuracy.
+- **A cruise velocity the motor cannot reach.** The reference outruns the mechanism, the loop saturates, the profile lies. Expo, or a lower cruise.
+- **Guessed kV/kA.** The profile's feedforward is wrong, so the loop fights it. Characterise.
+- **kG with the wrong gravity type, or an arm whose zero is not horizontal.** <code>Arm_Cosine</code> assumes zero = level.
+- **Expo kV/kA copied from slot kV/kA.** Different units, different meaning. Start Expo values high and bring them down.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/motion-magic.html", "note": "Motion Magic, Motion Magic Velocity and Expo; what the controller computes at 1 kHz."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/closed-loop-requests.html", "note": "<code>MotionMagicVoltage</code> and the torque-current form; slot feedforward multiplying the profile setpoints."},
+  {"source": "ctre", "path": "docs/api-reference/api-usage/status-signals.html", "note": "<code>ClosedLoopReference</code> and <code>ClosedLoopReferenceSlope</code>, the profile state the IO logs."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/profiled-pidcontroller.html", "note": "The software profile it replaces."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFX.java", "note": "Motion Magic request and the logged profile setpoints."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSim.java", "note": "The software-profile alternative."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "Motion Magic on the elevator."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/HoodConstants.java", "note": "The hood's <code>MotionMagicConfigs</code>: cruise, acceleration, jerk."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOTalonFX.java", "note": "Motion Magic Expo on swerve steer."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollersIOTalonFX.java", "note": "Velocity on the flywheel pair."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Control Requests: The Full Catalogue","id":"control-requests"},
+  {"label":"Motor Configuration","id":"motor-controller-configuration"},
+  {"label":"Tunable Constants and Characterization","id":"tunable-constants"},
+  {"label":"Motion Profiling: Trapezoidal (WPILib side)","id":"trapezoidal-motion-profiling"},
+  {"label":"CTRE: Motion Magic®","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html"}
+]} title="Resources" section="frc" />

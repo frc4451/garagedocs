@@ -1,0 +1,113 @@
+---
+title: "A10: Shooter Lookup Table"
+lessonId: a10-shooter-lookup
+section: assignments
+group: foundations
+groupLabel: "Track 1 — Foundations"
+groupOrder: 1
+order: 10
+difficulty: intermediate
+duration: 90 min
+description: Turn measured distance and RPM pairs into a sorted lookup table with linear interpolation and clamping.
+---
+
+**Topic:** methods, arrays, linear interpolation, simple sorting.
+**Cites:** [Arrays](/java/java-arrays), [Methods](/java/java-methods), [Sorting](/java/java-algo-sorting).
+**Difficulty:** medium. **Estimated time:** 90 minutes.
+
+### Scenario
+
+You spend an afternoon on the practice field firing from measured distances and writing down
+the RPM that scored. Now you have six data points and a shooter that needs a number for
+every distance in between. A lookup table with interpolation is how most teams solve this,
+and it is worth writing once by hand before you reach for a library.
+
+This is the closest thing in Track 1 to a real subsystem helper.
+
+### What to build
+
+A single file `ShooterLookup.java` with these `public static` methods:
+
+```java
+public static double[][] readSamples(Scanner in, int n);
+public static void       sortSamples(double[][] samples);
+public static int        upperIndex(double[][] samples, double distance);
+public static double     interpolate(double[][] samples, double distance);
+public static void       printSamples(double[][] samples);
+public static double     rpmFor(double[][] samples, double distance);
+```
+
+`main` reads `n` (at least 2), fills a `double[n][2]` where column 0 is distance and column
+1 is RPM, sorts by distance ascending, prints the sorted table, then loops: read a distance,
+print its RPM, stop on a negative distance.
+
+### Behaviour of `rpmFor`
+
+<ContentTable
+  headers={["Distance", "Result"]}
+  rows={[
+    ["At or below the first sample", "The first RPM, and print <code>(clamped at min)</code>"],
+    ["At or above the last sample", "The last RPM, and print <code>(clamped at max)</code>"],
+    ["Anywhere in between", "Interpolate between the two nearest samples"]
+  ]}
+/>
+
+Print results as `RPM = 3150.00`, and the sorted table as `1.00 m -> 2200.00 rpm`.
+
+Worked example: samples at 1.0 m / 2200 rpm, 2.0 m / 2800 rpm, 3.0 m / 3500 rpm, 4.0 m /
+4100 rpm. A query at 2.5 m sits halfway between the second and third samples, so the answer
+is 3150.00.
+
+### Requirements
+
+- Sort with a sort you write yourself. Insertion sort is plenty at this size
+- `rpmFor` decides which of the three cases applies; `interpolate` only ever handles the
+  in-between case
+- The table is printed after sorting, so the user can check the data went in correctly
+
+
+<RulesBox title="Plan it as sessions" items={[
+  "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Samples come back sorted by distance</em>, <em>Interpolates between two samples</em>.",
+  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Clamps below and above the table</em>, <em>A distance exactly on a sample needs no interpolation</em>."
+]} />
+
+<JavaPlayground id="a10-shooter-lookup" />
+
+<RulesBox title="Hints" items={[
+  "<strong>Linear interpolation.</strong> Given a bracket of two samples and a target x between them: start at y1, work out what fraction of the way from x1 to x2 the target sits, take that fraction of the rise from y1 to y2, and add it on. Written out: <code>y1 + (x - x1) * (y2 - y1) / (x2 - x1)</code>.",
+  "<strong>Finding the bracket.</strong> Walk the sorted samples and return the first index whose distance is at or above the target. That index is the upper edge; the lower edge is the one before it. A linear scan is fine for a table this size.",
+  "<strong>Sorting rows, not numbers.</strong> Each element of the outer array is a two-element array, and the pair has to move together. Swap the row references, not the individual numbers, or your distances and RPMs will come apart.",
+  "<strong>Clamp before you interpolate.</strong> Handle the two out-of-range cases first and return early. Then <code>upperIndex</code> is guaranteed to find a real bracket, and <code>interpolate</code> never has to defend against an index of 0 or one past the end."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Functionality", "60", "All six methods exist with the given signatures. Samples sort by distance. Interpolation is correct between any two samples. The query loop stops on a negative distance."],
+    ["Edge cases", "15", "Distances below and above the table clamp and say so. A distance exactly on a sample returns that sample's RPM. Samples entered out of order still work."],
+    ["Code quality", "20", "The sort moves whole rows. <code>rpmFor</code> reads as three cases. No magic column indices scattered around — name what column 0 and column 1 mean."],
+    ["Comments", "5", "Author header, and a line recording where and when the sample data was measured. Future you will want to know."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Replace the linear scan in `upperIndex` with a binary search and confirm it gives identical
+  answers on every query. See [Finding a boundary](/java/java-algo-searching#finding-a-boundary).
+- Reject a table with two samples at the same distance, since interpolating between them
+  divides by zero. Decide whether to refuse the input or drop the duplicate.
+
+### References
+
+- JavaDoc: [`java.util.Scanner`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Scanner.html)
+- WPILib: [`InterpolatingDoubleTreeMap`](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/interpolated-tree-map.html) — what you are hand-rolling here
+- Wikipedia: [Linear interpolation](https://en.wikipedia.org/wiki/Linear_interpolation)
+
+<Sources items={[
+  {"source": "csce145", "note": "Arrays and search."},
+  {"source": "dev-java", "path": "language-basics/arrays/", "note": "Parallel arrays."},
+  {"url": "/frc/math-interpolation", "label": "Interpolation on the robot", "note": "The <code>InterpolatingDoubleTreeMap</code> that replaces this by hand."}
+]} />

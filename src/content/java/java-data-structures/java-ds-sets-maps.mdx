@@ -7,7 +7,7 @@ groupLabel: "Data Structures"
 groupOrder: 5
 order: 7
 difficulty: beginner
-duration: 25 min
+duration: 30 min
 description: Membership tests and key-value lookups in O(1), when a plain array is the better choice, and the pitfalls of using objects as keys.
 ---
 
@@ -21,7 +21,7 @@ A hash set answers the same question in O(1) average time. That single change tu
 
 Stores distinct values, no order.
 
-```java
+```java norun
 Set<Integer> seen = new HashSet<>();
 
 for (int i = 0; i < n; i++) {
@@ -32,7 +32,7 @@ for (int i = 0; i < n; i++) {
 }
 ```
 
-`add` returns a boolean — `true` if the value was new, `false` if it was already present. That lets you combine the test and the insert:
+`add` returns a boolean: `true` if the value was new, `false` if it was already present. That lets you combine the test and the insert:
 
 ```java
 if (!seen.add(a[i])) {
@@ -55,7 +55,7 @@ if (!seen.add(a[i])) {
 
 Associates each key with a value. The dominant use is counting.
 
-```java
+```java norun
 Map<Integer, Integer> count = new HashMap<>();
 for (int i = 0; i < n; i++) {
     count.merge(a[i], 1, Integer::sum);
@@ -64,41 +64,41 @@ for (int i = 0; i < n; i++) {
 
 `merge(key, 1, Integer::sum)` inserts `1` if the key is absent, otherwise adds `1` to the existing value. The equivalent longer form:
 
-```java
+```java norun
 count.put(a[i], count.getOrDefault(a[i], 0) + 1);
 ```
 
 Both are correct. `getOrDefault` is worth knowing because it also covers reads:
 
-```java
+```java norun
 int timesSeen = count.getOrDefault(x, 0);   // 0 rather than null when absent
 ```
 
 <RulesBox title="Never call get() and assume non-null">
 
-```java
+```java norun
 int c = count.get(x);        // NullPointerException if x is absent
 ```
 
-`get` returns `Integer`, and unboxing `null` throws. Use `getOrDefault` unless you have already checked `containsKey`. This is one of the most common runtime errors in Java contest code.
+`get` returns `Integer`, and unboxing `null` throws. Use `getOrDefault` unless you have already checked `containsKey`. This is one of the most common runtime errors in Java, full stop.
 
 </RulesBox>
 
 Iterating a map:
 
-```java
+```java norun
 for (Map.Entry<Integer, Integer> e : count.entrySet()) {
     System.out.println(e.getKey() + " -> " + e.getValue());
 }
 ```
 
-Use `entrySet` rather than iterating `keySet` and calling `get` for each key — it avoids a second lookup per entry.
+Use `entrySet` rather than iterating `keySet` and calling `get` for each key; it avoids a second lookup per entry.
 
 ### When an array is better
 
 If the keys are integers in a known, reasonably small range, use an array. It is faster, uses far less memory, and has no hashing overhead at all.
 
-```java
+```java norun
 // values guaranteed between 1 and 100,000
 int[] count = new int[100_001];
 for (int i = 0; i < n; i++) {
@@ -118,7 +118,7 @@ The array is not a micro-optimization. A `HashMap` with a million `Integer` keys
 
 Values can be shifted into range when they are negative but bounded:
 
-```java
+```java norun
 // values between -1000 and 1000
 int[] count = new int[2001];
 count[a[i] + 1000]++;
@@ -132,19 +132,19 @@ The sorted variants. Operations cost O(log N) instead of O(1), and in exchange y
 TreeSet<Integer> s = new TreeSet<>();
 s.add(5); s.add(1); s.add(9);
 
-System.out.println(s.first());       // 1  — smallest
-System.out.println(s.last());        // 9  — largest
-System.out.println(s.ceiling(6));    // 9  — smallest element >= 6
-System.out.println(s.floor(6));      // 5  — largest element <= 6
-System.out.println(s.higher(5));     // 9  — strictly greater
-System.out.println(s.lower(5));      // 1  — strictly less
+System.out.println(s.first());       // 1: smallest
+System.out.println(s.last());        // 9: largest
+System.out.println(s.ceiling(6));    // 9: smallest element >= 6
+System.out.println(s.floor(6));      // 5: largest element <= 6
+System.out.println(s.higher(5));     // 9: strictly greater
+System.out.println(s.lower(5));      // 1: strictly less
 ```
 
 `ceiling` and `floor` are the reason to use a `TreeSet`. "What is the nearest value to X that I have already seen" is a question a `HashSet` cannot answer, and it comes up frequently in harder problems.
 
 These methods return `null` when nothing qualifies, so check before unboxing:
 
-```java
+```java norun
 Integer c = s.ceiling(x);
 if (c != null) { /* use c */ }
 ```
@@ -153,7 +153,7 @@ if (c != null) { /* use c */ }
 
 Grid problems often need "have I visited this cell". Three approaches, in order of preference:
 
-```java
+```java norun
 // 1. Best: a 2D boolean array, when the grid dimensions are known
 boolean[][] visited = new boolean[rows][cols];
 visited[r][c] = true;
@@ -162,20 +162,20 @@ visited[r][c] = true;
 Set<Integer> visited = new HashSet<>();
 visited.add(r * cols + c);
 
-// 3. A set of strings — works, but slow; avoid in hot loops
+// 3. A set of strings: works, but slow; avoid in hot loops
 Set<String> visited = new HashSet<>();
 visited.add(r + "," + c);
 ```
 
 Encoding as `r * cols + c` is valid as long as `c` is always less than `cols`, which makes the mapping unique. For coordinates that can be large or negative, use a `long`:
 
-```java
+```java norun
 long key = (long) r * 2_000_000 + c;
 ```
 
 <RulesBox title="Objects as keys need equals and hashCode">
 
-A custom class used as a `HashSet` element or `HashMap` key must override both `equals` and `hashCode`, or lookups will fail — two objects with identical fields will be treated as different keys.
+A custom class used as a `HashSet` element or `HashMap` key must override both `equals` and `hashCode`, or lookups will fail: two objects with identical fields will be treated as different keys.
 
 ```java
 static class Point {
@@ -194,7 +194,7 @@ static class Point {
 }
 ```
 
-This is easy to get wrong under time pressure. Encoding the pair into a single `int` or `long` avoids the issue entirely and is faster. Prefer that in contests.
+A record (see [A25](/assignments/a25-alliance-lookup)) gets `equals` and `hashCode` right by construction, and encoding the pair into a single `int` or `long` avoids the question entirely when speed matters.
 
 </RulesBox>
 
@@ -204,7 +204,7 @@ This is easy to get wrong under time pressure. Encoding the pair into a single `
 
 The brute force is O(N<sup>2</sup>). With a map of counts it becomes O(N):
 
-```java
+```java norun
 Map<Integer, Integer> count = new HashMap<>();
 long pairs = 0;
 
@@ -223,12 +223,14 @@ Counting the complement *before* inserting the current value is what prevents an
 
 - **`get` on an absent key**, throwing a `NullPointerException`. Use `getOrDefault`.
 - **Comparing boxed values with `==`.** Use `.equals` for `Integer` above 127.
-- **`contains` on an `ArrayList`** instead of a set — silently O(N).
+- **`contains` on an `ArrayList`** instead of a set: silently O(N).
 - **Using a `HashMap` where an array would do**, risking the memory limit.
 - **A custom key class without `hashCode`**, so nothing is ever found.
 - **Inserting before querying** in the pair-counting pattern, which double counts.
 
 </RulesBox>
+
+<JavaPlayground id="java-ds-sets-maps" />
 
 <ExerciseBox title="Practice" description="Each is a few lines with the right structure chosen.">
 
@@ -243,20 +245,31 @@ Counting the complement *before* inserting the current value is what prevents an
 
 1. Frequency map, then count entries whose value exceeds 1.
 2. Put the first list in a `HashSet`, then filter the second.
-3. Put everything in a set. For each value `v` where `v - 1` is absent, `v` starts a run — walk upward while the next value is present. Each element is visited a constant number of times overall, so this is O(N).
+3. Put everything in a set. For each value `v` where `v - 1` is absent, `v` starts a run; walk upward while the next value is present. Each element is visited a constant number of times overall, so this is O(N).
 4. Frequency map built in one pass, then a second pass over the original order looking for the first value whose count is exactly 2.
-5. `TreeSet` with `ceiling`. Insert first, then query — or query then insert, depending on whether the current element counts as "seen".
+5. `TreeSet` with `ceiling`. Insert first, then query, or query then insert, depending on whether the current element counts as "seen".
 
 </details>
 
 </ExerciseBox>
 
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "dev-java", "path": "api/collections-framework/sets/", "note": "Sets."},
+  {"source": "dev-java", "path": "api/collections-framework/maps/", "note": "Maps."},
+  {"source": "java-api", "path": "java.base/java/util/HashMap.html", "note": "<code>HashMap</code>."},
+  {"source": "java-api", "path": "java.base/java/util/TreeSet.html", "note": "<code>TreeSet</code>: <code>ceiling</code>, <code>floor</code>, <code>higher</code>, <code>lower</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/Object.html", "note": "<code>equals</code>/<code>hashCode</code> contract."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/HashSet.html", "note": "<code>HashSet</code> API reference."}
+]} />
+
 <LinkGrid
   title="Next"
-  section="comp"
+  section="java"
   links={[
-    {"label":"Casework","id":"cp-casework"},
-    {"label":"Verifying a Greedy Strategy","id":"cp-greedy-verification"},
-    {"label":"Hash Tables","id":"comp-hash-tables"}
+    {"label":"Streams","id":"java-streams"},
+    {"label":"Big-O and Reading Complexity","id":"java-big-o"},
+    {"label":"A25: Alliance Lookup","url":"/assignments/a25-alliance-lookup"}
   ]}
 />

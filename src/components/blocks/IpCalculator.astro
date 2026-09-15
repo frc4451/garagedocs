@@ -1,0 +1,94 @@
+---
+/**
+ * Team number -> 10.TE.AM.x addresses. The arithmetic is the lesson; the widget
+ * just lets a student check their own team without doing the division by hand.
+ */
+const uid = `ip-calc-${Math.random().toString(36).slice(2, 9)}`;
+---
+
+<div class="rules-box ip-calc" data-ip-calc id={uid}>
+  <h3>Your team's addresses</h3>
+  <label class="ip-calc-label" for={`${uid}-team`}>Team number</label>
+  <input
+    class="ip-calc-input"
+    id={`${uid}-team`}
+    type="number"
+    inputmode="numeric"
+    min="1"
+    max="99999"
+    placeholder="4451"
+    data-ip-calc-input
+  />
+  <dl class="ip-calc-results" data-ip-calc-results hidden>
+    <dt>Radio</dt><dd><code data-ip="radio"></code></dd>
+    <dt>roboRIO</dt><dd><code data-ip="rio"></code></dd>
+    <dt>Field (FMS)</dt><dd><code data-ip="fms"></code></dd>
+    <dt>Driver Station</dt><dd><code data-ip="ds"></code> <span class="ip-calc-note">(static) — or anything from .5 up if the radio hands it out</span></dd>
+    <dt>mDNS name</dt><dd><code data-ip="mdns"></code></dd>
+    <dt>USB tether</dt><dd><code>172.22.11.2</code> <span class="ip-calc-note">(always, regardless of team)</span></dd>
+  </dl>
+</div>
+
+<style>
+  .ip-calc-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+  }
+  .ip-calc-input {
+    font: inherit;
+    font-family: var(--font-stack--monospace);
+    padding: 0.4rem 0.6rem;
+    width: 10rem;
+    max-width: 100%;
+    background: var(--color-background-primary);
+    color: var(--color-foreground-primary);
+    border: 1px solid var(--color-background-border);
+    border-radius: 0;
+  }
+  .ip-calc-results {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.35rem 1rem;
+    margin: 1rem 0 0;
+  }
+  .ip-calc-results dt {
+    font-weight: 600;
+  }
+  .ip-calc-results dd {
+    margin: 0;
+  }
+  .ip-calc-note {
+    color: var(--color-foreground-muted);
+    font-size: var(--font-size--small);
+  }
+</style>
+
+<script>
+  function wire(root: Element) {
+    const input = root.querySelector<HTMLInputElement>('[data-ip-calc-input]');
+    const results = root.querySelector<HTMLElement>('[data-ip-calc-results]');
+    if (!input || !results) return;
+    const set = (key: string, value: string) => {
+      const el = root.querySelector<HTMLElement>(`[data-ip="${key}"]`);
+      if (el) el.textContent = value;
+    };
+    input.addEventListener('input', () => {
+      const team = Number.parseInt(input.value, 10);
+      if (!Number.isFinite(team) || team < 1 || team > 99999) {
+        results.hidden = true;
+        return;
+      }
+      const te = Math.floor(team / 100);
+      const am = team % 100;
+      const base = `10.${te}.${am}`;
+      set('radio', `${base}.1`);
+      set('rio', `${base}.2`);
+      set('fms', `${base}.4`);
+      set('ds', `${base}.5`);
+      set('mdns', `roborio-${team}-frc.local`);
+      results.hidden = false;
+    });
+  }
+  document.querySelectorAll('[data-ip-calc]').forEach(wire);
+</script>

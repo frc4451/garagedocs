@@ -1,0 +1,146 @@
+---
+title: "Reading Our Robot Code"
+lessonId: team-robot-code
+section: frc
+group: frc-cobra
+groupLabel: Our Robot Code
+groupOrder: 2.5
+order: 2
+difficulty: intermediate
+duration: 45 min
+description: "A guided tour of Cobra, FRC 4451's 2026 robot: how the repository is laid out, which lesson each file belongs to, and the conventions everything on the robot follows."
+durationFixed: true
+---
+
+### Why this page exists
+
+Every FRC lesson on this site teaches a pattern. This page shows where each pattern lives on the robot you will work on: [Cobra2026](https://github.com/frc4451/Cobra2026Private), FRC 4451's 2026 competition code. Read it once now to learn the shape, then come back to it from other lessons; each of them names the file to open.
+
+The rule this codebase follows, and the one to follow when you add to it: **the robot's own code is thin, and the reusable parts live in a library.** Once you know where that line is, most of the repository is easier to read.
+
+### The two packages
+
+```text
+src/main/java/
+├── frc/robot/                           this robot, this season
+│   ├── Main.java, Robot.java, RobotContainer.java, Constants.java
+│   ├── subsystems/   drive, shooter, hood, feeder, intake, vision
+│   ├── commands/     DriveCommands, ShootOnTheMoveCommand, …
+│   ├── autonomous/   AutonomousManager, bline/BLineManager
+│   ├── bobot_state/  BobotState, the robot's shared view of the world
+│   ├── field/, util/
+│   └── generated/    TunerConstants from Phoenix Tuner X (never hand-edited)
+└── org/robotzgarage/frc2026/            the ROBOTZ Garage library, reused season to season
+    ├── subsystems/   rollers, flywheel, elevator, pivot, vision
+    ├── math/         interpolation, distance calculation
+    └── util/         motor configs, controller helpers, VirtualSubsystem
+```
+
+`frc.robot` is what changes every year: which mechanisms this robot has, how they are wired, what the autos do. `org.robotzgarage.frc2026` is the ROBOTZ Garage library (ROBOTZ Garage is FRC 4451's team name): generic mechanisms with hardware behind an interface, built once and configured per robot. The split is [Packages and Project Layout](/java/java-packages#what-the-layout-looks-like) applied on purpose. A Cobra `Intake` is a handful of lines because the library's `SingleRoller` does the work.
+
+### One mechanism, end to end
+
+Follow the intake from hardware to button. Every mechanism on the robot is the same chain.
+
+**1. The IO interface**, `org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIO.java`. It declares what any single-motor roller can do (`runVolts`, `setVelocity`, `setGoal`, `stop`, and so on) and an `@AutoLog` inputs class listing everything worth reading back: position, velocity, applied voltage, currents, temperature, the current setpoint. This is the [IO layer](/frc/io-layer#the-interface) lesson, and it is [A17](/assignments/a17-io-interface) at competition scale. The inputs use the WPILib Units library (`Angle`, `AngularVelocity`, `Current`) rather than bare doubles, as [R03](/kit-bot/r03-constants#wpilibs-units-library) recommended.
+
+**2. The implementations**, in the same folder. `SingleRollerIOTalonFX` and `SingleRollerIOTalonFXS` for Phoenix 6, `SingleRollerIONova` for a Thrifty Nova, `…WithCANCoder` variants where an absolute encoder is involved, and a `SingleRollerIOSim` family for the desk. One interface, six hardware answers. Each contains only what its device needs.
+
+**3. The library subsystem**, `SingleRoller.java`. It owns an IO, an inputs object, and a name. Its `periodic` calls `io.updateInputs(inputs)` and then `Logger.processInputs(name, inputs)`; everything after that reads from `inputs`, never from hardware. It also carries the library's tunable feedforward and feedback configs. This is the class that keeps the robot subsystems short.
+
+**4. The robot subsystem**, `frc/robot/subsystems/intake/Intake.java` and `IntakeConstants.java`. `Intake` composes one or more `SingleRoller`s and exposes **command factories**: `run(() -> …)` methods returning a `Command`, the shape from [Commands](/frc/commands#subsystem-command-factories). `IntakeConstants` holds the configs (CAN IDs, gear ratios, current limits, gains) as `public static final`, one per hardware variant plus a sim variant.
+
+**5. The wiring**, `RobotContainer.java`. A `switch (Constants.currentMode)`: in `REAL` it builds `new SingleRollerIOTalonFX(IntakeConstants.intakeConfig)`; in `SIM` it builds `new SingleRollerIOSimTalonFX(IntakeConstants.intakeConfigSim)`. The `Intake` is the same either way. That is [R12](/kit-bot/r12-real-vs-sim#where-the-if-lives), and it is the reason the whole robot runs on a laptop.
+
+**6. The button**, also in `RobotContainer`, binding a `GarageCommandXboxController` trigger to the factory method. This is [A22](/assignments/a22-command-binding) in production.
+
+Every other mechanism follows the chain. The shooter uses `FlywheelFollower` over a `FollowRollersIO` (two motors, one leading); the hood is a `SingleRoller` on a TalonFXS; the swerve drive is the AdvantageKit template (`Module`, `ModuleIOTalonFX`, `GyroIOPigeon2`, `PhoenixOdometryThread`), which [Swerve Drive Example](/frc/swerve-drive-example#apply-synchronized-odometry-samples) walks through.
+
+### The conventions to absorb
+
+<ContentTable
+  headers={["Convention", "Where you see it", "Lesson"]}
+  rows={[
+    ["Hardware behind an IO interface, with a sim implementation", "Every <code>*IO</code> / <code>*IOTalonFX</code> / <code>*IOSim</code> pair", "<a href=\"/frc/io-layer\">IO Layers</a>"],
+    ["AdvantageKit everywhere: <code>@AutoLog</code> inputs, <code>Logger.recordOutput</code> for outputs", "<code>SingleRoller.periodic</code>, every subsystem", "<a href=\"/frc/advantagekit\">AdvantageKit</a>"],
+    ["<code>LoggedTunableNumber</code> for gains and setpoints", "The static fields at the top of <code>Shooter.java</code>", "<a href=\"/frc/tunable-constants\">Tunable Constants</a>"],
+    ["Command factories on the subsystem, not command classes", "<code>Shooter.runShooterToHub()</code> and similar methods", "<a href=\"/frc/commands\">Commands</a>"],
+    ["Phoenix 6 on CTRE hardware, torque-current control where it matters", "<code>setVelocityTorqueCurrent</code>, <code>ModuleIOTalonFX</code>", "<a href=\"/frc/motor-controller-configuration\">Motor Configuration</a>"],
+    ["WPILib Units, not bare doubles, at every boundary", "<code>Amps.of(…)</code>, <code>RotationsPerSecond</code>, <code>Distance</code>", "<a href=\"/kit-bot/r03-constants\">R03</a>"],
+    ["Constants as <code>public static final</code> configs, one per hardware variant", "<code>IntakeConstants</code>, <code>ShooterConstants</code>", "<a href=\"/java/java-static-final\">static and final</a>"],
+    ["PhotonVision through an IO, with a sim", "<code>AprilTagIOPhoton</code>, <code>AprilTagIOPhotonSim</code>, <code>VisionConstants</code>", "<a href=\"/frc/photonvision\">PhotonVision</a>"],
+    ["BLine and PathPlanner side by side", "<code>autonomous/bline/BLineManager</code>, <code>AutonomousManager</code>, <code>util/LocalADStarAK</code>", "<a href=\"/frc/bline\">BLine</a>, <a href=\"/frc/pathplanner\">PathPlanner</a>"]
+  ]}
+/>
+
+### BobotState: the one global
+
+`frc/robot/bobot_state/BobotState.java` is the robot's shared picture of the world: the fused field pose, the vision observations queued for the pose estimator, the interpolation tables that turn distance to the hub into flywheel velocity, and the field targets ("closest drop-off", "the trench"). It is a `VirtualSubsystem`: it has a `periodic`, but no hardware, and no command requires it. Its state is static, so any subsystem or command can call `BobotState.getGlobalPose()` without being handed a reference.
+
+That is a deliberate exception to the rule against globals. A robot has exactly one pose and one field, and threading them through every constructor would add ceremony without benefit. The discipline is that only `BobotState` writes them; everyone else reads. When you add state that more than one subsystem needs, this is where it goes. It is also where the [Shortest Paths](/java/java-algo-shortest-paths#where-this-sits-on-a-real-robot) idea of "which target is closest" is computed.
+
+It has its own lesson, [BobotState: The One Global](/frc/bobot-state), covering the loop order, the VARCs, the interpolators and the game-logic Triggers. The base class it extends is [VirtualSubsystem](/frc/virtual-subsystem), the annotations on its fields are [Lombok](/frc/lombok), and the helpers it uses are in [The Math Toolbox](/frc/math-toolbox).
+
+### Where to start reading
+
+In this order. Each file is short enough to read in one sitting:
+
+1. `Constants.java`: the `Mode` enum and the season's numbers.
+2. `SingleRollerIO.java`: the interface and its inputs. Everything else is built on this shape.
+3. `Intake.java` and `IntakeConstants.java`: the smallest complete mechanism.
+4. `RobotContainer.java`: the `switch` on mode, then the button bindings.
+5. `Shooter.java`: the same shape with interpolation and logging, which is what production adds.
+6. `BLineManager.java`: about forty lines that make autos.
+
+Then open a lesson and find its file. The codebase is organised so that you can.
+
+<RulesBox title="Common mistakes when adding to it">
+
+- **Putting hardware calls in a robot subsystem.** They belong in an IO implementation in the library. If the mechanism is new, the library gets a new IO; the robot gets a config.
+- **Reading a motor directly instead of from <code>inputs</code>** after <code>processInputs</code>. Replay silently breaks.
+- **A new <code>double</code> where a unit type exists.** The next reader cannot tell metres from inches, and neither can the code.
+- **A magic number in a subsystem.** It goes in the <code>*Constants</code> class, next to its siblings.
+- **A second global.** If it is not the robot's pose or its view of the field, it is probably a subsystem's own state.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "cobra", "path": "src/main/java/frc/robot/Main.java", "note": "Entry point."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "<code>robotInit</code>/<code>robotPeriodic</code>, logging setup by mode, <code>VirtualSubsystem.runPeriodically()</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "Subsystem construction, IO selection by <code>Constants.currentMode</code>, bindings, auto chooser."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "Mode, loop period, CAN bus name."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/generated/TunerConstants.java", "note": "Tuner X generated swerve constants: do not hand-edit."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "The one-mechanism-end-to-end example: a thin <code>SubsystemBase</code> over a <code>SingleRoller</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/IntakeConstants.java", "note": "The constants record for that mechanism."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "The library mechanism: tunables, control requests, characterization."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIO.java", "note": "The IO interface."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFX.java", "note": "Real TalonFX implementation."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFX.java", "note": "Simulated TalonFX implementation."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSim.java", "note": "Pure-WPILib physics implementation."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollersIO.java", "note": "Leader/follower variant."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/flywheel/FlywheelFollower.java", "note": "Shooter flywheel pair."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "Consumer of <code>BobotState</code> setpoints."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/commands/ShootOnTheMoveCommand.java", "note": "A command that reads the pose and velocity from <code>BobotState</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/commands/DriveCommands.java", "note": "Joystick drive and alignment commands."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "Drivetrain, pose estimators, observation queues."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/PhoenixOdometryThread.java", "note": "High-rate synchronized odometry samples."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/GyroIOPigeon2.java", "note": "Gyro IO."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "The one global."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/VirtualSubsystem.java", "note": "Loop-registered non-scheduler subsystems."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagIOPhoton.java", "note": "Vision IO, real."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagIOPhotonSim.java", "note": "Vision IO, simulated."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/vision/VisionConstants.java", "note": "Camera names and mounts."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/autonomous/AutonomousManager.java", "note": "Auto selection."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/autonomous/bline/BLineManager.java", "note": "BLine path manager."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/util/LocalADStarAK.java", "note": "PathPlanner pathfinding wrapped for AdvantageKit."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/GarageCommandXboxController.java", "note": "The team's controller wrapper."},
+  {"source": "cobra", "path": "src/main/java/org/littletonrobotics/LoggedTunableNumber.java", "note": "Tunables (Team 6328 class)."},
+  {"source": "advantagekit", "path": "data-flow/recording-inputs/io-interfaces", "note": "The IO convention every subsystem follows."}
+]} />
+
+<LinkGrid title="Next" section="frc" links={[
+  {"label":"Cobra2026 on GitHub","url":"https://github.com/frc4451/Cobra2026Private"},
+  {"label":"Hardware Abstraction with IO Layers","id":"io-layer"},
+  {"label":"AdvantageKit","id":"advantagekit"},
+  {"label":"Swerve Drive Example","id":"swerve-drive-example"}
+]} />

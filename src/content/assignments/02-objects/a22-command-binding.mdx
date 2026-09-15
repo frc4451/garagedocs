@@ -1,0 +1,94 @@
+---
+title: "A22: Binding Commands to a Button"
+lessonId: a22-command-binding
+section: assignments
+group: objects
+groupLabel: "Track 2 — Objects"
+groupOrder: 2
+order: 22
+difficulty: intermediate
+duration: 90 min
+description: Build a tiny scheduler that tells a rising edge from a held button, using the functional interfaces WPILib uses.
+---
+
+**Topic:** lambdas, functional interfaces, method references, captured variables.
+**Cites:** [Lambdas](/java/java-fn-lambdas), [Functions as Data](/java/java-fn-functions-as-data), [Method References](/java/java-fn-method-references).
+**Difficulty:** medium. **Estimated time:** 90 minutes.
+
+### Scenario
+
+`controller.a().onTrue(shooter.spinUp())` is the line every command-based tutorial opens
+with, and it hides something worth understanding: the button is not a value that got
+read once. It is a **question**, stored, and asked again fifty times a second.
+
+That is what a `BooleanSupplier` is for. Build the small version and the WPILib one
+stops being magic.
+
+### What to build
+
+<ContentTable
+  headers={["Class", "What it does"]}
+  rows={[
+    ["<code>Button</code>", "Wraps a <code>BooleanSupplier</code>. <code>onTrue(Runnable)</code> fires once on the <strong>rising edge</strong> — false to true. <code>whileTrue(Runnable)</code> fires every tick the condition holds. Both return <code>this</code> so calls chain."],
+    ["<code>Scheduler</code>", "Holds the registered hooks, remembers each condition's previous value, and fires the right ones on <code>tick()</code>."],
+    ["<code>Telemetry</code>", "Holds labelled <code>DoubleSupplier</code>s and prints them on <code>poll()</code>, as <code>telemetry: rpm=500.0</code>."]
+  ]}
+/>
+
+`main` presses the button across five ticks — released, held, held, released, held — so
+the rising edge happens **twice**. Getting `onTrue` to fire exactly twice, and
+`whileTrue` three times, is the assignment.
+
+<RulesBox title="How the browser version differs" items={[
+  "Four files locally, one here, with only <code>CommandDemo</code> declared <code>public</code>.",
+  "The suppliers and runnables in <code>main</code> are written as anonymous classes rather than lambdas, so the starter stays explicit about which functional interface each one implements. Rewrite them as lambdas once they work — they are the same thing with less ceremony, and <a href=\"/java/java-fn-lambdas\">Lambdas</a> covers the difference."
+]} />
+
+
+<RulesBox title="Plan it as sessions" items={[
+  "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Nothing fires while the button is released</em>, <em>onTrue fires on the rising edge</em>, <em>onTrue does not repeat while held</em>.",
+  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>whileTrue stops when the button is released</em>, <em>A second press is a second rising edge</em>."
+]} />
+
+<JavaPlayground id="a22-command-binding" />
+
+<RulesBox title="Hints" items={[
+  "<strong>A rising edge needs memory.</strong> \"Is it true now?\" cannot tell a press from a hold. Store the previous value per hook and fire when <code>now &amp;&amp; !previous</code>. Updating that previous value at the end of every tick — including ticks where nothing fired — is the part that is easy to forget.",
+  "<strong>Ask the supplier once per tick.</strong> Call <code>getAsBoolean()</code> into a local, then use it for both the edge test and the update. Calling it twice invites the two calls to disagree.",
+  "<strong>Returning <code>this</code> is what makes chaining work.</strong> <code>new Button(...).onTrue(...).whileTrue(...)</code> only compiles because each method hands the button back. That is the same trick behind every fluent API you have used.",
+  "<strong>A <code>Runnable</code> is a stored action, not a result.</strong> Registering it runs nothing; the scheduler decides when. If your output appears during registration instead of during a tick, you called the action rather than storing it."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Functionality", "60", "<code>onTrue</code> fires on ticks 2 and 5 only. <code>whileTrue</code> fires on every held tick. Telemetry prints the current value each poll. Both binding methods chain."],
+    ["Edge cases", "15", "A held button does not re-fire <code>onTrue</code>. Releasing and pressing again does. Nothing fires on the first tick when the button starts released."],
+    ["Code quality", "20", "Previous-state tracking lives in the scheduler, not in the caller. No duplicated hook-iteration code between the two registration kinds. Nothing runs at registration time."],
+    ["Comments", "5", "Author header, and a note on why the previous value must update even on ticks where nothing fires."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Add `onFalse` for the falling edge, and `toggleOnTrue` that flips a boolean each press.
+  Between them they cover almost every binding a driver asks for.
+- Add `Button and(Button other)` returning a button true only when both are — and note
+  that you can build it out of the two suppliers without touching the scheduler at all.
+
+### References
+
+- JavaDoc: [`java.util.function.BooleanSupplier`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/function/BooleanSupplier.html)
+- JavaDoc: [`java.lang.Runnable`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Runnable.html)
+- WPILib: [Binding commands to triggers](https://docs.wpilib.org/en/stable/docs/software/commandbased/binding-commands-to-triggers.html)
+
+<Sources items={[
+  {"source": "csce146", "note": "Functional interfaces."},
+  {"source": "dev-java", "path": "lambdas/", "note": "Lambdas."},
+  {"source": "dev-java", "path": "lambdas/functional-interfaces/", "note": "<code>Runnable</code> and friends."},
+  {"source": "java-api", "path": "java.base/java/lang/Runnable.html", "note": "<code>Runnable</code>."},
+  {"url": "/frc/robot-container-and-bindings", "label": "Bindings on the robot", "note": "The <code>Trigger</code> this models."}
+]} />

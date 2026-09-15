@@ -1,0 +1,160 @@
+---
+title: "Poses on the Field"
+lessonId: advantagescope-field
+section: tools
+group: advantagescope
+groupLabel: "AdvantageScope"
+groupOrder: 4.5
+order: 2
+difficulty: beginner
+description: "Publish poses and inspect robot, trajectory, vision, and mechanism data in AdvantageScope field views."
+---
+
+Field views place pose data on a coordinate system. Use them to compare estimates, trajectories, targets, and mechanism geometry. A surprising picture is evidence to investigate alongside the numeric data and configuration.
+
+### What a pose is, and which way is which
+
+A **pose** combines position and orientation. For `Pose2d`, WPILib uses x, y, and a `Rotation2d`. Interpret those values in the coordinate system documented for the source:
+
+- The origin is the **blue alliance's** right-hand corner as the blue drivers see it. **+X** runs *away* from the blue wall, down the field toward red. **+Y** runs to the *left* as blue looks at the field. Units are **metres**.
+- **Rotation** is counter-clockwise positive, and **0°** points down +X, toward the red wall. A robot facing its own blue driver station has a heading of 180°.
+- In 3D, **+Z** is up, and a `Pose3d` adds height and a full `Rotation3d` (roll, pitch, yaw).
+
+For example, `(1.5 m, 4.0 m, 90°)` is 1.5 m along +X, 4.0 m along +Y, with its heading toward +Y. Confirm the field origin and units against the [WPILib coordinate documentation](https://docs.wpilib.org/en/stable/docs/software/basic-programming/coordinate-system.html).
+
+### Publishing a pose
+
+AdvantageScope recognizes WPILib struct types for geometry and other supported data. The topic type lets the field view interpret a `Pose2d`, `Pose3d`, or array. Create publishers once and update their values during operation:
+
+<CodeTabs>
+<CodeTab label="WPILib (Kit Bot)">
+
+```java
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.networktables.StructArrayPublisher;
+import edu.wpi.first.networktables.StructPublisher;
+
+// Open once, as fields: never inside periodic()
+private final StructPublisher<Pose2d> posePub = NetworkTableInstance.getDefault()
+    .getStructTopic("Drive/Pose", Pose2d.struct).publish();
+private final StructArrayPublisher<Pose2d> pathPub = NetworkTableInstance.getDefault()
+    .getStructArrayTopic("Drive/Trajectory", Pose2d.struct).publish();
+
+@Override
+public void periodic() {
+  posePub.set(odometry.getPoseMeters());   // one robot
+  pathPub.set(trajectoryPoses);            // a Pose2d[]: drawn as a line
+}
+```
+
+With `DataLogManager.start()` running, everything published this way also lands in the `.wpilog` ([R13, step 1](/kit-bot/r13-telemetry-with-advantagescope#step-1-start-the-logger)).
+
+</CodeTab>
+<CodeTab label="AdvantageKit (Cobra)">
+
+```java
+import org.littletonrobotics.junction.Logger;
+
+Logger.recordOutput("Odometry/Global", drive.getGlobalPose());          // Pose2d
+Logger.recordOutput("Odometry/Trajectory", trajectory.getPoses());      // Pose2d[]
+Logger.recordOutput("Vision/Cameras/Front/Pose", frontCameraPose);      // Pose3d
+Logger.recordOutput("Vision/TagPoses", tagPoses);                       // Pose3d[]
+```
+
+These appear under `RealOutputs/…` in the tree (`ReplayOutputs/…` in [log replay](/frc/log-replay)). AdvantageKit inputs marked with a struct type, such as a `Pose2d` field in an `@AutoLog` class, are recorded the same way. An `@AutoLogOutput` on a getter that returns a pose is the one-line version.
+
+</CodeTab>
+</CodeTabs>
+
+Use typed struct publishing for new pose data. `Field2d` remains useful for SmartDashboard-compatible consumers but uses its own published representation and object structure.
+
+### The 2D Field tab
+
+Add a tab with **+ → 2D Field**. Then:
+
+<StepsBox title="Robot on the field">
+
+1. Drag a pose key such as `Drive/Pose` or `RealOutputs/Odometry/Global` into the **Poses** list in the control pane. A robot outline appears at that pose.
+2. Click the coloured icon beside the key (or right-click the name) to choose its **object type** and colour. The first pose defaults to *Robot*; the `?` icon lists every type with the data types it accepts.
+3. In the control pane, set the **Field** to this season's game and the **Size** to your robot's bumper-to-bumper width (30, 27 or 24 inches). **Orientation** rotates the drawing so the field is the way you are standing.
+4. Press play, or scrub the timeline. Right-click the field to lock the camera to the robot.
+
+</StepsBox>
+
+The object types you will actually use:
+
+<ContentTable
+  headers={["Type", "Takes", "Draws", "Use it for"]}
+  rows={[
+    ["<strong>Robot</strong>", "<code>Pose2d</code>", "A robot outline with a heading mark", "The pose estimate: <code>Odometry/Global</code>"],
+    ["<strong>Ghost</strong>", "<code>Pose2d</code>", "A translucent robot", "A second estimate to compare: raw odometry beside the fused pose, or QuestNav beside vision"],
+    ["<strong>Trajectory</strong>", "<code>Pose2d[]</code>", "A line through the poses", "The active auto path; the trajectory a controller is following"],
+    ["<strong>Vision Target</strong>", "<code>Pose2d</code> / <code>Translation2d</code>", "A line from the robot to each target", "AprilTags the cameras currently see: added as a <em>child</em> of the robot"],
+    ["<strong>Arrow</strong>", "<code>Pose2d</code>", "An arrow at the pose", "A heading target, a shot direction"],
+    ["<strong>Heatmap</strong>", "<code>Pose2d</code>", "Where the robot spent its time", "Reviewing where the driver went during a match"]
+  ]}
+/>
+
+Add several keys to compare the estimated pose, reference path, targets, or alternative estimates. Give each a clear label and color, then export the layout if the team will reuse it.
+
+**Reading the view.** If a pose jumps, compare raw odometry, accepted vision measurements, timestamps, and uncertainty before changing filters. If heading or mirroring looks wrong, check units, gyro offsets, coordinate frames, and alliance transformations one at a time.
+
+### The 3D Field tab
+
+**+ → 3D Field** displays supported 2D and 3D geometry on a rendered field. Use it for camera poses, AprilTags, robot components, and other data with height or three-dimensional orientation.
+
+Choose the field and robot model in the control pane. A built-in model is sufficient for pose work. A [custom asset](https://docs.advantagescope.org/more-features/custom-assets/) can show the team robot after its model and configuration have been validated.
+
+The types beyond what 2D has:
+
+<ContentTable
+  headers={["Type", "Takes", "Draws", "Use it for"]}
+  rows={[
+    ["<strong>Robot / Ghost</strong>", "<code>Pose2d</code> or <code>Pose3d</code>", "The chosen model, solid or translucent", "The estimate, and any alternative"],
+    ["<strong>Component</strong> (child of a robot)", "<code>Pose3d[]</code>, robot-relative", "Moves the model's articulated parts", "Elevator carriage height, arm angle, hood angle: the mechanism <em>as the code thinks it is</em>"],
+    ["<strong>Mechanism</strong> (child of a robot)", "A <code>Mechanism2d</code>", "The 2D mechanism drawing projected onto the robot's side", "The same result with less setup; start here"],
+    ["<strong>Camera Override</strong>", "<code>Pose3d</code>", "Moves the fixed cameras", "A camera on a turret"],
+    ["<strong>Vision Target</strong>", "<code>Pose3d</code>", "A line to each target", "Which tags each camera sees: the <a href=\"/frc/vision-subsystem\">vision subsystem</a> logs these"],
+    ["<strong>AprilTag</strong>", "<code>Pose3d[]</code>", "Tags at those poses", "Checking a field layout, or a tag you measured yourself"],
+    ["<strong>Game piece</strong>", "<code>Pose3d</code> / <code>Pose3d[]</code>", "This year's game pieces", "Detected pieces from object detection; a piece inside the robot when a beam break says so; a shot's flight"]
+  ]}
+/>
+
+**Camera controls.** Right-click the view to choose a field, robot, Driver Station, or configured camera perspective. Use a camera view to inspect geometry; it does not prove that a physical camera can detect a target under real lighting and exposure conditions.
+
+**Rendering.** Choose the rendering mode based on the laptop's performance and power needs. If playback stutters, compare the lower-power mode before treating the data as irregular.
+
+### From the simulator
+
+The same field controls work with compatible live or recorded sources. [Watching Simulation in AdvantageScope](/frc/advantagescope-sim#the-2d-and-3d-field) covers team simulation data, and [Simulating Vision](/frc/sim-vision) covers simulated camera geometry.
+
+<RulesBox title="Common mistakes">
+
+- **Publishing separate scalar values.** Use a supported pose type when the field should interpret them as one pose.
+- **Wrong angle units.** Construct `Rotation2d` with the conversion that matches the source.
+- **Wrong coordinate frame.** Label frames and apply alliance transforms in one documented location.
+- **Creating publishers repeatedly.** Keep publisher handles as fields and close them according to the project lifecycle.
+- **Missing component data.** Log mechanism or component geometry if the model should move.
+- **Invalid custom asset.** Check the asset configuration with a built-in model as a known comparison.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "advantagescope", "path": "tab-reference/2d-field/", "note": "The 2D field."},
+  {"source": "advantagescope", "path": "tab-reference/3d-field/", "note": "The 3D field."},
+  {"source": "advantagescope", "path": "more-features/coordinate-systems/", "note": "Coordinate systems and alliance origins."},
+  {"source": "advantagescope", "path": "more-features/custom-assets/", "note": "Custom robot models and fields."},
+  {"source": "wpilib", "path": "docs/software/basic-programming/coordinate-system.html", "note": "The field coordinate system."}
+]} />
+
+<LinkGrid title="Next" section="tools" links={[
+  {"label":"Controllers and the Console","id":"advantagescope-controllers-and-console"},
+  {"label":"Getting Around AdvantageScope","id":"advantagescope-tour"},
+  {"label":"Kit Bot R13: publish the robot pose","url":"/kit-bot/r13-telemetry-with-advantagescope#step-3-publish-the-robot-pose-for-the-field-view"},
+  {"label":"FRC: Odometry","url":"/frc/odometry"},
+  {"label":"AdvantageScope docs: 2D Field","url":"https://docs.advantagescope.org/tab-reference/2d-field/"},
+  {"label":"AdvantageScope docs: 3D Field","url":"https://docs.advantagescope.org/tab-reference/3d-field/"},
+  {"label":"AdvantageScope docs: Coordinate systems","url":"https://docs.advantagescope.org/more-features/coordinate-systems/"},
+  {"label":"AdvantageScope docs: Custom assets","url":"https://docs.advantagescope.org/more-features/custom-assets/"}
+]} />

@@ -1,0 +1,94 @@
+---
+title: "A14: Composition — Robot and Battery"
+lessonId: a14-robot-and-battery
+section: assignments
+group: objects
+groupLabel: "Track 2 — Objects"
+groupOrder: 2
+order: 14
+difficulty: intermediate
+duration: 75 min
+description: Give Robot a Battery it cannot swap, and see why an immutable part is safe to share.
+---
+
+**Topic:** composition (has-a), `private final` fields, encapsulation.
+**Cites:** [Classes](/java/java-classes), [Objects and References](/java/java-objects-references).
+**Difficulty:** medium. **Estimated time:** 75 minutes.
+
+### Scenario
+
+A robot *has a* battery. It is not a kind of battery, and it does not become a
+different robot when the battery is charged. That relationship — has-a, not is-a — is
+composition, and it is the one you will reach for far more often than inheritance.
+
+The second idea here is quieter and more useful: a `Battery` whose values can never
+change is safe to hand to two robots at once. Immutability removes a whole category of
+bug rather than documenting around it.
+
+### What to build
+
+**`Battery`** with `private final` `serial` and `restingVoltage`, a validating
+constructor (`serial` not blank; `restingVoltage` between `0.0` and `14.0`), getters,
+and `toString()` reading `Battery[serial=ABC123, restingV=12.50]`.
+
+There are **no setters**. Once a `Battery` exists, its values are locked.
+
+**`Robot`** gains a `private final Battery` field:
+
+- The long constructor takes a `Battery` as a fifth parameter and rejects `null`
+- `getBattery()` lets callers read it
+- **No `setBattery`** — the field is `final`
+- `toString()` includes the battery
+- The two-argument constructor supplies a default battery of your choosing
+
+<RulesBox title="How the browser version differs" items={[
+  "Three files locally — <code>Battery.java</code>, <code>Robot.java</code>, <code>RobotPlusBatteryTester.java</code> — and one here, with only the tester class <code>public</code>.",
+  "<code>main</code> is written for you. It builds a battery, shares it between two robots, and probes what can and cannot change."
+]} />
+
+
+<RulesBox title="Plan it as sessions" items={[
+  "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Battery toString and immutable fields</em>, <em>Robot toString includes its battery</em>, <em>The battery survives mutating the robot</em>.",
+  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Two robots can share one battery safely</em>, <em>Validation and the default battery</em>."
+]} />
+
+<JavaPlayground id="a14-robot-and-battery" />
+
+<RulesBox title="Hints" items={[
+  "<strong><code>final</code> on a field means the reference never changes.</strong> It does not make the object it points at immutable. <code>Battery</code> is immutable because it has no setters, not because <code>Robot</code> declared the field <code>final</code> — two separate decisions that happen to work together here.",
+  "<strong>The two-argument constructor needs a battery from somewhere.</strong> Constructing a default inside it is fine. Passing <code>null</code> and special-casing it later is not: that is how a <code>NullPointerException</code> gets a six-week head start.",
+  "<strong>Two decimal places.</strong> <code>String.format(\"Battery[serial=%s, restingV=%.2f]\", serial, restingVoltage)</code> matches the required output; plain concatenation gives <code>12.5</code>, which does not.",
+  "<strong>Sharing is only safe because nothing can mutate.</strong> Ask yourself what would go wrong if <code>Battery</code> had a <code>setRestingVoltage</code> and two robots held the same one. That question is the entire point of the assignment."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Functionality", "60", "<code>Battery</code> immutable with both fields <code>private final</code> and no setters. <code>Robot</code> holds a <code>private final Battery</code>, exposes <code>getBattery</code>, has no <code>setBattery</code>, and includes it in <code>toString</code>."],
+    ["Edge cases", "15", "A <code>null</code> battery is rejected. Voltage above 14.0 and a blank serial are rejected. The two-argument constructor still produces a usable battery."],
+    ["Code quality", "20", "No validation duplicated between constructors. <code>Battery</code> exposes no way to mutate it, not even accidentally through a getter."],
+    ["Comments", "5", "Author header, and a note recording what the default battery represents and why you chose those values."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Add `Robot withBattery(Battery)` returning a *new* `Robot` that shares everything else
+  but carries the new battery. That is how immutable types handle change.
+- Add a `BatteryLog` holding a `Battery[]` and a method returning the freshest one.
+  Decide whether the log should copy the array it is handed, and write down why.
+
+### References
+
+- JavaDoc: [`java.lang.String.format`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html#format(java.lang.String,java.lang.Object...))
+- Wikipedia: [Object composition](https://en.wikipedia.org/wiki/Object_composition)
+- Wikipedia: [Immutable object](https://en.wikipedia.org/wiki/Immutable_object)
+
+<Sources items={[
+  {"source": "csce145", "note": "Composition."},
+  {"source": "dev-java", "path": "classes-objects/more-on-classes/", "note": "Has-a relationships, encapsulation."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String.format</code>."}
+]} />

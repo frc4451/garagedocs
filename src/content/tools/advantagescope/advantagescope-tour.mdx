@@ -1,0 +1,132 @@
+---
+title: "Getting Around AdvantageScope"
+lessonId: advantagescope-tour
+section: tools
+group: advantagescope
+groupLabel: "AdvantageScope"
+groupOrder: 4.5
+order: 1
+difficulty: beginner
+description: "Connect AdvantageScope to live data or logs, navigate its views, graph values, and save layouts."
+---
+
+**AdvantageScope** is a data visualization application from Team 6328, Mechanical Advantage. It is included with WPILib and can display live NetworkTables data and several log formats. FRC 4451 uses it for graphs, field views, controller inputs, and console messages.
+
+This page introduces the application. [Poses on the field](/tools/advantagescope-field) covers the 2D and 3D views, and [Controllers and the console](/tools/advantagescope-controllers-and-console) covers those two tabs. The [official documentation](https://docs.advantagescope.org/) is the reference for current controls and supported formats.
+
+### Where the data comes from
+
+AdvantageScope displays fields available through the selected live source or log. If a value is missing, first check whether the program publishes or records it under the expected key.
+
+<ContentTable
+  headers={["Source", "What it is", "When you use it", "How the code fills it"]}
+  rows={[
+    ["<strong>Live: NetworkTables</strong>", "The robot's shared key/value store, streamed over the network as it changes", "While the robot or simulator is running", "WPILib publishers (<code>DoublePublisher</code>, <code>StructPublisher</code>), <code>SmartDashboard.put…</code>, or AdvantageKit's <code>NT4Publisher</code>"],
+    ["<strong>Log file: <code>.wpilog</code></strong>", "Time-series data recorded in a supported log file", "After a match or test, including data you did not watch live", "<code>DataLogManager.start()</code> in WPILib, or AdvantageKit's <code>WPILOGWriter</code>"]
+  ]}
+/>
+
+[Kit Bot R13](/kit-bot/r13-telemetry-with-advantagescope) configures NetworkTables publishing and WPILib data logging. Cobra uses [AdvantageKit](/frc/advantagekit), which records logged inputs and values passed to `Logger.recordOutput`. Check the active source and exact key path before comparing the two projects.
+
+AdvantageScope supports additional formats, including Driver Station logs and selected vendor formats. Consult [Log Files](https://docs.advantagescope.org/overview/log-files/) for the version you installed.
+
+### Installing
+
+Use the AdvantageScope version included with WPILib unless the team has chosen a separate release:
+
+- **The WPILib installer** already put AdvantageScope on your machine when you did [Kit Bot R00](/kit-bot/r00-wpilib-setup). In WPILib VS Code the palette command *WPILib: Start Tool* → *AdvantageScope* launches it; so does the shortcut in the `wpilib/2026/tools` folder.
+- **Direct from 6328.** The [releases page](https://github.com/Mechanical-Advantage/AdvantageScope/releases/latest) is often newer than the WPILib copy and alerts you when a new version ships. A new major version arrives every January with the year in its number (v26 for the 2026 season); the [installation page](https://docs.advantagescope.org/overview/installation/) explains the choice.
+
+Record which version the team uses for shared layouts and troubleshooting. If two installations are present, confirm which executable you opened.
+
+### Connecting
+
+Use the **File** menu to select a live source or open a log:
+
+<ContentTable
+  headers={["File menu", "Talks to", "Address", "Use it when"]}
+  rows={[
+    ["<strong>Connect to Robot</strong>", "A live source at the configured robot address", "<code>10.TE.AM.2</code> from preferences (<code>10.44.51.2</code> for FRC 4451)", "Tethered or on the robot radio, robot code running"],
+    ["<strong>Connect to Simulator</strong>", "A live source at <code>127.0.0.1</code>", "<code>127.0.0.1</code>", "After <em>WPILib: Simulate Robot Code</em>: see <a href=\"/frc/running-the-simulator\">Running the Simulator</a>"],
+    ["<strong>Connect to Driver Station</strong>", "The Driver Station app on this laptop", "local", "Reading DS diagnostics (battery, CAN, comms) on the drive laptop; no configuration needed"],
+    ["<strong>Open Log(s)…</strong>", "A file on disk", "Not applicable", "A saved <code>.wpilog</code>, <code>.hoot</code>, <code>.dslog</code>"],
+    ["<strong>Download Logs…</strong>", "The robot's storage", "robot address", "Pulling last match's log off the USB stick without a file browser"]
+  ]}
+/>
+
+The window title shows *Searching* while a live connection is pending. Configure the robot address in preferences. For NetworkTables connections, **Low Bandwidth** requests active fields; **Logging** requests all fields so they can be viewed retroactively. Use Logging only when the available bandwidth supports it. See [Live Sources](https://docs.advantagescope.org/overview/live-sources/).
+
+If the tree remains empty, confirm the selected source, configured address, robot or simulator state, network path, firewall, and whether data is being published. [Troubleshooting a Robot Connection](/frc/network-troubleshooting) covers the network checks.
+
+### The window
+
+The application has four main regions. Refer to [App Navigation](https://docs.advantagescope.org/overview/navigation/) for the current interface.
+
+<ContentTable
+  headers={["Region", "Where", "What it does"]}
+  rows={[
+    ["<strong>Sidebar</strong>", "Left", "The key tree. Fields are in <em>italics</em>; built-in tables are underlined. Type in the search box to filter. <strong>Drag a field</strong> onto the tab to plot it; <kbd>Ctrl</kbd>-click several first to drag them as a group. Drag the right edge to resize, double-click it to hide"],
+    ["<strong>Tab bar</strong>", "Top", "One tab per view, such as Line Graph, 2D Field, 3D Field, Joysticks, Console, Table, Swerve, Mechanism… The <strong>+</strong> button adds one; the window button pops the current tab into its own window; right-click to rename"],
+    ["<strong>Viewer pane</strong>", "Centre", "The picture: the graph, the field, the controller"],
+    ["<strong>Control pane</strong>", "Bottom", "The list of fields on this tab and options such as colours, axes and object types. Drag its top edge to resize, double-click to hide"]
+  ]}
+/>
+
+The **timeline** controls the selected time across supported tabs. Mode colors depend on the data and current AdvantageScope version. Click or scrub to align graphs, field views, and messages. During a live connection, use the red arrow control to lock or unlock the current time.
+
+### The Line Graph
+
+Use a Line Graph to compare numeric fields over time. Put fields with different units on separate axes, and use the discrete area for booleans, enums, or strings.
+
+For a mechanism, compare the commanded value, measured value, and control output. This can reveal lag, overshoot, steady-state error, or saturation, but the graph alone does not establish the cause. [Watching Simulation in AdvantageScope](/frc/advantagescope-sim#the-line-graph-commanded-versus-measured) explains how to investigate.
+
+### Layouts
+
+A layout stores tabs, selected fields, and view settings. Export shared layouts to JSON and keep them with the project when the team wants a reproducible review setup.
+
+### The tabs
+
+<ContentTable
+  headers={["Tab", "Shows", "Taught in"]}
+  rows={[
+    ["📉 Line Graph", "Numbers over time, plus discrete bands", "This page; <a href=\"/frc/advantagescope-sim\">Watching Simulation in AdvantageScope</a>"],
+    ["🗺 2D Field / 👀 3D Field", "Poses on the field, trajectories, vision targets, articulated mechanisms", "<a href=\"/tools/advantagescope-field\">Poses on the Field</a>"],
+    ["🎮 Joysticks", "Up to six controllers, buttons lit as pressed", "<a href=\"/tools/advantagescope-controllers-and-console\">Controllers and the Console</a>"],
+    ["💬 Console", "The robot's printed output and DS messages, searchable", "<a href=\"/tools/advantagescope-controllers-and-console\">Controllers and the Console</a>"],
+    ["🔢 Table", "Raw values, one row per update", "<a href=\"https://docs.advantagescope.org/tab-reference/table/\">Reference</a>"],
+    ["🦀 Swerve", "Module states as arrows", "<a href=\"/frc/advantagescope-sim#the-swerve-tab\">Watching Simulation</a>"],
+    ["🦾 Mechanism", "A <code>Mechanism2d</code> drawn to scale", "<a href=\"/frc/advantagescope-sim#the-mechanism-tab\">Watching Simulation</a>"],
+    ["📊 Statistics, 🎬 Video, 🔍 Metadata", "Histograms; match video synced to the log; git SHA and build info", "<a href=\"https://docs.advantagescope.org/\">Reference</a>"]
+  ]}
+/>
+
+<RulesBox title="Common mistakes">
+
+- **Wrong live source or address.** Confirm Robot versus Simulator and the selected protocol.
+- **Missing publication or log entry.** Verify the key in the code and source tree.
+- **Bandwidth mode does not retain an unused field.** Use Logging mode only when bandwidth permits.
+- **Layout not saved.** Export a shared layout after checking its fields and labels.
+- **Version mismatch.** Record the AdvantageScope version used to create a layout or reproduce a problem.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "advantagescope", "path": "overview/installation/", "note": "Installation and the WPILib bundle."},
+  {"source": "advantagescope", "path": "overview/navigation/", "note": "Tabs, sidebar, the field tree."},
+  {"source": "advantagescope", "path": "overview/live-sources/", "note": "Connecting to a robot or simulator."},
+  {"source": "advantagescope", "path": "overview/log-files/", "note": "Opening logs."},
+  {"source": "advantagescope", "path": "tab-reference/table/", "note": "The table tab."},
+  {"source": "advantagescope", "path": "tab-reference/line-graph/", "note": "The line graph."},
+  {"source": "wpilib", "path": "docs/software/dashboards/advantagescope.html", "note": "AdvantageScope in the WPILib docs."},
+  {"url": "https://github.com/Mechanical-Advantage/AdvantageScope/releases/latest", "label": "AdvantageScope releases", "note": "Versions."}
+]} />
+
+<LinkGrid title="Next" section="tools" links={[
+  {"label":"Poses on the Field","id":"advantagescope-field"},
+  {"label":"Controllers and the Console","id":"advantagescope-controllers-and-console"},
+  {"label":"Kit Bot R13: Telemetry with AdvantageScope","url":"/kit-bot/r13-telemetry-with-advantagescope"},
+  {"label":"FRC: Watching Simulation in AdvantageScope","url":"/frc/advantagescope-sim"},
+  {"label":"AdvantageScope docs: App Navigation","url":"https://docs.advantagescope.org/overview/navigation/"},
+  {"label":"AdvantageScope docs: Live Sources","url":"https://docs.advantagescope.org/overview/live-sources/"},
+  {"label":"AdvantageScope docs: Log Files","url":"https://docs.advantagescope.org/overview/log-files/"}
+]} />

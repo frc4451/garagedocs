@@ -1,0 +1,60 @@
+---
+title: "Manual Tuning: Profiled (Motion Magic)"
+lessonId: manual-tuning-profiled
+section: frc
+group: frc-manual-tuning
+groupLabel: "Manual Tuning"
+groupOrder: 4.5
+order: 5
+difficulty: intermediate
+duration: 25 min
+durationFixed: true
+description: "The recipe under a profile: kS, then kA by matching the measured velocity's ramp to the profile's, kV at cruise, and only then a kP/kD ladder whose numbers are far larger than an unprofiled loop could stand, with CTRE's worked example (kS = 1.25 A, kV = 0.15, kA = 65, kP = 16000, kD = 2000) and the reason those gains are safe only here."
+---
+
+The last recipe is the one most of Cobra's mechanisms actually run: a position loop under a Motion Magic profile. The gains are found in a different order, and the feedback gains you end with would be alarming anywhere else. Read the [turret](/frc/manual-tuning-turret) and [arm](/frc/manual-tuning-arm-elevator) recipes first; this page changes what they do, not how they read.
+
+Under a profile the controller has a velocity and an acceleration setpoint at every instant, so `kV` and `kA` can do most of the work and feedback only cleans up ([Why Motion Magic](/frc/motion-magic-why)). The tuning order changes to match: the feedforward terms are found by matching the *shape* of the measured velocity to the profile's, and the feedback gains that result are far larger than a plain position loop could tolerate. They are safe only because the feedforward is carrying the load. The example: a 1:1 high-inertia mechanism following a pre-generated profile in torque-current mode.
+
+<StepsBox title="Profiled procedure">
+
+1. **Zero all gains.**
+2. **Set a nearby setpoint** (0.1 rotations; with Motion Magic the profile handles the rest).
+3. **`kS`**: raise until the mechanism starts to move, back off to just before.
+4. **`kA`**: raise until the *slope* of the measured velocity matches the slope of the profiled velocity at the start of the move, which is the acceleration ramp. In torque-current mode `kA` is the backbone of profile following, because current is torque and torque is what accelerates mass.
+5. **`kV`**: raise until the measured velocity matches the profiled velocity at the end of the cruise (constant-velocity) stretch. For many position mechanisms, drag is negligible and `kV` stays zero.
+6. **`kP`**: raise until you see overshoot or oscillation, including during cruise, not only at the end.
+7. **`kD`**: raise until it stops. Under a profile `kD` behaves like a `kP` on velocity: it pulls the measured velocity toward the profile's.
+8. **Repeat 6–7** to the latency limit, then back off as before.
+
+</StepsBox>
+
+**How the worked example went.** `kS = 1.25` by the usual bracket. `kA` 1 (nowhere near), 10, 20, 40, 80 (overshoots the ramp), 60, 65, which matched. `kV` could have stayed 0 (the cruise velocity held), but for the example: 1 (overshoot), 0.5, 0.2, 0.15. `kP` 1 (nothing), 10, 100 (a slow wobble), 2000 (real oscillation); `kD` 1, 10, 100, 200, 400, 800; `kP` 4000, 8000, 16000 (oscillation mid-move, but the endpoint is right); `kD` 1600, 3200 (on-the-way oscillation), 2400, 2000. **Final: `kS = 1.25 A`, `kV = 0.15 A/rps`, `kA = 65 A/(rot/s²)`, `kP = 16000 A/rot`, `kD = 2000 A/rps`.** Those feedback gains would be absurd on an unprofiled loop; here they are correct.
+
+This is the procedure behind [PID Tuning Practice – Arm, Part 2](/frc/pid-tuning-practice-arm#part-2-motion-magic-in-phoenix-tuner) and [Elevator, Part 2](/frc/pid-tuning-practice-elevator#part-2-feedforward-under-an-exponential-profile), and the way every Motion Magic mechanism on Cobra is tuned. FRC 4451's IO exposes `PositionSetpoint` and `VelocitySetpoint` from the controller's profile precisely so steps 4 and 5 have something to compare against.
+
+<RulesBox title="Common mistakes">
+
+- **Tuning <code>kP</code> before <code>kA</code>.** Under a profile the feedforward is the plan; feedback found first will be compensating for a missing <code>kA</code>.
+- **Matching the wrong part of the graph.** <code>kA</code> is the ramp at the start; <code>kV</code> is the cruise at the end.
+- **Reusing these gains on an unprofiled loop.** They are only sane because the profile's feedforward carries the load.
+- **Not logging the profile's setpoints.** Without <code>PositionSetpoint</code>/<code>VelocitySetpoint</code> on the graph there is nothing to match against.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/manual-pid-tuning.html#profiled-tuning", "note": "The profiled procedure: kA by matching the ramp, kV by matching the cruise."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/motion-magic.html", "note": "The profile the gains are matched against."},
+  {"source": "ctre", "path": "docs/api-reference/api-usage/status-signals.html", "note": "<code>ClosedLoopReference</code>/<code>ClosedLoopReferenceSlope</code>: the profile setpoints on the graph."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFX.java", "note": "The <code>PositionSetpoint</code> and <code>VelocitySetpoint</code> inputs the IO exposes for matching."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "A Motion Magic mechanism tuned this way."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Manual Tuning: Every Gain Is Canonical","id":"manual-pid-tuning"},
+  {"label":"Why Motion Magic: Profiles Before Gains","id":"motion-magic-why"},
+  {"label":"PID Tuning Practice - Arm, Part 2 (Motion Magic)","url":"/frc/pid-tuning-practice-arm#part-2-motion-magic-in-phoenix-tuner"},
+  {"label":"PID Tuning Practice - Elevator, Part 2 (Exponential)","url":"/frc/pid-tuning-practice-elevator#part-2-feedforward-under-an-exponential-profile"},
+  {"label":"Motor Configuration","id":"motor-controller-configuration"},
+  {"label":"CTRE: Profiled Tuning","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/manual-pid-tuning.html#profiled-tuning"}
+]} title="Next" section="frc" />

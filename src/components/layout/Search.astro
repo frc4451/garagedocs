@@ -9,7 +9,7 @@ import { withBase } from '@/lib/url';
   <div class="search-results-modal" data-search-modal>
     <div id="pagefind-search"></div>
     <p id="search-unavailable" class="search-unavailable-message" hidden>
-      Search requires an index. Run <code>npm run build</code> once, then restart dev.
+      Search needs an index, which <code>npm run build</code> creates. Run it once; the dev server then serves the index without a restart.
     </p>
   </div>
 </div>
@@ -79,13 +79,29 @@ import { withBase } from '@/lib/url';
 
       input.addEventListener('focus', sync);
       input.addEventListener('input', sync);
+      // Enter with results open follows the first result, so a query typed in the
+      // header can be completed from the keyboard without reaching for the mouse.
+      input.addEventListener('keydown', (e) => {
+        if ((e as KeyboardEvent).key !== 'Enter') return;
+        const first = document.querySelector<HTMLAnchorElement>('#pagefind-search .pagefind-ui__result-link');
+        if (first?.href) {
+          e.preventDefault();
+          window.location.href = first.href;
+        }
+      });
     });
   }
 
   function initPagefind() {
     // @ts-expect-error pagefind UI loaded via script tag
     if (typeof PagefindUI === 'undefined') {
+      // No index (fresh clone, or dev before the first build). Still wire the header
+      // input so focusing it opens the overlay and shows the message instead of
+      // doing nothing at all.
       showUnavailable();
+      wireSearchInputs();
+      // @ts-expect-error expose for keyboard shortcuts
+      window.mantikOpenSearch = openSearchOverlay;
       return;
     }
 

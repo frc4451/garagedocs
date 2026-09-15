@@ -1,0 +1,189 @@
+---
+title: "BobotState: The One Global"
+lessonId: bobot-state
+section: frc
+group: frc-architecture
+groupLabel: "Cobra Architecture"
+groupOrder: 8.5
+order: 2
+difficulty: intermediate
+duration: 30 min
+description: "The one deliberately global object in the robot: what lives in it (pose, velocity, vision observation queues, per-target aim calculations, interpolators, field zones), why it is a VirtualSubsystem rather than a subsystem, how it feeds the drivetrain and the shooter without either knowing about the other, the game-logic Triggers built on it, and the rules for adding to it without turning it into a junk drawer."
+---
+
+Every rule about robot code says: no globals, no static state, subsystems own their hardware and nothing else. Cobra follows that everywhere except in one place, on purpose. `frc.robot.bobot_state.BobotState` is a class of static fields that any subsystem or command can read, and it exists because some facts about the robot are not owned by any one subsystem (where the robot is, what it can see, what it is aiming at), and pretending otherwise produces a tangle of subsystems passing each other suppliers. This lesson is what is in it, how data flows through it, and how to add to it without breaking the reason it works.
+
+### What it is
+
+```java
+public class BobotState extends VirtualSubsystem {
+  @Getter @Setter private static Pose2d globalPose = new Pose2d();          // the fused estimate
+  @Getter @Setter private static ChassisSpeeds robotVelocity = new ChassisSpeeds();
+  @Getter @Setter private static Rotation2d rawGyroHeading = new Rotation2d();
+
+  @Getter private static final Queue<PoseObservation> globalPoseObservations = new LinkedBlockingQueue<>(20);
+  // …two more observation queues (trig, constrained)
+
+  @Getter private static final HubVARC hubVARC = new HubVARC();               // aim calculations, one per target
+  @Getter private static final TrenchVARC trenchVARC = new TrenchVARC();
+  // …bump, outpost, depot, fuel cluster
+  @Getter private static TargetVARC closestDropoff;
+  @Getter private static TargetVARC closestTraversal;
+
+  @Getter private static HubInterpolator hubInterpolator = new HubInterpolator();   // distance → shooter setpoints
+  @Getter private static DropoffInterpolator dropoffInterpolator = new DropoffInterpolator();
+
+  @Getter @Setter private static List<Pose3d> knownFuelPoses = List.of();   // from object detection
+  private static final Field2d field2d = new Field2d();
+}
+```
+
+Three kinds of thing, and it is worth keeping them apart in your head:
+
+<ContentTable
+  headers={["Kind", "Examples", "Written by", "Read by"]}
+  rows={[
+    ["<strong>Facts about the robot</strong>", "<code>globalPose</code>, <code>robotVelocity</code>, <code>rawGyroHeading</code>", "The drivetrain, once per loop", "Everything: vision, shooter, autos, zoning"],
+    ["<strong>Mailboxes</strong>", "The three <code>PoseObservation</code> queues, <code>knownFuelPoses</code>", "Vision subsystems (<code>offerGlobalVisionObservation</code>)", "The drivetrain drains the queues into its pose estimators every loop"],
+    ["<strong>Derived answers</strong>", "The VARCs, the interpolators, <code>closestDropoff</code>, the field zone, the game-logic Triggers", "<code>BobotState.periodic()</code> itself, from the facts", "Shooter, hood, drive commands, bindings"]
+  ]}
+/>
+
+The first two kinds are how subsystems talk *without referencing each other*: the drivetrain never imports `AprilTagVision`, and vision never imports `Drive`. Both know `BobotState`. The third kind is where the game strategy lives as code, in one place, logged.
+
+### Why a VirtualSubsystem
+
+`BobotState` is not a `SubsystemBase`. Subsystems exist to be required by commands; the scheduler's job is arbitrating who owns a mechanism, and nothing about "where is the robot" needs arbitration. Registering it as a subsystem would let a command accidentally require it and block every other command that also did.
+
+Instead it extends the ROBOTZ Garage library's [`VirtualSubsystem`](/frc/virtual-subsystem): a class whose constructor adds `this` to a static list, and whose `runPeriodically()` is called from `Robot.robotPeriodic` *before* the `CommandScheduler` (and `runSimulationPeriodically()` from `simulationPeriodic`). It gets a `periodic()` every 20 ms like a subsystem, with none of the scheduler semantics. The vision subsystems and the dashboard manager are `VirtualSubsystem`s for the same reason.
+
+### The flow through one loop
+
+The order of operations inside `BobotState.periodic()` matters, and the code says so in a comment you should read as a rule:
+
+```java
+public void periodic() {
+  field2d.setRobotPose(globalPose);
+
+  // VARCs must update before the hub interpolator so that HubVARC can read
+  // hubInterpolator.getLookaheadTranslation() from the previous cycle. The one-loop
+  // (~20 ms) staleness is acceptable. Do NOT move hubInterpolator.update() above the VARCs.
+  hubVARC.update();
+  trenchVARC.update();
+  bumpVARC.update();
+  outpostVARC.update();
+  depotVARC.update();
+  fuelClusterVARC.update();
+
+  hubInterpolator.update();
+  dropoffInterpolator.update();
+
+  closestDropoff = outpostVARC.getDistance().lt(depotVARC.getDistance()) ? outpostVARC : depotVARC;
+  closestTraversal = bumpVARC.getDistance().lt(trenchVARC.getDistance()) ? bumpVARC : trenchVARC;
+
+  // …forty lines of Logger.recordOutput
+}
+```
+
+Put together with the subsystems around it, one 20 ms cycle is:
+
+<StepsBox title="One loop, in order">
+
+1. **`VirtualSubsystem.runPeriodically()`**, before the scheduler. `BobotState.periodic` (constructed first, so it runs first) recomputes every VARC from *last loop's* pose, then the interpolators, then the "closest" choices, and logs all of it. Then the **vision** subsystems process their cameras and `offer` new `PoseObservation`s (and fuel poses) into the queues.
+2. **`CommandScheduler.run()`, subsystem periodics.** `Drive` runs odometry, drains the observation queues (fresh from step 1) into its pose estimators, and calls `BobotState.setGlobalPose(…)` and `setRobotVelocity(…)`. The mechanisms update their inputs.
+3. **`CommandScheduler.run()`, commands.** Shooter, hood and drive commands read what they need: `getHubInterpolator().getCalculation()`, `getShooterAlignmentVARC().getRotationTarget()`, `isNearTrench()`, all derived in step 1 from the previous loop's pose, one loop stale by design.
+
+</StepsBox>
+
+The dependency the comment protects: `HubVARC` aims the *drivetrain* at where the shooter should point, and with shoot-on-the-move that is not the hub's direction from the robot but from where the robot will be when the ball lands, the interpolator's `lookaheadTranslation`. So the VARC reads last loop's lookahead, and the interpolator then computes this loop's. One loop of staleness, accepted and documented. Reordering those lines would make the aim use a lookahead computed from a pose that has since changed.
+
+### VARCs: one target's geometry, recomputed every loop
+
+A `TargetVARC` is one object per field target holding its distance, the heading to face it and its alliance-flipped pose, updated here every loop and read by every command that aims. It is the team's alignment pattern since 2024 and has [its own page](/frc/varc); this page only fixes its place in the loop: `BobotState.periodic()` updates every VARC **before** the hub interpolator, because `HubVARC` reads the interpolator's lookahead from the previous cycle and the interpolator reads the VARC's distance from this one.
+
+### Interpolators: distance in, shooter setpoints out
+
+`HubInterpolator` and `DropoffInterpolator` extend the library's `TargetInterpolator`, which owns a `ShootingInterpolator` (interpolation tables keyed by distance, read line by line in [Numbers, Units and Interpolation](/frc/math-interpolation#cobras-own-the-shootinginterpolator)) and computes, every loop, the flywheel velocity and hood angle for the current distance, with **shoot-on-the-move**: it iterates a lookahead (project the shooter's position forward by the ball's time of flight, recompute distance, repeat a few times) and guards against the case where the robot is closing faster than the ball flies. The [Shooter Example](/frc/shooter-example#step-3-the-target-comes-from-the-pose) consumes the result; this is where it is made. The interpolator, not the shooter, knows about poses and velocities, which is the separation that keeps `Shooter` a thin wrapper.
+
+### Zones and game logic as Triggers
+
+The strategy questions (are we in the neutral zone, is the net going to block this shot, are we about to drive into a trench) are answered here, as `Trigger`s, so bindings and command groups can compose them:
+
+```java
+public static Trigger inNearAllianceZone() { return new Trigger(() -> getCurrentFieldZone() == FieldZone.NEAR_ALLIANCE); }
+public static Trigger isNearTrench() { … }                    // within N feet of a trench opening, inside its Y span
+public static Trigger shouldStopFeedingFuelToShooter() { … }  // zone + hub geometry + trench proximity
+public static Trigger isTooCloseToHubToScore() { return new Trigger(() -> hubVARC.getDistance().lt(Feet.of(7.4))).and(inNearAllianceZone()); }
+```
+
+`getCurrentFieldZone()` divides the field into near-alliance, neutral and far-alliance by the robot's X against the two hubs' X, after `AllianceFlipUtil.applyX` and then sorted, because flipping reverses which is "near". Two things to notice: the thresholds that are judgement calls (`TrenchProximityFeet`, `NeutralZoneFeedingXDistanceFeet`) are `LoggedTunableNumber`s, changeable from AdvantageScope during a practice match; and every one of these decisions is logged under `BobotState/Zoning/…`, so after a match you can see *why* the feeder stopped at 1:47.
+
+`getShooterAlignmentVARC()` and `getShooterInterpolator()` are the switch statements that turn a zone into a target: near the alliance wall, aim and interpolate for the hub; anywhere else, for the nearest drop-off. That switch is FRC 4451's scoring strategy, and it is eight lines.
+
+### Reading it in AdvantageScope
+
+Everything `BobotState` decides is logged, which makes it the first tree to open when the robot did something strategic you did not expect:
+
+<ContentTable
+  headers={["Key", "Shows"]}
+  rows={[
+    ["<code>BobotState/Zoning/CurrentZone</code>", "Near / neutral / far, on the discrete strip, above a graph of anything else"],
+    ["<code>BobotState/Zoning/CurrentVARCTarget</code>", "HUB / DEPOT / OUTPOST: what the shooter was aiming for"],
+    ["<code>BobotState/Zoning/ShouldStopFeeding</code>, <code>…/TooCloseToHubToScore</code>, <code>…/IsNearTrench</code>", "The Triggers, as booleans in time; line them up with the feeder's state"],
+    ["<code>BobotState/Interpolation/DistanceFromCenterOfHubFeet</code>", "The number the shooter table was read at"],
+    ["<code>BobotState/VARC/Hub/TargetRotationDeg</code> (and Trench, Bump, Outpost, Depot, Traversal)", "Where each target was, in heading; compare with the gyro to see aim error"],
+    ["<code>Field</code> (SmartDashboard <code>Field2d</code>)", "The pose, on the 2D field, for anyone without an AdvantageKit layout"]
+  ]}
+/>
+
+### Adding to it without ruining it
+
+The danger of one global is that it becomes the place for every value anyone ever wanted to share. Three tests before a field goes in:
+
+1. **Is it a fact about the whole robot, or about one mechanism?** Pose: yes. The elevator's height: no. That belongs to the elevator, and a command that needs it takes the subsystem.
+2. **Would two subsystems otherwise have to reference each other to share it?** Vision → drive: yes, that is the mailbox pattern. Shooter → feeder: no, a `Trigger` from the shooter suffices.
+3. **Can it be derived in `periodic()` from what is already here and logged?** Then it is a *derived answer*, and it goes in the periodic with a `recordOutput`, not as a setter someone calls from a command.
+
+And two rules that keep it debuggable: **only the drivetrain writes the pose**, and **every derived answer is logged**. The moment a command calls `setGlobalPose` to "fix" something, the log no longer explains the robot.
+
+<RulesBox title="Common mistakes">
+
+- **Requiring it.** It is not a subsystem; nothing should <code>addRequirements(BobotState)</code>. It is read, not owned.
+- **Reordering <code>periodic()</code>.** The VARC-before-interpolator order is load-bearing; the comment says why.
+- **Reading a queue you did not mean to drain.** <code>poll()</code> consumes. The drivetrain drains the observation queues; anyone else should <code>peek</code> or, better, read the fused pose.
+- **Using the lookahead for distance.** Distance is from the robot's current pose; only the aim uses the projected one. <code>HubVARC</code> spells this out.
+- **A strategy threshold as a literal.** Make it a <code>LoggedTunableNumber</code>, like the ones already there, so it can be tuned at practice without a deploy.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "The class this page reads: poses, observation queues, VARCs, interpolators, zones, <code>periodic()</code> ordering."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/math/varc/TargetVARC.java", "note": "The abstract VARC: one target's distance, angle and rotation target, recomputed per loop."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/varc/HubVARC.java", "note": "The worked VARC: <code>relativeTo … getAngle().plus(rotation)</code> and the lookahead pose."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/varc/VARCConstants.java", "note": "The target poses the VARCs are built from."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/math/interpolation/TargetInterpolator.java", "note": "Base of the distance-keyed setpoint tables."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/interpolation/HubInterpolator.java", "note": "Hub shooting table and lookahead translation."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/interpolation/DropoffInterpolator.java", "note": "Drop-off table."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/math/interpolation/ShootingInterpolator.java", "note": "The five <code>InterpolatingDoubleTreeMap</code>s behind the interpolators."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "Who writes the global pose and velocity into <code>BobotState</code>, and drains its queues."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagVision.java", "note": "Who offers observations to the queues."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "A consumer reading setpoints from <code>BobotState</code> rather than from the drivetrain."},
+  {"source": "cobra", "path": "src/main/java/org/littletonrobotics/AllianceFlipUtil.java", "note": "The flip applied to target poses."},
+  {"source": "cobra", "path": "src/main/java/org/littletonrobotics/LoggedTunableNumber.java", "note": "How the fudge values on the VARCs are exposed."},
+  {"source": "wpilib", "path": "docs/software/commandbased/binding-commands-to-triggers.html", "note": "Zones and game logic exposed as <code>Trigger</code>s."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/button/Trigger.html", "note": "<code>Trigger</code> composition (<code>and</code>, <code>negate</code>, <code>onTrue</code>)."},
+  {"source": "advantagekit", "path": "data-flow/recording-outputs", "note": "<code>Logger.recordOutput</code> for the state <code>BobotState</code> publishes every loop."},
+  {"source": "advantagescope", "path": "tab-reference/2d-field", "note": "Reading the published target and robot poses."}
+]} />
+
+<LinkGrid links={[
+  {"label":"VARC: Vision Assisted Rotation Correction","id":"varc"},
+  {"label":"The Math Toolbox: Geometry and Frames","id":"math-toolbox"},
+  {"label":"The Math Toolbox: Numbers, Units and Interpolation","id":"math-interpolation"},
+  {"label":"VirtualSubsystem","id":"virtual-subsystem"},
+  {"label":"Lombok","id":"lombok"},
+  {"label":"Reading Our Robot Code","id":"team-robot-code"},
+  {"label":"Shooter Example","id":"shooter-example"},
+  {"label":"Fused Pose Estimation","id":"vision-pose-estimation-fusion"},
+  {"label":"Commands: Triggers","url":"/frc/commands"}
+]} title="Next" section="frc" />

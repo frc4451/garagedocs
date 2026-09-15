@@ -3,12 +3,12 @@ title: Motor Configuration
 lessonId: motor-controller-configuration
 section: frc
 group: frc-advanced-motor-config
-groupLabel: Advanced Motor Control
-groupOrder: 4
+groupLabel: "Advanced Motor Control"
+groupOrder: 5
 order: 1
 difficulty: intermediate
-duration: 30 min
-description: ""
+duration: 20 min
+description: "Configuring a motor controller the safe way: inversion, idle mode, limits, applying config and checking it took, control request types, followers, and soft limits."
 ---
 
 ### Essentials
@@ -31,7 +31,7 @@ Every motor controller should be configured for safety and consistency. Key para
 
 ### Applying Configuration Can Fail
 
-`getConfigurator().apply(config)` returns a `StatusCode`. On a busy CAN bus — twenty-odd devices all powering up at once — it sometimes does not succeed.
+`getConfigurator().apply(config)` returns a `StatusCode`. On a busy CAN bus, with twenty or more devices all powering up at once, it sometimes does not succeed.
 
 A failed apply is silent. The motor keeps whatever configuration it had before, which might be last season's inversion or no current limit at all, and nothing reports it. You find out when a mechanism runs backwards or a breaker trips.
 
@@ -68,7 +68,7 @@ Once configured, a Talon FX is commanded with a **control request** object. Reus
   title="Phoenix 6 control requests"
   headers={["Request", "Commands", "Typical use"]}
   rows={[
-    ["<code>DutyCycleOut</code>", "Raw output, &minus;1 to 1", "Rollers, conveyors &mdash; anything open-loop"],
+    ["<code>DutyCycleOut</code>", "Raw output, &minus;1 to 1", "Rollers, conveyors, anything open-loop"],
     ["<code>VoltageOut</code>", "A fixed voltage", "Characterization; consistent output as the battery sags"],
     ["<code>VelocityVoltage</code>", "Closed-loop velocity, voltage output", "Flywheels, swerve drive motors"],
     ["<code>VelocityDutyCycle</code>", "Closed-loop velocity, duty-cycle output", "Velocity control without voltage compensation"],
@@ -78,7 +78,7 @@ Once configured, a Talon FX is commanded with a **control request** object. Reus
 />
 
 ```java
-// Fields — created once, reused every loop
+// Fields: created once, reused every loop
 private final VelocityVoltage velocityRequest = new VelocityVoltage(0);
 private final MotionMagicVoltage motionMagic = new MotionMagicVoltage(0);
 
@@ -113,7 +113,7 @@ PhoenixUtil.tryUntilOk(5, () -> leftShooter.getConfigurator().apply(config));
 leftShooter.setControl(new Follower(rightShooter.getDeviceID(), MotorAlignmentValue.Opposed));
 ```
 
-`MotorAlignmentValue.Opposed` means the follower runs the opposite direction from the leader — correct for motors mounted facing each other. Use `Aligned` when they face the same way.
+`MotorAlignmentValue.Opposed` means the follower runs the opposite direction from the leader, which is correct for motors mounted facing each other. Use `Aligned` when they face the same way.
 
 Following happens on the motor controller, so the follower keeps tracking even if the roboRIO loop is slow. Commanding both motors from code instead works, but adds CAN traffic and lets the two drift apart.
 
@@ -130,5 +130,17 @@ config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = 0;
 
 The motor controller refuses to drive past these positions regardless of what is commanded. That protects the mechanism even from a bug in your own code.
 
-<LinkGrid links={[{"label":"Subsystems","id":"subsystems"},{"label":"Motor PID Control","id":"motor-pid-control"},{"label":"Current Limiting Details","id":"motor-current-limiting"},{"label":"Phoenix 6 Control Requests","url":"https://v6.docs.ctr-electronics.com/en/stable/docs/api-reference/api-usage/control-requests.html"}]} title="Resources" section="frc" />
+<Sources items={[
+  {"source": "ctre", "path": "docs/api-reference/api-usage/configuration.html", "note": "Building a <code>TalonFXConfiguration</code> and applying it; why <code>apply</code> returns a <code>StatusCode</code>."},
+  {"source": "ctre", "path": "docs/api-reference/api-usage/control-requests.html", "note": "The control request families and modifiers."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/closed-loop-requests.html", "note": "Position and velocity requests, <code>Follower</code> and <code>MotorAlignmentValue</code>."},
+  {"source": "ctre", "path": "docs/api-reference/api-usage/actuator-limits.html", "note": "Software limit switches."},
+  {"source": "rev", "path": "revlib/spark/configuring-a-spark", "note": "The SPARK MAX configuration object and <code>configure</code> with persist and reset modes."},
+  {"source": "rev", "path": "revlib/spark/closed-loop", "note": "SPARK closed-loop slots."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/util/PhoenixUtil.java", "note": "<code>tryUntilOk</code>: the retry loop the configuration examples use."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java", "note": "The record Cobra builds slot gains and limits in."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFX.java", "note": "Where a full <code>TalonFXConfiguration</code> is assembled and applied at construction."}
+]} />
+
+<LinkGrid links={[{"label":"Subsystems","id":"subsystems"},{"label":"PID Control","id":"frc-pid-control"},{"label":"Current Limiting Details","id":"motor-current-limiting"},{"label":"Phoenix 6 Control Requests","url":"https://v6.docs.ctr-electronics.com/en/stable/docs/api-reference/api-usage/control-requests.html"}]} title="Resources" section="frc" />
 

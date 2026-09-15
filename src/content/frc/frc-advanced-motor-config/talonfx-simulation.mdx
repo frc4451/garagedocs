@@ -1,0 +1,228 @@
+---
+title: "Simulating a TalonFX"
+lessonId: talonfx-simulation
+section: frc
+group: frc-advanced-motor-config
+groupLabel: "Advanced Motor Control"
+groupOrder: 5
+order: 5
+difficulty: advanced
+duration: 35 min
+description: "The bridge between WPILib's DCMotorSim and Phoenix's TalonFXSimState (which side owns what, the units trap that SensorToMechanismRatio creates, the 5 ms Notifier, battery sag), read through the ROBOTZ Garage library's five …IOSimTalonFX classes, including the two places where the library's own sim is incomplete and how to finish it."
+---
+
+[Physics in the IO Layer](/frc/physics-sim-io#the-vendor-sim-state-pattern) introduced the vendor-sim-state pattern with one class. This lesson is the whole family: how a `DCMotorSim` and a `TalonFXSimState` are wired to each other, what each is responsible for, and what FRC 4451's `SingleRollerIOSimTalonFX`, `SingleRollerIOSimTalonFXS`, the two `…WithCANCoder` variants and `FollowRollersIOSimTalonFX` do the same way, and where they differ, including a units inconsistency and a missing piece that explain a commented-out line in `RobotContainer`. REV has an equivalent (`SparkSim`), but FRC 4451 has no working reference for it yet, so this lesson is TalonFX only.
+
+### Two objects, two jobs
+
+There are two simulations running, and confusing them is the source of every bug in this area.
+
+<ContentTable
+  headers={["", "<code>DCMotorSim</code> (WPILib)", "<code>TalonFXSimState</code> (Phoenix)"]}
+  rows={[
+    ["Represents", "The <em>physics</em>: a motor, a gearbox and a load with inertia", "The <em>device</em>: what the simulated controller believes about its own rotor and supply"],
+    ["Knows about", "Motor curves, MOI, gearing, voltage → acceleration, current draw", "Configs, control requests, closed-loop gains, status signals: everything the real firmware knows"],
+    ["Inputs", "<code>setInputVoltage(v)</code>, <code>update(dt)</code>", "<code>setSupplyVoltage(v)</code>, <code>setRawRotorPosition(rot)</code>, <code>setRotorVelocity(rps)</code>"],
+    ["Outputs", "<code>getAngularPosition()</code>, <code>getAngularVelocity()</code>, <code>getCurrentDrawAmps()</code>", "<code>getMotorVoltage()</code>, <code>getTorqueCurrent()</code>, <code>getSupplyCurrent()</code>"],
+    ["Runs the control loop?", "No", "<strong>Yes</strong>: the same PID, Motion Magic and FOC maths as the firmware"],
+    ["Where it lives", "The <code>…IOSimTalonFX</code> class", "Inside the <code>TalonFX</code> object the real IO already created"]
+  ]}
+/>
+
+Neither can work alone. The Phoenix object computes a motor voltage from your control request and its gains, but has no idea what that voltage does to a real load. The WPILib object knows exactly what the voltage does, but has no controller. The sim IO's only job is to carry values between them, in a loop:
+
+```
+subsystem.setGoal(x)
+   │
+   ▼
+TalonFX (real IO code, unchanged) ── control request ──▶ TalonFXSimState
+                                                              │ getMotorVoltage()
+                                                              ▼
+                                                         DCMotorSim.setInputVoltage()
+                                                         DCMotorSim.update(dt)
+                                                              │ position, velocity, current
+                                                              ▼
+TalonFXSimState.setRawRotorPosition / setRotorVelocity  ◀─────┘
+   │  (the controller's "encoder" now reads the physics)
+   ▼
+closed loop reacts next cycle …
+```
+
+That is why gains tuned here transfer to the robot: the loop that closes is Phoenix's own, not a WPILib stand-in.
+
+### The reference implementation
+
+`SingleRollerIOSimTalonFX`, in full, with the cross-references:
+
+```java
+public class SingleRollerIOSimTalonFX extends SingleRollerIOTalonFX implements AutoCloseable {
+  private final DCMotorSim motorSim;
+  private final Notifier simNotifier;
+  private double lastUpdateTimestamp;
+  private double lastTimestampDelta;
+
+  public SingleRollerIOSimTalonFX(TalonFXConfigSim config) {
+    super(config.config());                                           // ① the real IO, configured exactly as on the robot
+    motorSim = new DCMotorSim(
+        LinearSystemId.createDCMotorSystem(config.dcMotor(), config.moi(), reduction),
+        config.dcMotor());                                            // ② the physics, from the sim config
+    lastUpdateTimestamp = Timer.getFPGATimestamp();
+    simNotifier = new Notifier(this::updateSimState);
+    simNotifier.startPeriodic(0.005);                                 // ③ 5 ms, on its own thread
+  }
+
+  private void updateSimState() {
+    double timestamp = Timer.getFPGATimestamp();
+    double delta = timestamp - lastUpdateTimestamp;                   // ④ measured dt, not assumed
+    lastUpdateTimestamp = timestamp;
+    lastTimestampDelta = delta;
+
+    talon.getSimState().setSupplyVoltage(RobotController.getBatteryVoltage());   // ⑤ battery → device
+    motorSim.setInputVoltage(talon.getSimState().getMotorVoltage());             // ⑥ device → physics
+
+    motorSim.update(delta);
+
+    talon.getSimState().setRawRotorPosition(motorSim.getAngularPosition().times(reduction));  // ⑦ physics → device,
+    talon.getSimState().setRotorVelocity(motorSim.getAngularVelocity().times(reduction));     //    in ROTOR units
+
+    RoboRioSim.setVInVoltage(
+        BatterySim.calculateDefaultBatteryLoadedVoltage(motorSim.getCurrentDrawAmps()));       // ⑧ load → battery
+  }
+
+  @Override public void close() { simNotifier.close(); }
+  @Override public double getLastTimestampDelta() { return lastTimestampDelta; }
+}
+```
+
+**① `super(config.config())`.** Everything the real IO does (building `cfg`, applying `Slot0`, Motion Magic, current limits, `SensorToMechanismRatio`, setting up the status signals) happens for the simulated device too. `updateInputs`, `runVolts`, `setGoal` are inherited unchanged. The sim class overrides nothing the subsystem calls; it only adds a background loop.
+
+**② The sim config wraps the real one.** `TalonFXConfigSim` is `(TalonFXConfig config, DCMotor dcMotor, double moi)`: the physics fields *and* the real config, so there is exactly one place gains live.
+
+**③ A `Notifier` at 5 ms.** The real controller runs its loop at 1 kHz and Phoenix's simulated device processes control requests on its own schedule. Feeding it physics only every 20 ms (the robot loop) makes the closed loop see a staircase; 5 ms is smooth enough and cheap enough. It also means this runs on a separate thread, which is why `close()` exists, and why nothing in `updateSimState` may touch subsystem state.
+
+**④ Measured dt.** `delta` is the real elapsed time, so if the laptop stalls the physics integrates the actual gap rather than pretending 5 ms passed. `getLastTimestampDelta()` exposes it for the library's parallel `ElevatorSim` / `FlywheelSim` logging models, which integrate with the same step.
+
+**⑤ ⑥ ⑦ ⑧** are the loop from the diagram, and ⑤/⑧ close a second loop: current draw sags the simulated battery (`BatterySim` models a 12.6 V pack with internal resistance), and the sagged voltage is what the device sees as its supply next cycle. Spin up a shooter and drive at the same time in sim and the drive slows, the same brownout behaviour the real robot has.
+
+### The units trap: SensorToMechanismRatio
+
+This is the one thing to get exactly right, and the library gets it right in some classes and wrong in one.
+
+The real IO configures the device with:
+
+```java
+cfg.Feedback = new FeedbackConfigs()
+    .withFeedbackSensorSource(FeedbackSensorSourceValue.RotorSensor)
+    .withSensorToMechanismRatio(reduction);
+```
+
+so every status signal (`getPosition()`, `getVelocity()`, the closed-loop reference) is in **mechanism** units: the firmware divides rotor rotations by `reduction` before reporting. The subsystem thinks in mechanism rotations and never sees the ratio.
+
+`TalonFXSimState` sits below that conversion. `setRawRotorPosition` and `setRotorVelocity` want **rotor** units (the name says raw), because the simulated device applies `SensorToMechanismRatio` itself, exactly as the firmware would. The `DCMotorSim`, built with `createDCMotorSystem(motor, moi, reduction)`, reports the mechanism side (its output shaft after the gearbox). So the bridge from physics to device is:
+
+```
+rotor rotations = mechanism rotations × reduction
+```
+
+which is line ⑦: `.times(reduction)`. Get this backwards and the controller believes the mechanism is `reduction²` times slower than it is; with a 9:1 gearbox that is an 81× error, and the closed loop, doing its job, will command full output forever while the plotted position crawls.
+
+<RulesBox title="Spot the inconsistency">
+
+Open <code>FollowRollersIOSimTalonFX.updateInputs</code> in FRC 4451's Cobra repository. It writes
+
+<code>leader.getSimState().setRawRotorPosition(leaderSim.getAngularPositionRotations() / reduction)</code>
+
+and it <strong>divides</strong>. The single-roller classes multiply. Both cannot be right, and the comment above the block says <code>(WIP)</code>. The reason nobody has noticed: the only follower pair in the robot is the shooter, whose <code>shooterReduction</code> is <code>24.0 / 24.0 = 1.0</code>, where dividing and multiplying are the same thing. Put a 3:1 shooter on this class and it breaks. Fixing it is the exercise at the end of this lesson.
+
+</RulesBox>
+
+### The family
+
+Five classes, one pattern, four differences:
+
+<ContentTable
+  headers={["Class", "Extends", "Physics", "Update", "What is different"]}
+  rows={[
+    ["<code>SingleRollerIOSimTalonFX</code>", "<code>SingleRollerIOTalonFX</code>", "One <code>DCMotorSim</code>", "5 ms Notifier", "The reference"],
+    ["<code>SingleRollerIOSimTalonFXS</code>", "<code>SingleRollerIOTalonFXS</code>", "One <code>DCMotorSim</code>", "5 ms Notifier", "Identical loop; the device is a TalonFXS (a brushed/NEO-class motor on a Phoenix controller). The physics does not care which controller it is"],
+    ["<code>SingleRollerIOSimTalonFXWithCANCoder</code>", "<code>…TalonFXWithCANCoder</code>", "One <code>DCMotorSim</code> at <code>totalReduction</code>", "5 ms Notifier", "The real IO uses <code>FusedCANcoder</code> feedback with a <code>RotorToSensorRatio</code> and a <code>SensorToMechanismRatio</code>. <strong>The sim feeds the TalonFX and never the CANcoder</strong>; see below"],
+    ["<code>SingleRollerIOSimTalonFXSWithCANCoder</code>", "<code>…TalonFXSWithCANCoder</code>", "Same", "Same", "Same gap"],
+    ["<code>FollowRollersIOSimTalonFX</code>", "<code>FollowRollersIOTalonFX</code>", "Two <code>DCMotorSim</code>s, one per motor", "In <code>updateInputs</code>, 20 ms", "No Notifier, no battery loop, divides by reduction, and swaps Motion Magic for <code>PositionVoltage</code>; FRC 4451 found Motion Magic did not behave in sim for this class"]
+  ]}
+/>
+
+**Why the follower needs its own physics.** On the real robot the follower runs a `Follower` control request and mirrors the leader electrically. The simulated follower device receives the same request, but nothing turns its rotor unless you do, so the class gives it a `DCMotorSim` of its own, fed from its own `getMotorVoltage()`. Skip that and the follower's velocity input reads zero forever, which the subsystem logs as a disconnected follower.
+
+### The missing piece: the CANcoder
+
+When the feedback source is `FusedCANcoder`, the simulated TalonFX takes its *position* from the CANcoder's sim state, not from its own rotor. The `…WithCANCoder` sim classes set the rotor and never touch the CANcoder, so in simulation the fused position does not track the physics. This is why, in `RobotContainer`'s `SIM` branch, the end-effector's `SingleRollerIOSimTalonFXWithCANCoder` line is commented out and a plain `SingleRollerIOSimTalonFX` is used instead. The mechanism simulates, but as if it had no CANcoder.
+
+Finishing it is a few lines in `updateSimState`, after the rotor writes:
+
+```java
+// The device believes position comes from the CANcoder; keep the CANcoder's world consistent.
+double mechanismRotations = motorSim.getAngularPositionRotations();
+double sensorRotations = mechanismRotations * cancoderConfig.sensorToMechanismReduction();
+cancoder.getSimState().setRawPosition(sensorRotations);
+cancoder.getSimState().setVelocity(motorSim.getAngularVelocityRPM() / 60.0 * cancoderConfig.sensorToMechanismReduction());
+```
+
+with the rotor still written at `totalReduction` (= rotor-to-sensor × sensor-to-mechanism), because the fused mode cross-checks the two. The CANcoder's `MagnetOffset` applies in simulation as it does on the robot, so `setRawPosition` is the pre-offset value. Start the physics where the mechanism's zero really is.
+
+### Orientation
+
+Phoenix's `SimState` ignores the device's `Inverted` config on purpose. Invert is a logical choice that a team may flip at runtime, while the sim state describes the mechanical relationship between the rotor and the chassis. `TalonFXSimState.Orientation` (`ChassisReference.CounterClockwise_Positive` or `Clockwise_Positive`) is where that goes, and none of FRC 4451's classes set it. For a mechanism where positive output is inverted in config, the sim will move the physics the wrong way while the device reports it the right way, and the plotted position will run backwards. If a simulated mechanism drives the wrong direction and the real one does not, set `Orientation` in the sim IO's constructor to match the mechanical arrangement.
+
+### Writing a new one
+
+<StepsBox title="Checklist for a …IOSimTalonFX">
+
+1. `extends` the real IO; pass its config through `super`. Override nothing the subsystem calls.
+2. One `DCMotorSim` per motor that has its own rotor, built from a `…ConfigSim` that wraps the real config.
+3. A `Notifier` at 5 ms with a measured `delta`; expose `getLastTimestampDelta()`. Implement `AutoCloseable` and close the Notifier.
+4. In the loop, in order: supply voltage in → motor voltage out → physics `update(delta)` → rotor position and velocity back, **× reduction** → battery from current draw.
+5. Any remote sensor the feedback source uses (CANcoder) gets its own sim state written from the same physics.
+6. Set `Orientation` if the mechanism's mechanical direction differs from CCW-positive.
+7. Prove it in AdvantageScope: goal, setpoint and measured on one graph; the measured line must follow the Motion Magic profile, and `AppliedVoltage` must sag as `SupplyCurrentAmps` rises. [Watching Simulation in AdvantageScope](/frc/advantagescope-sim#the-line-graph-commanded-versus-measured).
+
+</StepsBox>
+
+<ExerciseBox title="Practice">
+
+1. Change the shooter's reduction to `3.0` in `ShooterConstants` and simulate. Graph `Shooter/Shooter/VelocitySetpointRPS` against `…/Leader/VelocityRPS` and describe what `FollowRollersIOSimTalonFX` does wrong. Fix it to match the single-roller classes (multiply; rotor units), move the update onto a 5 ms Notifier, and add the battery loop. Put the reduction back.
+2. Add CANcoder sim state to `SingleRollerIOSimTalonFXWithCANCoder` as above, then uncomment the end-effector's `…WithCANCoder` line in `RobotContainer`'s `SIM` branch. The fused position should track the physics; confirm on a graph, and confirm the mechanism visualizer draws it.
+3. Set an intake's `invert(true)` in its real config and simulate. Observe the direction on the Mechanism tab; then set `Orientation` in the sim IO and observe again.
+
+</ExerciseBox>
+
+<RulesBox title="Common mistakes">
+
+- **Mechanism units into <code>setRawRotorPosition</code>.** It is raw. Multiply by the reduction.
+- **Updating the physics in <code>updateInputs</code>.** It works at 1:1 and looks like a staircase everywhere else. Use the Notifier.
+- **Forgetting the follower's physics.** A follower device does not spin because the leader does.
+- **A fused CANcoder with no CANcoder sim.** Position never moves; the loop saturates.
+- **Blaming Motion Magic.** Check the units first. A 81× error looks exactly like a profile that never arrives.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "ctre", "path": "docs/api-reference/simulation/simulation-intro.html", "note": "<code>TalonFXSimState</code>, <code>CANcoderSimState</code>, supply voltage, orientation, and the sim update loop."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/remote-sensors.html", "note": "Why the sim state is written in rotor units while the loop runs in mechanism units."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html", "note": "The WPILib physics classes the sim state is driven from."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFX.java", "note": "The reference implementation: 5 ms Notifier, rotor = mechanism × reduction, battery sag."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFXS.java", "note": "The Talon FXS variant."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFXWithCANCoder.java", "note": "Adding a <code>CANcoderSimState</code>."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFXSWithCANCoder.java", "note": "The FXS-plus-CANcoder variant."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollersIOSimTalonFX.java", "note": "Follower pair in simulation; the Motion Magic note."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFX.java", "note": "The real IO the sim class extends."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "Choosing the sim IO in <code>Mode.SIM</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/ShooterConstants.java", "note": "The flywheel config used by the sim example."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Physics in the IO Layer","id":"physics-sim-io"},
+  {"label":"Motor Configuration","id":"motor-controller-configuration"},
+  {"label":"Shooter Example","id":"shooter-example"},
+  {"label":"CTRE: Simulation","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/simulation/simulation-intro.html"},
+  {"label":"CTRE: Remote sensors (FusedCANcoder)","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/remote-sensors.html"}
+]} title="Resources" section="frc" />

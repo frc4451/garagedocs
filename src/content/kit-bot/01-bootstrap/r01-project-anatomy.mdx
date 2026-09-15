@@ -1,0 +1,143 @@
+---
+title: "R01: Project Anatomy"
+lessonId: r01-project-anatomy
+section: kit-bot
+group: bootstrap
+groupLabel: "Phase 1: Bootstrap"
+groupOrder: 1
+order: 1
+duration: 10 min
+description: "The four files every WPILib project starts from (Main, Robot, RobotContainer and Constants) and the package layout that keeps them findable."
+---
+You generated a project in R00. Before you change anything, you need to know **what each file does** and **where your code goes**. This module is the map.
+
+If you read [Packages and Project Layout](/java/java-packages#what-the-layout-looks-like), you already understand the shape. WPILib's command-based template is exactly that pattern with a few well-known files at fixed locations.
+
+---
+
+### The four files you actually touch
+
+Inside `src/main/java/frc/robot/` the template generates four Java files. You will spend most of the season editing the last two.
+
+```
+src/main/java/frc/robot/
+├── Main.java              ← never edit
+├── Robot.java             ← rarely edit
+├── RobotContainer.java    ← edit constantly
+├── Constants.java         ← edit when adding hardware
+├── subsystems/            ← (empty for now)
+└── commands/              ← (empty for now)
+```
+
+#### `Main.java`: the JVM entry point
+
+Five lines that hand control to WPILib. Treat it as read-only. The reason it exists separately from `Robot.java` is purely about the JVM finding a `public static void main`, the same rule as any file you ran with `java Main` in [Setting Up](/java/java-setup#compiling-and-running).
+
+#### `Robot.java`: the lifecycle
+
+`extends TimedRobot`. Holds the methods WPILib calls every 20 ms (`robotPeriodic`, `autonomousPeriodic`, `teleopPeriodic`, etc.) and the once-per-transition init methods. The template version is short: it constructs your `RobotContainer`, schedules the auto command when autonomous starts, and asks the `CommandScheduler` to tick every cycle.
+
+We cover the lifecycle in depth in [R02](/kit-bot/r02-robot-lifecycle).
+
+#### `RobotContainer.java`: the wiring
+
+This is where your team's specific robot gets assembled. Subsystems get constructed here. Controllers get plugged in here. Button bindings get set up here. The auto-routine chooser lives here.
+
+Read it as the **`main` method of your robot's behavior**, even though it's not literally called `main`. If `Robot.java` says "when teleop starts, schedule whatever command the container hands me", `RobotContainer` is where you decide what that command actually is.
+
+#### `Constants.java`: tuning numbers and IDs
+
+CAN IDs, controller port numbers, PID gains, current limits, gear ratios. Anything that's set once at design time and read everywhere else. Covered in [R03](/kit-bot/r03-constants).
+
+---
+
+### The two packages you create
+
+The template scaffolds `subsystems/` and `commands/` as empty folders (you may need to create them yourself on some templates). These are where the bulk of your code lives.
+
+#### `subsystems/`: one folder per mechanism
+
+For the Kit Bot you'll end up with:
+
+```
+subsystems/
+├── drive/
+│   ├── Drive.java           ← the subsystem (state + control logic)
+│   ├── DriveConstants.java  ← per-subsystem tuning
+│   ├── DriveIO.java         ← the IO interface
+│   ├── DriveIOReal.java     ← talks to SparkMax
+│   └── DriveIOSim.java      ← talks to DifferentialDrivetrainSim
+└── launcher/
+    ├── Launcher.java
+    ├── LauncherConstants.java
+    ├── LauncherIO.java
+    ├── LauncherIOReal.java
+    └── LauncherIOSim.java
+```
+
+If that looks familiar, it should: this is the same shape as the IO interface technique you built in [A17](/assignments/a17-io-interface). The Kit Bot just lets you build two real ones.
+
+#### `commands/`: one file per action
+
+Smaller files. Each command is a small class (often a one-liner using `Commands.run` / `Commands.runOnce`). Examples you'll write in later modules: `Drive` (default teleop drive command), `LaunchSequence` (spin up the launcher, then run the feeder).
+
+We cover commands in [R05](/kit-bot/r05-commands-and-triggers).
+
+---
+
+### Where the build system files sit
+
+Outside `src/main/java/` are the build-tool files. You rarely touch them, but you should know they exist.
+
+| File | What it does | When you edit it |
+|---|---|---|
+| `build.gradle` | GradleRIO build config | Almost never; the WPILib tools edit it for you. |
+| `vendordeps/*.json` | Vendor library declarations (REVLib, etc.) | Through the **WPILib: Manage Vendor Libraries** command, not by hand. |
+| `.wpilib/wpilib_preferences.json` | Team number, language | Through the project-creation wizard, occasionally by hand to fix a wrong team number. |
+| `.gitignore` | What git doesn't track | Once per project. The template's defaults are fine. |
+| `simgui-window.json` | Sim GUI layout | Auto-saved when you arrange the sim windows. Safe to delete and let it regenerate. |
+
+---
+
+### A reading order for the four files
+
+When you first open the project, read the files in this order. None of it should look like magic by the time you finish.
+
+1. **`Main.java`**: six lines. Confirm it just calls `RobotBase.startRobot(...)`.
+2. **`Robot.java`**: look at the empty `*Periodic` methods. Notice `CommandScheduler.getInstance().run()` in `robotPeriodic`, that's the heartbeat.
+3. **`RobotContainer.java`**: note the constructor, the `configureBindings()` method, the `getAutonomousCommand()` method. This is the file you'll modify most.
+4. **`Constants.java`**: empty for now. You'll add nested classes here as we go.
+
+If you want a more visual tour, WPILib's [Command-Based Programming overview](https://docs.wpilib.org/en/stable/docs/software/commandbased/index.html) has the same map with more diagrams.
+
+---
+
+### Try it
+
+In the project you created in R00, open all four files in tabs. For each one, write a one-sentence comment at the top in your own words explaining what the file is for. (Yes, the comment is just for you, it's a way to lock the understanding in. Delete it before deploy.)
+
+Then open `Robot.java` and find the line that calls `CommandScheduler.getInstance().run()`. Add a `// scheduler tick, runs every 20 ms` comment beside it. That single line is what makes every command in this curriculum work; knowing where it lives is worth the 5 seconds.
+
+---
+
+<RulesBox title="Evaluate in simulation">
+
+Simulate the project and set a breakpoint on `CommandScheduler.getInstance().run()` in `Robot.java`. Enable in teleop: it hits. Step over it and watch the loop come around again. You can name, from memory, which of the four files owns startup, lifecycle, wiring and constants.
+
+</RulesBox>
+
+### References
+
+- [Packages and Project Layout](/java/java-packages#what-the-layout-looks-like): the general pattern this is a specialization of
+- WPILib: [What is WPILib?](https://docs.wpilib.org/en/stable/docs/software/what-is-wpilib.html)
+- WPILib: [Command-Based Programming](https://docs.wpilib.org/en/stable/docs/software/commandbased/index.html), the framework everything here is built on
+- WPILib: [Structuring a Command-Based Robot Project](https://docs.wpilib.org/en/stable/docs/software/commandbased/structuring-command-based-project.html), the canonical structure
+- WPILib JavaDoc: [`TimedRobot`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/TimedRobot.html)
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/what-is-wpilib.html", "note": "What WPILib is."},
+  {"source": "wpilib", "path": "docs/software/commandbased/structuring-command-based-project.html", "note": "The generated project layout."},
+  {"source": "wpilib", "path": "docs/software/commandbased/index.html", "note": "Command-based index."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/TimedRobot.html", "note": "<code>TimedRobot</code>."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/CommandScheduler.html", "note": "The scheduler <code>Robot.java</code> runs."}
+]} />

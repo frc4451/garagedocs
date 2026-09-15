@@ -1,0 +1,84 @@
+---
+title: "From Kit Bot to Cobra"
+lessonId: kit-bot-to-cobra
+section: frc
+group: frc-cobra
+groupLabel: Our Robot Code
+groupOrder: 2.5
+order: 1
+difficulty: intermediate
+duration: 15 min
+description: "Every idea you built by hand in Kit Bot (the IO pattern, constants, commands, telemetry, simulation, autonomous) and where it lives in the competition robot, as a map from the module you did to the code you are about to read and the FRC lesson that goes deeper."
+---
+
+### The assumption this section makes
+
+From here on, the FRC track assumes two things: you have **completed [Kit Bot](/kit-bot)** (the 2026 KitBot rebuilt end to end and demonstrated in simulation) and you have **mastery of Java** as taught in [Java Training](/java) and proven in the [Practice Assignments](/assignments). Lessons will say "you did this in R07" and link to it rather than re-teaching it. If a link takes you somewhere unfamiliar, that is the page to do first.
+
+Two groups are deliberately shared with Kit Bot, [Environment Setup](/frc/environment-setup) and [Basics](/frc/intro-to-motors), because a returning student may need to reinstall or re-read one API without redoing the whole build. Everything else in FRC is new material.
+
+### What changes
+
+Kit Bot taught you the *pattern*: an IO interface, real and sim implementations, a subsystem that cannot tell which it has, telemetry to AdvantageScope, a runtime selector. Cobra is that pattern at competition scale. Most of the differences are things FRC 4451 stopped writing by hand:
+
+<ContentTable
+  headers={["Kit Bot", "Cobra", "Why it changed"]}
+  rows={[
+    ["You wrote <code>LauncherIO</code>, <code>LauncherIOReal</code>, <code>LauncherIOSim</code>", "the ROBOTZ Garage library's <code>SingleRollerIO</code> with <code>TalonFX</code>, <code>TalonFXS</code>, <code>Nova</code>, <code>Sim</code> and <code>SimTalonFX</code> implementations", "One tested IO per motor controller, reused by every roller-shaped mechanism"],
+    ["SparkMax + NEO", "Kraken X60 on TalonFX, Phoenix 6, mostly on a CANivore bus", "The competition drivetrain and mechanisms; Phoenix's on-controller control modes"],
+    ["Gains in a WPILib <code>ProfiledPIDController</code> in Java", "Gains in <code>Slot0Configs</code> and Motion Magic on the controller; torque-current control", "The controller runs the loop at 1 kHz and the same gains run in sim through the vendor sim state"],
+    ["<code>System.out.println</code>, then NetworkTables publishers in R13", "AdvantageKit: <code>@AutoLog</code> inputs, <code>Logger.recordOutput</code>, <code>LoggedTunableNumber</code>", "Every input is recorded, so any match can be replayed"],
+    ["<code>if (RobotBase.isReal())</code> in R12", "<code>Constants.currentMode</code> with <code>REAL</code> / <code>SIM</code> / <code>REPLAY</code>", "A third mode, log replay, that a two-way switch cannot express"],
+    ["Time-based autonomous in R14", "PathPlanner and BLine paths, an <code>AutonomousManager</code>, event triggers", "Autos that follow the field, not a stopwatch"],
+    ["No vision", "PhotonVision AprilTag cameras fused into the pose estimator; object detection", "The robot knows where it is and where the game pieces are"],
+    ["Subsystems talk to each other through <code>RobotContainer</code>", "<code>BobotState</code>: one global virtual subsystem for pose, targets and interpolators", "Shooter, drive and vision all need the same answers"]
+  ]}
+/>
+
+### The map
+
+Each row is a Kit Bot module, the place in Cobra where the same idea lives, and the FRC lesson that takes it further.
+
+<ContentTable
+  headers={["You did", "In Cobra", "Go deeper"]}
+  rows={[
+    ["<a href=\"/kit-bot/r01-project-anatomy\">R01 Project Anatomy</a>", "<code>frc.robot</code> vs <code>org.robotzgarage.frc2026</code>", "<a href=\"/frc/team-robot-code#the-two-packages\">Reading Our Robot Code</a>"],
+    ["<a href=\"/kit-bot/r03-constants\">R03 Constants</a>", "<code>XxxConstants</code> per subsystem, <code>TalonFXConfig</code> + <code>…ConfigSim</code> side by side", "<a href=\"/frc/elevator-example#step-1-the-constants\">Elevator Example</a>"],
+    ["<a href=\"/kit-bot/r04-subsystems\">R04 Subsystems</a>, <a href=\"/kit-bot/r05-commands-and-triggers\">R05 Commands</a>", "Thin <code>SubsystemBase</code> wrappers owning a library mechanism; command factories; <code>Trigger</code>s for readiness", "<a href=\"/frc/subsystems#command-factories\">Subsystems</a>, <a href=\"/frc/commands#subsystem-command-factories\">Commands</a>"],
+    ["<a href=\"/kit-bot/r07-launcher-io\">R07 Launcher IO</a>", "<code>SingleRoller</code>, <code>FlywheelFollower</code>, the shooter's interpolated velocity", "<a href=\"/frc/io-layer\">IO Layers</a>, <a href=\"/frc/shooter-example\">Shooter Example</a>"],
+    ["<a href=\"/kit-bot/r08-drive-io\">R08 Drive IO</a>", "<code>Drive</code> with <code>ModuleIOTalonFX</code> / <code>ModuleIOSim</code> from Tuner X constants", "<a href=\"/frc/swerve-drive-example\">Swerve Drive Example</a>"],
+    ["<a href=\"/kit-bot/r09-characterization\">R09 Characterization</a>", "<code>SingleRoller.steadyStateCharacterization()</code>, SysId routines on the drive", "<a href=\"/frc/tunable-constants#measure-feedforward-do-not-guess-it\">Tunable Constants</a>"],
+    ["<a href=\"/kit-bot/r10-joysticks-and-stick-math\">R10 Stick Math</a>", "Deadband and squaring inside the drive commands", "<a href=\"/frc/robot-container-and-bindings\">RobotContainer &amp; Bindings</a>"],
+    ["<a href=\"/kit-bot/r12-real-vs-sim\">R12 Real vs Sim</a>", "<code>switch (Constants.currentMode)</code> with a <code>REPLAY</code> branch", "<a href=\"/frc/simulation-first#the-three-modes\">Simulation First</a>, <a href=\"/frc/log-replay\">Log Replay</a>"],
+    ["<a href=\"/kit-bot/r13-telemetry-with-advantagescope\">R13 Telemetry</a>", "AdvantageKit inputs and outputs, <code>@AutoLogOutput</code>", "<a href=\"/frc/advantagekit\">AdvantageKit</a>, <a href=\"/frc/advantagescope-sim\">Watching Simulation</a>"],
+    ["<a href=\"/kit-bot/r14-time-based-autonomous\">R14 Autonomous</a>", "<code>AutonomousManager</code>, <code>BLineManager</code>, PathPlanner <code>AutoBuilder</code>", "<a href=\"/frc/pathplanner\">PathPlanner</a>, <a href=\"/frc/bline\">BLine</a>"],
+    ["<a href=\"/kit-bot/rc-capstone\">RC Capstone</a> (demo in simulation)", "Every pull request: simulated, watched, then deployed", "<a href=\"/frc/simulation-first#the-loop\">Simulation First</a>"]
+  ]}
+/>
+
+### How to use the rest of this section
+
+Read [Reading Our Robot Code](/frc/team-robot-code) next. It is a guided tour of the repository, with the map above in hand. Then read [Lombok](/frc/lombok), which appears on half the classes the tour shows. Three more things the tour points at that Kit Bot never had, [VirtualSubsystem](/frc/virtual-subsystem), [BobotState](/frc/bobot-state) and the two-part [Math Toolbox](/frc/math-toolbox), have their own group, **Cobra Architecture**, near the end, because they only make sense once pose estimation and shooting exist. Between here and there the groups follow the order FRC 4451 builds a robot in: the command-based structure Cobra uses with AdvantageKit and the IO layer, simulation (before anything is tuned, including unit tests and replay), control theory and tuning, the Phoenix side of motor control, mechanism examples read from Cobra, pose estimation and vision, and finally autonomous.
+
+<Sources items={[
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "The library mechanism that replaces a hand-written launcher: config, IO, tunables, characterization."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIO.java", "note": "The IO interface with <code>@AutoLog</code> inputs."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "<code>Elevator extends SingleRoller</code>."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/flywheel/FlywheelFollower.java", "note": "A follower pair on the library."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/VirtualSubsystem.java", "note": "The loop-registered base for state and vision."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "The global state the map points at."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/autonomous/AutonomousManager.java", "note": "Auto selection in Cobra."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/autonomous/bline/BLineManager.java", "note": "BLine wiring."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "Where subsystems are constructed and IO chosen by mode."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "<code>Mode</code> (REAL, SIM, REPLAY) and the loop period."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOTalonFX.java", "note": "The real swerve module IO."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOSim.java", "note": "The simulated swerve module IO."},
+  {"source": "advantagekit", "path": "data-flow/recording-inputs/io-interfaces", "note": "The IO-layer pattern the map is organised around."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Reading Our Robot Code","id":"team-robot-code"},
+  {"label":"Kit Bot overview","url":"/kit-bot"},
+  {"label":"Simulation First","id":"simulation-first"},
+  {"label":"Cobra2026 on GitHub","url":"https://github.com/frc4451/Cobra2026Private"}
+]} title="Next" section="frc" />

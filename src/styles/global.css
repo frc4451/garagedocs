@@ -36,16 +36,20 @@
     --font-stack--monospace: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, Consolas, Monaco, 'Liberation Mono', 'Lucida Console', monospace;
     --font-stack--headings: 'Source Serif 4', Georgia, 'Times New Roman', serif;
     
-    /* Font Sizes - Increased by 1-2px */
-    --font-size--normal: 14px;
-    --font-size--small: 12px;
-    --font-size--small--2: 11px;
-    --font-size--small--3: 10px;
-    --font-size--small--4: 8.5px;
+    /* Type scale. Everything is rem so that the reader's text-size preference
+       (data-text on <html>, which sets --text-scale) scales the whole page.
+       At the default scale 1rem = 16px; "small" is the site's pre-preferences
+       look (14px body). Never write font sizes in px below this block. */
+    --text-scale: 1;
+    --font-size--normal: 1rem;
+    --font-size--small: 0.875rem;
+    --font-size--small--2: 0.8125rem;
+    --font-size--small--3: 0.75rem;
+    --font-size--small--4: 0.6875rem;
     
     /* Body typography */
-    --body-font-size: 14px;
-    --body-line-height: 22px;
+    --body-font-size: var(--font-size--normal);
+    --body-line-height: 1.55;
     --body-letter-spacing: 0.02em;
 
     /* Heading style — Editorial Pro */
@@ -127,6 +131,34 @@
     --radius-md: 0.5rem;
     --radius-lg: 0.75rem;
     --radius-xl: 1rem;
+  }
+
+  /* ---- Reader preferences (src/lib/prefs.ts stamps these on <html>) ---- */
+
+  html { font-size: calc(100% * var(--text-scale)); }
+  html[data-text="sm"] { --text-scale: 0.875; }
+  html[data-text="lg"] { --text-scale: 1.125; }
+  html[data-text="xl"] { --text-scale: 1.25; }
+
+  html[data-spacing="relaxed"] {
+    --body-line-height: 1.85;
+    --sidebar-item-line-height: 1.5rem;
+  }
+
+  /* Reduced motion: honour the OS setting by default, or the explicit choice. */
+  @media (prefers-reduced-motion: reduce) {
+    html[data-motion="system"] *, html[data-motion="system"] *::before, html[data-motion="system"] *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  html[data-motion="reduce"] *, html[data-motion="reduce"] *::before, html[data-motion="reduce"] *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
   }
   
   /* When system prefers dark but app theme is light or unset, keep light variables */
@@ -219,7 +251,34 @@
     --shadow-md: 0 4px 12px rgb(0 0 0 / 0.45);
     --shadow-lg: 0 12px 28px rgb(0 0 0 / 0.5);
   }
-  
+
+  /* ---- High contrast (reader preference) ----
+     Placed after both theme blocks on purpose: the light-when-OS-prefers-dark
+     media block and the dark block redefine these same tokens at equal
+     specificity, so source order is what makes these win. */
+  html[data-contrast="high"]:not([data-theme="dark"]) {
+    --color-foreground-secondary: var(--color-foreground-primary);
+    --color-foreground-muted: #3f3f46;
+    --color-foreground-border: rgba(206, 17, 38, 0.5);
+    --color-background-border: rgba(24, 24, 27, 0.4);
+    --color-background-hover: #f7d4d9;
+    --color-inline-code-background: #f3e3e5;
+    --color-link: #a50e1f;
+    --color-brand-content: #a50e1f;
+  }
+  html[data-theme="dark"][data-contrast="high"] {
+    --color-foreground-secondary: var(--color-foreground-primary);
+    --color-foreground-muted: #d4d4d8;
+    --color-foreground-border: rgba(255, 99, 115, 0.6);
+    --color-background-border: rgba(255, 255, 255, 0.35);
+    --color-background-hover: #3a2e30;
+    --color-inline-code-background: #2a2224;
+    --color-link: #ff6b7a;
+    --color-brand-content: #ff6b7a;
+  }
+  html[data-contrast="high"] a { text-decoration-thickness: 2px; }
+  html[data-contrast="high"] :focus-visible { outline: 3px solid var(--color-link); outline-offset: 2px; }
+
   /* Dark theme header styling */
   html[data-theme="dark"] .mobile-header {
     background-color: var(--color-header-backdrop, color-mix(in srgb, var(--color-header-background) 92%, transparent));
@@ -459,14 +518,21 @@ body {
   .header-navigation {
     display: flex;
     gap: 0.5rem;
-    flex-wrap: wrap;
+    /* Never wrap: the header is a fixed-height bar, and at the larger text-size
+       preferences a second row would spill out of it. Overflow scrolls instead. */
+    flex-wrap: nowrap;
     justify-content: center;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+  .header-navigation::-webkit-scrollbar { display: none; }
   
   .header-nav-link {
     color: var(--color-foreground-primary);
     text-decoration: none;
-    padding: 0.75rem 1rem;
+    white-space: nowrap;
+    padding: 0.75rem clamp(0.5rem, 1.2vw, 1rem);
     border-radius: 0;
     font-size: 0.9375rem;
     font-weight: 600;
@@ -506,7 +572,7 @@ body {
     border-radius: 0; /* SWYFT: no border radius */
     background-color: var(--color-background-primary);
     color: var(--color-foreground-primary);
-    font-size: 14px; /* Increased font size */
+    font-size: 0.875rem; /* Increased font size */
     letter-spacing: 0.02em; /* SWYFT body letter spacing */
     transition: border-color 0.2s ease, background-color 0.2s ease;
     box-sizing: border-box;
@@ -621,6 +687,66 @@ body {
   }
   
   /* Link Grid Styles */
+  /* Sources: the bibliography block at the end of a lesson (Sources.astro) */
+  .sources {
+    margin: var(--space-section) 0;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-background-border);
+  }
+
+  .sources h3 {
+    color: var(--color-brand-primary);
+    font-size: var(--font-size--small);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin: 0 0 0.5rem 0;
+  }
+
+  .sources-list {
+    margin: 0;
+    padding-left: 1.5rem;
+    font-size: var(--font-size--small);
+    line-height: 1.5;
+  }
+
+  .sources-item {
+    margin: 0 0 0.375rem 0;
+  }
+
+  .sources-item a {
+    color: var(--color-foreground-primary);
+    text-decoration: none;
+  }
+
+  .sources-item a:hover .sources-detail,
+  .sources-item a:focus-visible .sources-detail {
+    text-decoration: underline;
+  }
+
+  .sources-name {
+    font-weight: 600;
+  }
+
+  .sources-detail {
+    color: var(--color-accent);
+    font-family: var(--font-stack--monospace);
+    font-size: var(--font-size--small--2);
+    margin-left: 0.4em;
+    word-break: break-all;
+  }
+
+  .sources-version {
+    color: var(--color-foreground-secondary);
+    font-size: var(--font-size--small--3);
+    margin-left: 0.5em;
+  }
+
+  .sources-note {
+    display: block;
+    color: var(--color-foreground-secondary);
+  }
+
   .link-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -640,7 +766,7 @@ body {
     border-radius: var(--radius-sm);
     color: var(--color-foreground-primary);
     cursor: pointer;
-    font-size: 14px;
+    font-size: 0.875rem;
     font-weight: 500;
     letter-spacing: 0.01em;
     padding: 1rem 1.25rem 1rem calc(1.25rem + var(--accent-stripe-width));
@@ -756,28 +882,159 @@ body {
     justify-content: center;
   }
   
-  .theme-toggle {
+  /* Reading preferences: "Aa" button in the header (PreferencesButton.astro) and a
+     drawer that slides in from the right edge (PreferencesDrawer.astro), the mirror
+     of the navigation sidebar on the left. The drawer is rendered by BaseLayout
+     outside the header: the header is position: fixed with a transform, so a
+     panel positioned inside it is clipped to the header's height. */
+  .prefs-toggle {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-foreground-primary);
+    font-family: var(--font-stack--headings);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.02em;
+  }
+  .prefs-toggle:hover,
+  .prefs-toggle[aria-expanded="true"] {
+    background: var(--color-background-hover);
+    border-color: var(--color-background-border);
+  }
+
+  .prefs-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 1100;
+  }
+  .prefs-overlay[hidden] { display: none; }
+
+  .prefs-drawer {
+    position: fixed;
+    top: var(--header-height);
+    right: 0;
+    height: calc(100vh - var(--header-height));
+    height: calc(100dvh - var(--header-height));
+    width: min(22rem, 100vw);
+    background: var(--color-background-secondary);
+    border-left: 1px solid var(--color-background-border);
+    box-shadow: var(--shadow-lg);
+    z-index: 1150;
+    display: flex;
+    flex-direction: column;
+    color: var(--color-foreground-primary);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .prefs-drawer.open {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+  .prefs-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-background-border);
+    flex-shrink: 0;
+  }
+  .prefs-drawer-title {
+    font-family: var(--font-stack--headings);
+    font-weight: 700;
+    font-size: var(--font-size--normal);
+  }
+  .prefs-drawer-body {
+    padding: 1rem;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .prefs-close {
     background: transparent;
     border: none;
     cursor: pointer;
-    display: flex;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: var(--color-foreground-secondary);
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+  }
+  .prefs-close:hover { background: var(--color-background-hover); color: var(--color-foreground-primary); }
+  .prefs-group {
+    border: none;
+    margin: 0 0 1rem;
     padding: 0;
-    align-items: center;
-    justify-content: center;
-    min-width: 2.5rem;
-    min-height: 2.5rem;
+    min-width: 0;
   }
-  
-  .theme-icon {
-    font-size: 1.25rem;
-    color: var(--color-foreground-primary);
+  .prefs-legend {
+    font-size: var(--font-size--small--2);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-foreground-secondary);
+    padding: 0;
+    margin-bottom: 0.4rem;
+  }
+  .prefs-options {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 1em;
-    height: 1em;
+    flex-wrap: wrap;
+    gap: 0.4rem;
   }
-  
+  .prefs-option {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--color-background-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size--small);
+    cursor: pointer;
+    user-select: none;
+    background: var(--color-background-primary);
+  }
+  .prefs-option input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+  }
+  .prefs-option:has(input:checked) {
+    background: var(--color-brand-content);
+    border-color: var(--color-brand-content);
+    color: var(--btn-1-color);
+  }
+  .prefs-option:has(input:focus-visible) {
+    outline: 2px solid var(--color-link);
+    outline-offset: 2px;
+  }
+  .prefs-note {
+    font-size: var(--font-size--small--2);
+    color: var(--color-foreground-muted);
+    margin: 0.5rem 0 0.75rem;
+  }
+  .prefs-reset {
+    background: transparent;
+    border: 1px solid var(--color-background-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-foreground-secondary);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--font-size--small);
+    padding: 0.35rem 0.8rem;
+  }
+  .prefs-reset:hover { background: var(--color-background-hover); color: var(--color-foreground-primary); }
+
   /* Sidebar */
   .sidebar-drawer {
     position: fixed;
@@ -786,7 +1043,7 @@ body {
     width: var(--sidebar-width, 15em);
     height: calc(100vh - var(--header-height));
     background-color: var(--color-sidebar-background);
-    transition: none;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, visibility 0s linear 0.25s;
     z-index: 999;
     overflow: hidden;
     box-shadow: none;
@@ -803,14 +1060,13 @@ body {
     transform: translateX(0);
     pointer-events: auto;
     visibility: visible;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, visibility 0s;
   }
 
   #__navigation:not(:checked) ~ .page .sidebar-drawer {
     transform: translateX(-100%);
     pointer-events: none;
     visibility: hidden;
-    border-right: none;
-    box-shadow: none;
   }
 
   #__navigation:not(:checked) ~ .page .sidebar-resize-handle {
@@ -1084,7 +1340,7 @@ body {
     flex: 1;
     width: 100%;
     margin-left: 0; /* Start with full-width content */
-    transition: margin-left 0.3s ease, max-width 0.3s ease; /* Smooth transition for content */
+    transition: margin-left 0.25s ease, max-width 0.25s ease; /* Keeps pace with the sidebar slide */
     padding-top: calc(var(--header-height)); /* Adjust 1rem as needed for spacing */
     overflow-x: hidden; /* Prevent horizontal overflow */
     overflow-y: visible;
@@ -1123,9 +1379,10 @@ body {
     display: block;
   }
   
-  /* Typography */
+  /* Typography — prose inherits the body line-height so the "Line spacing"
+     preference (--body-line-height) reaches every lesson paragraph. */
   article {
-    line-height: 1.5;
+    line-height: var(--body-line-height);
   }
   
 h1, h2, h3, h4, h5, h6 {
@@ -1234,6 +1491,43 @@ a:hover {
   h5:hover > .headerlink,
   h6:hover > .headerlink {
     visibility: visible;
+  }
+
+  /* Lesson headings are links to their own anchor (scripts/rehype-heading-links.mjs):
+     click one and the section's #id is in the address bar, ready to share. The
+     link inherits the heading's colour; a faint # appears on hover, and a target
+     heading is offset so it is not flush against the top of the viewport. */
+  .heading-link {
+    color: inherit;
+    text-decoration: none;
+  }
+  .heading-link:hover,
+  .heading-link:focus-visible {
+    color: inherit;
+    text-decoration: none;
+  }
+  .heading-link::after {
+    content: "#";
+    margin-left: 0.4em;
+    font-weight: 400;
+    color: var(--color-link);
+    opacity: 0;
+    transition: opacity ease 0.2s;
+  }
+  h2:hover > .heading-link::after,
+  h3:hover > .heading-link::after,
+  h4:hover > .heading-link::after,
+  h5:hover > .heading-link::after,
+  h6:hover > .heading-link::after,
+  .heading-link:focus-visible::after {
+    opacity: 0.7;
+  }
+  h2[id], h3[id], h4[id], h5[id], h6[id] {
+    /* The site header is position: fixed, so an anchored heading must land below it. */
+    scroll-margin-top: calc(var(--header-height) + 1.25rem);
+  }
+  :is(h2, h3, h4, h5, h6):target {
+    background: color-mix(in srgb, var(--color-link) 8%, transparent);
   }
   
   /* Code blocks */
@@ -1511,7 +1805,7 @@ a:hover {
     color: var(--color-foreground-secondary);
     cursor: pointer;
     font-family: var(--font-stack--monospace);
-    font-size: 14px;
+    font-size: 0.875rem;
     font-weight: 400;
     padding: 10px 16px;
     white-space: nowrap;
@@ -1547,7 +1841,7 @@ a:hover {
     border-bottom: 1px solid transparent; /* SWYFT: simpler border */
     color: var(--color-foreground-secondary);
     cursor: pointer;
-    font-size: 14px; /* Increased font size */
+    font-size: 0.875rem; /* Increased font size */
     font-weight: 400; /* SWYFT body weight */
     white-space: nowrap;
     transition: all ease 0.3s; /* SWYFT anchor-transition */
@@ -1913,13 +2207,11 @@ a:hover {
   
   .overlay { /* semi-transparent background overlay while sidebar is visible */
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 0;  /* Initially hidden */
-    height: 0;
-    background-color: rgba(0, 0, 0, 0.5);
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.35);
     opacity: 0;
-    transition: none; /* No animation - instant */
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0s linear 0.25s; /* fade out, then hide */
     z-index: 29;  /* Below sidebar, above content */
     pointer-events: none;
   }
@@ -1927,10 +2219,9 @@ a:hover {
   /* Show overlay when sidebar is open */
   @media (max-width: 63em) {
     #__navigation:checked ~ .sidebar-overlay.overlay {
-      width: 100vw;
-      height: 100vh;
       opacity: 1;
-      transition: none; /* No animation - instant */
+      visibility: visible;
+      transition: opacity 0.25s ease, visibility 0s; /* show at once, then fade in */
       pointer-events: auto;
       z-index: 29;
     }
@@ -1941,7 +2232,6 @@ a:hover {
       width: var(--sidebar-width, 15em);
       height: calc(100vh - var(--header-height));
       z-index: 999;
-      transition: none;
     }
     #__navigation:checked ~ .page .sidebar-drawer {
       transform: translateX(0);
@@ -1977,7 +2267,12 @@ a:hover {
   #__navigation:checked ~ .page .main {
     max-width: calc(100% - var(--sidebar-width, 15em));
     margin-left: var(--sidebar-width, 15em);
-    transition: none; /* No animation - instant */
+  }
+
+  /* While the sidebar is being dragged wider, the content must follow the cursor, not ease after it. */
+  html.sidebar-resizing .main,
+  html.sidebar-resizing .sidebar-drawer {
+    transition: none;
   }
   
   /* Non-curriculum pages: never show sidebar drawer even if checkbox is stale */
@@ -1993,9 +2288,8 @@ a:hover {
   }
 
   body:not(.has-curriculum-sidebar) #__navigation:checked ~ .sidebar-overlay.overlay {
-    width: 0 !important;
-    height: 0 !important;
     opacity: 0 !important;
+    visibility: hidden !important;
     pointer-events: none !important;
   }
 
@@ -2009,11 +2303,6 @@ a:hover {
     body.has-curriculum-sidebar .nav-overlay-icon {
       display: flex;
     }
-  }
-  
-  /* No transition on main content */
-  .main {
-    transition: none; /* No animation - instant */
   }
   
   /* Responsive design — keep sidebar width consistent with --sidebar-width */
@@ -2049,7 +2338,7 @@ a:hover {
       width: var(--sidebar-width, 15em);
     }
     
-    .theme-toggle-header {
+    .prefs-header {
       display: flex;
     }
     
@@ -2296,9 +2585,6 @@ a:hover {
       font-size: 1.2em;
     }
     
-    .theme-toggle {
-      padding: 0.5rem;
-    }
   }
   
   /* Extra small screens - ensure header buttons are always accessible */
@@ -2320,7 +2606,7 @@ a:hover {
       justify-content: center;
     }
     
-    .theme-toggle {
+    .prefs-toggle {
       min-width: 44px; /* Ensure touch target is large enough */
       min-height: 44px;
     }
@@ -3175,7 +3461,7 @@ a:hover {
     border-radius: 0; /* SWYFT: no border radius */
     color: var(--color-foreground-primary);
     font-family: var(--font-stack);
-    font-size: 14px; /* Increased font size */
+    font-size: 0.875rem; /* Increased font size */
     font-weight: 400; /* SWYFT body weight */
     letter-spacing: 0.02em; /* SWYFT body letter spacing */
     cursor: pointer;
@@ -3387,7 +3673,6 @@ img {
 }
 
 /* SVG icons - explicit dimensions prevent CLS */
-.theme-icon,
 .help-icon,
 .copy-icon {
     display: inline-flex;
@@ -3593,7 +3878,7 @@ noscript .seo-content {
 .sidebar-group-label {
     display: block;
     font-weight: 600;
-    font-size: 11px;
+    font-size: 0.6875rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--color-foreground-secondary);
@@ -3605,7 +3890,7 @@ noscript .seo-content {
     padding: 0.35rem 0.75rem;
     color: var(--color-foreground-primary);
     text-decoration: none;
-    font-size: 12px;
+    font-size: 0.75rem;
     line-height: 1.5;
     transition: all ease 0.3s;
 }
@@ -3618,7 +3903,7 @@ noscript .seo-content {
 
 .sidebar-meta {
     display: block;
-    font-size: 10px;
+    font-size: 0.625rem;
     color: var(--color-foreground-secondary);
 }
 
@@ -3635,7 +3920,7 @@ noscript .seo-content {
 .lesson-meta {
     display: flex;
     gap: 1rem;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--color-foreground-secondary);
 }
 
@@ -3688,14 +3973,14 @@ noscript .seo-content {
 }
 
 .lesson-nav-label {
-    font-size: 10px;
+    font-size: 0.625rem;
     text-transform: uppercase;
     color: var(--color-foreground-secondary);
 }
 
 .lesson-nav-title {
     font-weight: 600;
-    font-size: 13px;
+    font-size: 0.8125rem;
 }
 
 a.link-grid-button {
@@ -4006,8 +4291,11 @@ html[data-theme="dark"] .astro-code span {
     background-color: transparent !important;
 }
 
-/* Fenced Shiki blocks — standalone fences in lessons (not inside CodeTabs panels) */
+/* Fenced Shiki blocks — standalone fences in lessons (not inside CodeTabs panels).
+   A runnable example wraps its fence in .jp-example, so the direct-child rule below
+   would otherwise miss it and Shiki's inline light background (#fff) would win. */
 .lesson-content > pre.astro-code,
+.jp-example > pre.astro-code,
 .exercise-box-body > pre.astro-code,
 .rules-box-content > pre.astro-code,
 .steps-box-content > pre.astro-code,
@@ -4031,6 +4319,11 @@ html[data-theme="dark"] .astro-code span {
     position: relative;
     white-space: pre-wrap;
     word-wrap: break-word;
+}
+
+.jp-example > pre.astro-code {
+    margin: 0;
+    border: none !important;
 }
 
 /* Inner Shiki pre inside tab panels — outer .code-tabs-container carries the border */

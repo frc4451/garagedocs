@@ -7,7 +7,7 @@ groupLabel: "Common Algorithms"
 groupOrder: 6
 order: 2
 difficulty: beginner
-duration: 25 min
+duration: 30 min
 description: Finding a value by checking every element versus repeatedly halving a sorted range, and the boundary details that make binary search hard to write correctly.
 ---
 
@@ -26,7 +26,7 @@ static int indexOf(int[] values, int target) {
 }
 ```
 
-Returning `-1` for "not found" is the Java convention — `String.indexOf` and `List.indexOf` both do it. Whatever you choose, make it impossible to confuse with a valid answer.
+Returning `-1` for "not found" is the Java convention; `String.indexOf` and `List.indexOf` both do it. Whatever you choose, make it impossible to confuse with a valid answer.
 
 Linear search works on any data in any order, and it checks up to every element. For a few thousand items that is instant. It is the right default until you have a reason to do better.
 
@@ -64,7 +64,7 @@ A sorted array of a million elements takes about 20 comparisons instead of a mil
 
 **`mid + 1` and `mid - 1`, not `mid`.** Assigning `low = mid` when `mid` was already ruled out means the range stops shrinking and the loop never ends.
 
-**The array must actually be sorted.** Binary search on unsorted data returns wrong answers silently — no exception, just an incorrect result.
+**The array must be sorted.** Binary search on unsorted data returns wrong answers silently: no exception, only an incorrect result.
 
 </RulesBox>
 
@@ -82,7 +82,7 @@ List<String> names = List.of("alice", "bob", "carol");
 int i = Collections.binarySearch(names, "bob");     // 1
 ```
 
-Both require sorted input. When the value is absent they return a negative number encoding where it *would* go, which is occasionally useful and often surprising — so check for `< 0` rather than `== -1`.
+Both require sorted input. When the value is absent they return a negative number encoding where it *would* go, which is occasionally useful and often surprising, so check for `< 0` rather than `== -1`.
 
 ### Finding a boundary
 
@@ -107,15 +107,46 @@ static int lowerBound(int[] values, int target) {
 }
 ```
 
-The three differences from the exact-match version are deliberate and interlocking. This variant never "finds" anything — it narrows until `low` and `high` meet at the boundary. Changing one of the three without the others breaks it.
+The three differences from the exact-match version are deliberate and interlocking. This variant never "finds" anything; it narrows until `low` and `high` meet at the boundary. Changing one of the three without the others breaks it.
 
 `TreeSet` gives you the same thing with no code:
 
 ```java
 TreeSet<Integer> set = new TreeSet<>(List.of(10, 20, 30));
-System.out.println(set.ceiling(15));   // 20 — smallest >= 15
-System.out.println(set.floor(15));     // 10 — largest <= 15
+System.out.println(set.ceiling(15));   // 20: smallest >= 15
+System.out.println(set.floor(15));     // 10: largest <= 15
 ```
+
+### Binary search on an answer
+
+The array is optional. Binary search works on any question with a yes/no answer that flips exactly once as a number grows. Whether a voltage is enough to hold the elevator is no, no, no, yes, yes, yes as the voltage rises. Search the number instead of an index.
+
+```java
+public class Main {
+    // Pretend physics: the elevator holds position at 1.85 V or more.
+    static boolean holds(double volts) {
+        return volts >= 1.85;
+    }
+
+    // Smallest voltage that holds, to within tolerance.
+    static double smallestHolding(double low, double high, double tolerance) {
+        while (high - low > tolerance) {
+            double mid = (low + high) / 2;
+            if (holds(mid)) high = mid;     // works: the answer is at or below mid
+            else low = mid;                 // fails: the answer is above mid
+        }
+        return high;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(smallestHolding(0.0, 12.0, 0.01));   // about 1.85
+    }
+}
+```
+
+That is the same shape as `lowerBound` with the "array" replaced by a function, and it is literally how you tune a feedforward gain on a real mechanism: bracket it, halve the bracket, repeat. Twelve volts to a hundredth of a volt takes eleven tries. Sweeping in steps of 0.01 would take twelve hundred.
+
+The one requirement is that the answer is **monotonic**: once it flips, it stays flipped. If a mechanism could hold at 2 V, fail at 3 V, and hold again at 4 V, no binary search can find the edge.
 
 ### Hash-based lookup
 
@@ -153,9 +184,11 @@ It pays off when you search many times against the same data. Sort once, then ev
 - **`while (low < high)`** in the exact-match version, missing the final element.
 - **`low = mid`** instead of `mid + 1`, causing an infinite loop.
 - **Treating `Arrays.binarySearch`'s negative return as `-1`.** It encodes an insertion point.
-- **Using `List.contains` in a loop** — that is a linear scan each time, turning one pass into a quadratic one.
+- **Using `List.contains` in a loop.** That is a linear scan each time, turning one pass into a quadratic one.
 
 </RulesBox>
+
+<JavaPlayground id="java-algo-searching" />
 
 <ExerciseBox title="Practice">
 
@@ -168,7 +201,7 @@ It pays off when you search many times against the same data. Sort once, then ev
 <details>
 <summary>Hints</summary>
 
-1. Straightforward loop.
+1. A single loop with an index.
 2. The edge cases are the point of the exercise, not the main path.
 3. Two boundary searches: the first index at or above the value, and the first index strictly above it. The difference is the count.
 4. The `lowerBound` method above. Note it returns `values.length` when nothing qualifies.
@@ -186,6 +219,19 @@ It pays off when you search many times against the same data. Sort once, then ev
     {"label":"Tree Traversals","id":"java-algo-tree-traversals"}
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"url": "https://en.wikipedia.org/wiki/Binary_search", "label": "Wikipedia: Binary search", "note": "The algorithm and its invariants."},
+  {"source": "java-api", "path": "java.base/java/util/Arrays.html", "note": "<code>Arrays.binarySearch</code>."},
+  {"source": "java-api", "path": "java.base/java/util/Collections.html", "note": "<code>Collections.binarySearch</code>."},
+  {"source": "java-api", "path": "java.base/java/util/TreeSet.html", "note": "<code>ceiling</code>/<code>floor</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/HashSet.html", "note": "<code>HashSet</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."}
+]} />
 
 <LinkGrid
   title="Related"

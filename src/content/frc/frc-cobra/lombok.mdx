@@ -1,0 +1,208 @@
+---
+title: "Lombok: Less Boilerplate, Same Class"
+lessonId: lombok
+section: frc
+group: frc-cobra
+groupLabel: Our Robot Code
+groupOrder: 2.5
+order: 3
+difficulty: intermediate
+duration: 25 min
+description: "The annotations that appear on half the classes in Cobra and what they generate (@Getter and @Setter, @Builder on config records, @NonNull), with the before-and-after for each, the one line in build.gradle that enables them, how to see the generated code, and the rules for using Lombok without hiding anything that matters."
+---
+
+Open `BobotState`, `MotorConfigs` or `Elevator` and the first thing you see is annotations that are not WPILib's: `@Getter`, `@Setter`, `@Builder`, `@NonNull`. They come from **Project Lombok**, a compile-time tool that writes the Java you would otherwise type (getters, setters, builders, null checks) into the class file, from a one-word annotation. Cobra uses it because a robot codebase has hundreds of classes that only hold values, and the boilerplate around them is where typos and drift accumulate. This lesson shows what each annotation turns into, so that nothing in the repository is hidden.
+
+### What Lombok is, in one paragraph
+
+Lombok is an **annotation processor**: a plugin to `javac` that runs during compilation, sees `@Getter` on a field, and adds a `getX()` method to the compiled class as if you had written it. The source file never changes. Your editor shows the generated methods because its Java tooling runs the same processor. Nothing happens at runtime. There is no Lombok library on the robot, only the methods it wrote.
+
+That last point is the reason it is safe on a roboRIO: it costs no CPU, no memory, no start-up time. It is purely a way to type less.
+
+### Adding it to a project
+
+One line in `build.gradle`'s `plugins` block. The FreeFair plugin adds the Lombok dependency and wires the annotation processor for both main and test source sets:
+
+```groovy
+plugins {
+    id "java"
+    id "edu.wpi.first.GradleRIO" version "2026.2.1"
+    id "com.diffplug.spotless" version "6.12.0"
+    id "io.freefair.lombok" version "8.4"          // ← this
+}
+```
+
+That is the whole install. There are no `compileOnly` or `annotationProcessor` lines; the plugin adds both. VS Code's Java extension has Lombok support built in; if getters show as unresolved after adding the plugin, run *Java: Clean Java Language Server Workspace* from the palette once so it re-reads the build.
+
+The plugin also gives you `./gradlew delombok`, which writes the expanded source, with every generated method spelled out, into `build/delombok/`. When you want to know exactly what an annotation produced, that is where to look.
+
+### `@Getter` and `@Setter`
+
+The most common pair. On a field, they generate the accessor; on a class, they generate one for every field.
+
+**Before:**
+
+```java
+public class BobotState extends VirtualSubsystem {
+  private static Pose2d globalPose = new Pose2d();
+  private static ChassisSpeeds robotVelocity = new ChassisSpeeds();
+  private static final HubVARC hubVARC = new HubVARC();
+
+  public static Pose2d getGlobalPose() { return globalPose; }
+  public static void setGlobalPose(Pose2d pose) { globalPose = pose; }
+  public static ChassisSpeeds getRobotVelocity() { return robotVelocity; }
+  public static void setRobotVelocity(ChassisSpeeds speeds) { robotVelocity = speeds; }
+  public static HubVARC getHubVARC() { return hubVARC; }
+  // … ×20
+}
+```
+
+**After:**
+
+```java
+public class BobotState extends VirtualSubsystem {
+  @Getter @Setter private static Pose2d globalPose = new Pose2d();
+  @Getter @Setter private static ChassisSpeeds robotVelocity = new ChassisSpeeds();
+  @Getter private static final HubVARC hubVARC = new HubVARC();
+}
+```
+
+The public API is the same (`BobotState.getGlobalPose()`, `setGlobalPose(…)`, `getHubVARC()`), and now the access pattern is visible at the field: `@Getter` alone means read-only from outside, `@Getter @Setter` means anyone may write it, `final` means it is a fixed object. In [BobotState](/frc/bobot-state#adding-to-it-without-ruining-it) that visibility makes the rule "only the drivetrain writes the pose" readable in one glance down the field list. (The class itself is explained later, under Cobra Architecture; here it is only an example of annotations.)
+
+Lombok follows Java's naming: a `boolean` field `connected` gets `isConnected()`; static fields get static accessors. `@Getter(AccessLevel.PROTECTED)` narrows the generated method's visibility when you need to.
+
+### `@Builder` on records
+
+FRC 4451's config types (`TalonFXConfig`, `CANCoderConfig`, `ElevatorConfig`, `FlywheelConfig`) are Java records with a dozen fields each. Constructing one positionally would be unreadable and unsafe: in `new TalonFXConfig(21, susBus, 1.0, 40.0, false, false, true, …)` there is no way to tell which boolean is brake mode. `@Builder` generates a builder with a named method per component:
+
+**Before:** a hand-written builder is about 40 lines per record and the first place a new field gets forgotten:
+
+```java
+public record FlywheelConfig(DCMotor gearbox, Distance radius, double moi, double reduction) {
+  public static class Builder {
+    private DCMotor gearbox; private Distance radius; private double moi; private double reduction;
+    public Builder gearbox(DCMotor g) { this.gearbox = g; return this; }
+    public Builder radius(Distance r) { this.radius = r; return this; }
+    public Builder moi(double m) { this.moi = m; return this; }
+    public Builder reduction(double r) { this.reduction = r; return this; }
+    public FlywheelConfig build() { return new FlywheelConfig(gearbox, radius, moi, reduction); }
+  }
+  public static Builder builder() { return new Builder(); }
+}
+```
+
+**After:**
+
+```java
+@Builder
+public record FlywheelConfig(@NonNull DCMotor gearbox, @NonNull Distance radius, double moi, double reduction) {}
+```
+
+**Use:**
+
+```java
+public static final FlywheelConfig shooterFlywheelConfig =
+    FlywheelConfig.builder()
+        .radius(Inches.of(1.5))
+        .gearbox(DCMotor.getKrakenX60Foc(2))
+        .moi(0.002)
+        .reduction(shooterReduction)
+        .build();
+```
+
+Named, in any order, and a component you leave out is simply `null` (or `0`/`false` for primitives). That raises the question of defaults. FRC 4451 answers it with the record's **compact constructor**, which runs inside `build()`:
+
+```java
+@Builder
+public record ElevatorConfig(
+    @NonNull DCMotor gearbox, @NonNull Distance minHeight, @NonNull Distance maxHeight,
+    @NonNull Distance drumRadius, Distance initialHeight, Distance tolerance,
+    Mass carriageMass, boolean simulateGravity, double moi, double reduction) {
+
+  public ElevatorConfig {                          // compact constructor: fill in what the builder left null
+    if (initialHeight == null) initialHeight = Inches.zero();
+    if (tolerance == null) tolerance = Inches.zero();
+  }
+}
+```
+
+That is the whole "optional field with a default" pattern in Cobra: `@Builder` for the naming, the compact constructor for the defaults, `@NonNull` for the ones that must be given. (Lombok also has `@Builder.Default`, but it does not apply to record components, which is why FRC 4451 uses the constructor.)
+
+### `@NonNull`
+
+On a parameter or record component, `@NonNull` generates a null check that throws `NullPointerException` with the parameter's *name* in the message, at the point of construction:
+
+**Before:**
+
+```java
+public CANCoderConfig {
+  if (canId == null) throw new NullPointerException("canId is marked non-null but is null");
+  if (canBus == null) throw new NullPointerException("canBus is marked non-null but is null");
+}
+```
+
+**After:**
+
+```java
+public record CANCoderConfig(@NonNull Integer canId, @NonNull CANBus canBus, Angle magnetOffset, …) {}
+```
+
+The value of this on a robot is *when* it fails: a config with a missing CAN bus blows up in `RobotContainer`'s constructor with `canBus is marked non-null but is null`, at boot, in the console, rather than forty seconds into a match when a command first touches the motor and gets a bare `NullPointerException` from inside Phoenix. Every required component of every config record carries it.
+
+### The rest of the family
+
+Lombok has more annotations than Cobra uses. The ones worth knowing, and FRC 4451's position on each:
+
+<ContentTable
+  headers={["Annotation", "Generates", "In Cobra"]}
+  rows={[
+    ["<code>@Getter</code> / <code>@Setter</code>", "Accessors", "Everywhere: state holders, config getters on mechanisms (<code>@Getter private final ElevatorConfig config</code>)"],
+    ["<code>@Builder</code>", "A named-argument builder", "Every config record"],
+    ["<code>@NonNull</code>", "A null check with a good message", "Required config components"],
+    ["<code>@RequiredArgsConstructor</code> / <code>@AllArgsConstructor</code>", "A constructor for the <code>final</code> fields / all fields", "Not used. Subsystem constructors do real work (build IO, start Notifiers) and are written out"],
+    ["<code>@ToString</code> / <code>@EqualsAndHashCode</code>", "The obvious", "Not needed. Records already provide them, and subsystems should not be compared"],
+    ["<code>@Data</code> / <code>@Value</code>", "Getters, setters, equals, hashCode, toString all at once", "<strong>Avoid.</strong> Too much at once; a setter on every field of a subsystem is exactly what the IO pattern exists to prevent"],
+    ["<code>@Slf4j</code> / <code>@Log</code>", "A logger field", "Not used. AdvantageKit's <code>Logger</code> is the logger"],
+    ["<code>@SneakyThrows</code>", "Swallows checked-exception declarations", "<strong>Avoid.</strong> Hides the failure mode from the reader"]
+  ]}
+/>
+
+### Rules for using it
+
+- **Annotate what you would have written anyway.** A getter you would not have exposed does not get `@Getter` because it is free. Every generated method is public API.
+- **`@Setter` is a design decision, not a convenience.** On `BobotState` it marks exactly the fields the drivetrain writes. If you find yourself adding `@Setter` to a mechanism's field so a command can poke it, the command should be calling a method on the subsystem instead.
+- **Records + `@Builder` + compact constructor** for configs; **`@NonNull`** on the required components. That is FRC 4451's pattern; follow it so every config reads the same.
+- **When a generated method surprises you, delombok.** `./gradlew delombok` and read `build/delombok/…`. There is never anything in there you could not have typed.
+- **Keep Spotless happy.** The formatter runs on your source, not the generated code, so annotation placement is up to you; FRC 4451 puts field-level annotations on the same line as the field.
+
+<RulesBox title="Common mistakes">
+
+- **<code>@Builder.Default</code> on a record component.** It does not work there; use the compact constructor.
+- **Expecting <code>@NonNull</code> to check at build() for primitives.** A <code>double</code> cannot be null; a forgotten <code>moi</code> is silently <code>0.0</code>, which makes a simulated mechanism weightless. Check the model, not the annotation.
+- **<code>@Data</code> on a subsystem.** You just made every field publicly writable.
+- **Red squiggles on every generated getter after adding the plugin.** The language server has not re-read the build: <em>Java: Clean Java Language Server Workspace</em>.
+- **Debugging into a generated getter.** There is no source line for it; step over. The value it returns is the field.
+
+</RulesBox>
+
+<Sources items={[
+  {"url": "https://projectlombok.org/features/", "label": "Project Lombok: feature reference", "note": "What each annotation generates."},
+  {"url": "https://plugins.gradle.org/plugin/io.freefair.lombok", "label": "io.freefair.lombok Gradle plugin", "note": "The plugin that wires Lombok into a GradleRIO build."},
+  {"source": "cobra", "path": "build.gradle", "note": "The plugin line: <code>id \"io.freefair.lombok\" version \"8.4\"</code>."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "<code>@Getter</code> on the config field; the <code>ElevatorConfig</code> record with a compact constructor for defaults."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java", "note": "<code>@Builder</code> on a record with <code>@NonNull</code> components."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/MechanismConfigs.java", "note": "Second builder record."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/varc/HubVARC.java", "note": "<code>@Getter</code> on computed fields."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "Where the generated accessors are used."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "Builders called at construction."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/VirtualSubsystem.java", "note": "Annotation placement conventions."}
+]} />
+
+<LinkGrid links={[
+  {"label":"VirtualSubsystem: A Heartbeat Without the Scheduler","id":"virtual-subsystem"},
+  {"label":"BobotState: The One Global","id":"bobot-state"},
+  {"label":"Elevator Example (config records in use)","url":"/frc/elevator-example#step-1-the-constants"},
+  {"label":"Java: Classes, instance variables and encapsulation","url":"/java/java-classes#instance-variables-and-encapsulation"},
+  {"label":"Project Lombok: feature reference","url":"https://projectlombok.org/features/"},
+  {"label":"io.freefair.lombok Gradle plugin","url":"https://plugins.gradle.org/plugin/io.freefair.lombok"}
+]} title="Next" section="frc" />

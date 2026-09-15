@@ -1,0 +1,232 @@
+---
+title: static and final
+lessonId: java-static-final
+section: java
+group: java-oop
+groupLabel: "Object-Oriented Programming"
+groupOrder: 4
+order: 4
+difficulty: beginner
+duration: 30 min
+description: Two keywords that decide who owns a value and whether it can change. One copy for the whole class versus one per object, and constants that cannot be reassigned.
+---
+
+### Two different questions
+
+`static` and `final` show up next to each other so often that people learn them as one thing. They answer two unrelated questions:
+
+- **`static`**: does this belong to the *class*, or to each *object*?
+- **`final`**: can this be *reassigned* after it is first set?
+
+You can have either without the other. Understanding them separately is what makes `public static final` readable instead of a phrase you copy.
+
+### static: one copy, shared
+
+An ordinary field lives inside each object. Make ten `Robot`s and there are ten `name` fields. A `static` field lives in the class itself. There is exactly one, no matter how many objects exist, and it exists even if there are none.
+
+```java
+class Robot {
+    static int built = 0;       // one counter for the whole class
+    String name;                // one name per robot
+
+    Robot(String name) {
+        this.name = name;
+        built++;                // every constructor bumps the same counter
+    }
+}
+
+Robot a = new Robot("Drive");
+Robot b = new Robot("Launcher");
+Robot c = new Robot("Intake");
+
+System.out.println(Robot.built);   // 3
+System.out.println(a.name);        // Drive
+```
+
+Notice the access: `Robot.built`, through the class name. You *can* write `a.built`, and it compiles, but it misleads, because it looks like the value belongs to `a`. Read a static through the class it belongs to.
+
+<ContentTable
+  headers={["", "Instance member", "Static member"]}
+  rows={[
+    ["How many exist", "One per object", "One per class"],
+    ["Accessed through", "An object: <code>a.name</code>", "The class: <code>Robot.built</code>"],
+    ["Exists with zero objects", "No", "Yes"],
+    ["Can use <code>this</code>", "Yes", "No; there is no object"]
+  ]}
+/>
+
+### static methods
+
+A `static` method belongs to the class the same way. It is called through the class name and it has no `this`, so it cannot touch instance fields; it only sees its parameters and other statics.
+
+```java
+class Units {
+    static double feetToInches(double feet) {
+        return feet * 12;
+    }
+}
+
+System.out.println(Units.feetToInches(2.5));    // 30.0
+```
+
+That is what `Math.abs`, `Math.max` and `Integer.parseInt` are: static methods on classes you never instantiate. It is also why `main` is static: the JVM calls it before any object of your class exists.
+
+<RulesBox title="The error everyone hits once">
+
+```java norun
+class Robot {
+    String name;
+
+    public static void main(String[] args) {
+        System.out.println(name);   // error: non-static variable name
+                                    // cannot be referenced from a static context
+    }
+}
+```
+
+`main` is static, so there is no `this`, and `name` belongs to an object that was never created. The fix is not to make `name` static; it is to create a `Robot` and read *its* name. If you find yourself making things static to silence this error, stop and ask which object the value belongs to.
+
+</RulesBox>
+
+### final: set once
+
+A `final` variable can be assigned exactly once. After that, any attempt to reassign it is a compile error.
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        final int MAX_SPEED = 100;
+        int current = 40;
+
+        current = 60;          // fine
+        // MAX_SPEED = 120;    // error: cannot assign a value to final variable
+
+        System.out.println(MAX_SPEED + " " + current);   // 100 60
+    }
+}
+```
+
+For a field, "once" can mean in the declaration or in the constructor; the compiler checks that every constructor assigns it and nothing else ever does.
+
+```java
+class Motor {
+    final int canId;            // assigned in the constructor, never again
+    double output;              // changes all the time
+
+    Motor(int canId) {
+        this.canId = canId;
+    }
+}
+
+Motor left = new Motor(10);
+left.output = 0.5;
+// left.canId = 11;             // error
+System.out.println(left.canId);   // 10
+```
+
+This is the most useful `final` there is. A motor's CAN ID does not change while the robot runs; marking the field `final` makes the compiler enforce it, and tells the next reader *this is identity, not state* without a comment.
+
+### final does not mean immutable
+
+`final` stops you reassigning the *variable*. It says nothing about the object the variable points to.
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+
+final List<String> subsystems = new ArrayList<>();
+subsystems.add("Drive");          // fine: the list changed, the variable did not
+subsystems.add("Launcher");
+// subsystems = new ArrayList<>(); // error: this would reassign the variable
+
+System.out.println(subsystems);   // [Drive, Launcher]
+```
+
+A `final` field holding a list is a list you cannot *swap out*. It is not a list you cannot add to. If you need the contents locked as well, that is a different tool: `List.of` or `Collections.unmodifiableList`.
+
+### Putting them together: constants
+
+A value that is the same for every object *and* never changes is both `static` and `final`. That is a **constant**, and Java's convention names it in `UPPER_CASE`:
+
+```java
+class DriveConstants {
+    static final int LEFT_LEADER_CAN_ID = 10;
+    static final int RIGHT_LEADER_CAN_ID = 12;
+    static final double MAX_SPEED_MPS = 3.5;
+    static final double DEADBAND = 0.08;
+}
+
+System.out.println(DriveConstants.LEFT_LEADER_CAN_ID);   // 10
+System.out.println(DriveConstants.MAX_SPEED_MPS * 2);    // 7.0
+```
+
+`static` because a CAN ID is a fact about the robot, not about any particular object, so there is one copy. `final` because it must not change while the program runs. `UPPER_CASE` so that anyone reading `DEADBAND` three files away knows it is a constant without looking it up.
+
+The alternative is a `0.08` typed directly where it is used, a **magic number**. It works until you need to change it and cannot find the four other places you typed it. Constants have one home.
+
+<RulesBox title="Reading public static final">
+
+WPILib projects keep constants in a `Constants` class, and every one is `public static final`:
+
+- `public`: any class can read it
+- `static`: accessed as `DriveConstants.DEADBAND`, no object needed
+- `final`: the compiler rejects any attempt to change it
+
+Three keywords, three separate decisions, and now each one means something.
+
+</RulesBox>
+
+<RulesBox title="Common mistakes">
+
+- **Making a field `static` to silence "non-static variable cannot be referenced from a static context".** Create the object instead.
+- **Reading a static through an object.** `a.built` compiles but lies about ownership. Use the class name.
+- **Assuming `final` freezes the object.** It freezes the variable; a `final` list still accepts `add`.
+- **A `final` field the constructor forgets to set.** The compiler will tell you, which is the point.
+- **Magic numbers.** `0.08` in three places is three bugs waiting for the day it becomes `0.1`.
+- **`UPPER_CASE` on something that is not a constant.** Reserve it for `static final` values; using it for ordinary variables makes real constants harder to spot.
+
+</RulesBox>
+
+<JavaPlayground id="java-static-final" />
+
+<ExerciseBox title="Practice">
+
+1. Add a `static int count` to a `Sensor` class, increment it in the constructor, and print it after creating three sensors.
+2. Give `Sensor` a `final String id` set in the constructor. Try to reassign it and read the compiler's message.
+3. Write a `MatchConstants` class with `static final` fields for auto length (15 s), teleop length (135 s) and total match length computed from the other two.
+4. Declare a `final int[]` array, then change one of its elements. Explain in a comment why that compiled.
+5. Write a `static` method `clamp(double value, double min, double max)` on a `MathUtil` class and call it without creating an object.
+
+<details>
+<summary>Hints</summary>
+
+1. `Sensor.count`, through the class, not through one of the sensors.
+2. The message names the variable and says "cannot assign a value to final variable".
+3. `static final int TOTAL_S = AUTO_S + TELEOP_S;`. A constant can be computed from other constants.
+4. `final` protects the variable, not the array it refers to. `arr[0] = 5` does not reassign `arr`.
+5. `Math.max(min, Math.min(max, value))`.
+
+</details>
+
+</ExerciseBox>
+
+<Sources items={[
+  {"source": "csce145", "note": "The course whose structure this lesson follows."},
+  {"source": "jls", "path": "jls-8.html", "note": "<code>static</code> fields and methods (sections 8.3.1.1, 8.4.3.2)."},
+  {"source": "jls", "path": "jls-4.html", "note": "<code>final</code> variables (section 4.12.4)."},
+  {"source": "dev-java", "path": "classes-objects/more-on-classes/", "note": "Class members and constants."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List.of</code> for an unmodifiable list."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/Collections.html", "note": "<code>Collections</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    {"label":"Method Overloading","id":"java-overloading"},
+    {"label":"Variables","id":"java-variables"},
+    {"label":"R03: Constants","url":"/kit-bot/r03-constants"}
+  ]}
+/>

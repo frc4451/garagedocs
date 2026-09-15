@@ -1,0 +1,111 @@
+---
+title: "A08: Stick-Curve Calculator"
+lessonId: a08-stick-curve-calculator
+section: assignments
+group: foundations
+groupLabel: "Track 1 — Foundations"
+groupOrder: 1
+order: 8
+difficulty: intermediate
+duration: 75 min
+description: Shape a raw joystick reading with a deadband, a sign-preserving curve and a clamp, one small method at a time.
+---
+
+**Topic:** methods, parameters, return values, the `Math` class, method decomposition.
+**Cites:** [Methods](/java/java-methods), [Calculating with Numbers](/java/java-calculations).
+**Difficulty:** medium. **Estimated time:** 75 minutes.
+
+### Scenario
+
+A joystick that reads `0.04` when nobody is touching it will creep your robot across the
+field. A joystick that maps linearly to motor output is twitchy at low speed and gives the
+driver no fine control. Both problems are fixed by putting the raw reading through three
+small transformations before it reaches a motor.
+
+This assignment is really about **decomposition**: each transformation is a method you can
+reason about and test on its own.
+
+### What to build
+
+A single file `StickCurve.java` with these `public static` methods:
+
+<ContentTable
+  headers={["Method", "What it does"]}
+  rows={[
+    ["<code>double deadband(double raw, double threshold)</code>", "Returns <code>0.0</code> when <code>Math.abs(raw)</code> is below <code>threshold</code>. Otherwise returns <code>raw</code> unchanged."],
+    ["<code>double signPreservingPow(double value, double exponent)</code>", "Raises the magnitude to the exponent and puts the original sign back. So -0.5 squared is -0.25, not +0.25."],
+    ["<code>double clamp(double value, double min, double max)</code>", "Holds <code>value</code> inside the range."],
+    ["<code>double applyCurve(double raw, double deadbandThreshold, double exponent)</code>", "Calls the other three in order: deadband, then the curve, then clamp to -1.0 through 1.0."]
+  ]}
+/>
+
+Worked example, with a threshold of `0.05` and an exponent of `2`:
+
+<ContentTable
+  headers={["Raw", "Curved", "Why"]}
+  rows={[
+    ["0.030", "0.0000", "Inside the deadband"],
+    ["0.050", "0.0025", "On the deadband edge, so it is kept, then squared"],
+    ["0.500", "0.2500", "Squared, sign unchanged"],
+    ["-0.500", "-0.2500", "Squared, sign restored"],
+    ["1.500", "1.0000", "Clamped"]
+  ]}
+/>
+
+<RulesBox title="How the browser version differs" items={[
+  "The starter already contains <code>main</code>. It reads the threshold, the exponent, then raw values until you enter <code>999</code>, and prints each raw value with its curved result to four decimals. Leave it alone and implement the four methods."
+]} />
+
+### Requirements
+
+- Each method does exactly one thing and returns a value. None of them print
+- `applyCurve` calls the other three rather than repeating their logic
+- Use `Math.abs` and `Math.pow` rather than hand-rolling either
+
+
+<RulesBox title="Plan it as sessions" items={[
+  "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Deadband, curve and clamp together</em>, <em>The sign survives the curve</em>.",
+  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>A value exactly on the deadband is kept</em>."
+]} />
+
+<JavaPlayground id="a08-stick-curve-calculator" />
+
+<RulesBox title="Hints" items={[
+  "<strong>Below, not at or below.</strong> The spec says <code>0.0</code> when the magnitude is <em>below</em> the threshold. A stick at exactly the threshold is a real input and is kept. Getting this backwards is the most common mistake in the assignment, and the checks look for it.",
+  "<strong>Putting the sign back.</strong> <code>Math.pow</code> on a negative base with an even exponent loses the sign. Take the magnitude with <code>Math.abs</code>, raise that, then multiply by -1 when the original was negative. <code>Math.signum</code> does the sign part in one call, but watch what it returns for zero.",
+  "<strong>Clamping in one line.</strong> <code>Math.max(min, Math.min(max, value))</code> is the idiom. Work out which of the two goes on the outside before you trust it.",
+  "<strong>Order matters in <code>applyCurve</code>.</strong> Curving before deadbanding gives a different answer than deadbanding first — a tiny raw value squared is a smaller tiny value, not zero. The spec fixes the order: deadband, curve, clamp."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Functionality", "60", "All four methods exist with the given signatures and produce the values in the worked example."],
+    ["Edge cases", "15", "A raw value exactly on the threshold is kept, not zeroed. Negative values keep their sign through the curve. Values past 1.0 clamp. Zero stays zero rather than becoming negative zero."],
+    ["Code quality", "20", "<code>applyCurve</code> composes the other three. No duplicated <code>Math.abs</code> logic. No printing inside the maths methods."],
+    ["Comments", "5", "Author header, and a line saying which exponent you would actually give a driver and why."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Add a `slewRateLimit(double previous, double target, double maxChange)` that stops the
+  output jumping more than `maxChange` per call, and thread it through `applyCurve`.
+- Print a small text plot of raw against curved across -1.0 to 1.0 in steps of 0.1, and look
+  at the shape an exponent of 2 actually gives the driver.
+
+### References
+
+- JavaDoc: [`java.lang.Math`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html)
+- WPILib: [Joysticks](https://docs.wpilib.org/en/stable/docs/software/basic-programming/joystick.html)
+- Wikipedia: [Deadband](https://en.wikipedia.org/wiki/Deadband)
+
+<Sources items={[
+  {"source": "csce145", "note": "Methods and math."},
+  {"source": "dev-java", "path": "classes-objects/defining-methods/", "note": "Defining methods."},
+  {"source": "java-api", "path": "java.base/java/lang/Math.html", "note": "<code>Math.abs</code>, <code>pow</code>, <code>copySign</code>, <code>max</code>/<code>min</code>."},
+  {"url": "/frc/frc-pid-control", "label": "Where the stick curve is used", "note": "Deadband and squaring on the real drivetrain."}
+]} />

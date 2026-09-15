@@ -1,0 +1,107 @@
+---
+title: "A23: Generic Ring Buffer"
+lessonId: a23-ring-buffer
+section: assignments
+group: collections
+groupLabel: "Track 3 — Collections"
+groupOrder: 3
+order: 23
+difficulty: intermediate
+duration: 90 min
+description: Write one class that smooths any sensor — a fixed-size buffer parameterised on the type it holds.
+---
+
+**Topic:** generics, type parameters, type erasure, writing an `Iterable`.
+**Cites:** [Generics](/java/java-generics), [Queues](/java/java-ds-queues), [Arrays](/java/java-arrays).
+**Difficulty:** medium. **Estimated time:** 90 minutes.
+
+### Scenario
+
+A ring buffer holds the most recent N values and drops the rest. It is the smoothing
+primitive behind almost every filter you will write: the last five voltage readings, the
+last twenty vision frames, the last second of odometry.
+
+None of that code cares what kind of value it holds. Written generically, one class
+serves all of it — a `RingBuffer<Double>` for voltages, a `RingBuffer<VisionResult>` for
+vision, a `RingBuffer<Pose2d>` for odometry. That is where generics stop being syntax
+you tolerate and start being the reason you wrote a class at all.
+
+### What to build
+
+<ContentTable
+  headers={["Member", "What it does"]}
+  rows={[
+    ["<code>RingBuffer(int capacity)</code>", "Capacity must be at least 1; anything less is an <code>IllegalArgumentException</code>."],
+    ["<code>add(T)</code>", "<strong>O(1).</strong> When the buffer is full, overwrite the oldest value rather than growing. No shifting, no copying."],
+    ["<code>oldest()</code> / <code>newest()</code>", "<strong>O(1).</strong> <code>NoSuchElementException</code> when the buffer is empty — not <code>null</code>."],
+    ["<code>size()</code> <code>capacity()</code> <code>isEmpty()</code> <code>isFull()</code> <code>clear()</code>", "The bookkeeping. <code>clear</code> empties the buffer without changing its capacity."],
+    ["<code>oldestFirst()</code> / <code>newestFirst()</code>", "<code>Iterable&lt;T&gt;</code>, O(n), walking the current contents in each direction."],
+    ["<code>toString()</code>", "<code>RingBuffer[1.0, 2.0, 3.0]</code> — oldest first. An empty buffer prints <code>RingBuffer[]</code>."]
+  ]}
+/>
+
+`main` is written for you. It fills a `RingBuffer<Double>` past its capacity, walks it
+both ways, then does the whole thing again with a `RingBuffer<String>` — because a
+generic class that only ever gets used at one type has not proved anything.
+
+<RulesBox title="How the browser version differs" items={[
+  "Two files locally, one here, with only <code>RingBufferDemo</code> declared <code>public</code>.",
+  "The editor runs <strong>Java 17</strong>, so the lambda form of <code>Iterable</code> and the diamond on <code>new RingBuffer&lt;&gt;(5)</code> both work exactly as they do locally on Java 25."
+]} />
+
+
+<RulesBox title="Plan it as sessions" items={[
+  "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>The buffer fills up without dropping anything</em>, <em>Adding past capacity drops the oldest, it does not grow</em>, <em>oldest and newest survive the wrap</em>, <em>Both iterators walk in the direction they promise</em>.",
+  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>The state queries agree with the contents</em>, <em>The same class works for a second type argument</em>, <em>clear empties the buffer without shrinking it</em>, <em>Bad capacity and empty reads are rejected</em>."
+]} />
+
+<JavaPlayground id="a23-ring-buffer" />
+
+<RulesBox title="Hints" items={[
+  "<strong><code>new T[capacity]</code> does not compile.</strong> The type parameter is erased before the array would be created, so there is no <code>T</code> left at runtime to make an array of. Hold an <code>Object[]</code> and cast on the way out. One <code>@SuppressWarnings(\"unchecked\")</code> on a single private accessor is the tidy way — the cast is safe because you control every write.",
+  "<strong>Two numbers, not three.</strong> Store the index of the oldest element and the current count. The next write goes at <code>(head + size) % capacity</code>; if the buffer was already full, advance <code>head</code> instead of incrementing <code>size</code>. That one <code>if</code> is the entire difference between a ring buffer and an array.",
+  "<strong>Draw it.</strong> Sketch the array and the two numbers on paper and step through four adds into a buffer of three. The moment the write index wraps past the end is the moment the name makes sense.",
+  "<strong>One private accessor pays for itself.</strong> A <code>T at(int offsetFromOldest)</code> that does the modular arithmetic once gets used by <code>oldest</code>, <code>newest</code>, both iterators and <code>toString</code>. Writing <code>(head + k) % data.length</code> in five places is five chances to get it wrong.",
+  "<strong><code>Iterable</code> is a single-method interface.</strong> So <code>oldestFirst()</code> can return a lambda whose body builds a small anonymous <code>Iterator&lt;T&gt;</code>. The iterator holds how many it has handed out; <code>hasNext</code> compares that against the size."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Functionality", "60", "<code>add</code> drops the oldest when full. <code>oldest</code> and <code>newest</code> stay correct after the wrap. Both iterators walk their stated direction. The class is <code>RingBuffer&lt;T&gt;</code>, not <code>RingBuffer&lt;Object&gt;</code>, and works with <code>Double</code>, <code>String</code> and a record. <code>add</code>, <code>oldest</code> and <code>newest</code> are O(1) — no copying on every add."],
+    ["Edge cases", "15", "Reading an empty buffer throws <code>NoSuchElementException</code>. A capacity of 0 or less throws <code>IllegalArgumentException</code>. The exact-capacity boundary neither over- nor under-counts."],
+    ["Code quality", "20", "One <code>@SuppressWarnings(\"unchecked\")</code>, on the cast that needs it. No raw types. The index arithmetic lives in one place. Fields <code>private</code>, and <code>final</code> where it applies."],
+    ["Comments", "5", "Author header, and one comment on the head/size bookkeeping."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Add `T get(int indexFromOldest)` — O(1) random access with a bounds check. You already
+  have the arithmetic; this is about what to throw when the index is out of range.
+- Add a bounded type parameter: `class SortableRing<T extends Comparable<T>> extends
+  RingBuffer<T>` with a `T max()`. The `extends Comparable<T>` bound is precisely what
+  lets you call `compareTo` inside it.
+- Implement `Iterable<T>` on `RingBuffer` itself so `for (T t : buffer)` works without
+  calling a method first — then document which direction you chose, because the caller
+  cannot see it.
+
+### References
+
+- JavaDoc: [`java.lang.Iterable<T>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Iterable.html)
+- JavaDoc: [`java.util.Iterator<T>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Iterator.html)
+- JavaDoc: [`java.util.NoSuchElementException`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/NoSuchElementException.html)
+- Wikipedia: [Circular buffer](https://en.wikipedia.org/wiki/Circular_buffer)
+- Wikipedia: [Type erasure](https://en.wikipedia.org/wiki/Type_erasure)
+
+<Sources items={[
+  {"source": "csce146", "note": "Generics and iteration."},
+  {"source": "dev-java", "path": "generics/intro/", "note": "Generic classes."},
+  {"source": "java-tutorial", "path": "java/generics/index.html", "note": "Generics tutorial."},
+  {"source": "java-api", "path": "java.base/java/util/Iterator.html", "note": "<code>Iterator</code> and <code>Iterable</code>."},
+  {"url": "/java/java-ds-deques", "label": "Deques", "note": "The ring-buffer idea in the Java track."},
+  {"source": "java-api", "path": "java.base/java/lang/Iterable.html", "note": "<code>Iterable</code> API reference."}
+]} />

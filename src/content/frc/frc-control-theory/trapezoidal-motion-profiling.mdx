@@ -3,25 +3,21 @@ title: "Motion Profiling: Trapezoidal"
 lessonId: trapezoidal-motion-profiling
 section: frc
 group: frc-control-theory
-groupLabel: Control Theory
-groupOrder: 5
-order: 2
+groupLabel: "Control Theory"
+groupOrder: 4
+order: 3
 difficulty: intermediate
-duration: 75 min
-description: ""
+duration: 15 min
+description: "Trapezoidal motion profiles: velocity and acceleration constraints, using them for position control, tuning, and the usual failure modes."
 ---
 
 ### Template Project
 
 Start with the **Command Robot** template project. Motion profiling is typically implemented in subsystems, so the command-based structure works well. Create a new subsystem class in the `subsystems` package.
 
-### Overview
+### Limit velocity and acceleration
 
-Trapezoidal motion profiling creates smooth movement using constant acceleration to reach maximum velocity, then constant deceleration to stop. This profile has three phases: acceleration, cruise (constant speed), and deceleration. It's fast, predictable, and reduces mechanical stress compared to instant speed changes.
-
-### What is Trapezoidal Profiling?
-
-A trapezoidal profile accelerates at a constant rate until reaching maximum velocity, maintains that speed, then decelerates at a constant rate to stop. The name comes from the velocity graph: it looks like a trapezoid when plotted over time.
+A trapezoidal profile limits velocity and acceleration while moving a mechanism toward a goal. It accelerates at a constant rate, may hold its maximum velocity, then decelerates at a constant rate. The velocity graph forms a trapezoid when the move is long enough to reach the velocity limit; shorter moves form a triangle.
 
 <RulesBox title="Hardware Support" subtitle="Built-in controller features:">
 
@@ -70,5 +66,13 @@ Use dashboard tools to monitor position, velocity, and current draw during motio
 
 <CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot.subsystems;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.ctre.phoenix6.configs.MotionMagicConfigs;\nimport com.ctre.phoenix6.controls.MotionMagicVoltage;\nimport com.ctre.phoenix6.hardware.TalonFX;\n\n// Create this class in the subsystems package (template provides ExampleSubsystem as reference)\npublic class Elevator extends SubsystemBase {\n    private TalonFX motor = new TalonFX(1);\n    private final MotionMagicVoltage m_request = new MotionMagicVoltage(0);\n    \n    public Elevator() {\n        configureMotionProfile();\n    }\n    \n    public void configureMotionProfile() {\n        // Configure Motion Magic® (trapezoidal profile)\n        MotionMagicConfigs mm = new MotionMagicConfigs();\n        mm.MotionMagicCruiseVelocity = 10;  // Max velocity in rotations/sec\n        mm.MotionMagicAcceleration = 20;    // Max acceleration in rotations/sec²\n        mm.MotionMagicJerk = 100;           // Jerk limit for smoothing\n        motor.getConfigurator().apply(mm);\n    }\n    \n    public void setPosition(double target) {\n        // Use Motion Magic® position control\n        motor.setControl(m_request.withPosition(target));\n    }\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot.subsystems;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\nimport com.revrobotics.spark.config.SparkMaxConfig;\nimport com.revrobotics.spark.ClosedLoopController.ControlType;\nimport com.revrobotics.spark.ClosedLoopController.ClosedLoopSlot;\nimport com.revrobotics.spark.SparkBase.ResetMode;\nimport com.revrobotics.spark.SparkBase.PersistMode;\n\n// Create this class in the subsystems package (template provides ExampleSubsystem as reference)\npublic class Elevator extends SubsystemBase {\n    private SparkMax motor = new SparkMax(1, MotorType.kBrushless);\n    private SparkClosedLoopController controller = motor.getClosedLoopController();\n    \n    public Elevator() {\n        configureMotionProfile();\n    }\n    \n    public void configureMotionProfile() {\n        SparkMaxConfig config = new SparkMaxConfig();\n        // Configure motion profile constraints for Slot 0\n        config.closedLoop.maxMotion\n            .maxVelocity(3000, ClosedLoopSlot.kSlot0)  // Max velocity in RPM\n            .maxAcceleration(2000, ClosedLoopSlot.kSlot0); // Max acceleration in RPM/s\n        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n    }\n    \n    public void setPosition(double target) {\n        // Use MAXMotion position control (trapezoidal profile)\n        controller.setReference(target, ControlType.kMAXMotionPositionControl);\n    }\n}","language":"java"}]} />
 
-<LinkGrid links={[{"label":"Exponential Motion Profiling","id":"exponential-motion-profiling"},{"label":"PID Control","id":"frc-pid-control"},{"label":"CTRE Motion Magic® Documentation","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html"}]} title="Resources" section="frc" />
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/trapezoidal-profiles.html", "note": "<code>TrapezoidProfile</code>: constraints, states, <code>calculate</code>."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/profiled-pidcontroller.html", "note": "<code>ProfiledPIDController</code> wrapping a profile around PID."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/trajectory/TrapezoidProfile.html", "note": "The API used in the examples."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/motion-magic.html", "note": "The same profile generated on the controller: cruise velocity, acceleration, jerk."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "The mechanism the profile is applied to."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "Loop period the profile is stepped at."}
+]} />
 
+<LinkGrid links={[{"label":"Exponential Motion Profiling","id":"exponential-motion-profiling"},{"label":"PID Control","id":"frc-pid-control"},{"label":"CTRE Motion Magic® Documentation","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html"}]} title="Resources" section="frc" />

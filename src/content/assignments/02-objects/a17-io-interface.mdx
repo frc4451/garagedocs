@@ -1,0 +1,101 @@
+---
+title: "A17: IO Interface Technique"
+lessonId: a17-io-interface
+section: assignments
+group: objects
+groupLabel: "Track 2 — Objects"
+groupOrder: 2
+order: 17
+difficulty: advanced
+duration: 2–3 hours
+description: Separate what hardware can do from how it does it, then swap a simulator in for the real thing without touching the subsystem.
+---
+
+**Topic:** interfaces, multiple implementations, the swap-real-for-sim design.
+**Cites:** [Interfaces](/java/java-interfaces), [Runtime Polymorphism](/java/java-runtime-polymorphism).
+**Difficulty:** medium–hard. **Estimated time:** 2–3 hours.
+
+### Scenario
+
+You have one robot and six programmers, and the robot is in pieces until Thursday. The
+teams that keep working anyway have usually done one thing: their subsystems talk to an
+*interface*, and there are two implementations behind it — one that drives real motors
+and one that makes up plausible numbers.
+
+This is the single most portable technique in this track. It is also the one most often
+copied without being understood, which is why you are building a small one yourself.
+
+### What to build
+
+The full assignment lets you pick a mechanism. **In the browser it is pinned to a
+climber**, so the checks have fixed method names to call. Working locally, pick an
+intake or a pivot instead and design the interface yourself — that choice is most of the
+learning.
+
+<ContentTable
+  headers={["File", "What it is"]}
+  rows={[
+    ["<code>ClimberIO</code>", "The contract: <code>setVoltage</code>, <code>getPositionMeters</code>, <code>getCurrentAmps</code>, <code>isAtHardLimit</code>. No fields, no logic, signatures only."],
+    ["<code>ClimberIOMock</code>", "Stands in for the roboRIO version. Prints <code>[MOCK] setVoltage(6.00)</code>, stores the voltage, reports amps = |volts| &times; 4, position always 0.0, never at the limit."],
+    ["<code>ClimberIOSim</code>", "A small model. Position integrates voltage at 0.02 m per volt-second, clamped to 0.30 m; amps = |volts| &times; 6; at the limit once position reaches 0.30."],
+    ["<code>Climber</code>", "The subsystem. Holds a <code>ClimberIO</code> and never learns which one. <code>climb(volts)</code> applies 0.0 instead when already at the limit."]
+  ]}
+/>
+
+The sim deliberately produces *different* readings from the mock — that is how you can
+tell from the output which one the subsystem is holding.
+
+<RulesBox title="How the browser version differs" items={[
+  "Five files locally, one here, with only <code>ClimberDemo</code> declared <code>public</code>.",
+  "The mechanism is fixed to a climber and the method names are given, so the checks have something to call. Locally, pick your own — and do not read another team's <code>IntakeIO</code> until you have finished yours."
+]} />
+
+
+<RulesBox title="Plan it as sessions" items={[
+  "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>The mock announces what it would do</em>, <em>The mock reports its own flat readings</em>.",
+  "<strong>Session 2.</strong> Build on what already passes: <em>The sim integrates position over ticks</em>, <em>The sim stops at the hard limit</em>.",
+  "<strong>Session 3.</strong> Build on what already passes: <em>One subsystem drove both implementations</em>."
+]} />
+
+<JavaPlayground id="a17-io-interface" />
+
+<RulesBox title="Hints" items={[
+  "<strong>The interface holds nothing.</strong> No fields, no constructor, no partly-written method. The moment you want to put state in it, that state belongs in the implementations — that is the line the technique depends on.",
+  "<strong>The subsystem takes the IO in its constructor.</strong> <code>new Climber(new ClimberIOSim())</code> and <code>new Climber(new ClimberIOMock())</code> both work, and <code>Climber</code> contains no branch that knows the difference. If it does, the abstraction has leaked.",
+  "<strong>The sim only has to be plausible.</strong> Position moves a bit each call, in the direction of the voltage, and stops at the top. This is not a physics assignment; it is a <em>shape</em> assignment.",
+  "<strong>Clamp inside the sim, and back off inside the subsystem.</strong> Two different jobs: the sim refuses to report a position past its limit, while <code>climb</code> refuses to keep pushing once the limit reports true. Both are needed, and the trace shows each."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Functionality", "60", "Interface with signatures only. Both implementations present and behaving differently. <code>Climber</code> works unchanged with either, and backs off at the limit."],
+    ["Edge cases", "15", "The sim clamps at 0.30 m rather than running past it. Once at the limit, applied voltage drops to zero and current follows. The mock never reaches a limit."],
+    ["Code quality", "20", "No state on the interface. No <code>instanceof</code> or type check inside <code>Climber</code>. Implementation fields <code>private</code>. Constants named rather than scattered."],
+    ["Comments", "5", "Author header, and a note on what the sim's model assumes and where it stops being realistic."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Add a third implementation, `ClimberIOReplay`, that returns readings from a hard-coded
+  array of past values. Now you can re-run a match without a robot or a simulator.
+- Add an `updateInputs` method that fills a small inputs object once per tick, and make
+  every getter read from that instead. Compare your result with AdvantageKit's IO layer
+  — *after* you have written yours.
+
+### References
+
+- JavaDoc: [Interfaces](https://docs.oracle.com/javase/tutorial/java/IandI/createinterface.html)
+- WPILib: [Robot simulation](https://docs.wpilib.org/en/stable/docs/software/wpilib-tools/robot-simulation/introduction.html)
+- Wikipedia: [Dependency inversion principle](https://en.wikipedia.org/wiki/Dependency_inversion_principle)
+
+<Sources items={[
+  {"source": "csce146", "note": "Interfaces."},
+  {"source": "dev-java", "path": "interfaces/", "note": "Interfaces."},
+  {"source": "dev-java", "path": "interfaces/defining-interfaces/", "note": "Defining and implementing."},
+  {"url": "/frc/io-layer", "label": "The IO layer on the robot", "note": "The pattern this assignment practises."}
+]} />

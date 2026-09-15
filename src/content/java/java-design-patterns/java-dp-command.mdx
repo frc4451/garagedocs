@@ -8,7 +8,7 @@ groupOrder: 8
 order: 3
 difficulty: advanced
 duration: 35 min
-description: Wrapping an action in an object so it can be stored, scheduled, undone, and combined — the pattern behind FRC command-based programming.
+description: "Wrapping an action in an object so it can be stored, scheduled, undone, and combined: the pattern behind FRC command-based programming."
 ---
 
 ### An action as an object
@@ -23,16 +23,16 @@ interface Command {
 
 That is the minimal form. Because the action is an object, you can put it in a list, hand it to another method, keep it for later, or store enough information to reverse it.
 
-```java
+```java norun
 Command spinUp = () -> shooter.set(0.9);
 Command stop   = () -> shooter.set(0.0);
 ```
 
-Neither has run. They are values describing work, created with [lambdas](/java/java-fn-lambdas).
+Neither has run. They are values describing work, created with [lambdas](/java/java-fn-lambdas#the-same-thing-shorter).
 
-### Why not just call the method?
+### When the pattern is worth it
 
-If you only ever want the action to happen right now, call it — the pattern is unnecessary overhead.
+If you only ever want the action to happen right now, call it; the pattern is unnecessary overhead.
 
 It earns its place when you need one of these:
 
@@ -50,7 +50,7 @@ It earns its place when you need one of these:
 
 ### Adding lifecycle
 
-A single `execute()` is enough for instant actions, but most real work takes several cycles — driving to a position, spinning a flywheel up to speed. That needs a richer shape:
+A single `execute()` is enough for instant actions, but most real work takes several cycles: driving to a position, spinning a flywheel up to speed. That needs a richer shape:
 
 ```java
 interface Command {
@@ -65,7 +65,7 @@ interface Command {
 
 `default` methods let an implementation override only what it cares about. A simple command supplies `execute` and nothing else.
 
-```java
+```java norun
 class SpinUpShooter implements Command {
     private final Shooter shooter;
     private final double targetRpm;
@@ -93,11 +93,11 @@ class SpinUpShooter implements Command {
 }
 ```
 
-The dependencies arrive through the constructor — [dependency injection](/java/java-dp-dependency-injection) — so this class is testable with a fake shooter.
+The dependencies arrive through the constructor ([dependency injection](/java/java-dp-dependency-injection#testing-becomes-possible)), so this class is testable with a fake shooter.
 
 <RulesBox title="end() takes a boolean for a reason">
 
-A command can finish two ways: it completed, or something cut it short. Those often need different cleanup — a completed shooter might hold its speed, while an interrupted one should stop.
+A command can finish two ways: it completed, or something cut it short. Those often need different cleanup: a completed shooter might hold its speed, while an interrupted one should stop.
 
 Passing `interrupted` lets one method handle both without the caller needing two.
 
@@ -137,13 +137,13 @@ class Scheduler {
 }
 ```
 
-Using an `Iterator` with `it.remove()` is what allows removal mid-loop. A for-each with `running.remove(c)` would throw `ConcurrentModificationException` — the trap from the [ArrayLists](/java/java-ds-arraylists) lesson.
+Using an `Iterator` with `it.remove()` is what allows removal mid-loop. A for-each with `running.remove(c)` would throw `ConcurrentModificationException`, the trap from the [ArrayLists](/java/java-ds-arraylists#iterating) lesson.
 
 Call `run()` once per cycle and every scheduled command advances one step.
 
 ### Composing commands
 
-Because commands are objects, you can build commands out of other commands. This is where the pattern becomes genuinely powerful.
+Because commands are objects, you can build commands out of other commands. This is where the pattern pays for itself: a whole routine becomes one object.
 
 ```java
 class SequentialCommand implements Command {
@@ -180,9 +180,9 @@ class SequentialCommand implements Command {
 }
 ```
 
-`SequentialCommand` *is* a `Command`, so it can be scheduled like any other — or nested inside another sequence.
+`SequentialCommand` *is* a `Command`, so it can be scheduled like any other, or nested inside another sequence.
 
-```java
+```java norun
 Command autonomous = new SequentialCommand(
     new DriveDistance(drivetrain, 2.0),
     new SpinUpShooter(shooter, 4000),
@@ -193,7 +193,7 @@ Command autonomous = new SequentialCommand(
 scheduler.schedule(autonomous);
 ```
 
-An entire autonomous routine is one object. A parallel version — running several at once and finishing when all are done — follows the same shape.
+An entire autonomous routine is one object. A parallel version (running several at once and finishing when all are done) follows the same shape.
 
 <RulesBox title="This is what FRC command-based programming is">
 
@@ -201,7 +201,7 @@ If you write FRC code, you have used this pattern already. WPILib's `Command`, `
 
 Two additions worth knowing about in the real framework:
 
-- **Requirements.** A command declares which subsystems it uses, and the scheduler refuses to run two commands needing the same subsystem — preventing two commands fighting over one motor.
+- **Requirements.** A command declares which subsystems it uses, and the scheduler refuses to run two commands needing the same subsystem, which prevents two commands fighting over one motor.
 - **Decorators.** Methods like `andThen`, `alongWith`, and `withTimeout` build composite commands without you writing the group classes.
 
 The pattern here is the foundation; the framework is this plus safety.
@@ -212,7 +212,7 @@ The pattern here is the foundation; the framework is this plus safety.
 
 Where the pattern is used for editing rather than scheduling, add a reverse operation:
 
-```java
+```java norun
 interface UndoableCommand {
     void execute();
     void undo();
@@ -239,19 +239,21 @@ class SetPosition implements UndoableCommand {
 }
 ```
 
-Push executed commands onto a [stack](/java/java-ds-stacks); undo pops and reverses. That is how every editor's undo works.
+Push executed commands onto a [stack](/java/java-ds-stacks#where-stacks-show-up); undo pops and reverses. That is how every editor's undo works.
 
 <RulesBox title="Common mistakes">
 
 - **Modifying the running list during a for-each.** Use an `Iterator`, or collect finished commands and remove them afterwards.
 - **A command that never finishes.** If `isFinished()` always returns `false`, it runs forever. Give long-running commands a timeout.
-- **Doing setup in the constructor** instead of `initialize()`. A command may be scheduled more than once, and the constructor runs only the first time — so state from a previous run leaks in. Reset in `initialize()`.
+- **Doing setup in the constructor** instead of `initialize()`. A command may be scheduled more than once, and the constructor runs only the first time, so state from a previous run leaks in. Reset in `initialize()`.
 - **Forgetting to reset state**, which breaks the second run of a reused command.
 - **Sharing a mutable command between two schedulers**, so both mutate the same `index`.
 - **Capturing a value instead of a `Supplier`** for inputs that change.
 - **Using the pattern for a single immediate call**, adding indirection for nothing.
 
 </RulesBox>
+
+<JavaPlayground id="java-dp-command" />
 
 <ExerciseBox title="Practice">
 
@@ -265,7 +267,7 @@ Push executed commands onto a [stack](/java/java-ds-stacks); undo pops and rever
 <summary>Hints</summary>
 
 1. `List<Command>` and a for-each calling `execute()`.
-2. A counter field incremented in `execute`; `isFinished` returns true at five. Reset the counter in `initialize`, not the constructor — exercise 3 will show you why.
+2. A counter field incremented in `execute`; `isFinished` returns true at five. Reset the counter in `initialize`, not the constructor; exercise 3 will show you why.
 3. The `Iterator` loop above. Schedule the counting command and call `run()` six times.
 4. Track an index of the current step. Nesting works automatically because the group implements the same interface.
 5. Store the previous value during `execute`. Push each command onto an `ArrayDeque`; undo pops and calls `undo()`.
@@ -284,6 +286,15 @@ Push executed commands onto a [stack](/java/java-ds-stacks); undo pops and rever
     {"label":"Runtime Polymorphism","id":"java-runtime-polymorphism"}
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"url": "https://en.wikipedia.org/wiki/Command_pattern", "label": "Wikipedia: Command pattern", "note": "The pattern."},
+  {"source": "wpilib", "path": "docs/software/commandbased/commands.html", "note": "WPILib's command lifecycle, the real version."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Command.html", "note": "<code>Command</code>."},
+  {"source": "java-api", "path": "java.base/java/util/Iterator.html", "note": "Removing mid-loop with <code>Iterator.remove</code>."},
+  {"source": "java-api", "path": "java.base/java/util/ConcurrentModificationException.html", "note": "<code>ConcurrentModificationException</code> API reference."}
+]} />
 
 <LinkGrid
   title="Apply it on a robot"

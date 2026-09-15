@@ -1,0 +1,135 @@
+---
+title: "PhotonVision: AprilTags and Robot Pose"
+lessonId: photonvision
+section: frc
+group: frc-pose-estimation
+groupLabel: "Pose Estimation"
+groupOrder: 8
+order: 3
+difficulty: intermediate
+duration: 15 min
+description: "How PhotonVision and PhotonLib turn AprilTag detections into timestamped robot-pose observations."
+---
+
+PhotonVision runs image processing on a coprocessor, such as an Orange Pi or a supported camera appliance. It detects targets and publishes results over NetworkTables. PhotonLib is the robot-code library that reads those results and calculates robot poses.
+
+This curriculum uses the PhotonPoseEstimator API in FRC 4451's 2026 Cobra project: construct the estimator from a field layout and robot-to-camera transform, then choose an estimation method for each pipeline result. Check the vendordep and current PhotonVision documentation before copying the API into another season.
+
+### Configure the coprocessor
+
+1. Install the PhotonVision image for the coprocessor and connect it to the robot network.
+2. Give each camera a descriptive name, such as `frontLeft`.
+3. Calibrate the camera at the resolution it will use.
+4. Configure an AprilTag pipeline and the season's tag family.
+5. Enable multi-tag estimation when the hardware supports it.
+6. Load the same field layout on the coprocessor and roboRIO.
+7. Measure the transform from the robot origin to the camera.
+
+For the 2026 field, PhotonVision documents separate welded and AndyMark layouts. Using the wrong layout creates a systematic pose error even when tag detection works.
+
+### Read every new result
+
+```java
+PhotonCamera camera = new PhotonCamera("frontLeft");
+
+for (PhotonPipelineResult result : camera.getAllUnreadResults()) {
+    if (!result.hasTargets()) {
+        continue;
+    }
+
+    PhotonTrackedTarget target = result.getBestTarget();
+    int tagId = target.getFiducialId();
+    double yawDegrees = target.getYaw();
+    double ambiguity = target.getPoseAmbiguity();
+}
+```
+
+`getAllUnreadResults()` returns results that have arrived since the previous call. Processing the collection keeps each observation and its timestamp. Call `hasTargets()` before using `getBestTarget()` because a result may contain no target.
+
+Yaw is enough for a command that turns until a target is centered. Field localization needs the tag layout and camera transform.
+
+### Calculate a robot pose
+
+```java
+AprilTagFieldLayout fieldLayout =
+    AprilTagFieldLayout.loadField(AprilTagFields.kDefaultField);
+
+Transform3d robotToCamera = new Transform3d(
+    new Translation3d(0.50, 0.0, 0.50),
+    new Rotation3d());
+
+PhotonPoseEstimator photonEstimator =
+    new PhotonPoseEstimator(fieldLayout, robotToCamera);
+
+for (PhotonPipelineResult result : camera.getAllUnreadResults()) {
+    Optional<EstimatedRobotPose> estimate =
+        photonEstimator.estimateCoprocMultiTagPose(result)
+            .or(() ->
+                photonEstimator.estimateLowestAmbiguityPose(result));
+
+    estimate.ifPresent(observation -> {
+        Pose2d fieldToRobot =
+            observation.estimatedPose.toPose2d();
+        double timestampSeconds =
+            observation.timestampSeconds;
+        int tagCount = observation.targetsUsed.size();
+    });
+}
+```
+
+Coprocessor multi-tag estimation combines the visible tag corners into one solution. It is generally the preferred result when the camera calibration, tag layout, and detections are valid. The lowest-ambiguity method provides a single-tag fallback.
+
+Ambiguity and distance are inputs to a filter, not guarantees. A cutoff such as 0.2 is a starting value that must be tested with the team's camera, resolution, exposure, and field conditions.
+
+### Pass observations to the estimator
+
+Keep the pose, capture timestamp, targets used, and uncertainty together:
+
+```java
+poseEstimator.addVisionMeasurement(
+    observation.estimatedPose.toPose2d(),
+    observation.timestampSeconds,
+    visionStdDevs);
+```
+
+WPILib applies a delayed measurement at its timestamp and updates the current estimate from that corrected history. Using the loop's current time instead of the observation timestamp places the correction at the wrong point in the robot's motion.
+
+The next two lessons separate the remaining responsibilities:
+
+- [Vision Subsystem](/frc/vision-subsystem) extracts and filters observations.
+- [Fused Pose Estimation](/frc/vision-pose-estimation-fusion) consumes each accepted observation once.
+
+### Simulation
+
+PhotonLib's simulator models camera placement, field targets, visibility, configured latency, and configured measurement noise. It checks the integration before the camera is installed. It does not reproduce lighting, motion blur, a flexible mount, or a miscalibrated real lens.
+
+<RulesBox title="Check these failures">
+
+- No results: verify camera name, network connection, pipeline, and target visibility.
+- Tags detected but no multi-tag result: verify that multi-tag is enabled and both systems use the same field layout.
+- Consistent pose offset: measure `robotToCamera` again and check its axis signs.
+- Pose jumps from one tag: log ambiguity, distance, tag ID, and rejected observations before changing estimator trust.
+- Old examples fail to compile: compare their PhotonLib version with the project's vendordep.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "photonvision", "path": "docs/programming/photonlib/robot-pose-estimator.html", "note": "<code>PhotonPoseEstimator</code> construction and the per-result estimation methods."},
+  {"source": "photonvision", "path": "docs/programming/photonlib/getting-target-data.html", "note": "<code>getAllUnreadResults()</code>, <code>hasTargets()</code>, <code>getBestTarget()</code>, yaw."},
+  {"source": "photonvision", "path": "docs/apriltag-pipelines/multitag.html", "note": "Multi-tag estimation and the shared field layout requirement."},
+  {"source": "photonvision", "path": "docs/apriltag-pipelines/3D-tracking.html", "note": "Single-tag ambiguity and why it needs a filter."},
+  {"source": "photonvision", "path": "docs/programming/photonlib/adding-vendordep.html", "note": "Vendordep installation; Cobra pins PhotonLib 2026.1.1."},
+  {"source": "photonvision", "path": "docs/simulation/simulation-java.html", "note": "What the simulator models and does not."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/apriltag/AprilTagFieldLayout.html", "note": "Loading the season layout; the 2026 welded and AndyMark variants."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/state-space/state-space-pose-estimators.html", "note": "Why the observation timestamp, not the loop time, goes to <code>addVisionMeasurement</code>."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagIOPhoton.java", "note": "Cobra's <code>PhotonPoseEstimator</code> usage and per-result method selection."},
+  {"source": "cobra", "path": "vendordeps/photonlib.json", "note": "The PhotonLib version the API on this page is scoped to."}
+]} />
+
+<LinkGrid title="Next" section="frc" links={[
+  {"label":"Vision Subsystem","id":"vision-subsystem"},
+  {"label":"Fused Pose Estimation","id":"vision-pose-estimation-fusion"},
+  {"label":"PhotonVision Documentation","url":"https://docs.photonvision.org/en/latest/"},
+  {"label":"PhotonPoseEstimator","url":"https://docs.photonvision.org/en/latest/docs/programming/photonlib/robot-pose-estimator.html"},
+  {"label":"MultiTag Localization","url":"https://docs.photonvision.org/en/latest/docs/apriltag-pipelines/multitag.html"}
+]} />

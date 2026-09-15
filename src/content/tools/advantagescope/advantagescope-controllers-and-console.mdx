@@ -1,0 +1,109 @@
+---
+title: "Controllers and the Console"
+lessonId: advantagescope-controllers-and-console
+section: tools
+group: advantagescope
+groupLabel: "AdvantageScope"
+groupOrder: 4.5
+order: 3
+difficulty: beginner
+description: "Inspect recorded controller inputs and compare console messages with robot telemetry in AdvantageScope."
+---
+
+Use the Joysticks tab to inspect recorded controller state and the Console tab to align text messages with the shared timeline. Confirm the required data is present before relying on either view.
+
+### The Joysticks tab
+
+**+ → Joysticks** displays supported controller layouts for ports 0 through 5. Button and axis values follow the selected time in the data source.
+
+<StepsBox title="Showing a controller">
+
+1. In the table at the bottom of the tab, pick a **layout** for each port you care about. Options include *Xbox Controller*, *PS4/PS5*, a flight stick and *Generic Joystick*, which shows every button, axis and POV in a grid and works for anything.
+2. The **port number** is the one the Driver Station shows in its USB tab and the one the code passed to <code>new CommandXboxController(0)</code>. Valid ports range from 0 to 5. Driver on 0 and operator on 1 is FRC 4451's convention ([Kit Bot R10](/kit-bot/r10-joysticks-and-stick-math)).
+3. Press play or scrub. Buttons light, sticks move.
+
+</StepsBox>
+
+Stock WPILib does not provide joystick state through a plain live NetworkTables connection. The tab supports WPILib logs with joystick logging enabled, AdvantageKit logs, and AdvantageKit streaming. See the [Joysticks reference](https://docs.advantagescope.org/tab-reference/joysticks/).
+
+<ContentTable
+  headers={["Source", "What makes it work", "FRC 4451"]}
+  rows={[
+    ["A <code>.wpilog</code> from WPILib", "<code>DriverStation.startDataLog(DataLogManager.getLog())</code>: the second line of <a href=\"/kit-bot/r13-telemetry-with-advantagescope#step-1-start-the-logger\">R13 step 1</a>. Without it the log has your telemetry and no sticks", "Kit Bot"],
+    ["An AdvantageKit log", "AdvantageKit records <code>DriverStation/Joystick0/…</code> automatically as inputs", "Cobra: every match log"],
+    ["AdvantageKit streaming", "<em>Connect to Robot</em> or <em>Connect to Simulator</em> in the <em>NetworkTables (AdvantageKit)</em> mode: the whole input table is published", "Cobra, live and in simulation"]
+  ]}
+/>
+
+Cobra's AdvantageKit setup provides controller data live and in logs. A plain WPILib log needs `DriverStation.startDataLog(...)` to record it. Verify the fields in the source tree rather than assuming the line was called.
+
+**Reading controller data.** Align the input with a mechanism graph. A recorded press with no response narrows the investigation to bindings, command scheduling, subsystem state, or code after the input. No recorded press can reflect the controller, port, Driver Station, or missing logging.
+
+### The Console tab
+
+**+ → Console** displays updates from one string field. Select the field that corresponds to the active log source. Rows share the timeline with other tabs.
+
+Drag the right key onto the tab. Which key depends on where the log came from:
+
+<ContentTable
+  headers={["Key", "Contains", "Source"]}
+  rows={[
+    ["<code>DS:/Dscomm/Console</code>", "Everything the Driver Station received: robot prints, WPILib warnings, brownouts, the stack trace of a crash", "A <code>.dslog</code> opened from the Driver Station's log folder, or <em>Connect to Driver Station</em>"],
+    ["<code>messages</code>", "Lines written with <code>DataLogManager.log(\"…\")</code>", "A WPILib <code>.wpilog</code>: Kit Bot"],
+    ["<code>RealOutputs/Console</code>", "Everything printed with <code>System.out</code> / <code>System.err</code>, captured automatically, one row per loop", "An AdvantageKit log or live connection: Cobra"],
+    ["<code>ReplayOutputs/Console</code>", "The same, from <a href=\"/frc/log-replay\">log replay</a>", "A replayed AdvantageKit log"]
+  ]}
+/>
+
+For Cobra, inspect `RealOutputs/Console`; for replay, inspect `ReplayOutputs/Console`. A Kit Bot `.wpilog` can contain `messages` from `DataLogManager.log`. Driver Station event text is available through its Driver Station log source. Confirm the actual keys because prefixes can vary by source and version.
+
+Use the Console controls to filter, select, and export messages:
+
+- **Filter** (`Ctrl+F` jumps to the box): type a word and only rows containing it stay. Try `Elevator`, `Exception` or a command name. Start the filter with `!` to *hide* matching rows instead, which is how you remove a chatty message you do not care about.
+- **Highlight**: the colour-palette icon toggles colouring for rows containing *warning* or *error*. Leave it on.
+- **Jump**: click a row to select its time on the shared timeline. Every other tab moves to that instant. The ↓ button jumps to a typed time.
+- **Export**: the save icon writes the console to a text file, for pasting into a pull request or an issue.
+
+**Reading a crash.** Select the relevant exception message, read its stack trace, and compare telemetry at that time. The timing may reveal related events, but correlation alone does not establish the cause. [Reading Docs and Errors](/tools/reading-docs-and-errors#reading-an-error-before-searching-for-it) explains stack traces.
+
+**Writing useful messages.** Log state transitions, command starts and ends, disconnections, and other events that help explain behavior. Record frequently changing numeric values as numeric fields instead of printing each loop. Excessive console output makes relevant messages harder to find and can affect timing.
+
+### Getting the log off the robot
+
+After a match or test, preserve the relevant robot and Driver Station logs before they are overwritten. AdvantageScope supports downloading robot logs, opening local files, and aligning compatible sources. Follow [Log Files](https://docs.advantagescope.org/overview/log-files/) for the installed version.
+
+1. **File → Download Logs…** in AdvantageScope, with the robot address set in preferences. It lists the files on the robot's USB stick newest first; select, ↓, choose a folder. Files already in the folder are skipped, so you can run it after every match.
+2. Pull the USB stick and copy `logs/`.
+3. The Driver Station's own `.dslog`/`.dsevents` are already on the drive laptop.
+
+Open several at once (**File → Add New Log(s)…**) and AdvantageScope aligns them by time. Together, the robot's `.wpilog` and the Driver Station's `.dslog` provide the complete record of a match.
+
+<RulesBox title="Common mistakes">
+
+- **Unsupported live source.** Stock WPILib joystick state is not available through plain live NetworkTables.
+- **Missing joystick logging.** Verify the WPILib log configuration before the event.
+- **Wrong console field.** Match the field to the log or live source.
+- **Printing every loop.** Log numeric values as numbers and reserve console messages for events.
+- **Treating timing as proof.** Use aligned data to form and test a diagnosis.
+- **Wrong controller port.** Compare AdvantageScope with the Driver Station USB assignment.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "advantagescope", "path": "tab-reference/joysticks/", "note": "The joysticks tab."},
+  {"source": "advantagescope", "path": "tab-reference/console/", "note": "The console tab."},
+  {"source": "advantagescope", "path": "overview/log-files/", "note": "Why joystick data needs a log."},
+  {"source": "wpilib", "path": "docs/software/telemetry/datalog.html", "note": "DataLog and joystick logging."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "Driver on port 0, operator on port 1."}
+]} />
+
+<LinkGrid title="Next" section="tools" links={[
+  {"label":"Getting Around AdvantageScope","id":"advantagescope-tour"},
+  {"label":"Poses on the Field","id":"advantagescope-field"},
+  {"label":"Reading Docs and Errors","id":"reading-docs-and-errors"},
+  {"label":"Kit Bot R10: Joysticks and Stick Math","url":"/kit-bot/r10-joysticks-and-stick-math"},
+  {"label":"FRC: AdvantageKit","url":"/frc/advantagekit"},
+  {"label":"AdvantageScope docs: Joysticks","url":"https://docs.advantagescope.org/tab-reference/joysticks/"},
+  {"label":"AdvantageScope docs: Console","url":"https://docs.advantagescope.org/tab-reference/console/"},
+  {"label":"WPILib: logging joystick data","url":"https://docs.wpilib.org/en/stable/docs/software/telemetry/datalog.html#logging-joystick-data"}
+]} />

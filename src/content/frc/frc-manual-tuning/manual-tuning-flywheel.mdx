@@ -1,0 +1,60 @@
+---
+title: "Manual Tuning: Flywheel (Velocity)"
+lessonId: manual-tuning-flywheel
+section: frc
+group: frc-manual-tuning
+groupLabel: "Manual Tuning"
+groupOrder: 4.5
+order: 2
+difficulty: intermediate
+duration: 20 min
+durationFixed: true
+description: "The velocity-loop recipe (a low setpoint to find kinetic-friction kS, a high setpoint to find kV, alternating until neither moves, then kP to the latency limit), with the reason for each step and CTRE's worked example ending at kS = 2.6 A, kV = 0.15 A/rps, kP = 16."
+---
+
+A velocity loop (a shooter wheel, an intake roller, a feeder) is the simplest thing to tune by hand and the best place to learn the rhythm of the procedure: isolate one gain with a setpoint that makes it dominant, find it, move to a setpoint that makes the next gain dominant, and go round until nothing changes. The skeleton and the tools are in [Every Gain Is Canonical](/frc/manual-pid-tuning); this page is the recipe.
+
+The example mechanism: a 1:1 flywheel with a 100 rps top speed, in `VelocityTorqueCurrentFOC`, so the gains are amps.
+
+<StepsBox title="Flywheel procedure">
+
+1. **Zero all gains.**
+2. **Set a low setpoint**, about 10 % of maximum velocity (10 rps here).
+3. **Set `kP` very low.** `1 × RotorToSensorRatio × SensorToMechanismRatio` is the usual start. It exists only so the loop responds at all; kept small, it cannot mask a wrong `kS` or `kV`.
+4. **Raise `kS` until the flywheel reaches the low setpoint.** At low speed the `kS` term dwarfs `kV`, so this isolates friction. Because the wheel is turning, it is kinetic friction you are measuring, which is what a flywheel fights in use. (Finding `kS` as "the point where it starts to move" would give you static friction, the wrong number for a velocity mechanism.)
+5. **Set a high setpoint**, about 80 % of maximum (80 rps).
+6. **Raise `kV` until it reaches the high setpoint.** At high speed `kV` dwarfs `kS`. For some mechanisms (swerve drive motors are the well-known case) the right `kV` in torque-current mode is zero.
+7. **Back to the low setpoint.** Adding `kV` usually makes the low setpoint overshoot; lower `kS`.
+8. **Repeat 4–7 until neither number changes.** Each pass corrects what the other pass disturbed; when a pass changes nothing, the feedforward is right.
+9. **At the high setpoint, raise `kP`** until the wheel oscillates, then back off to just below. The limit is set by the system's latency; past it, oscillation cannot be tuned away.
+10. **Verify** at every velocity the mechanism will be commanded to. If the gains found at 10 % and 80 % do not hold at your real operating points, redo the procedure using those points as the low and high setpoints.
+
+</StepsBox>
+
+**How the worked example went.** Starting at `kP = 1` and 10 rps, the wheel could not quite reach the setpoint. `kS = 1` undershot, 2 undershot, 4 was close, 5 overshot → `kS = 4`. At 80 rps the wheel stalled at 65–70 rps, which is real drag, so `kV = 1` (far too much), halved to 0.5, 0.25, 0.125 (just reaches), nudged to 0.13. Back at 10 rps it now overshot: `kS` down to 3, 2.5, back up to 2.8. At 80 rps, undershooting again: `kV` to 0.14, 0.15. At 10 rps, `kS` to 2.6. Three round trips and the feedforward stopped moving. Then `kP` doubled 2 → 5 → 10 → 20 (a little overshoot), backed to 16. **Final: `kS = 2.6 A`, `kV = 0.15 A/rps`, `kP = 16 A/rps`.** The note's own caveat applies to you too: the author was eyeballing the graph; on a real mechanism read the closed-loop error and hold it to the tolerance the mechanism needs.
+
+This is the procedure behind [PID Tuning Practice – Shooter](/frc/pid-tuning-practice-shooter) and FRC 4451's [Shooter Example](/frc/shooter-example); the practice session runs it in voltage mode, where the same steps apply with volts for amps.
+
+<RulesBox title="Common mistakes">
+
+- **Finding <code>kS</code> by "when it starts to move".** That is static friction; a spinning wheel needs kinetic. Find it at the low setpoint with the wheel turning.
+- **A large <code>kP</code> while finding <code>kS</code> and <code>kV</code>.** It masks both. One times the gear ratios, no more.
+- **Stopping after one pass.** The low and high setpoints disturb each other; go round until neither number moves.
+- **Verifying only at 10 % and 80 %.** Verify at the velocities the shooter will actually be commanded to.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/manual-pid-tuning.html#flywheel-tuning-with-torquecurrentfoc", "note": "The flywheel procedure and worked example."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/introduction/tuning-flywheel.html", "note": "WPILib's flywheel tuning walkthrough, for comparison."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "The team's velocity loop tuned this way."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/flywheel/FlywheelFollower.java", "note": "The flywheel pair."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Turret: position without gravity","id":"manual-tuning-turret"},
+  {"label":"Manual Tuning: Every Gain Is Canonical","id":"manual-pid-tuning"},
+  {"label":"PID Tuning Practice - Shooter","id":"pid-tuning-practice-shooter"},
+  {"label":"Shooter Example","id":"shooter-example"},
+  {"label":"CTRE: Flywheel Tuning with TorqueCurrentFOC","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/manual-pid-tuning.html#flywheel-tuning-with-torquecurrentfoc"}
+]} title="Next" section="frc" />

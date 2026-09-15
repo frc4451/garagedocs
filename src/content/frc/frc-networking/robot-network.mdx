@@ -1,0 +1,130 @@
+---
+title: "The Robot Network"
+lessonId: robot-network
+section: frc
+group: frc-networking
+groupLabel: "Networking"
+groupOrder: 1.5
+order: 1
+difficulty: beginner
+duration: 20 min
+description: "Every FRC robot uses 10.TE.AM.x addresses. This page explains what the numbers mean, which device owns which address, the ports the robot uses, the USB tether, and what changes on the field."
+---
+
+This page is the FRC application of the [Networking](/tools/how-a-network-works) lessons in the Tools section. It assumes you know what an address, a subnet mask, DHCP and mDNS are. If not, read [How a Network Works](/tools/how-a-network-works) first; everything below is a special case of it.
+
+### The address pattern
+
+Every FRC robot network uses the address pattern **`10.TE.AM.x`**. The middle two numbers come from your team number; the last one identifies the device. Once you can turn your team number into those two numbers, many networking problems become visible from the address alone.
+
+The arithmetic is division by 100:
+
+- **Second number:** team number divided by 100, rounded down.
+- **Third number:** the remainder.
+
+Team 4451 is `10.44.51.x`. Team 254 is `10.2.54.x`. Team 8 is `10.0.8.x`. A five-digit team such as 10256 is `10.102.56.x`; the same rule handles every length.
+
+<IpCalculator />
+
+### Which device owns which address
+
+The last number identifies the device. Some values are reserved by FIRST; the rest are yours to allocate. Writing down how you allocated them is part of the job.
+
+<ContentTable
+  headers={["Address", "Device", "Notes"]}
+  rows={[
+    ["<code>.1</code>", "Robot radio", "The Wi-Fi access point and, in the shop, the DHCP server that hands out the rest"],
+    ["<code>.2</code>", "roboRIO", "Fixed. This is the address your code runs at"],
+    ["<code>.4</code>", "Field (FMS)", "Only meaningful at an event"],
+    ["<code>.5</code>", "Driver Station laptop", "The conventional static address, if you set one"],
+    ["<code>.6</code> to <code>.19</code>", "Reserved for your static devices", "Coprocessors, cameras, anything that must be reachable by number"],
+    ["<code>.20</code> to <code>.199</code>", "Handed out by the radio", "DHCP: laptops and anything else you did not pin"]
+  ]}
+/>
+
+The [static-versus-DHCP rule](/tools/how-a-network-works#dhcp-versus-static) applies directly. Anything your code has to reach by number, such as a vision coprocessor or an IP camera, gets a static address in `.6` to `.19`. A laptop that only needs to reach out can use DHCP from the radio.
+
+<RulesBox title="Keep the list where everyone can find it">
+
+Record the team's static assignments in one place, such as the README of the robot repository, as a plain table: address, device, hostname, who set it. When a coprocessor is swapped at an event, the person doing it needs that list more than any other document. An address that exists only in someone's memory is likely to be duplicated by accident.
+
+</RulesBox>
+
+### The subnet mask is 255.0.0.0
+
+The FRC convention is a subnet mask of `255.0.0.0` (`/8`) on every device, which means any address starting with 10 is treated as local. With that mask on the Driver Station laptop, it can reach `10.44.51.2` whether its own address came from the radio or was typed in.
+
+A common failure is a laptop with a leftover address from another network, or a `255.255.255.0` mask, or both, plugged into the robot and seeing nothing. [Setting a Static IP](/tools/static-ip) shows how to give the laptop `10.TE.AM.5 / 255.0.0.0` on Windows, macOS and Linux, and how to put it back afterwards.
+
+### The name
+
+The roboRIO announces itself by mDNS as **`roborio-TEAM-frc.local`**, so team 4451's is `roborio-4451-frc.local`. The Driver Station finds it that way, and so can you. PhotonVision coprocessors do the same (`photonvision.local`, or the hostname you gave the device).
+
+On Windows the mDNS responder is installed with the NI Driver Station tools. A laptop without them, or with a VPN client interfering, may not resolve `.local` names. The numeric address works regardless; see [Names versus numbers](/tools/how-a-network-works#names-versus-numbers).
+
+### The ports a robot uses
+
+Each service on the robot listens on a port, and the field firewall passes only a fixed set. Knowing them turns "the dashboard is blank" into a specific check: if port 5810 is closed, the robot code is not running.
+
+<ContentTable
+  headers={["Port", "Service", "Where"]}
+  rows={[
+    ["<code>22</code>", "SSH, a shell on the device", "roboRIO, coprocessors"],
+    ["<code>80</code>", "The roboRIO web configuration page", "roboRIO"],
+    ["<code>1735</code>", "NetworkTables 3 (older tools)", "roboRIO"],
+    ["<code>5800</code>", "PhotonVision web UI", "Coprocessor"],
+    ["<code>5810</code>", "NetworkTables 4. If this port is closed, robot code is not running", "roboRIO"],
+    ["<code>5800</code> to <code>5810</code>", "Team use: cameras, dashboards, anything you add", "Any device; these are the ports the field allows"]
+  ]}
+/>
+
+Anything you add that talks over the network, such as a camera stream or a custom dashboard, must use `5800` to `5810`. Other ports work in the shop and are blocked on the field. The full list is in WPILib's [ports documentation](https://docs.wpilib.org/en/stable/docs/networking/networking-introduction/ip-configurations.html).
+
+### Three ways to be connected
+
+<ContentTable
+  headers={["Connection", "Your laptop's address", "Sees", "When"]}
+  rows={[
+    ["<strong>Wi-Fi to the radio</strong>", "From the radio, or static <code>.5</code>", "Everything on the robot", "Normal shop use"],
+    ["<strong>Ethernet to the radio or a switch</strong>", "Same as above", "Everything on the robot", "Preferred in the pit; Wi-Fi is not permitted at events"],
+    ["<strong>USB cable to the roboRIO</strong>", "<code>172.22.11.1</code>, automatically", "Only the roboRIO, at <code>172.22.11.2</code>", "Imaging, or when the radio is the part that is broken"]
+  ]}
+/>
+
+The USB tether ignores your network settings: the roboRIO is always `172.22.11.2` over USB. That makes it the way to reach a robot whose network you have misconfigured. It also means you cannot see a coprocessor or camera over USB, because those devices are on the Ethernet side of the roboRIO.
+
+### On the field
+
+At an event the radio is reprogrammed to join the field's network, the robot connects to the field over Wi-Fi, and your laptop plugs into the field's Ethernet cable at the driver station. The field manages every address. Your team's `10.TE.AM` block still applies, and the FMS sits at `.4`. Nothing about your code or your coprocessor addresses changes, which is why those addresses should be static.
+
+<RulesBox title="Common mistakes">
+
+- **A laptop still holding a static address from an event**, now on the shop network with a different radio. Check the laptop's address before blaming the robot.
+- **Two devices with the same static address.** They take turns being reachable. The static list is the fix.
+- **A coprocessor on DHCP.** It worked all week at <code>.37</code>; today it is <code>.52</code> and the code cannot find it.
+- **A camera stream on port 1181.** It works in the shop and is blocked on the field. Use <code>5800</code> to <code>5810</code>.
+- **Expecting to see a camera over USB.** The tether reaches the roboRIO and nothing else.
+
+</RulesBox>
+
+<RulesBox title="Origin">
+
+This page is adapted from the Networking page of [FSC Open Docs](https://github.com/firstsouthcarolina/FSCOpenDocs), written by FIRST South Carolina and contributors including FRC 4451's mentors, and used under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). This page is distributed under the same licence.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/networking/networking-introduction/ip-configurations.html", "note": "The <code>10.TE.AM.x</code> scheme, reserved addresses, the field ports."},
+  {"source": "wpilib", "path": "docs/networking/networking-introduction/networking-basics.html", "note": "Subnets, DHCP, mDNS as WPILib describes them."},
+  {"source": "wpilib", "path": "docs/networking/networking-utilities/portforwarding.html", "note": "The USB tether address and port forwarding."},
+  {"url": "https://github.com/firstsouthcarolina/FSCOpenDocs", "label": "FSC Open Docs", "note": "The Networking page this lesson is adapted from (CC BY-SA 4.0)."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "The CAN bus name; team number lives in <code>.wpilib/wpilib_preferences.json</code>."}
+]} />
+
+<LinkGrid title="Next" section="frc" links={[
+  {"label":"Troubleshooting a Robot Connection","id":"network-troubleshooting"},
+  {"label":"Tools: How a Network Works","url":"/tools/how-a-network-works"},
+  {"label":"Tools: Setting a Static IP","url":"/tools/static-ip"},
+  {"label":"PhotonVision","id":"photonvision"},
+  {"label":"WPILib: IP Networking","url":"https://docs.wpilib.org/en/stable/docs/networking/networking-introduction/ip-configurations.html"}
+]} />

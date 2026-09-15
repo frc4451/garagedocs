@@ -1,0 +1,133 @@
+---
+title: "Reading Docs and Errors"
+lessonId: reading-docs-and-errors
+section: tools
+group: habits
+groupLabel: "Working Habits"
+groupOrder: 5
+order: 1
+difficulty: beginner
+description: "Use guides, API references, source code, errors, searches, and clear questions to investigate a problem."
+---
+
+### A repeatable investigation process
+
+Experienced programmers do not memorize every library. They identify what they need, find the relevant source, test their interpretation, and record the result. This page provides a repeatable process.
+
+### The four kinds of documentation
+
+Documentation may be divided among several sources. Each source answers different questions.
+
+<ContentTable
+  headers={["Kind", "Answers", "Example"]}
+  rows={[
+    ["<strong>Guide</strong>: prose with examples", "<em>How do I do X?</em> Concepts, walkthroughs, recommended patterns", "<a href=\"https://docs.wpilib.org/\">docs.wpilib.org</a>, <a href=\"https://docs.photonvision.org/\">docs.photonvision.org</a>, <a href=\"https://v6.docs.ctr-electronics.com/\">Phoenix 6 docs</a>"],
+    ["<strong>API reference</strong>: generated from the code", "<em>What exactly does this method take and return?</em> Every class and method, no narrative", "<a href=\"https://github.wpilib.org/allwpilib/docs/release/java/\">WPILib Javadoc</a>, <a href=\"https://api.ctr-electronics.com/phoenix6/latest/java/\">Phoenix 6 Javadoc</a>, <a href=\"https://codedocs.revrobotics.com/java/\">REVLib</a>"],
+    ["<strong>The source</strong>", "<em>What does it actually do?</em> When the docs are thin or you do not believe them", "The library's GitHub repository, or <code>F12</code> in VS Code"],
+    ["<strong>Other people</strong>", "<em>Has anyone else hit this?</em> Questions, bugs, workarounds", "Chief Delphi, the library's GitHub issues"]
+  ]}
+/>
+
+Start with a guide for an unfamiliar task. Use the API reference for exact classes, methods, parameters, and versions. Read source and tests when the published explanation is incomplete. Use issue discussions for reported bugs and workarounds, then verify that they match your version.
+
+### Reading a Javadoc page
+
+Java API documentation commonly uses Javadoc, though each project can customize its content and layout. Open [`SparkMax`](https://codedocs.revrobotics.com/java/com/revrobotics/spark/SparkMax.html) or WPILib's [`PIDController`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/controller/PIDController.html) and locate:
+
+1. **The header.** Package, class name, and what it extends or implements. `extends SubsystemBase` or `implements Sendable` tells you what else the class can do that is not listed on this page. Click the parent.
+2. **The class description.** One to three paragraphs on what the class is *for*. Read it even when you think you know; it often says what the class is *not* for.
+3. **Constructor Summary.** How you make one, and what you must supply. If there are several, the differences are the optional things.
+4. **Method Summary.** Every method in a table: return type on the left, name and parameters in the middle, one line of description. **Scan this table** rather than reading the page top to bottom. It acts as the page's index. Look for the verb you want: `set…`, `get…`, `reset…`, `is…`.
+5. **Method Detail.** Click a method for the full description: what each parameter means, its units, what it returns, what it throws. **Units live here.** For example, `setPosition(double)` in the summary becomes "position in rotations" in the detail. Checking this section prevents many wrong-units bugs.
+
+Also check **Deprecated** notices, **Since** labels, inherited members, and the documentation version. Search boxes and source links vary by site.
+
+VS Code can show available documentation on hover and in completion. Confirm the project dependency version before assuming the online page matches it.
+
+### Reading a guide page
+
+Use the documentation navigation and search to locate the topic, then confirm its version:
+
+- **Check the version.** The version switcher (bottom left on WPILib docs, top of the page on most others) should match the library you have. An article from a newer version describes methods you do not have yet; from an older version, methods that have been renamed.
+- **Read the code samples as code, not as pictures.** Type them, do not paste them, and read every line as you go. A sample that uses a constant it never defines, or a class you have not imported, is telling you what else you need.
+
+Vendor sites organize guides and API references differently. Identify which type of page you are reading and whether its examples match the installed library version.
+
+### Reading a repository
+
+A repository can provide implementation details, examples, tests, and decision history. Start with its README and build instructions, then inspect the relevant paths:
+
+- **README first.** What it is, how to build it, where to start. If a README does not say how to build the project, expect trouble.
+- **The folder layout says what the author thinks the parts are.** `src/main/java/frc/robot/subsystems` is a promise about what is inside.
+- **`t` on the repository page opens a file finder**; the search box at the top searches code across the repository. Both beat clicking through folders.
+- **Blame** (the button on any file) says who last changed each line and in which commit. Click the commit to read *why*. **History** lists every change to the file.
+- **Issues and pull requests** are where the discussion is. An open issue that matches your problem saves you a day; a closed one usually has the fix in the last comment.
+- **Tags and releases** are the versions. The version in your `vendordeps` file corresponds to one of them, and its source is what `F12` shows you.
+
+### Reading an error before searching for it
+
+An error message reports what a tool observed. Read its complete context before searching or changing code:
+
+1. **Find the first error.** Compilers and build tools cascade: one missing semicolon produces fifteen errors below it. Start with the first relevant error; later messages may be consequences. [Squiggles and the Problems panel](/tools/vscode-java#squiggles-and-the-problems-panel) covers the common Java messages; [Troubleshooting from the Shell](/tools/shell-troubleshooting#reading-a-java-stack-trace) covers stack traces and Gradle output.
+2. **Read the whole sentence.** `cannot find symbol` is half a message; the next lines say *which* symbol and *where*. `Index 5 out of bounds for length 5` describes the bug: something has five elements and the code asked for the sixth.
+3. **Separate the message from the noise.** File paths, timestamps, thread names and hex addresses are specific to your machine and will match nobody else's search. The words in between are the message.
+4. **Ask what it is a symptom of.** A `NullPointerException` identifies where a null value was used. Trace where that reference was expected to receive a value. The stack trace's *caller* frames say where to look.
+
+After extracting the error type, relevant name, location, and versions, search for the specific problem.
+
+### Searching for relevant answers
+
+- **Quote the exact message**, minus the noise from step 3: `"cannot find symbol" "SparkMaxConfig"` finds people with your problem; `spark max not working` finds everyone.
+- **Add the library and the year.** WPILib changes every season; a 2022 answer about `CANSparkMax` may not apply to the current `SparkMax` API. `wpilib 2026` or `phoenix 6` in the query filters most of the stale results.
+- **Evaluate the source.** Prefer current official documentation and API references for defined behavior. Issues and Chief Delphi can explain bugs and field experience; check dates, versions, evidence, and author context.
+- **Search the library's GitHub issues directly** (`is:issue "your message"`). Issues can contain reproduction steps, maintainers' responses, fixes, and version information.
+- **Search the source.** GitHub's code search across `wpilibsuite/allwpilib` for a method name can find implementations and tests. Treat tests as evidence of intended or checked behavior in that revision, not as a complete usage guide.
+
+If results do not match, return to the evidence. Reproduce the issue in the smallest practical example and confirm that the search terms describe the actual failure.
+
+### Asking a clear question
+
+When asking a teammate, mentor, or community, provide enough information for someone else to reproduce or narrow the issue:
+
+<ContentTable
+  headers={["Include", "Because"]}
+  rows={[
+    ["<strong>What you are trying to do</strong>, in one sentence", "So the answer can be \"do it differently\" rather than \"here is how to make the wrong approach work\""],
+    ["<strong>The exact error</strong>, as text, not a photo of a screen", "So it can be searched and read. Text is searchable, copyable, and accessible; include an image only when layout or graphics matter"],
+    ["<strong>The smallest code that shows it</strong>, and the versions", "Include the smallest practical reproduction and the relevant WPILib, vendor, Java, and operating-system versions"],
+    ["<strong>What you already tried</strong>, and what happened", "This shows which hypotheses were tested and what evidence remains"]
+  ]}
+/>
+
+After solving the problem, record the environment, observed failure, cause, change, and evidence that the change worked. Link the source that supported the decision and note anything still uncertain.
+
+<RulesBox title="Common mistakes">
+
+- **Wrong source type.** Use a guide for a workflow and an API reference for exact members and units.
+- **Wrong version.** Compare the documentation version with project dependencies.
+- **Searching machine-specific noise.** Keep the distinctive message, class, and method; omit irrelevant paths and timestamps.
+- **Sharing only an image of text.** Copy errors as text and include an image only when visual layout matters.
+- **Losing the result.** Record the cause, change, versions, and confirming evidence.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "wpilib-javadoc", "note": "The WPILib Javadoc used as the Javadoc-reading example."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/controller/PIDController.html", "note": "The page walked through."},
+  {"source": "wpilib", "note": "WPILib guide pages."},
+  {"source": "ctre-javadoc", "note": "Phoenix 6 Javadoc."},
+  {"source": "ctre", "note": "Phoenix 6 guide pages."},
+  {"source": "revlib", "path": "com/revrobotics/spark/SparkMax.html", "note": "A vendor Javadoc page."},
+  {"source": "photonvision", "note": "PhotonVision docs."},
+  {"source": "wpilib", "path": "docs/software/basic-programming/reading-stacktraces.html", "note": "Reading an error before searching for it."},
+  {"url": "https://www.chiefdelphi.com/", "label": "Chief Delphi", "note": "Where to search and ask."},
+  {"url": "https://docs.github.com/en/get-started/start-your-journey/hello-world", "label": "GitHub: Hello World", "note": "Reading a repository."}
+]} />
+
+<LinkGrid title="Next" section="tools" links={[
+  {"label":"Troubleshooting from the Shell","id":"shell-troubleshooting"},
+  {"label":"Editing Java in VS Code","id":"vscode-java"},
+  {"label":"FRC: Reading Our Robot Code","url":"/frc/team-robot-code"},
+  {"label":"WPILib Javadoc","url":"https://github.wpilib.org/allwpilib/docs/release/java/"},
+  {"label":"Chief Delphi","url":"https://www.chiefdelphi.com/"}
+]} />

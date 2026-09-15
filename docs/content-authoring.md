@@ -1,15 +1,16 @@
 # Content Authoring Guide
 
-How to add and edit lessons in Mantik after the Astro + MDX migration.
+How to add and edit Mantik Garage pages. Follow [Documentation style](documentation-style.md) for prose, terminology, examples, and attribution.
 
 ## Where content lives
 
 | Location | Purpose |
 |----------|---------|
+| `src/content/tools/` | Technical reference pages |
 | `src/content/java/` | Java training lessons |
-| `src/content/ftc/` | FTC robotics lessons |
+| `src/content/assignments/` | Practice assignments |
+| `src/content/kit-bot/` | Kit Bot curriculum |
 | `src/content/frc/` | FRC robotics lessons |
-| `src/content/comp/` | Competitive programming lessons |
 | `src/content/homepage/` | Homepage copy |
 
 Each lesson is one `.mdx` file. Sidebar navigation is built from frontmatter — no separate nav config file per lesson.
@@ -19,8 +20,8 @@ Each lesson is one `.mdx` file. Sidebar navigation is built from frontmatter —
 ```yaml
 ---
 title: Branching and Merging          # Display title
-lessonId: branching-merging           # URL slug: /java/branching-merging
-section: java                         # java | ftc | frc | comp
+lessonId: branching-merging           # URL slug: /tools/branching-merging
+section: tools                        # tools | java | assignments | kit-bot | frc (nav order)
 group: version-control                # Sidebar group id (lessons with same group nest together)
 groupLabel: "Version Control with Git & GitHub"  # Sidebar group label
 groupOrder: 5                         # Sidebar group sort order
@@ -33,7 +34,8 @@ isOverview: false                     # true for section overview pages only
 ---
 ```
 
-Homepage entries use a simpler schema:
+Homepage entries use a simpler schema (the homepage also carries the site's **References**
+section — when a lesson cites a new documentation site, library or repository, add it there):
 
 ```yaml
 ---
@@ -56,12 +58,22 @@ Use plain markdown:
 Branches allow you to work on different features without affecting main.
 ```
 
+Every heading gets an `id` slugified from its text (`### Working with Branches` →
+`#working-with-branches`) and is rendered as a link to itself
+(`scripts/rehype-heading-links.mjs`), so a reader can click a section title to put its
+anchor in the address bar. **When a cross-reference is about one section, link to the
+section, not the page**: `[Conflict Resolution](/tools/branching-merging#conflict-resolution)`
+rather than `[Branching and Merging](/tools/branching-merging)`. Link the page when the
+whole lesson is meant (the `**Cites:**` line on an assignment, a "read this first"). The
+same works in LinkGrid `url` entries. Renaming a heading changes its id; the site-wide
+link check after a build reports fragments that no longer resolve.
+
 ### Code
 
 Use fenced code blocks, not `<CodeBlock />`:
 
 ````mdx
-```java
+```bash
 git branch feature-name
 git checkout -b new-branch
 ```
@@ -127,6 +139,30 @@ For external URLs, use `url` instead of `id`:
 />
 ```
 
+### Sources
+
+Every lesson (Tools, Java, Practice, Kit Bot, FRC; section overviews exempt) ends with a `<Sources>` block, placed before the closing `LinkGrid`: the
+documentation pages, Javadoc entries and team-repository files the page was written
+against, each with a note saying what the page took from it. Point at the specific page
+or file, never a docs home page.
+
+```mdx
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/basic-programming/coordinate-system.html", "note": "NWU axes and the rotation convention."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "Where the observation queues are drained."},
+  {"url": "https://example.org/one-off", "label": "A source outside the registry", "note": "Why it is cited."}
+]} />
+```
+
+`source` is an id from `src/data/sources.ts` (`cobra`, `riptide`, `ember`, `mech-adv` for the Team 6328 classes Cobra reuses, `wpilib`, `wpilib-javadoc`,
+`ctre`, `ctre-javadoc`, `rev`, `revlib`, `photonvision`, `photonlib-javadoc`, `questnav`,
+`thrifty`, `advantagekit`, `advantagescope`, `pathplanner`, `choreo`, `bline`, `maple-sim`,
+`first-manual`, `java-api`, `jls`, `dev-java`, `java-tutorial`, `csce145`, `csce146`, `git`,
+`github`, `vscode`, `powershell`, `ms-learn`, `adoptium`); `path` is joined to that source's base URL, and the registry's version
+label is shown after the name. Cobra2026 and Riptide2025 are frozen, so `main` is a stable
+reference. The items array must be valid JSON (double quotes) because `npm run sources`
+parses it. `note` may contain inline HTML such as `<code>`.
+
 ### CodeTabs
 
 For vendor-specific or multi-variant code (e.g. Talon FX vs SPARK MAX), wrap fenced blocks in `CodeTab` slots:
@@ -149,6 +185,8 @@ controller.setReference(target, ControlType.kPosition);
 </CodeTab>
 </CodeTabs>
 ```
+
+For shell instructions, use PowerShell and Terminal tabs even when Git commands are identical. For OS-specific configuration, use a clearly labeled section for each operating system. Keep workflow YAML in a YAML fence.
 
 Use normal markdown fences inside each tab — no JSON `tabs={[]}` prop. Legacy `tabs={[]}` still works in older lessons until migrated.
 
@@ -193,6 +231,8 @@ npm install
 npm run dev       # dev server at 127.0.0.1:5173/mantik-garage
 npm run build     # production build + Pagefind index
 npm run preview   # serve dist/ (search works here)
+npm run links     # after a build: every internal link and #fragment resolves
+npm run sources   # every URL in a <Sources> block responds; lists lesson pages without one
 ```
 
 ## Programming Resources catalog
@@ -201,7 +241,7 @@ Curated external and internal links live in `src/data/resources.json` (validated
 
 | Task | How |
 |------|-----|
-| Bulk import from MDX LinkGrids | `npm run seed:resources` (reads FRC hub + FTC setup pages) |
+| Bulk import from MDX LinkGrids | `npm run seed:resources` (reads FRC hub pages) |
 | Add one approved link | Edit `src/data/resources.json` |
 | Rich descriptions on regen | Edit `scripts/resource-description-overlays.json` (official URLs) — seed also pulls Mantik lesson intros |
 | Browse UI | `/resources` — React island in `src/components/resources/` |
@@ -235,3 +275,22 @@ Workflow: [`.github/workflows/sync-frc-aides-catalog.yml`](../.github/workflows/
 3. Run **Sync resources catalog to frc-aides** once from the Actions tab to align frc-aides with mantik.
 
 frc-aides deploys to GitHub Pages on every push to `main`, so synced catalog changes go live after that workflow finishes.
+
+## Durations and sessions
+
+The default lesson target is **45 minutes or less**. Tools pages are references and have no durations or required sessions. Existing exceptions include R00 setup, multi-session assignments and the capstone, and the two-part Arm and Elevator PID practice pages.
+
+- `duration` is generated: `npm run durations` reports, `npm run durations:write`
+  updates frontmatter. The estimate is "read it and try the examples" — prose at
+  140 words a minute, five seconds per line of code, a few minutes per playground
+  or exercise box. It does not count doing every exercise.
+- Pages whose time is wall-clock rather than reading — installs, the repo tour, PID
+  tuning sessions — set `durationFixed: true` with a hand-written value, and the
+  script leaves them alone. The Kit Bot capstone is `multi-session`.
+- A lesson the estimator still puts over 45 minutes gets **split into parts** at a
+  natural seam (R07, R08 and R09 in Kit Bot are the examples), not shortened.
+- Practice Assignments keep the FSC curriculum's estimates for the full assignment.
+  Any assignment longer than one sitting carries a *Plan it as sessions* box that
+  turns its hidden checks into per-session targets; `npm run sessions:write`
+  regenerates those from the catalog.
+

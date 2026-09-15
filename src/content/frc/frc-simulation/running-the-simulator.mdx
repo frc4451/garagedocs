@@ -1,0 +1,112 @@
+---
+title: "Running the Simulator"
+lessonId: running-the-simulator
+section: frc
+group: frc-simulation
+groupLabel: Simulation
+groupOrder: 3.5
+order: 2
+difficulty: intermediate
+duration: 25 min
+durationFixed: true
+description: "Launching robot code on your laptop: the WPILib palette command and its extension picker, the Sim GUI for enabling the robot and driving it from the keyboard, the real Driver Station on Windows, what FRC 4451's build.gradle chooses, and the first-run problems."
+---
+
+### Launching
+
+With the robot project open in WPILib VS Code:
+
+1. `Ctrl+Shift+P` → **WPILib: Simulate Robot Code**.
+2. It builds (the same `./gradlew build` as always; a compile error stops here).
+3. A picker asks **which simulation extensions to run**. Tick what you need (below) and press Enter.
+4. The program starts in the terminal panel. `********** Robot program startup complete **********` means the robot code is running on your laptop.
+
+From the terminal the same thing is `./gradlew simulateJava`; the palette version is the same task with the picker in front of it, and with the debugger attached, so breakpoints in your subsystems work ([Debugging in VS Code](/tools/vscode-debugging#debugging-robot-code)).
+
+`Ctrl+C` in the terminal, or the stop button on the debug toolbar, ends it. Only one simulator can run at a time. A second launch fails with a port-in-use error until the first is stopped ([who is holding this port](/tools/shell-troubleshooting#who-is-holding-this-port), if it is not obvious which window it was).
+
+### The two extensions
+
+Robot code on a laptop has no Driver Station telling it to enable and no controllers plugged into a roboRIO. The extensions in the picker supply those:
+
+<ContentTable
+  headers={["Extension", "Gives you", "Use it when"]}
+  rows={[
+    ["<strong>Sim GUI</strong> (<code>halsim_gui</code>)", "A window with Robot State (Disabled / Autonomous / Teleoperated), joystick mapping, a keyboard-as-joystick, NetworkTables and timing views", "Always, unless you are using the real Driver Station. macOS and Linux have no Driver Station, so always there"],
+    ["<strong>Use Real DriverStation</strong> (<code>halsim_ds_socket</code>)", "The FRC Driver Station app connects to the simulator as if it were a robot: real enable/disable, real controllers, the real dashboard", "Windows, when you want the driver's actual controller and the exact DS behaviour"]
+  ]}
+/>
+
+Both can be ticked together. FRC 4451's `build.gradle` sets `wpi.sim.addGui().defaultEnabled = false` and `wpi.sim.addDriverstation()`, so in the picker **Sim GUI starts unticked and the Driver Station extension ticked**. The default assumes a Windows laptop with the Driver Station installed. Tick Sim GUI when you want the keyboard controls or you are not on Windows; the picker remembers nothing, so check it each launch.
+
+### The Sim GUI
+
+The window is a set of dockable panes. The ones that matter:
+
+**Robot State:** the buttons that stand in for the Driver Station. The code starts *Disabled*. Click **Teleoperated** and your default commands start running; **Autonomous** runs the routine `RobotContainer.getAutonomousCommand()` returns; **Disabled** stops everything. This is the first thing to click after every launch, and forgetting it is the first thing to check when "nothing happens".
+
+**System Joysticks / Joysticks:** the left list is what the laptop can see: any USB controller, plus **Keyboard 0–3**, which are virtual joysticks driven by the keyboard. Drag one from the left onto a slot on the right (slot 0 is `new CommandXboxController(0)`). A real controller plugged into the laptop works exactly as it would on the Driver Station.
+
+**Keyboard 0** defaults: `W`/`S` are axis 1 (left stick Y), `A`/`D` axis 0, `E`/`R` axis 2, and `Z`/`X`/`C`/`V` are buttons 1–4. Click the gear on the joystick pane to remap. The axes are inverted like a real stick, so `W` gives a negative Y, the same as pushing forward. The keyboard only reaches the simulator while the Sim GUI window has focus.
+
+**NetworkTables:** every value the robot publishes, live. Useful for a quick look; AdvantageScope is the viewer for anything more.
+
+**Timing:** pause, step one loop, or run at a different rate. Pausing the simulator freezes the physics and the robot loop together, so a paused sim is safe to inspect; stepping runs exactly one 20 ms cycle.
+
+Window layout and joystick mappings are saved next to the project in `simgui.json` / `simgui-ds.json`. They are per-machine and usually in `.gitignore`.
+
+### The real Driver Station
+
+On Windows, launch the FRC Driver Station while the simulator is running with the *Use Real DriverStation* extension. It connects to `127.0.0.1` automatically (the team number does not matter), and from there everything is as at the robot: enable and disable, the E-stop key, controllers in the USB tab, and the same dashboard the driver will use. This is how you rehearse the driver's exact experience, and how the driver rehearses without a robot.
+
+If the DS shows *No Robot Communication*, the extension was not ticked at launch. Stop, relaunch, tick it.
+
+### What you should see
+
+A working launch, with Sim GUI and Teleoperated selected, before you open AdvantageScope:
+
+- The terminal prints the startup banner and no exceptions. A stack trace here is a real bug; [read it](/tools/shell-troubleshooting#reading-a-java-stack-trace).
+- Robot State shows *Teleoperated* and the Sim GUI's title bar says the robot is enabled.
+- Pressing `W` with Keyboard 0 mapped to slot 0 makes the drive subsystem's velocity setpoint change. It is visible in the NetworkTables pane under the drive subsystem's keys, and in more detail in AdvantageScope in the [next lesson](/frc/advantagescope-sim).
+
+### First-run problems
+
+<ContentTable
+  headers={["Symptom", "Cause", "Fix"]}
+  rows={[
+    ["Windows Firewall dialog on first launch", "The simulator opens network ports for NT4 and the DS", "Allow it on private networks. Denying it is why AdvantageScope later cannot connect"],
+    ["Nothing moves after enabling", "No joystick mapped to slot 0, or the Sim GUI does not have keyboard focus", "Drag Keyboard 0 onto slot 0; click the Sim GUI window"],
+    ["<em>Loop time of 0.02s overrun</em> spam", "A physics update is slow, or a breakpoint paused it", "Normal after a breakpoint. Persistent overruns mean a sim model is doing too much work per loop"],
+    ["<em>Address already in use</em>", "A previous simulator is still running", "Stop it (debug toolbar, or the terminal that has it)"],
+    ["Behaves as if on a real robot / HAL errors", "<code>currentMode</code> is not <code>SIM</code>, or a vendor library is being asked to talk to real hardware", "Check <code>Constants.simMode</code>; check the subsystem got a <code>…IOSim</code> in <code>RobotContainer</code>"],
+    ["Vendor library prints CAN errors", "A real-hardware IO class was constructed in the <code>SIM</code> branch", "Same as above: wrong IO implementation"],
+    ["Everything runs but the mechanism never reaches its goal", "Physics constants (mass, MOI, gearing) are wrong or the sim IO ignores the goal", "<a href=\"/frc/physics-sim-io\">Physics in the IO Layer</a>"]
+  ]}
+/>
+
+<RulesBox title="Common mistakes">
+
+- **Not enabling.** The code is running; the commands are not. Click Teleoperated.
+- **Driving from the wrong window.** Keyboard input goes to the Sim GUI only while it is focused. Click it, then press <code>W</code>.
+- **Leaving a simulator running in a forgotten terminal**, then wondering why the next launch fails or why AdvantageScope is showing stale data from a build you replaced.
+- **Editing code while simulating and expecting it to change.** Stop, rebuild, relaunch. There is no hot reload.
+- **Simulating on <code>main</code>.** Simulation is development, and development is on a branch: <a href="/tools/vscode-workflow#3-branch">A Working Day in VS Code</a>.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/simulation-gui.html", "note": "The Sim GUI: joysticks, robot state, NetworkTables."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/device-sim.html", "note": "Simulated devices and the device tree."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/introduction.html", "note": "Launching simulation from VS Code and the extensions it offers."},
+  {"source": "cobra", "path": "build.gradle", "note": "<code>wpi.sim.addGui()</code> and the Driver Station extension setting."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "How SIM mode is selected."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "What runs differently in simulation."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Physics in the IO Layer","id":"physics-sim-io"},
+  {"label":"Watching Simulation in AdvantageScope","id":"advantagescope-sim"},
+  {"label":"Simulation First","id":"simulation-first"},
+  {"label":"WPILib: Simulation Specific User Interface Elements","url":"https://docs.wpilib.org/en/stable/docs/software/wpilib-tools/robot-simulation/simulation-gui.html"},
+  {"label":"WPILib: Device Simulation","url":"https://docs.wpilib.org/en/stable/docs/software/wpilib-tools/robot-simulation/device-sim.html"}
+]} title="Next" section="frc" />

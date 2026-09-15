@@ -1,0 +1,109 @@
+---
+title: "A04: Scanner Echo"
+lessonId: a04-scanner-echo
+section: assignments
+group: foundations
+groupLabel: "Track 1 — Foundations"
+groupOrder: 1
+order: 4
+difficulty: beginner
+duration: 45 min
+description: Gather five validated inputs with a re-prompt loop, then print a summary block.
+---
+
+**Topic:** `Scanner`, prompts, input validation, simple loops.
+**Cites:** [Conditional Logic](/java/java-conditionals), [While Loops](/java/java-while-loops).
+**Difficulty:** easy–medium. **Estimated time:** 45 minutes.
+
+### Scenario
+
+Scouting data is only as good as what gets typed in. A program that accepts `-5` as an
+average score, or crashes when somebody types `abc` into a number field, will lose you data
+on the one match you needed. Validation at the boundary is the habit.
+
+### What to build
+
+A single file `ScannerEcho.java`. Prompt for these inputs **in order**, re-prompting on bad
+input until each value is acceptable:
+
+<ContentTable
+  headers={["Input", "Accepted"]}
+  rows={[
+    ["Team number", "An <code>int</code> from 1 to 99999 inclusive"],
+    ["Team name", "Any non-empty string after trimming"],
+    ["Driver count", "An <code>int</code> from 1 to 4 inclusive"],
+    ["Average score", "A <code>double</code>, 0 or greater"],
+    ["Climbed?", "<code>yes</code> or <code>no</code>, any case"]
+  ]}
+/>
+
+Once all five are gathered, print the summary block:
+
+```text
+--- Team Summary ---
+Team:           1234 (Example Robotics)
+Drivers:        2
+Avg score:      45.50
+Climbed:        yes
+```
+
+### Requirements
+
+- Exactly one `Scanner` for the whole program, closed before exit
+- A re-prompt loop for **each** input. Wrong type or out of range prints a one-line error and
+  asks again. Never crash
+- Use `nextInt`, `nextDouble` and `nextLine` correctly, including the leftover-newline
+  problem when you switch between numeric and line reads
+- A separate `static` helper per input, each taking the `Scanner`, prompting, validating and
+  returning the value. `main` is a thin orchestrator:
+
+```java
+public static int     readTeamNumber(Scanner in);
+public static String  readTeamName(Scanner in);
+public static int     readDriverCount(Scanner in);
+public static double  readAvgScore(Scanner in);
+public static boolean readClimbed(Scanner in);
+```
+
+
+<JavaPlayground id="a04-scanner-echo" />
+
+<RulesBox title="Hints" items={[
+  "<strong>The leftover newline.</strong> <code>nextInt()</code> consumes the number but leaves the newline sitting in the buffer, so the next <code>nextLine()</code> returns an empty string instead of waiting. Call <code>nextLine()</code> once to discard the rest of the line after any numeric read.",
+  "<strong>Surviving <code>abc</code> in a number field.</strong> <code>hasNextInt()</code> tells you whether the next token will parse before you consume it. When it is false, read the bad token with <code>next()</code> so the loop moves on instead of spinning on the same input forever.",
+  "<strong>Shape of a validating helper.</strong> An endless loop, a read, a check, and a <code>return</code> when the value is good — the loop only continues when something was wrong. That is one clean place to print each error message.",
+  "<strong>yes or no.</strong> <code>equalsIgnoreCase</code> saves you lowercasing by hand. Decide whether you accept <code>y</code> and <code>n</code> too, then say so in the prompt text."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Functionality", "60", "All five values gathered in order and echoed in the summary block, with the score to two decimals and climbed printed as yes or no."],
+    ["Edge cases", "15", "Non-numeric text in a number field does not crash. Out-of-range values re-prompt rather than being accepted. An empty or whitespace-only team name is rejected."],
+    ["Code quality", "20", "One helper per input, each doing one thing. One <code>Scanner</code>, closed once. <code>main</code> reads as a list of steps, not a wall of loops."],
+    ["Comments", "5", "Author header, and a note on the newline handling — it is the least obvious line in the file."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Give up after five bad attempts on any single field and exit with a clear message rather
+  than looping forever.
+- Accept a blank line for the average score, meaning "not recorded", and print `n/a` in the
+  summary instead of a number.
+
+### References
+
+- JavaDoc: [`java.util.Scanner`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Scanner.html)
+- JavaDoc: [`java.lang.String.equalsIgnoreCase`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html#equalsIgnoreCase(java.lang.String))
+- Wikipedia: [Input validation](https://en.wikipedia.org/wiki/Data_validation)
+
+<Sources items={[
+  {"source": "csce145", "note": "Reading input."},
+  {"source": "dev-java", "path": "java-io/reading-writing/", "note": "Reading from standard input."},
+  {"source": "java-api", "path": "java.base/java/util/Scanner.html", "note": "<code>Scanner</code>: <code>nextLine</code>, <code>nextInt</code>, <code>hasNext</code>."},
+  {"url": "/java/java-setup", "label": "Setting Up Java", "note": "Java 25 install, javac/java from the command line, feeding input from a file."}
+]} />

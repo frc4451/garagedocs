@@ -1,0 +1,171 @@
+---
+title: "R10: Joysticks and stick math"
+lessonId: r10-joysticks-and-stick-math
+section: kit-bot
+group: kit-bot
+groupLabel: "Phase 4: Kit Bot Integration"
+groupOrder: 4
+order: 10
+duration: 10 min
+description: "Deadband, scaling, and the stick curve from A08 applied to a real controller."
+---
+The Drive subsystem from R08 takes a `speed` and a `rotation`, both in `[-1, 1]`. The Xbox sticks already report `[-1, 1]`. You could feed one straight into the other and call it done. You'd hate driving it.
+
+This module is the small layer of math that turns raw stick input into something a driver can actually steer. You already wrote it as plain Java in [A08](/assignments/a08-stick-curve-calculator). This is where it gets a home in the project.
+
+---
+
+### What raw sticks feel like
+
+Three things go wrong if you skip stick math:
+
+1. **The stick never reads exactly zero.** A driver's hand on the stick rests at ±0.02 most of the time. The robot creeps even when the driver isn't trying to drive.
+2. **Small movements are too sensitive.** A 10% stick deflection becomes a 10% drive command, too much for precise lining-up.
+3. **The Y axis is upside-down.** Push the stick *forward* (up on the controller) and `getLeftY()` returns a *negative* number. Conventions left over from the old joystick API.
+
+Three fixes, in order:
+
+- **Negate Y** at the read site.
+- **Deadband** small absolute values to zero.
+- **Apply a curve**: square the input while preserving sign so small motions stay small but full deflection still gives full drive.
+
+You did all three in A08. We're going to drop that work in.
+
+---
+
+### A small helper class
+
+Put it in `subsystems/drive/StickCurve.java`: drive-specific math, so it lives next to the drive code. If a second subsystem ever needs it, we'll move it up to a `util/` package then.
+
+```java
+package frc.robot.subsystems.drive;
+
+public final class StickCurve {
+
+    /**
+     * Standard stick conditioning: negate Y if needed, deadband, square-with-sign,
+     * clip to maxOutput. Returns a value in [-maxOutput, +maxOutput].
+     */
+    public static double shape(double rawStick, double deadband, double maxOutput) {
+        if (Math.abs(rawStick) < deadband) {
+            return 0.0;
+        }
+        double sign = Math.signum(rawStick);
+        double scaled = sign * Math.pow(Math.abs(rawStick), 2);
+        double capped = Math.max(-maxOutput, Math.min(maxOutput, scaled));
+        return capped;
+    }
+
+    private StickCurve() {}
+}
+```
+
+Same shape as A08: deadband first, sign-preserving power second, clamp last. The order matters: deadband on a *post*-curve value would zero out values that the curve already pushed close to zero, double-clipping. Deadband on the raw input first is the right move.
+
+Notice everything here stays a plain `double`: `rawStick`, `deadband`, `maxOutput` are all dimensionless fractions of full stick deflection, not a physical quantity WPILib's Units library has a type for. That's the same distinction R03 drew between `Distance` and `MAX_DRIVE_PERCENT`, and R08 drew between `arcadeDrive`'s `speed`/`rotation` and its internal `Voltage` math. Units typing stops where the physical quantity does.
+
+The exponent `2` is the common choice; `3` is gentler near zero and worth trying once you've driven the robot. Pick one and stick with it; flip-flopping is more confusing than either choice.
+
+---
+
+### Where the math lives
+
+Three options for where to call `StickCurve.shape`:
+
+| Place | Verdict |
+|---|---|
+| Inside `Drive` (the subsystem) | **No.** The subsystem shouldn't know about joysticks. |
+| Inside the default command | **Yes.** That command's whole job is "translate driver input into a drive command." |
+| Inside `arcadeDrive` itself | **No.** `arcadeDrive(speed, rotation)` takes a normalized value. Joystick conditioning happens *before* you call it. |
+
+The default command is the right home. The `Drive` subsystem stays unaware of where its commands come from, which makes the same code work for joystick driving, autonomous time-based moves, and any future command you write.
+
+---
+
+### Updated default command
+
+This goes in `RobotContainer`'s `configureBindings`:
+
+```java
+drive.setDefaultCommand(
+    Commands.run(
+        () -> {
+            double rawY = -driver.getLeftY();         // negate Y
+            double rawRot = -driver.getRightX();      // negate X depending on convention
+
+            double speed = StickCurve.shape(
+                rawY,
+                DriveConstants.TELEOP_DEADBAND,
+                1.0                                     // full [-1, 1]; arcadeDrive applies MAX_DRIVE_PERCENT
+            );
+            double rotation = StickCurve.shape(
+                rawRot,
+                DriveConstants.TELEOP_DEADBAND,
+                1.0                                     // full [-1, 1]; arcadeDrive applies MAX_DRIVE_PERCENT
+            );
+
+            drive.arcadeDrive(speed, rotation);
+        },
+        drive
+    )
+);
+```
+
+What changed from the R08 version:
+
+- Stick reads are conditioned through `StickCurve.shape` before reaching `arcadeDrive`.
+- Deadband comes from `DriveConstants.TELEOP_DEADBAND`. Adjusting the feel is a constants edit, not a code edit.
+- `shape` is called with a max output of `1.0`, not `DriveConstants.MAX_DRIVE_PERCENT`. `arcadeDrive`'s own doc comment (R08) says it takes `speed` and `rotation` in the full `[-1, 1]` range, then applies `MAX_DRIVE_PERCENT` itself when it converts that to volts. Capping to `MAX_DRIVE_PERCENT` a second time here, before the value ever reaches `arcadeDrive`, would compound the two caps and leave full stick deflection well under 85% of battery voltage.
+- The lambda still ends in `drive.arcadeDrive(...)`: the subsystem's API is unchanged. Good IO design means everything below is sealed.
+
+---
+
+### Try it
+
+Add `StickCurve.java`. Update the default command in `configureBindings` with the snippet above. Build and sim.
+
+Plug in an Xbox controller. Slowly push the left stick forward from rest. The robot should:
+
+1. Not move at all until the stick crosses about 5% deflection.
+2. Move slowly at 20–30% deflection.
+3. Move at full commanded speed at full deflection; `arcadeDrive` still caps the resulting voltage at 85% of battery voltage through `MAX_DRIVE_PERCENT`.
+
+If the robot starts moving the moment you breathe on the stick, your deadband isn't wired through. If the robot accelerates linearly with stick deflection, your curve isn't applied: the `Math.pow(..., 2)` step is the difference.
+
+Then try sitting on a single 30% reading for a few seconds. The robot should glide smoothly, not creep then jolt. Smooth glide means the curve is doing its job at small inputs.
+
+---
+
+### When to revisit these values
+
+The numbers in `DriveConstants` aren't sacred. Things to tune once you have a real robot:
+
+- **Deadband 0.05** is conservative. Some controllers stay tighter and can use 0.02–0.03; older ones may need 0.10.
+- **MAX_DRIVE_PERCENT 0.85** caps voltage at 10.2 V. It's applied inside `Drive.arcadeDrive` (R08), not inside `StickCurve.shape`, so this is a `Drive` edit, not a `StickCurve` edit. Some teams run 0.7 in early drive practice and ratchet up to 1.0 as the driver gets comfortable.
+- **Exponent of 2** is a good starting point. A cubic (`Math.pow(abs, 3)`) is gentler near the centre and helps brand-new drivers; experienced drivers often prefer 2.
+
+Change one variable at a time and have the same person drive the same route both ways before deciding.
+
+---
+
+<RulesBox title="Evaluate in simulation">
+
+Slowly deflecting the stick: nothing until about 5 %, gentle motion at 20–30 %, full speed at full deflection, and a held 30 % that glides rather than creeps and jolts. If any of those is wrong, check whether the deadband and the curve are applied on the path from the stick to the drive command. The stick behaviour is the evidence.
+
+</RulesBox>
+
+### References
+
+- [A08: Stick-Curve Calculator](/assignments/a08-stick-curve-calculator): the assignment that built `StickCurve.shape` from scratch
+- [Math in Java](/java/java-math#deadband-and-sign): `Math.abs`, `Math.signum`, clamping, and the deadband idiom itself
+- [Calculations](/java/java-calculations#integer-vs-floating-point-division): the integer-versus-double division trap that quietly zeroes a deadband
+- WPILib JavaDoc: [`CommandXboxController`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/button/CommandXboxController.html)
+- WPILib JavaDoc: [`MathUtil.applyDeadband`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/MathUtil.html#applyDeadband(double,double)), WPILib's built-in deadband helper if you'd rather not roll your own
+- WPILib: [Joystick Tutorial](https://docs.wpilib.org/en/stable/docs/software/basic-programming/joystick.html)
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/basic-programming/joystick.html", "note": "Joysticks, axes, sign conventions."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/button/CommandXboxController.html", "note": "<code>CommandXboxController</code>."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/MathUtil.html", "note": "<code>applyDeadband</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/commands/DriveCommands.java", "note": "FRC 4451's stick math: deadband, squaring, direction."}
+]} />

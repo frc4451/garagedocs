@@ -30,15 +30,21 @@ function resolvePagefindFile(urlPath) {
 
 /**
  * Serve Pagefind assets from dist/pagefind (or node_modules fallback) during astro dev.
- * `base` mirrors the `base` in astro.config.mjs so requests arrive as `/<base>/pagefind/...`.
+ *
+ * `base` mirrors the `base` in astro.config.mjs. Older Astro passed requests to Vite
+ * middlewares with the base still attached (`/<base>/pagefind/...`); current Astro
+ * strips it first (`/pagefind/...`). Match both so the index is served either way —
+ * when only one matched, dev search failed silently because `pagefind-ui.js` 404'd.
  */
 export function pagefindDevPlugin(base = '/') {
   return {
     name: 'pagefind-dev',
     configureServer(server) {
-      const prefix = `${base.replace(/\/+$/, '')}/pagefind/`;
+      const withBase = `${base.replace(/\/+$/, '')}/pagefind/`;
+      const withoutBase = '/pagefind/';
       server.middlewares.use((req, res, next) => {
-        if (!req.url?.startsWith(prefix)) return next();
+        const url = req.url ?? '';
+        if (!url.startsWith(withBase) && !url.startsWith(withoutBase)) return next();
 
         const filePath = resolvePagefindFile(req.url);
         if (!filePath) {

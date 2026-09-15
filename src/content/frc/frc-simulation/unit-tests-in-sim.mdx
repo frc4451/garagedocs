@@ -1,0 +1,318 @@
+---
+title: "Unit Tests That Run the Simulation"
+lessonId: unit-tests-in-sim
+section: frc
+group: frc-simulation
+groupLabel: Simulation
+groupOrder: 3.5
+order: 6
+difficulty: intermediate
+duration: 40 min
+durationFixed: true
+description: "A unit test is a simulation with no GUI and a verdict. This lesson covers the three kinds worth writing (pure logic, commands against a paused clock, a mechanism running FRC 4451's TalonFX sim IO in the loop), the JUnit setup that makes a simulated Kraken drive, recording the test to a .wpilog so you can watch it in AdvantageScope, running tests from VS Code and from CI, and the rules for keeping them honest."
+---
+
+Everything so far in this group has you watching the simulation: the Sim GUI, AdvantageScope, a graph you read yourself. A **unit test** is the same simulation without the watching. The code runs the mechanism, checks the number itself, and reports PASSED or FAILED. It runs in seconds, it runs on every `./gradlew build`, and FRC 4451's [GitHub Actions workflow](/tools/github-actions) runs it on every push, so a change that breaks the tower's motion profile fails the pull request before anyone deploys it.
+
+That is why testing lives in this section and not in "advanced topics". The same [physics you put behind the IO layer](/frc/physics-sim-io) is what a test drives; the same [vendor-sim-state pattern](/frc/physics-sim-io#the-vendor-sim-state-pattern) means the test exercises the real Phoenix closed loop; and, as the last part of this lesson shows, a test can write a `.wpilog` so that *watching* is still available when a test fails and you want to see why. Do this before [Advanced Motor Control](/frc/motor-controller-configuration): the control requests you are about to tune are exactly what these tests pin down.
+
+### Three kinds of test, fastest first
+
+<ContentTable
+  headers={["Kind", "Exercises", "Needs", "Runs in", "Write many?"]}
+  rows={[
+    ["<strong>Pure logic</strong>", "Math, geometry, a state enum's transitions, a config's compact constructor", "Nothing; plain Java", "Microseconds", "Yes. Write one for every bug that has cost you time twice"],
+    ["<strong>Command against a paused clock</strong>", "Timeouts, sequences, <code>Trigger</code>s, what the scheduler does when", "<code>HAL.initialize</code>, <code>SimHooks</code>, the <code>CommandScheduler</code>", "Milliseconds; simulated seconds pass instantly", "Yes, for any command whose timing matters"],
+    ["<strong>Mechanism in the loop</strong>", "The subsystem with its <code>…IOSimTalonFX</code>: the real Phoenix controller, the real profile, the physics", "All of the above plus an enabled DriverStation and real time", "Real time; a two-second move takes two seconds", "A few, for behaviours that would break the robot"]
+  ]}
+/>
+
+The order is the order to reach for them. Most of what goes wrong in robot code is logic, and logic tests are free. Mechanism tests are the most convincing and the most expensive; FRC 4451 keeps one or two per mechanism, for the things a graph would otherwise have to prove every time.
+
+### Where tests live and how they run
+
+Cobra's `build.gradle` already has JUnit 5 wired in (`testImplementation 'org.junit.jupiter:junit-jupiter'` and `useJUnitPlatform()`), and GradleRIO's `wpi.java.configureTestTasks(test)` gives tests the same simulation libraries the desktop simulator uses. Tests go in `src/test/java/`, mirroring the package of what they test:
+
+```
+src/
+  main/java/frc/robot/subsystems/feeder/Feeder.java
+  test/java/frc/robot/subsystems/feeder/TowerSimTest.java
+```
+
+Three ways to run them:
+
+- **`./gradlew test`** in a terminal runs all of them; `./gradlew test --tests "frc.robot.subsystems.feeder.*"` for a package. The report is at `build/reports/tests/test/index.html`.
+- **VS Code:** *WPILib: Test Robot Code* from the palette, or the **Testing** view in the activity bar (the flask icon), which lists every test with a run button and a green tick or a red cross. See [A Working Day in VS Code](/tools/vscode-workflow#5-build-or-run).
+- **`./gradlew build`**, which is what CI runs. `build` depends on `test`, so a failing test fails the build and the ✗ appears on the commit.
+
+### A pure logic test
+
+The smallest thing worth a test in the ROBOTZ Garage library is a record's compact constructor, the defaults from [Lombok: `@Builder` on records](/frc/lombok#builder-on-records). A wrong default is silent; a test is not:
+
+```java
+package org.robotzgarage.frc2026.subsystems.elevator;
+
+import static edu.wpi.first.units.Units.Inches;
+import static org.junit.jupiter.api.Assertions.*;
+
+import edu.wpi.first.math.system.plant.DCMotor;
+import org.junit.jupiter.api.Test;
+import org.robotzgarage.frc2026.subsystems.elevator.Elevator.ElevatorConfig;
+
+class ElevatorConfigTest {
+  @Test
+  void optionalFieldsDefaultToZero() {
+    ElevatorConfig config = ElevatorConfig.builder()
+        .gearbox(DCMotor.getKrakenX60Foc(2))
+        .minHeight(Inches.zero())
+        .maxHeight(Inches.of(60))
+        .drumRadius(Inches.of(1))
+        .build();                                  // initialHeight, tolerance left out
+
+    assertEquals(0.0, config.initialHeight().in(Inches), 1e-9);
+    assertEquals(0.0, config.tolerance().in(Inches), 1e-9);
+  }
+
+  @Test
+  void requiredFieldsAreRequired() {
+    assertThrows(NullPointerException.class,
+        () -> ElevatorConfig.builder().minHeight(Inches.zero()).build());   // no gearbox
+  }
+}
+```
+
+Three JUnit ideas and that is most of the API: `@Test` marks a method the runner calls; `assertEquals(expected, actual, tolerance)` compares doubles (never without the tolerance); `assertThrows` says an exception *is* the correct behaviour. The [JUnit 5 user guide](https://junit.org/junit5/docs/current/user-guide/) has the rest, and the WPILib [unit testing page](https://docs.wpilib.org/en/stable/docs/software/wpilib-tools/robot-simulation/unit-testing.html) shows the same ideas on a plain subsystem.
+
+### A command against a paused clock
+
+Anything with a timeout, a `waitSeconds`, a debounce or a `Timer` depends on the clock, and in a test you own the clock. `SimHooks.pauseTiming()` freezes it; `SimHooks.stepTiming(seconds)` advances it exactly that far and fires any `Notifier` due in between. A two-second wait takes no time at all:
+
+```java
+package frc.robot.commands;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import edu.wpi.first.hal.HAL;
+import edu.wpi.first.wpilibj.simulation.DriverStationSim;
+import edu.wpi.first.wpilibj.simulation.SimHooks;
+import edu.wpi.first.wpilibj2.command.*;
+import org.junit.jupiter.api.*;
+
+class CommandTimingTest {
+  @BeforeEach
+  void setup() {
+    assertTrue(HAL.initialize(500, 0));      // the HAL must exist before any WPILib object
+    DriverStationSim.setEnabled(true);       // the scheduler does not run commands while disabled
+    DriverStationSim.notifyNewData();
+    SimHooks.pauseTiming();                  // the clock only moves when the test says so
+    CommandScheduler.getInstance().cancelAll();
+  }
+
+  @AfterEach
+  void teardown() {
+    SimHooks.resumeTiming();
+    CommandScheduler.getInstance().cancelAll();
+  }
+
+  @Test
+  void waitCommandFinishesOnTime() {
+    CommandScheduler scheduler = CommandScheduler.getInstance();
+    Command wait = Commands.waitSeconds(2.0);
+    scheduler.schedule(wait);
+    scheduler.run();
+    assertTrue(scheduler.isScheduled(wait));
+
+    SimHooks.stepTiming(1.0);
+    scheduler.run();
+    assertTrue(scheduler.isScheduled(wait), "still running at 1.0 s");
+
+    SimHooks.stepTiming(1.1);
+    scheduler.run();
+    assertFalse(scheduler.isScheduled(wait), "done after 2.1 s");
+  }
+}
+```
+
+Every `scheduler.run()` is one robot loop, called by you instead of by `Robot.robotPeriodic`. The same shape tests a real command: schedule FRC 4451's `superStructure.intake()` against a subsystem whose IO is the no-op `new SingleRollerIO() {}`, step time, and assert the command ended, or that the readiness `Trigger` from [Subsystems](/frc/subsystems) became true. `@BeforeEach` and `@AfterEach` run around *every* test so each starts from a clean scheduler. A test that depends on a previous test's leftovers is a test that fails on a different machine.
+
+### A mechanism in the loop
+
+Now the one that proves the tower goes where it is told. It constructs the real `SingleRoller` with the real `SingleRollerIOSimTalonFX` from [Simulating a TalonFX](/frc/talonfx-simulation), the same object `RobotContainer` builds in `SIM` mode, commands a goal, runs the robot loop for two seconds, and checks the position:
+
+```java
+package frc.robot.subsystems.feeder;
+
+import static edu.wpi.first.units.Units.Rotations;
+import static org.junit.jupiter.api.Assertions.*;
+
+import edu.wpi.first.hal.HAL;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.simulation.DriverStationSim;
+import org.junit.jupiter.api.*;
+import org.littletonrobotics.junction.Logger;
+import org.littletonrobotics.junction.wpilog.WPILOGWriter;
+import org.robotzgarage.frc2026.subsystems.rollers.single.*;
+
+class TowerSimTest {
+  private static SingleRollerIOSimTalonFX io;
+  private static SingleRoller tower;
+
+  @BeforeAll
+  static void startSimulation() {
+    assertTrue(HAL.initialize(500, 0));
+
+    // Record the test to a log so it can be watched in AdvantageScope afterwards.
+    Logger.AdvancedHooks.disableRobotBaseCheck();          // there is no LoggedRobot here
+    Logger.addDataReceiver(new WPILOGWriter(
+        "build/test-logs/TowerSimTest.wpilog", WPILOGWriter.AdvantageScopeOpenBehavior.NEVER));
+    Logger.start();
+
+    // SingleRoller.periodic() stops the motor while disabled, and a simulated TalonFX
+    // will not drive until the robot is enabled. Give Phoenix a moment to notice.
+    DriverStationSim.setEnabled(true);
+    DriverStationSim.notifyNewData();
+    Timer.delay(0.100);
+
+    io = new SingleRollerIOSimTalonFX(FeederConstants.towerConfigSim);
+    tower = new SingleRoller("Tower", io);
+  }
+
+  @AfterAll
+  static void stopSimulation() {
+    io.close();                                            // stops the 5 ms sim Notifier
+    Logger.end();                                          // flushes the log
+  }
+
+  /** Read the IO the way the subsystem does, so a test can assert on raw inputs. */
+  private static SingleRollerIOInputsAutoLogged read() {
+    var inputs = new SingleRollerIOInputsAutoLogged();
+    io.updateInputs(inputs);
+    return inputs;
+  }
+
+  /** One 20 ms robot loop: new log entry, run the subsystem, let the simulation advance. */
+  private static void loop() {
+    Logger.AdvancedHooks.invokePeriodicBeforeUser();
+    tower.periodic();
+    Logger.AdvancedHooks.invokePeriodicAfterUser(0, 0);
+    Timer.delay(0.020);
+  }
+
+  @Test
+  void robotIsEnabled() {
+    assertTrue(DriverStation.isEnabled());
+  }
+
+  @Test
+  void reachesItsGoal() {
+    tower.setGoal(Rotations.of(2.0));
+    for (int i = 0; i < 100; i++) loop();                  // 2 s of robot loops
+    assertTrue(tower.isNear(Rotations.of(2.0), Rotations.of(0.05)),
+        "tower should be within 0.05 rot of the goal after 2 s");
+  }
+
+  @Test
+  void holdsStillWhenDisabled() {
+    tower.runVolts(6.0);
+    loop(); loop();
+    assertTrue(read().appliedVoltage > 1.0, "sanity: the motor was driving before we disabled");
+
+    DriverStationSim.setEnabled(false);
+    DriverStationSim.notifyNewData();
+    for (int i = 0; i < 10; i++) loop();
+    assertEquals(0.0, read().appliedVoltage, 0.01, "a disabled robot must not drive the motor");
+
+    DriverStationSim.setEnabled(true);
+    DriverStationSim.notifyNewData();
+  }
+}
+```
+
+Run it with `./gradlew test --tests "frc.robot.subsystems.feeder.TowerSimTest"` and the output is three `PASSED` lines and a `[AdvantageKit] Logging to "build\test-logs\TowerSimTest.wpilog"`. About three seconds, most of it the two-second move.
+
+What each part is doing, because every line is load-bearing:
+
+<StepsBox title="Reading the test">
+
+1. **`HAL.initialize(500, 0)`** creates the simulated hardware layer. Without it the first `TalonFX` or `Timer` throws. Every test class that touches WPILib does this first.
+2. **`DriverStationSim.setEnabled(true)` + `notifyNewData()`** is the Sim GUI's *Teleoperated* button, in code. Two things need it: `SingleRoller.periodic()` calls `io.stop()` whenever `DriverStation.isDisabled()` (the safety you built in), and Phoenix's simulated motor outputs nothing until the robot is enabled. The 100 ms delay is from [CTRE's own unit-testing guide](https://v6.docs.ctr-electronics.com/en/stable/docs/api-reference/wpilib-integration/unit-testing.html); the simulated device needs a moment to see the change.
+3. **The real IO, the real config.** `FeederConstants.towerConfigSim` is the sim record from `RobotContainer`'s `SIM` branch, so this test runs the same Kraken model, the same 5 ms `Notifier`, the same Motion Magic profile the simulator runs. There is nothing test-specific to drift out of date.
+4. **`loop()` is `robotPeriodic`.** Log entry, `periodic()`, log flush, and then `Timer.delay(0.020)` so that real time passes for the Phoenix simulation and the Notifier. This is why mechanism tests run in real time: the simulated TalonFX has its own clock, and `SimHooks.stepTiming` does not move it.
+5. **`read()`** builds a fresh inputs object and asks the IO to fill it, through the public `updateInputs` the subsystem itself calls. The subsystem's own `inputs` field is `protected`; going through the IO is the honest way to look at raw values.
+6. **`isNear(goal, tolerance)`** is the subsystem's own readiness check, so the test asserts what a command would see. `0.05` rotations is generous on purpose; a test that fails on a slightly different laptop's timing teaches everyone to ignore tests.
+7. **`@BeforeAll` / `@AfterAll`** construct the device once for the class rather than once per test: a TalonFX is expensive to create, and `close()` on the IO stops its `Notifier` so the JVM can exit. (The library's `close()` stops the Notifier but does not close the `talon` itself. Adding that is a one-line change.)
+
+</StepsBox>
+
+`holdsStillWhenDisabled` is the kind of test worth having: it pins a *safety* behaviour that nobody checks by hand and that a refactor of `periodic()` could delete without anyone noticing.
+
+### Watching a test in AdvantageScope
+
+The three `Logger` lines in `@BeforeAll` are what make this a *simulation* test and not just a pass/fail. `Logger.AdvancedHooks` is AdvantageKit's supported door for running the logger outside a `LoggedRobot`, and `invokePeriodicBeforeUser` / `invokePeriodicAfterUser` in `loop()` are the two halves of what `LoggedRobot` does around every cycle. The result is an ordinary `.wpilog` with `Tower/Position`, `Tower/PositionGoal`, `Tower/PositionSetpoint`, `Tower/AppliedVoltage`, `Tower/TorqueCurrentAmps` and the console.
+
+Open it: AdvantageScope, **File → Open Log(s)…**, `build/test-logs/TowerSimTest.wpilog`, and drag `Tower/PositionGoal` and `Tower/Position` onto a Line Graph. It is the same picture as [commanded versus measured](/frc/advantagescope-sim#the-line-graph-commanded-versus-measured), from a test that ran with no GUI. When `reachesItsGoal` fails after someone changes the tower's `MotionMagicCruiseVelocity`, this is how you find out whether it overshot, stalled, or never started. Add a **Console** tab and the `println`s from the test are there too, timestamped against the motion.
+
+The path is under `build/` so it is thrown away by `./gradlew clean` and ignored by git. Never commit a test log.
+
+### What to test, and what not to
+
+<ContentTable
+  headers={["Test it", "Because", "Do not test it", "Because"]}
+  rows={[
+    ["Your math: offsets, flips, interpolation tables, unit conversions", "Wrong silently, cheap to pin", "Phoenix, WPILib, AdvantageKit internals", "They have their own tests; yours would test the mock"],
+    ["Safety behaviour: disabled stops the motor, soft limits clamp the goal", "Nobody checks it by hand", "Exact voltages or currents from the physics model", "The model is a model; assert <em>arrived</em>, not <em>12.0 V at t = 0.3 s</em>"],
+    ["Command timing and sequencing", "Free with a paused clock", "Gain values (\"kP is 1.0\")", "Constants are not behaviour"],
+    ["One end-to-end move per mechanism", "Proves the profile, the reduction and the sim state all agree", "Every setpoint of every mechanism in the loop", "Real time adds up; keep the loop tests few"],
+    ["A bug, after you fix it", "So it stays fixed. The most valuable tests are regression tests", "Private methods by reflection", "Test through the public API; if it is hard to reach, the design is telling you something"]
+  ]}
+/>
+
+<RulesBox title="Common mistakes">
+
+- **No <code>HAL.initialize</code>.** The first WPILib object throws <code>UnsatisfiedLinkError</code> or a HAL-not-initialized message. It goes first, in every class.
+- **Forgetting to enable.** The tower sits at zero and <code>reachesItsGoal</code> fails with the motor at 0 V, because <code>periodic()</code> did what it should for a disabled robot.
+- **<code>stepTiming</code> with a Phoenix device in the loop.** The simulated TalonFX runs on real time; a paused clock leaves it frozen. Use <code>Timer.delay</code> for mechanism tests and <code>SimHooks</code> for scheduler tests, not both in one test.
+- **Asserting a double with <code>assertEquals(a, b)</code> and no tolerance.** Floating point. Always the three-argument form.
+- **Tests that depend on order.** JUnit does not promise one. Each test sets up what it needs, or the class does it once in <code>@BeforeAll</code> for state that is genuinely shared.
+- **Not closing devices.** A leaked <code>Notifier</code> keeps the test JVM alive and Gradle waits on it. <code>close()</code> in <code>@AfterAll</code>.
+- **Committing <code>build/test-logs</code>.** It is already ignored; keep it that way.
+
+</RulesBox>
+
+<ExerciseBox title="Exercises">
+
+1. Write `ElevatorSimTest`: construct FRC 4451's `Elevator` with its sim config, `setGoalHeight(Inches.of(30))`, loop for three seconds, assert `atGoal()`. Then add the test that matters: a goal *above* `maxHeight` must be clamped, so `getGoalHeight()` never exceeds the config's maximum.
+2. `holdsStillWhenDisabled` passes today. Comment out the `if (DriverStation.isDisabled()) io.stop();` lines in `SingleRoller.periodic()` and run it again. Put them back. That is what a test is for.
+3. Open `build/test-logs/TowerSimTest.wpilog` in AdvantageScope and measure how long the move took to settle. Halve `MotionMagicCruiseVelocity` in `FeederConstants.towerConfig`, rerun, reopen. Which test fails first as you keep lowering it, and at what value? Put the constant back.
+4. The `FollowRollersIOSimTalonFX` sim divides by `reduction` where the single-roller sims multiply ([Simulating a TalonFX](/frc/talonfx-simulation)). Write the test that would have caught it: a follow-roller pair with a 3:1 reduction commanded to a mechanism velocity, asserting that the measured mechanism velocity (not the rotor's) matches.
+
+</ExerciseBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/unit-testing.html", "note": "Running JUnit under HAL simulation; <code>HAL.initialize</code>."},
+  {"source": "ctre", "path": "docs/api-reference/wpilib-integration/unit-testing.html", "note": "Phoenix devices in unit tests: enabling, timing, sim state."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/SimHooks.html", "note": "<code>pauseTiming</code> and <code>stepTiming</code> for the paused-clock command test."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/DriverStationSim.html", "note": "Enabling the robot in a test."},
+  {"url": "https://junit.org/junit5/docs/current/user-guide/", "label": "JUnit 5 user guide", "note": "Test lifecycle and assertions."},
+  {"source": "advantagekit", "path": "getting-started/what-is-advantagekit/", "note": "Why <code>Logger</code> must be started before a subsystem runs in a test."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "The mechanism under test with its sim config."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFX.java", "note": "The sim IO in the loop."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollersIOSimTalonFX.java", "note": "The follower sim IO."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/feeder/Feeder.java", "note": "The logic under test."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/feeder/FeederConstants.java", "note": "The constants record whose compact constructor is tested."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "<code>periodic()</code> behaviour the mechanism test asserts."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "The <code>Logger</code> setup the tests mirror."},
+  {"source": "cobra", "path": "build.gradle", "note": "The test task and JDK the tests run on."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Physics in the IO Layer","id":"physics-sim-io"},
+  {"label":"Simulating a TalonFX","id":"talonfx-simulation"},
+  {"label":"Watching Simulation in AdvantageScope","id":"advantagescope-sim"},
+  {"label":"Log Replay","id":"log-replay"},
+  {"label":"GitHub Actions: the build on every push","url":"/tools/github-actions"},
+  {"label":"WPILib: Unit Testing","url":"https://docs.wpilib.org/en/stable/docs/software/wpilib-tools/robot-simulation/unit-testing.html"},
+  {"label":"CTRE: Unit Testing with Phoenix 6","url":"https://v6.docs.ctr-electronics.com/en/stable/docs/api-reference/wpilib-integration/unit-testing.html"},
+  {"label":"JUnit 5 User Guide","url":"https://junit.org/junit5/docs/current/user-guide/"}
+]} title="Next" section="frc" />

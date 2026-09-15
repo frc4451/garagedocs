@@ -7,179 +7,109 @@ groupLabel: PID Tuning Practice
 groupOrder: 6
 order: 3
 difficulty: intermediate
-duration: 55 min
-description: ""
+duration: 75 min
+description: "Two parts on one arm. Part 1 brackets the angle-dependent kG with the arm horizontal, climbs the kP/kD ladder, then adds a trapezoidal profile in code; Part 2 moves the same profile onto a Phoenix motor controller as Motion Magic, tuned in Phoenix Tuner."
+durationFixed: true
 ---
 
-### Overview
+This session tunes the practice project's arm. **Part 1** runs in the simulator: gravity and friction, then `kP` and `kD`, then a trapezoidal profile generated in code. **Part 2** puts the same profile on the motor controller as Motion Magic and tunes it in Phoenix Tuner, which is the tool you will use on the robot.
 
-This lesson demonstrates PID tuning for an arm mechanism. Arms are more complex than elevators due to their rotational nature and varying gravity effects. You'll learn how to tune kG precisely, tune kP, and use motion profiling (trapezoidal profiles) to achieve smooth, accurate control.
+<RulesBox title="Before you start">
 
-**Browser practice:** Open [PID Simulation](/pid-simulation) on Mantik and choose **Arm** plus your motor vendor. Setpoint and kP use motor rotations (V/rot); the Mechanism view and TraceView show degrees. The browser plant matches [controls_js_sim](https://github.com/wpilibsuite/wpilib-docs/tree/main/source/_extensions/controls_js_sim) (5 kg, 1 m, 100:1). Gravity feedforward uses kG · cos(angle). Retune kP in the browser even if you watched the lesson video on YAMS hardware.
+The [Setup](/frc/pid-tuning-practice-setup) page done and the [Elevator](/frc/pid-tuning-practice-elevator) session completed; this page assumes the bracket and the ladder are familiar. Choose the *Arm* mechanism, add its live tuning widget, graph position, setpoint and voltage, and zero every gain.
 
-### Video Tutorial
-
-Watch this video for a complete walkthrough of arm PID tuning:
-
-<YouTubeEmbed id="JXoCSk-9al4" title="PID Practice: Arm" />
-
-### Prerequisites
-
-Before starting this lesson, you should have:
-
-
-
-• Completed the Setup lesson
-
-• Completed the Elevator tuning lesson (for basic tuning concepts)
-
-• Arm mechanism selected in SmartDashboard
-
-• Live tuning enabled in Elastic
-
-• Position and velocity graphs set up in AdvantageScope
-
-<StepsBox title="Tuning Steps">
-
-1. Set the setpoint to a position within the arm's range. Watch for the red line (soft limit) showing the maximum allowed position. Avoid setting the setpoint too close to or beyond it, as this can cause glitches in simulation. Find a position that works well for your arm mechanism.
-2. Find the smallest kG value that holds position without moving:
-   - Start with kG = 0.2, then 0.4, then 0.8 (doubling values)
-   - Watch the position graph (blue line) - it should stay completely flat
-   - When you see movement, set kG to a negative value to reset the position
-   - Use binary search (narrowing between the last good value and the first value that moves)
-   - Example progression: 0.75 (good) → 0.8 (too high) → 0.76 (good) → 0.77 (good) → 0.78 (good) → 0.79 (too high)
-   - For finicky mechanisms, continue to 3-4 decimal places
-   - Example: 0.785 (moving) → 0.782 (not moving) → 0.7815 (good, flat line)
-   - Test slightly above (e.g., 0.7817) to check for wiggles - if wiggles appear, use the lower value
-3. Verify kG precision:
-   - Position line should be completely flat with no movement
-   - Check for any wiggles or small movements
-   - For arms with lower gear ratios (how motor rotation translates to mechanism movement), 2-3 decimal place precision is important
-   - Small velocity changes may be due to simulation limitations
-4. Start tuning kP using the doubling method:
-   - Begin with kP = 0.1
-   - Command the arm to move to the target position
-   - Watch the position graph - arms with high inertia (resistance to changes in motion) may move slowly initially
-   - Double kP values: 0.1 → 0.2 → 0.4 → 0.8 → 1.6, etc.
-   - Continue until the arm reaches the target position
-   - Heavy arms with high inertia require more force to move, so you may need higher kP values
-5. Watch for overshoot:
-   - Overshoot appears as the position graph traveling past the target position before settling
-   - This means the arm is moving too fast and overshooting the target
-   - Overshoot is dangerous if the arm has hard stops (physical limits) - it could ram into them
-   - The goal is to minimize or eliminate overshoot
-6. Configure motion profiling in the arm subsystem code. Find the closed loop controller settings (motion profiling constraints):
-   - Max Velocity: Maximum speed the arm can move (degrees per second in this example)
-   - Max Acceleration: How quickly the arm can change speed (degrees per second per second)
-7. Set max velocity:
-   - Consider the distance the arm needs to travel and desired completion time
-   - Example: Moving from position 8 to -10 (about 60 degrees) in less than 1 second including acceleration → set max velocity around 90 degrees per second
-   - Test different values and observe the effect on motion smoothness
-   - Lower values (e.g., 45) create smoother, slower motion
-   - Setting to zero (default) means immediate jump to max velocity, which is not how motors actually work - motors need time to ramp up
-8. Set max acceleration:
-   - Max acceleration should typically be higher than max velocity
-   - This allows the mechanism to accelerate to max velocity in less than 1 second
-   - If acceleration is lower than velocity, it takes more than 1 second to reach max speed
-   - Higher values create sharper, more rectangular motion profiles
-   - Lower values reduce the initial "jump" and make movement smoother
-   - Adjust to reduce noticeable jumps at the start of movement
-9. Fine-tune motion profile and kP together:
-   - Work with both max velocity and max acceleration to eliminate overshoot
-   - You may need to slightly decrease kP if there's still a small jump
-   - Test different combinations of values
-   - Goal: virtually no overshoot and smooth motion
-10. Evaluate the final motion profile. The ideal motion should look rectangular/boxy in the position graph:
-   - Sharp transition up: Quick acceleration to target
-   - Flat hold: Maintains position at target
-   - Sharp transition down: Quick return when commanded to a new position
-   - Avoid motion that looks "all over the place" with oscillation or overshoot
-11. Compare before and after motion profiling. Without motion profiling, the position graph may show erratic movement that takes longer and is less efficient. With proper tuning, you should see clean, rectangular transitions.
-
-</StepsBox>
-
-<RulesBox title="Arm Tuning Process Summary" subtitle="Complete workflow:">
-
-- Set setpoint to appropriate position (within soft limits)
-- Tune kG to 2-3 decimal places precision - position line must be flat
-- Tune kP by doubling until arm reaches position
-- Watch for overshoot in position graph
-- Configure motion profiling (max velocity and max acceleration)
-- Max acceleration should be higher than max velocity
-- Fine-tune to achieve rectangular motion profile
-- Motion should be sharp up, flat across, sharp down
+The procedure is the [arm-and-elevator recipe](/frc/manual-tuning-arm-elevator) with one difference from the elevator: an arm's gravity term is `kG · cos θ`, largest with the arm horizontal and zero with it vertical. The bracket is done **horizontal**, where it measures the full term. Once the profile is on, the [profiled recipe](/frc/manual-tuning-profiled) takes over.
 
 </RulesBox>
 
-### Why Motion Profiling Matters
+### Video walkthrough
 
-Motion profiling is crucial for arms because:
+<YouTubeEmbed id="JXoCSk-9al4" title="PID Practice: Arm" />
 
+### Part 1: bracket, ladder, then a profile in code
 
+The simulated arm is a light three-foot arm on a 12:1 reduction, positions in degrees, with soft limits at −20 and +10 degrees and a starting angle of −5 degrees. It is light enough that `kG` is small and precise: a few thousandths of a volt show on the graph as drift.
 
-• **Prevents overshoot:** Controls acceleration to avoid ramming into hard stops
+<StepsBox title="Part 1 steps">
 
-• **Reduces jerkiness:** Smooths out sudden movements that can break chains or damage mechanisms
+1. **Zero every gain.**
+2. **Set the setpoint to horizontal (0 degrees)**, which is inside the soft limits the graph marks in red. Nudge the arm there by hand in the tuning table if it is not. With `kP` at zero the arm is held by `kG` alone.
+3. **Find the lower bound of `kG`**: raise it by doubling until the arm stops dropping, then narrow. On this arm expect to narrow to three decimal places before the position trace is flat. This is `kG − kS`.
+4. **Find the upper bound**: keep raising until the arm begins to rise, then narrow. This is `kG + kS`.
+5. **Enter `kG` as the midpoint and `kS` as half the difference.** Check the hold at a second angle. The arm should now stay wherever it is put; if it drifts at one angle and not another, the gravity type is wrong, not the number.
+6. **Set a setpoint a few degrees away** and **raise `kP`** by doubling from 0.1 until the arm overshoots. Keep doubling until it reaches the setpoint, then until it passes it; on a heavier arm this takes more doublings than you expect.
+7. **Raise `kD`** until the overshoot stops, then **repeat** with more `kP`, to the latency limit, and back off `kD` then `kP` as before.
+8. **Try the largest move the soft limits allow**, from −20 to +10 degrees. The trace will overshoot or the voltage will pin at 12 V; this is what the profile fixes.
+9. **Set the profile's maximum velocity** in the tuning table (`closedloop/motionprofile/maxVelocity`, degrees per second). Choose it from the move you want: 30 degrees in under a second, including the ramps, is about 45 deg/s. A lower value gives a slower, smoother move.
+10. **Set the maximum acceleration** (`maxAcceleration`, degrees per second per second). Larger than the maximum velocity means the arm reaches cruise in under a second. Raise it until the start of the move is crisp without a visible jump; lower it if the arm cannot follow the ramp.
+11. **Re-run the ladder under the profile.** With a profile the setpoint moves in a trapezoid and the loop corrects a small error against it, so the `kP` that overshot on the step is now usable and `kD` matters less. Put `closedloop/setpoint/velocity` and `measurement/velocity` on a graph and add `kA` (match the ramp) and `kV` (match the cruise) if the measured velocity lags the profile; on this arm, with little drag, `kV` may stay zero.
+12. **Verify** a small move, a large move, and a move in each direction.
 
-• **More efficient:** Faster and more accurate than uncontrolled movement
+</StepsBox>
 
-• **Protects hardware:** Prevents the mechanism from being too energetic or extreme
+<RulesBox title="What the graph should show">
 
+- The bracket on this arm is a flat line to three decimals of `kG`. A wobble at the fourth decimal is the integrator, not friction.
+- Under the profile the position trace is straight ramps and one corner, and the velocity trace is a trapezoid the measurement sits on. Overshoot at the end of a profiled move means `kP` is high for the current `kD`; a bump at the start means `maxAcceleration` is more than the motor can deliver, or `kA` is missing.
+- Overshoot on an arm with hard stops is a collision. If the tuning ends in a compromise, take the overdamped small move rather than the overshooting large one.
 
+</RulesBox>
 
-Without motion profiling, mechanisms can experience sudden jerks that cause mechanical failures (like broken chains, as mentioned in the video).
+### Part 2: Motion Magic in Phoenix Tuner
 
-### Trapezoidal vs Exponential Profiles
+Part 1 generated the trapezoid in robot code. On a Phoenix motor controller the same profile runs **on the device** as Motion Magic, with cruise velocity, acceleration and jerk as configuration and the feedforward computed on the controller from the profile's own setpoints ([Why Motion Magic](/frc/motion-magic-why)). This part tunes it in Phoenix Tuner against a real arm or a simulated TalonFX ([Simulating a TalonFX](/frc/talonfx-simulation)); the steps are the same for an elevator with `Elevator_Static` gravity.
 
-The video uses trapezoidal motion profiles because they're more intuitive. However, exponential profiles are often better because:
+<YouTubeEmbed id="edoeF-Z5IYA" title="PID Practice: Motion Magic" />
 
+<RulesBox title="Before you start">
 
+Supply and stator current limits set, positive output moving the arm upward, `SensorToMechanismRatio` set so positions are in mechanism rotations ([Motor Configuration](/frc/motor-controller-configuration)), and Phoenix Tuner connected to the device. The robot must be enabled in the Driver Station for the device to move.
 
-• Motors need time to ramp up - they don't instantly jump to max velocity
+The video finds `kG` and `kP` first and then sets the profile from a measured top speed. On a real mechanism, run the [profiled recipe](/frc/manual-tuning-profiled) in full: `kA` by matching the ramp and `kV` by matching the cruise before the final `kP`/`kD` pass. The device publishes the profile's position and velocity as `ClosedLoopReference` and `ClosedLoopReferenceSlope`, so there is something on the plot to match against.
 
-• Exponential profiles better match how motors actually behave
+</RulesBox>
 
-• They can provide even smoother motion
+<StepsBox title="Part 2 steps">
 
+1. In Tuner's *Config* tab, set every slot gain to zero and every Motion Magic value to zero, then write the configuration to the device.
+2. Set the gravity type for the mechanism (`Arm_Cosine`; for an elevator `Elevator_Static`).
+3. In the *Plot* tab, plot position and velocity and start the plot.
+4. Select the *VoltageOut* control and enable the output at 0 V. With the arm horizontal, bracket the holding voltage exactly as in Part 1: raise until it stops dropping (lower bound), keep raising until it rises (upper bound). `kG` is the midpoint, `kS` half the difference. Enter both in the slot.
+5. Switch to *PositionVoltage* with a setpoint a tenth of a rotation away. Raise `kP` by doubling until the arm overshoots; raise `kD` until it stops; repeat to the latency limit and back off. Stop at the first sign of instability; this is a real mechanism.
+6. **Cruise velocity.** Command a duty cycle large enough for a fast move, in the safe direction, and read the flat part of the velocity plot: that is the top speed the mechanism reaches. Set Motion Magic cruise velocity at or below it.
+7. **Acceleration.** Set it from how quickly you want the arm to reach cruise; a value numerically larger than the cruise velocity reaches it in under a second. **Jerk** is optional and rounds the corners of the acceleration; leave it at zero to start.
+8. Switch to *MotionMagicVoltage* and add the device's `ClosedLoopReference` and `ClosedLoopReferenceSlope` signals to the plot: they are the profile's position and velocity. Add `kA` until the measured velocity follows the reference slope's ramp and `kV` until it holds the cruise, then re-run the `kP`/`kD` pass against the profile.
+9. Verify small and large moves in both directions, then copy the slot and Motion Magic values into the mechanism's configuration in code.
 
+</StepsBox>
 
-Trapezoidal profiles are a good starting point for learning, but consider exponential profiles for production code.
+<RulesBox title="What changed from Part 1">
 
-### Applying to Physical Hardware
+- The profile constraints moved from the code's constraints object to the controller's `MotionMagicConfigs` (cruise velocity, acceleration, jerk), in mechanism units after the sensor-to-mechanism ratio.
+- The controller's `kV` and `kA` multiply the profile's own velocity and acceleration setpoints, so the feedforward is exact to the profile rather than approximated in code.
+- The request changed from `PositionVoltage` to `MotionMagicVoltage` (or the torque-current form). In the ROBOTZ Garage library that is `setGoal` on a `SingleRoller`; the values you found go into the mechanism's `MotionMagicConfigs` and `Slot0Configs` ([Motor Configuration](/frc/motor-controller-configuration)).
 
-The same techniques apply when tuning with physical hardware:
+</RulesBox>
 
+<RulesBox title="Common mistakes">
 
+- **Bracketing somewhere other than horizontal.** The gravity term is largest there; a bracket at 45 degrees measures `kG · cos 45°` and the arm drifts at horizontal.
+- **Profile limits in the wrong units.** The practice project's arm is in degrees; a Phoenix device is in mechanism rotations after the ratio. 45 deg/s is 0.125 rot/s.
+- **Acceleration lower than the motor can deliver looks fine; higher does not.** A bump at the start of every move is the profile asking for more than the motor has.
+- **Tuning `kP` before `kA` under a profile.** Feedback found first is compensating for a missing `kA`.
+- **Accepting overshoot on an arm with hard stops.** Trade the overdamped small move for no overshoot on the large one.
 
-• **Phoenix Tuner:** Use Config tab to adjust values. Graph "rotor position" and "velocity."
+</RulesBox>
 
-• **REV Hardware Client:** Similar configuration options available
+<Sources items={[
+  {"url": "https://github.com/itkan-robotics/mantik-pid-practice/blob/main/src/main/java/frc/robot/subsystems/ArmSubsystem.java", "label": "mantik-pid-practice ArmSubsystem.java", "note": "Three-foot arm, 12:1, soft limits −20° to +10°, start −5°."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/manual-pid-tuning.html#arm-tuning-with-torquecurrentfoc", "note": "Bracketing kG horizontal."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/manual-pid-tuning.html#profiled-tuning", "note": "The profiled recipe under the trapezoid and Motion Magic."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/motion-magic.html", "note": "Cruise velocity, acceleration, jerk in Phoenix Tuner."},
+  {"source": "ctre", "path": "docs/api-reference/api-usage/status-signals.html", "note": "<code>ClosedLoopReference</code>/<code>ClosedLoopReferenceSlope</code> on the Tuner plot."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/trapezoidal-profiles.html", "note": "The trapezoid generated in code in Part 1."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "<code>setGoal</code> and the <code>MotionMagicConfigs</code> the values go into."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java", "note": "Slot and Motion Magic configuration record."}
+]} />
 
-• The tuning process is identical: precise kG, kP tuning, then motion profiling
-
-• Watch for the same rectangular motion profile
-
-
-
-Even though the tools look different, the principles and techniques you learn here apply directly to physical mechanism tuning.
-
-### Key Takeaways
-
-The complete arm tuning process involves:
-
-
-
-1. **Precise kG tuning:** Get it accurate to 2-3 decimal places for finicky mechanisms
-
-2. **kP tuning:** Double until you reach the target, but watch for overshoot
-
-3. **Motion profiling:** Use max velocity and max acceleration to create smooth, rectangular motion
-
-4. **Rectangular shape goal:** The position graph should look like a rectangle, not a curve or oscillation
-
-
-
-These skills apply to all mechanism tuning, whether using simulation tools or physical hardware tuning tools.
-
-<LinkGrid links={[{"label":"Try in browser","url":"/pid-simulation"},{"label":"PID Control","id":"frc-pid-control"},{"label":"PID Tuning Practice - Elevator","id":"pid-tuning-practice-elevator"},{"label":"Trapezoidal Motion Profiling","id":"trapezoidal-motion-profiling"},{"label":"Feedforward Control","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/feedforward-control.html"}]} title="Resources" section="frc" />
-
+<LinkGrid links={[{"label":"Manual Tuning: Arm and Elevator","id":"manual-tuning-arm-elevator"},{"label":"Manual Tuning: Profiled","id":"manual-tuning-profiled"},{"label":"Trapezoidal Motion Profiling","id":"trapezoidal-motion-profiling"},{"label":"Motor Configuration","id":"motor-controller-configuration"},{"label":"PID Tuning Practice - Shooter","id":"pid-tuning-practice-shooter"}]} title="Next" section="frc" />

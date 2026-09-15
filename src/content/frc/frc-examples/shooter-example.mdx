@@ -3,164 +3,208 @@ title: Shooter Example
 lessonId: shooter-example
 section: frc
 group: frc-examples
-groupLabel: Mechanism Examples
+groupLabel: "Mechanism Examples"
 groupOrder: 7
-order: 2
+order: 3
 difficulty: intermediate
-duration: 95 min
-description: ""
+duration: 35 min
+description: "Cobra's shooter, read as a worked example: a leader/follower flywheel pair on the ROBOTZ Garage library, velocity control by torque current with Motion Magic, tunable setpoints, a distance-to-velocity interpolation table fed from the robot's pose, readiness Triggers for firing sequences, and the AdvantageScope layout that proves it in simulation."
 ---
 
-### Template Project
+The Kit Bot launcher in [R07](/kit-bot/r07-launcher-io-part-2) was one roller, voltage in, RPM out, with a calibration table you built by hand. Cobra's shooter is the same idea with everything the competition robot needs on top: two motors that must agree, velocity held by the motor controller instead of by you, a target that comes from *where the robot is*, and a way for the rest of the robot to know the wheel is ready. This lesson reads `frc.robot.subsystems.shooter` as it is in the repository; it is the example.
 
-Start with the **Command Robot** template project. Shooters are implemented as subsystems, so the command-based structure is ideal. Create a new subsystem class in the `subsystems` package.
+### The shape
 
-### Overview
+```
+Shooter (SubsystemBase)                       FlywheelFollower (ROBOTZ Garage library)
+  ├─ FlywheelFollower shooter        owns →     extends FollowRollers
+  ├─ LoggedTunableNumbers (setpoints)              ├─ FollowRollersIO io   ← TalonFX / SimTalonFX / empty
+  ├─ command factories                             ├─ leader + follower inputs
+  ├─ readiness Triggers                            ├─ tunable kP…kA
+  └─ runShooterToHub() ← BobotState interpolator   └─ FlywheelSim for logging
+```
 
-Shooters require **Velocity Control**. The goal is to spin a flywheel at a specific RPM and maintain it despite load changes (launching a note/ball). We'll build a shooter subsystem using Velocity PID and Feedforward to maintain consistent speed.
+`FollowRollers` is `SingleRoller`'s two-motor sibling: one IO that drives a leader and a follower, with both motors' inputs logged separately so a follower that has stopped following is visible. `FlywheelFollower` adds a `FlywheelSim` for physics logging, the way `Elevator` adds an `ElevatorSim` in the [Elevator Example](/frc/elevator-example#the-shape).
 
-<RulesBox title="Goals" subtitle="The shooter subsystem must:">
-
-- Spin to target RPM (Close, Mid, Far).
-- Maintain speed (Velocity PID).
-- Recover quickly after shots.
-- Report "Ready" status.
-
-</RulesBox>
-
-### Step 1: Create Subsystem Structure
-
-Start by creating the `Shooter` class that extends `SubsystemBase`. This class will manage the shooter motor and velocity control.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot.subsystems;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.ctre.phoenix6.hardware.TalonFX;\nimport com.ctre.phoenix6.configs.TalonFXConfiguration;\nimport com.ctre.phoenix6.signals.NeutralModeValue;\nimport com.ctre.phoenix6.controls.VelocityVoltage;\n\npublic class Shooter extends SubsystemBase {\n    // We'll add fields here\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot.subsystems;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\nimport com.revrobotics.spark.config.SparkMaxConfig;\nimport com.revrobotics.spark.config.SparkBaseConfig.IdleMode;\nimport com.revrobotics.spark.SparkBase.ResetMode;\nimport com.revrobotics.spark.SparkBase.PersistMode;\nimport com.revrobotics.spark.ClosedLoopController.ControlType;\nimport com.revrobotics.spark.RelativeEncoder;\n\npublic class Shooter extends SubsystemBase {\n    // We'll add fields here\n}","language":"java"}]} />
-
-### Step 2: Declare Motor and Control Objects
-
-Add fields for the motor and velocity control. The motor is on CAN ID 7. For Talon FX, we create a `VelocityVoltage` control request. For SPARK MAX, we get the closed-loop controller and encoder.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"public class Shooter extends SubsystemBase {\n    // Shooter motor on CAN ID 7\n    private final TalonFX m_motor = new TalonFX(7);\n    // Velocity control request\n    private final VelocityVoltage m_request = new VelocityVoltage(0);\n}","language":"java"},{"label":"SPARK MAX","code":"public class Shooter extends SubsystemBase {\n    // Shooter motor on CAN ID 7, brushless type\n    private final SparkMax m_motor = new SparkMax(7, MotorType.kBrushless);\n    // Get closed-loop controller for velocity PID\n    private final SparkClosedLoopController m_pid = m_motor.getClosedLoopController();\n    // Get encoder for velocity feedback\n    private final RelativeEncoder m_encoder = m_motor.getEncoder();\n}","language":"java"}]} />
-
-### Step 3: Configure Motor - Idle Mode
-
-Set the motor to Coast mode. This allows the flywheel to spin down naturally when stopped, preventing rapid deceleration that wastes energy and causes wear. Brake mode would make the flywheel stop abruptly, which is undesirable for shooters.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"public Shooter() {\n    TalonFXConfiguration config = new TalonFXConfiguration();\n    // Coast mode allows flywheel to spin down naturally\n    config.MotorOutput.NeutralMode = NeutralModeValue.Coast;\n    m_motor.getConfigurator().apply(config);\n}","language":"java"},{"label":"SPARK MAX","code":"public Shooter() {\n    SparkMaxConfig config = new SparkMaxConfig();\n    // Coast mode allows flywheel to spin down naturally\n    config.idleMode(IdleMode.kCoast);\n    m_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n}","language":"java"}]} />
-
-### Step 4: Configure Velocity PID Gains
-
-Configure PID gains for velocity control. **kP** (Proportional) corrects velocity errors to maintain target speed. For flywheels, kP is typically small since feedforward does most of the work. **kI** and **kD** are usually set to 0 for velocity control.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"public Shooter() {\n    TalonFXConfiguration config = new TalonFXConfiguration();\n    config.MotorOutput.NeutralMode = NeutralModeValue.Coast;\n    \n    // Velocity PID gains (Slot 0)\n    config.Slot0.kP = 0.1;  // Proportional gain\n    config.Slot0.kI = 0.0;  // Integral gain\n    config.Slot0.kD = 0.0;  // Derivative gain\n    \n    m_motor.getConfigurator().apply(config);\n}","language":"java"},{"label":"SPARK MAX","code":"public Shooter() {\n    SparkMaxConfig config = new SparkMaxConfig();\n    config.idleMode(IdleMode.kCoast);\n    \n    // Velocity PID gains\n    config.closedLoop.p(0.0001).i(0.0).d(0.0);\n    \n    m_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n}","language":"java"}]} />
-
-### Step 5: Configure Velocity Feedforward
-
-Velocity feedforward (**kV**) is critical for maintaining speed. It provides the base voltage needed to maintain a given velocity. This is the most important value for velocity control—tune this first so the flywheel reaches target speed without PID correction.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"public Shooter() {\n    TalonFXConfiguration config = new TalonFXConfiguration();\n    config.MotorOutput.NeutralMode = NeutralModeValue.Coast;\n    config.Slot0.kP = 0.1;\n    config.Slot0.kI = 0.0;\n    config.Slot0.kD = 0.0;\n    \n    // Velocity feedforward (critical for maintaining speed)\n    config.Slot0.kV = 0.12;\n    \n    m_motor.getConfigurator().apply(config);\n}","language":"java"},{"label":"SPARK MAX","code":"public Shooter() {\n    SparkMaxConfig config = new SparkMaxConfig();\n    config.idleMode(IdleMode.kCoast);\n    \n    // Velocity PID gains with feedforward\n    config.closedLoop.p(0.0001).i(0.0).d(0.0).ff(0.00015);\n    \n    m_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n}","language":"java"}]} />
-
-### Step 6: Add Method to Set Target Speed
-
-Create a public method that sets the target velocity. The PID controller and feedforward work together to reach and maintain this speed.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"/**\n * Set shooter target velocity\n * @param rps Target velocity in rotations per second\n */\npublic void setSpeed(double rps) {\n    m_motor.setControl(m_request.withVelocity(rps));\n}","language":"java"},{"label":"SPARK MAX","code":"/**\n * Set shooter target velocity\n * @param rpm Target velocity in RPM\n */\npublic void setSpeed(double rpm) {\n    m_pid.setReference(rpm, ControlType.kVelocity);\n}","language":"java"}]} />
-
-### Step 7: Add Ready Status Check
-
-Add a method to check if the shooter has reached the target speed. This is useful for coordinating with other mechanisms (like an indexer) that need to wait for the shooter to be ready before feeding game pieces.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"/**\n * Check if shooter is at target speed\n * @param target Target velocity in rotations per second\n * @return True if within 2.0 RPS of target\n */\npublic boolean isReady(double target) {\n    double currentVelocity = m_motor.getVelocity().getValue();\n    return Math.abs(currentVelocity - target) < 2.0;\n}","language":"java"},{"label":"SPARK MAX","code":"/**\n * Check if shooter is at target speed\n * @param target Target velocity in RPM\n * @return True if within 50 RPM of target\n */\npublic boolean isReady(double target) {\n    double currentVelocity = m_encoder.getVelocity();\n    return Math.abs(currentVelocity - target) < 50;\n}","language":"java"}]} />
-
-### Step 8: Create Firing Sequence Command
-
-Shooters often work with other mechanisms. Create a command sequence that spins up the shooter, waits until it's ready, then feeds the game piece. This ensures consistent shot velocity.
-
-Create command sequence for shooting:
-
-
+### Step 1: the constants
 
 ```java
-// In RobotContainer class - add this method or use in configureBindings()
+public class ShooterConstants {
+  public static final double shooterReduction = 24.0 / 24.0;
+  public static final AngularVelocity maximumShooterVelocity = RotationsPerSecond.of(80);
+  public static final AngularAcceleration maximumShooterAcceleration = RotationsPerSecondPerSecond.of(400);
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.InstantCommand;
-import edu.wpi.first.wpilibj2.command.SequentialCommandGroup;
-import edu.wpi.first.wpilibj2.command.WaitUntilCommand;
-import frc.robot.subsystems.Shooter;
-import frc.robot.subsystems.Indexer;
+  public static final FlywheelConfig shooterFlywheelConfig =
+      FlywheelConfig.builder()
+          .radius(Inches.of(1.5))
+          .gearbox(DCMotor.getKrakenX60Foc(2))
+          .moi(0.002)
+          .reduction(shooterReduction)
+          .build();
 
-/**
- * Create command sequence for shooting
- * @return Sequential command: spin up, wait, feed
- */
-public Command getShootSequence() {
-    return new SequentialCommandGroup(
-        // Step 1: Start spinning up shooter to 4000 RPS
-        new InstantCommand(() -> m_shooter.setSpeed(4000), m_shooter),
-        // Step 2: Wait until shooter reaches target speed
-        new WaitUntilCommand(() -> m_shooter.isReady(4000)),
-        // Step 3: Feed note into shooter
-        new FeedCommand(m_indexer)
-    );
+  public static final TalonFXConfig leaderShooterConfig =
+      TalonFXConfig.builder()
+          .canId(21).canBus(Constants.susBus)
+          .reduction(shooterReduction)
+          .invert(false).isBrakeMode(false)                 // a flywheel coasts down; brake mode fights it
+          .foc(Constants.focEnabled)
+          .slot0Config(new Slot0Configs()
+              .withKS(16.0).withKV(0.125).withKA(0.0)       // feedforward, in AMPS: torque-current control
+              .withKP(5.0).withKI(0.0).withKD(0.0))
+          .mmConfig(new MotionMagicConfigs()
+              .withMotionMagicCruiseVelocity(maximumShooterVelocity)
+              .withMotionMagicAcceleration(maximumShooterAcceleration))
+          .build();
+
+  // …followerShooterConfig: same, canId 22, invertFollower(true)
+
+  public static final TalonFXConfigFollowerSim flywheelFollowersConfigSim =
+      TalonFXConfigFollowerSim.builder()
+          .hardware(flywheelFollowersConfig)                  // the real pair…
+          .dcMotor(DCMotor.getKrakenX60Foc(2))                // …plus the physics
+          .moi(0.002)
+          .build();
 }
 ```
 
-### Understanding Velocity Control
+Two things are different from every Kit Bot mechanism. **The units of kS and kV are amps**, because the shooter is run with *torque-current* control (`setVelocityTorqueCurrent`): the controller commands motor current directly, which is proportional to torque, and FOC lets a Kraken do that precisely. Velocity control by current is stiffer and recovers faster after a shot than voltage control; [Control Request Types](/frc/motor-controller-configuration#control-request-types) has the comparison. And **brake mode is off**: a flywheel with brake mode spends current fighting its own inertia every time the setpoint drops.
 
-Velocity control maintains speed rather than position. Feedforward (kV) provides most of the power needed to maintain speed. PID (kP) corrects small errors caused by load changes or friction. Together, they keep the flywheel spinning at a consistent RPM despite disturbances.
-
-### Full Code - Shooter Subsystem
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot.subsystems;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.ctre.phoenix6.hardware.TalonFX;\nimport com.ctre.phoenix6.configs.TalonFXConfiguration;\nimport com.ctre.phoenix6.signals.NeutralModeValue;\nimport com.ctre.phoenix6.controls.VelocityVoltage;\n\npublic class Shooter extends SubsystemBase {\n    // Shooter motor on CAN ID 7\n    private final TalonFX m_motor = new TalonFX(7);\n    // Velocity control request\n    private final VelocityVoltage m_request = new VelocityVoltage(0);\n    \n    public Shooter() {\n        TalonFXConfiguration config = new TalonFXConfiguration();\n        // Coast mode allows flywheel to spin down naturally\n        config.MotorOutput.NeutralMode = NeutralModeValue.Coast;\n        \n        // Velocity PID gains (Slot 0)\n        config.Slot0.kP = 0.1;  // Proportional gain\n        config.Slot0.kI = 0.0;  // Integral gain\n        config.Slot0.kD = 0.0;  // Derivative gain\n        config.Slot0.kV = 0.12; // Velocity feedforward (critical for maintaining speed)\n        \n        m_motor.getConfigurator().apply(config);\n    }\n    \n    /**\n     * Set shooter target velocity\n     * @param rps Target velocity in rotations per second\n     */\n    public void setSpeed(double rps) {\n        m_motor.setControl(m_request.withVelocity(rps));\n    }\n    \n    /**\n     * Check if shooter is at target speed\n     * @param target Target velocity in rotations per second\n     * @return True if within 2.0 RPS of target\n     */\n    public boolean isReady(double target) {\n        double currentVelocity = m_motor.getVelocity().getValue();\n        return Math.abs(currentVelocity - target) < 2.0;\n    }\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot.subsystems;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\nimport com.revrobotics.spark.config.SparkMaxConfig;\nimport com.revrobotics.spark.config.SparkBaseConfig.IdleMode;\nimport com.revrobotics.spark.SparkBase.ResetMode;\nimport com.revrobotics.spark.SparkBase.PersistMode;\nimport com.revrobotics.spark.ClosedLoopController.ControlType;\nimport com.revrobotics.spark.RelativeEncoder;\n\npublic class Shooter extends SubsystemBase {\n    // Shooter motor on CAN ID 7, brushless type\n    private final SparkMax m_motor = new SparkMax(7, MotorType.kBrushless);\n    // Get closed-loop controller for velocity PID\n    private final SparkClosedLoopController m_pid = m_motor.getClosedLoopController();\n    // Get encoder for velocity feedback\n    private final RelativeEncoder m_encoder = m_motor.getEncoder();\n    \n    public Shooter() {\n        SparkMaxConfig config = new SparkMaxConfig();\n        // Coast mode allows flywheel to spin down naturally\n        config.idleMode(IdleMode.kCoast);\n        \n        // Velocity PID gains with feedforward\n        config.closedLoop.p(0.0001).i(0.0).d(0.0).ff(0.00015);\n        \n        m_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n    }\n    \n    /**\n     * Set shooter target velocity\n     * @param rpm Target velocity in RPM\n     */\n    public void setSpeed(double rpm) {\n        m_pid.setReference(rpm, ControlType.kVelocity);\n    }\n    \n    /**\n     * Check if shooter is at target speed\n     * @param target Target velocity in RPM\n     * @return True if within 50 RPM of target\n     */\n    public boolean isReady(double target) {\n        double currentVelocity = m_encoder.getVelocity();\n        return Math.abs(currentVelocity - target) < 50;\n    }\n}","language":"java"}]} />
-
-### Full Code - Firing Sequence
-
-The Command Robot template provides RobotContainer. Add this method to create the firing sequence:
-
-
+### Step 2: the subsystem
 
 ```java
-// In RobotContainer class - add this method
+public class Shooter extends SubsystemBase {
+  private static final String name = "/Shooter";
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.InstantCommand;
-import edu.wpi.first.wpilibj2.command.SequentialCommandGroup;
-import edu.wpi.first.wpilibj2.command.WaitUntilCommand;
-import frc.robot.subsystems.Shooter;
-import frc.robot.subsystems.Indexer;
+  private static final LoggedTunableNumber shooterVelocity =
+      new LoggedTunableNumber(name + "/ShooterVelocity", 85.0);            // RPS, adjustable live
 
-// The template provides RobotContainer structure
-/**
- * Create command sequence for shooting
- * @return Sequential command: spin up, wait, feed
- */
-public Command getShootSequence() {
-    return new SequentialCommandGroup(
-        // Step 1: Start spinning up shooter to 4000 RPS
-        new InstantCommand(() -> m_shooter.setSpeed(4000), m_shooter),
-        // Step 2: Wait until shooter reaches target speed
-        new WaitUntilCommand(() -> m_shooter.isReady(4000)),
-        // Step 3: Feed note into shooter
-        new FeedCommand(m_indexer)
-    );
+  private final FlywheelFollower shooter;
+
+  public Shooter(FollowRollersIO shooterFlyWheelIO) {
+    this.shooter = new FlywheelFollower(name + "/Shooter", shooterFlyWheelIO, ShooterConstants.shooterFlywheelConfig);
+  }
+
+  @Override
+  public void periodic() {
+    shooter.periodic();                                                     // inputs, logging, tunables, sim
+  }
+
+  public Command runShooterVelocityTorqueCurrent() {
+    return run(() -> {
+      double clamped = MathUtil.clamp(shooterVelocity.get(), 0.0, 200.0);
+      shooter.setVelocityTorqueCurrent(RotationsPerSecond.of(clamped));
+    });
+  }
+
+  public Command runShooterVelocityTorqueCurrent(AngularVelocity velocity) {
+    return run(() -> shooter.setVelocityTorqueCurrent(velocity));
+  }
+
+  public Command stop() { return runOnce(shooter::stop); }
 }
 ```
 
-<RulesBox title="Tuning Tips" subtitle="For Velocity Control:">
+Note the pattern: `run(...)` commands that keep commanding the velocity every loop while they are scheduled, and `stop()` as a `runOnce`. A shooter is never "set and forget"; the command that wants it spinning owns it for as long as it runs. The `LoggedTunableNumber` setpoint means a mentor can change 85 to 90 from AdvantageScope's tunable editor mid-test without a deploy ([Tunable Constants](/frc/tunable-constants#declaring-a-tunable)).
 
-- **Feedforward (kV):** Most important! Tune this so it reaches target speed (open loop).
-- **Proportional (kP):** Add small P to correct errors and recover speed after shots.
-- **D/I:** Usually not needed for flywheels (inertia provides damping).
-- **Coast Mode:** Prevents rapid deceleration, saving energy and reducing wear.
+### Step 3: the target comes from the pose
+
+The Kit Bot's `runAtDistance` took a distance you typed. Cobra's shooter asks the robot where it is:
+
+```java
+/** Runs shooter to the velocity given by the hub interpolation table */
+public Command runShooterToHub() {
+  return run(() -> {
+    InterpolatedCalculation calculation = BobotState.getHubInterpolator().getCalculation();
+    AngularVelocity velocity = calculation.primaryVelocity();
+    Distance distance = BobotState.getHubInterpolator().getDistanceFromTarget();
+
+    Logger.recordOutput(name + "/ShootAtHub/VelocityRPS", velocity.in(RotationsPerSecond));
+    Logger.recordOutput(name + "/ShootAtHub/DistanceFeet", distance.in(Feet));
+    Logger.recordOutput(name + "/ShootAtHub/TargetPose", BobotState.getHubInterpolator().getTargetPose().get());
+
+    shooter.setVelocityTorqueCurrent(velocity);
+  });
+}
+```
+
+`BobotState`, the [one global](/frc/bobot-state) that gets its own lesson under Cobra Architecture once pose estimation is covered, holds an interpolator per target. Each is an `InterpolatingDoubleTreeMap` from distance to flywheel velocity, exactly the structure you built in [Kit Bot R07 Part 2](/kit-bot/r07-launcher-io-part-2#from-one-fixed-voltage-to-a-calibration-table), with the distance computed every loop from the estimated pose to the target's field position. The shooter never knows about poses or targets; it asks for a velocity and logs why it chose it. The logging is what makes the table tunable at an event: `ShootAtHub/DistanceFeet` next to `ShootAtHub/VelocityRPS` next to whether the shot went in.
+
+### Step 4: readiness, as a Trigger
+
+Firing is a sequence (spin up, wait until fast enough, feed), and the "fast enough" is a `Trigger`, not a boolean method, so command groups can wait on it:
+
+```java
+public Trigger isShooterFlywheelNearRPS(AngularVelocity target, AngularVelocity tolerance) {
+  return new Trigger(() -> this.shooter.getInputs().leaderVelocity.isNear(target, tolerance));
+}
+
+public Trigger isNearHubVelocity(AngularVelocity tolerance) {
+  return new Trigger(() -> this.shooter.getInputs().leaderVelocity
+      .isNear(BobotState.getHubInterpolator().getCalculation().primaryVelocity(), tolerance));
+}
+```
+
+Which lets a scoring command read as the sequence it is:
+
+```java
+public Command scoreAtHub() {
+  return shooter.runShooterToHub()
+      .alongWith(
+          Commands.waitUntil(shooter.isNearHubVelocity(RotationsPerSecond.of(1.0)))
+              .andThen(feeder.feed()))
+      .finallyDo(() -> feeder.stop());
+}
+```
+
+The shooter keeps tracking the interpolated velocity for the whole command (the robot may be moving); the feeder waits for the Trigger, then runs; ending the command stops the feeder. [Command Groups](/frc/command-groups) is the grammar.
+
+### Step 5: watch it in simulation
+
+`RobotContainer` gives the shooter a `FollowRollersIOSimTalonFX(ShooterConstants.flywheelFollowersConfigSim)` in `SIM`. Launch, connect AdvantageScope, and check the keys below (the subsystem's `name` begins with a slash in the code, so the tree may show one extra empty level above `Shooter`; search for `VelocitySetpointRPS` if you cannot find it):
+
+<ContentTable
+  headers={["Tab", "Keys", "What you are checking"]}
+  rows={[
+    ["Line Graph", "<code>RealOutputs/Shooter/Shooter/VelocitySetpointRPS</code>, <code>…/Leader/VelocityRPS</code>, <code>…/Follower/VelocityRPS</code>", "Bind <code>runShooterVelocityTorqueCurrent()</code> to a button. Spin-up should ramp at the Motion Magic acceleration and settle within a rotation per second. Leader and follower lines should be on top of each other; a gap suggests an inverted or disconnected follower"],
+    ["Line Graph", "<code>Shooter/Shooter/LeaderSupplyCurrentAmps</code>", "A spike at spin-up, then a small steady current. The steady value is kS + kV × velocity, in amps, because that is the control mode"],
+    ["Discrete fields", "<code>RealOutputs/Shooter/CurrentInterpolator</code>", "Bind <code>runShooterToHub()</code>; the band reads HUB while it runs"],
+    ["Line Graph + 2D Field", "<code>…/ShootAtHub/DistanceFeet</code>, <code>…/ShootAtHub/VelocityRPS</code>, <code>RealOutputs/Odometry/Global</code>", "Drive the simulated robot toward and away from the hub: distance changes with the pose and velocity follows the table. A velocity that does not change is an interpolator with one entry"],
+    ["Line Graph", "Change <code>Shooter/ShooterVelocity</code> in the tunable editor", "The setpoint line moves without a redeploy. Put it back"]
+  ]}
+/>
+
+For the readiness Trigger, add a `Logger.recordOutput(name + "/Ready", …)` line in `periodic` (or log the feeder's state) and confirm on the discrete strip that feeding starts only after the velocity line has settled, not during the ramp. That single graph is the difference between a shooter that scores and one that lobs the first ball short every time.
+
+<RulesBox title="Common mistakes">
+
+- **Feeding on a timer instead of a Trigger.** Spin-up time depends on battery voltage and starting speed; only the measured velocity knows when it is ready.
+- **kS/kV in volts on a torque-current mechanism.** Same names, different units. The numbers are an order of magnitude apart.
+- **Brake mode on a flywheel.** Fights every decel, cooks the motor for nothing.
+- **Reading only the leader.** The follower has its own inputs for a reason. Graph both.
+- **A one-entry interpolation table.** It works at one distance and nowhere else, and simulation shows it the moment the robot moves.
 
 </RulesBox>
 
-### State Management
+<Sources items={[
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "The subsystem: setpoint from <code>BobotState</code>, readiness <code>Trigger</code>s."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/ShooterConstants.java", "note": "Flywheel config, <code>robotToShooter</code>, current limits."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/flywheel/FlywheelFollower.java", "note": "Leader/follower flywheel on the library."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollers.java", "note": "The follower mechanism base."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollersIO.java", "note": "Its IO interface."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollersIOSimTalonFX.java", "note": "The simulated pair."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/math/interpolation/ShootingInterpolator.java", "note": "Distance to RPM/angle tables."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/interpolation/HubInterpolator.java", "note": "The hub table and lookahead."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "Where the shot setpoints are computed each loop."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "The pose and velocity the setpoint depends on."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/closed-loop-requests.html", "note": "<code>VelocityTorqueCurrentFOC</code> and follower control."},
+  {"source": "wpilib", "path": "docs/software/commandbased/binding-commands-to-triggers.html", "note": "Readiness as a <code>Trigger</code>."}
+]} />
 
-Shooters often need a state machine: **Idle** → **SpinUp** → **Ready** → **Fire**. Use commands and the `isReady()` method to manage these states and coordinate with other mechanisms.
-
-### Practice with WPILib Documentation
-
-WPILib provides tuning documentation for velocity controllers, including feedforward control strategies essential for flywheels. Use these guides to practice tuning velocity controllers and understanding feedforward principles.
-
-<LinkGrid links={[{"label":"Elevator Example","id":"elevator-example"},{"label":"PID Control","id":"frc-pid-control"},{"label":"WPILib: Feedforward Control (Practice)","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/feedforward.html"}]} title="Resources" section="frc" />
-
+<LinkGrid links={[
+  {"label":"Elevator Example","id":"elevator-example"},
+  {"label":"Reading Our Robot Code","id":"team-robot-code"},
+  {"label":"Command Groups","id":"command-groups"},
+  {"label":"PID Tuning Practice - Shooter","id":"pid-tuning-practice-shooter"},
+  {"label":"Kit Bot R07 Part 2: the calibration table","url":"/kit-bot/r07-launcher-io-part-2#from-one-fixed-voltage-to-a-calibration-table"},
+  {"label":"CTRE: Torque current control","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/closed-loop-requests.html"}
+]} title="Resources" section="frc" />

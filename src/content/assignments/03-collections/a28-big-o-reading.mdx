@@ -1,0 +1,131 @@
+---
+title: "A28: Big-O Reading"
+lessonId: a28-big-o-reading
+section: assignments
+group: collections
+groupLabel: "Track 3 — Collections"
+groupOrder: 3
+order: 28
+difficulty: intermediate
+duration: 60–90 min
+description: Tag ten snippets by complexity, then prove yourself right — or wrong — with a stopwatch.
+---
+
+**Topic:** recognising algorithmic complexity at sight, and checking it empirically.
+**Cites:** [Big-O and Reading Complexity](/java/java-big-o), [Searching](/java/java-algo-searching), [Sets and Maps](/java/java-ds-sets-maps).
+**Difficulty:** medium. **Estimated time:** 60–90 minutes.
+
+### Scenario
+
+This is a reading assignment before it is a writing one. Ten short snippets; tag each
+with its complexity and say why in one sentence.
+
+The skill being built is narrow and valuable: looking at five lines and *immediately*
+knowing whether they are O(1), O(n) or O(n²). That instinct is what stops you from
+putting a 50 ms algorithm inside a loop that runs every 20 ms — which is a bug that
+looks like "the robot feels laggy" and never like a stack trace.
+
+### Part 1 — tag the snippets
+
+For each of the ten methods in the starter, write a comment above it giving:
+
+1. The complexity in terms of `n`
+2. One sentence on why
+3. Whether best, average and worst differ
+
+The snippets are already written; the `// TAG:` lines are where your answers go. Nothing
+in the editor grades these — that is the point. Getting them right is between you and
+the timing table in Part 2.
+
+<ContentTable
+  headers={["Snippet", "What it does"]}
+  rows={[
+    ["<code>a</code>", "Reads the first and last element"],
+    ["<code>b</code>", "Sums every element"],
+    ["<code>c</code>", "Linear search, returning on the first hit"],
+    ["<code>d</code>", "Nested loop, both bounds <code>arr.length</code>"],
+    ["<code>e</code>", "Nested loop, inner starting at <code>i + 1</code>"],
+    ["<code>f</code>", "Divides <code>n</code> by 2 until it reaches 1"],
+    ["<code>g</code>", "Binary search"],
+    ["<code>h</code>", "Naive recursive Fibonacci"],
+    ["<code>i</code>", "An <code>n</code> loop around a doubling loop"],
+    ["<code>j</code>", "Builds a distinct list using <code>List.contains</code>"]
+  ]}
+/>
+
+### Part 2 — make one tag pay off
+
+Snippet `j` is the one with a fix. `List.contains` is O(n) and it runs once per element,
+so the whole thing is quadratic. Rewrite it:
+
+- **`jFast(int[])`** — the same distinct values in the same first-occurrence order, with
+  a `HashSet` doing the membership test. O(1) average per check makes the whole method
+  linear.
+- **`median(long[])`** — the median of the samples, the mean of the middle two when the
+  count is even, **without reordering the caller's array**. Timing noise is the entire
+  reason you take a median rather than one reading.
+
+`main` then times three snippets at three sizes using your `median`, and prints the
+table.
+
+<RulesBox title="How the browser version differs" items={[
+  "The full assignment times at n = 1 000, 10 000 and 100 000. Here the sizes are <strong>500, 1 000 and 2 000</strong>, and the median is over 3 runs rather than 5: a quadratic snippet at n = 100 000 is ten billion operations, which is a long wait anywhere and an unreasonable one in a browser tab.",
+  "<code>h</code> is not timed at all, at any size. Work out from your own tag why not — the answer is the whole reason that snippet is on the list.",
+  "The browser's timings are noisier than a local JVM's, and CheerpJ warms up differently. <strong>Read the ratios, not the digits</strong>, and do the careful version of this part locally on Java 25."
+]} />
+
+
+<RulesBox title="Plan it as sessions" items={[
+  "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>jFast returns exactly what j returned</em>, <em>jFast keeps first-occurrence order</em>, <em>median handles an odd and an even count</em>.",
+  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>median sorts a copy, not the caller’s array</em>, <em>The timing table runs all three snippets at all three sizes</em>."
+]} />
+
+<JavaPlayground id="a28-big-o-reading" />
+
+<RulesBox title="Hints" items={[
+  "<strong>A triangular nested loop is still O(n²).</strong> Snippet <code>e</code> runs about n²/2 iterations. Dropping the constant leaves n². The inner bound changes the constant, never the class — which is exactly what Big-O is for.",
+  "<strong>Halving means log.</strong> Snippet <code>f</code> divides by 2 until it hits 1, so it runs log₂(n) times. The inner loop of snippet <code>i</code> has the same shape, and multiplying it by the outer loop is where n log n comes from.",
+  "<strong><code>Set.add</code> returns a boolean.</strong> <code>true</code> if the value was not already there. That single return value collapses the check and the insert into one line — and is why <code>jFast</code> is shorter than <code>j</code>, not just faster.",
+  "<strong>Sort a copy in <code>median</code>.</strong> <code>Arrays.copyOf</code> then <code>Arrays.sort</code>. Sorting the caller's array is a side effect nobody asked for, and a check here is watching for exactly that.",
+  "<strong>What the ratios should look like.</strong> Doubling n roughly doubles an O(n) time, roughly quadruples an O(n²) one, and adds a constant to an O(log n) one. If your tag and your timings disagree, one of them is wrong, and finding out which is the most valuable part of this assignment.",
+  "<strong>The first measurement is always the slowest.</strong> The JIT has not compiled anything yet. That is why the methodology is a median over several runs, and why your first row often looks wrong."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Tags", "50", "At least 8 of the 10 correct. Each carries a one-sentence reason. Best / average / worst noted where they differ — which is only some of them."],
+    ["Empirical timings", "30", "Three snippets timed at three sizes, printed as a clean table, median of several runs rather than a single reading."],
+    ["Surprises", "10", "Any prediction the timings contradicted, written down and explained. If every prediction held, say so and cite the ratios that confirm it."],
+    ["Code quality", "5", "<code>jFast</code> uses a <code>HashSet</code> and keeps first-occurrence order. <code>median</code> leaves its argument alone."],
+    ["Comments", "5", "Author header, and the tag comments live above the snippets rather than in a separate block."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Time `j` against `jFast` at the same three sizes and watch the gap widen. That is the
+  assignment's whole argument in one table — one tag, one rewrite, a different curve.
+- Add a snippet of your own that mixes two shapes the ten do not cover: two sequential
+  O(n) loops (still O(n) — the reason why is worth writing down), or an O(n) loop around
+  an O(log n) recursion.
+- Take `h` and memoize it, then time `h(35)` before and after. Then work out what the
+  complexity became, and why it is not obvious from the code any more.
+
+### References
+
+- JavaDoc: [`System.nanoTime`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/System.html#nanoTime())
+- JavaDoc: [`java.util.HashSet<E>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashSet.html)
+- Wikipedia: [Big O notation](https://en.wikipedia.org/wiki/Big_O_notation)
+- Wikipedia: [Analysis of algorithms](https://en.wikipedia.org/wiki/Analysis_of_algorithms)
+- Wikipedia: [Amortized analysis](https://en.wikipedia.org/wiki/Amortized_analysis) — why `ArrayList.add` is O(1) despite occasionally copying everything
+
+<Sources items={[
+  {"source": "csce146", "note": "Algorithm analysis."},
+  {"url": "/java/java-big-o", "label": "Big-O in the Java track", "note": "The lesson this assignment follows."},
+  {"source": "java-api", "path": "java.base/java/util/HashSet.html", "note": "<code>HashSet</code>: constant-time <code>contains</code>."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code>: linear <code>contains</code>."}
+]} />

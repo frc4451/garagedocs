@@ -5,15 +5,19 @@ import CodeBlock from '@/components/blocks/CodeBlock.astro';
 import CodeTab from '@/components/blocks/CodeTab.astro';
 import CodeTabs from '@/components/blocks/CodeTabs.astro';
 import ExerciseBox from '@/components/blocks/ExerciseBox.astro';
+import IpCalculator from '@/components/blocks/IpCalculator.astro';
 import LinkGrid from '@/components/blocks/LinkGrid.astro';
 import DataTypesGrid from '@/components/blocks/DataTypesGrid.astro';
 import LogicalOperators from '@/components/blocks/LogicalOperators.astro';
 import ContentTable from '@/components/blocks/ContentTable.astro';
 import TextBlock from '@/components/blocks/TextBlock.astro';
 import YouTubeEmbed from '@/components/blocks/YouTubeEmbed.astro';
+import Sources from '@/components/blocks/Sources.astro';
+import JavaPlayground from '@/components/java-playground/JavaPlayground.astro';
 
 export const components: MDXComponents = {
   TextBlock,
+  JavaPlayground,
   YouTubeEmbed,
   RulesBox,
   StepsBox,
@@ -21,9 +25,11 @@ export const components: MDXComponents = {
   CodeTab,
   CodeTabs,
   ExerciseBox,
+  IpCalculator,
   LinkGrid,
   DataTypesGrid,
   LogicalOperators,
   ContentTable,
+  Sources,
   EmphasisBox: RulesBox,
 };

@@ -7,13 +7,13 @@ groupLabel: "Concurrency and Multithreading"
 groupOrder: 9
 order: 1
 difficulty: advanced
-duration: 30 min
+duration: 25 min
 description: Running more than one piece of code at a time, starting and joining threads, and why concurrent programs are harder to reason about.
 ---
 
 ### Doing two things at once
 
-Everything you have written so far runs one statement after another. A **thread** is an independent line of execution — with several, parts of your program run at the same time.
+Everything you have written so far runs one statement after another. A **thread** is an independent line of execution; with several, parts of your program run at the same time.
 
 The typical reason is that one task should not block another. Reading a slow sensor, processing a camera frame, or waiting on a network response can all proceed while the rest of the program keeps going.
 
@@ -35,12 +35,12 @@ The output interleaves, and **the exact order changes between runs**. That unpre
 
 <RulesBox title="start(), not run()">
 
-```java
+```java norun
 worker.start();      // runs on a NEW thread
-worker.run();        // runs on the CURRENT thread — just a normal method call
+worker.run();        // runs on the CURRENT thread: a normal method call
 ```
 
-Calling `run()` compiles and executes the code, but sequentially, with no second thread. Nothing appears wrong; you simply do not get concurrency. This is the single most common beginner mistake here.
+Calling `run()` compiles and executes the code, but sequentially, with no second thread. Nothing appears wrong; you do not get concurrency. This is the single most common beginner mistake here.
 
 </RulesBox>
 
@@ -48,27 +48,27 @@ Calling `run()` compiles and executes the code, but sequentially, with no second
 
 Three forms, all equivalent in effect:
 
-```java
-// 1. lambda — clearest for short tasks
+```java norun
+// 1. lambda: clearest for short tasks
 Thread t = new Thread(() -> System.out.println("hello"));
 
 // 2. a Runnable stored first
 Runnable task = () -> System.out.println("hello");
 Thread t = new Thread(task);
 
-// 3. extending Thread — rarely the right choice
+// 3. extending Thread: rarely the right choice
 class Worker extends Thread {
     @Override public void run() { System.out.println("hello"); }
 }
 ```
 
-Prefer the first two. Extending `Thread` spends your one inheritance slot and couples the task to the mechanism running it — the task is a `Runnable`, and how it is executed should be a separate decision.
+Prefer the first two. Extending `Thread` spends your one inheritance slot and couples the task to the mechanism running it. The task is a `Runnable`, and how it is executed should be a separate decision.
 
 ### Waiting for a thread
 
 `start()` returns immediately. To wait for a thread to finish, `join()` it:
 
-```java
+```java norun
 Thread worker = new Thread(() -> {
     heavyCalculation();
 });
@@ -81,7 +81,7 @@ System.out.println("both done");
 
 `join()` throws `InterruptedException`, so it must be handled:
 
-```java
+```java norun
 try {
     worker.join();
 } catch (InterruptedException e) {
@@ -101,7 +101,7 @@ try {
 }
 ```
 
-`sleep` pauses the current thread. It is useful for pacing a loop, but it is **not** a synchronisation tool — sleeping "long enough" for another thread to finish is a guess that will eventually be wrong.
+`sleep` pauses the current thread. It is useful for pacing a loop, but it is **not** a synchronisation tool; sleeping "long enough" for another thread to finish is a guess that will eventually be wrong.
 
 ### Why this is hard
 
@@ -110,14 +110,14 @@ Concurrency introduces a class of bug that sequential code cannot have.
 <RulesBox title="What makes concurrent code difficult">
 
 - **Non-determinism.** The interleaving differs each run, so a bug may appear once in a thousand executions and never under a debugger.
-- **Shared state.** Two threads touching the same variable can corrupt it, even for operations that look atomic. See [Race Conditions](/java/java-race-conditions).
+- **Shared state.** Two threads touching the same variable can corrupt it, even for operations that look atomic. See [Race Conditions](/java/java-race-conditions#a-counter-that-loses-count).
 - **Visibility.** A change made by one thread is not guaranteed to be seen by another without proper synchronisation.
 - **Deadlock.** Two threads can each wait for something the other holds, and both stop forever.
 - **Testing is unreliable.** Passing a test proves the bug did not happen *this time*.
 
 </RulesBox>
 
-Because of this, the guiding principle is to share as little mutable state as possible. A thread working only on its own data is straightforward; the trouble starts when two threads write the same thing.
+Because of this, the guiding principle is to share as little mutable state as possible. A thread working only on its own data needs no locking; the trouble starts when two threads write the same thing.
 
 ### Thread states
 
@@ -139,23 +139,23 @@ Because of this, the guiding principle is to share as little mutable state as po
 
 A daemon thread does not keep the program alive:
 
-```java
+```java norun
 Thread background = new Thread(this::pollSensor);
 background.setDaemon(true);           // must be set BEFORE start()
 background.start();
 ```
 
-Java exits when all non-daemon threads finish. Use daemon threads for background work that should not prevent shutdown — and remember they are killed abruptly, so never use one for work that must complete.
+Java exits when all non-daemon threads finish. Use daemon threads for background work that should not prevent shutdown, and remember they are killed abruptly, so never use one for work that must complete.
 
 ### A note on robot code
 
-FTC and FRC frameworks call your code on a fixed loop, usually every 20 milliseconds. That loop is already the concurrency model, and adding threads is usually the wrong instinct.
+The FTC SDK and WPILib both call your code on a fixed loop, usually every 20 milliseconds. That loop is already the concurrency model, and adding threads is usually the wrong instinct.
 
 <RulesBox title="Before adding a thread to robot code">
 
 - **Blocking the main loop is the real problem.** If a task takes too long, the fix is usually to break it into steps across loop iterations rather than to spawn a thread.
 - **Hardware access is often not thread-safe.** Reading a motor or sensor from two threads can produce garbage or throw.
-- **The framework may already provide a mechanism** — a notifier, a separate vision thread, an async command. Use that instead of a raw `Thread`.
+- **The framework may already provide a mechanism:** a notifier, a separate vision thread, an async command. Use that instead of a raw `Thread`.
 
 Genuine cases exist, mainly long-running independent work like image processing. Even then, share as little as possible with the main loop and share it safely.
 
@@ -168,10 +168,12 @@ Genuine cases exist, mainly long-running independent work like image processing.
 - **Swallowing `InterruptedException`** without restoring the flag.
 - **Using `sleep` to coordinate threads.** Use `join` or a proper synchroniser.
 - **`setDaemon` after `start()`**, which throws `IllegalThreadStateException`.
-- **Starting the same `Thread` twice.** Also throws — create a new one.
-- **Creating threads in a loop.** Each carries real cost; use a pool. See [Executors and Thread Pools](/java/java-executors).
+- **Starting the same `Thread` twice.** Also throws; create a new one.
+- **Creating threads in a loop.** Each carries real cost; use a pool. See [Executors and Thread Pools](/java/java-executors#the-problem-with-new-thread).
 
 </RulesBox>
+
+<JavaPlayground id="java-threads-basics" />
 
 <ExerciseBox title="Practice">
 
@@ -184,7 +186,7 @@ Genuine cases exist, mainly long-running independent work like image processing.
 <details>
 <summary>Hints</summary>
 
-1. Run it at least five times — a single run proves nothing about ordering.
+1. Run it at least five times; a single run proves nothing about ordering.
 2. `join()` after the main loop.
 3. Print a timestamp before and after to see the overlap.
 4. This is the mistake worth making deliberately once.
@@ -202,6 +204,16 @@ Genuine cases exist, mainly long-running independent work like image processing.
     { "label": "Executors and Thread Pools", "id": "java-executors" }
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "java-tutorial", "path": "essential/concurrency/index.html", "note": "Concurrency tutorial."},
+  {"source": "java-api", "path": "java.base/java/lang/Thread.html", "note": "<code>Thread</code>: <code>start</code>, <code>join</code>, <code>sleep</code>, daemon threads."},
+  {"source": "java-api", "path": "java.base/java/lang/Runnable.html", "note": "<code>Runnable</code>."},
+  {"source": "jls", "path": "jls-17.html", "note": "Threads and locks (chapter 17)."},
+  {"source": "java-api", "path": "java.base/java/lang/InterruptedException.html", "note": "<code>InterruptedException</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."}
+]} />
 
 <LinkGrid
   title="Related"

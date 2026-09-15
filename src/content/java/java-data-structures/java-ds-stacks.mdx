@@ -28,7 +28,7 @@ Three operations define it:
   ]}
 />
 
-The restriction is the point. Because there are only three things you can do, code using a stack is easy to reason about.
+The restriction is the point. Because there are only three things you can do, code using a stack has few states to reason about.
 
 ### Which class to use
 
@@ -55,7 +55,7 @@ System.out.println(history.size());   // 1
 `Stack` is one of Java's oldest classes and carries two problems:
 
 - Every method is synchronized, which costs speed you almost never need.
-- It extends `Vector`, so it also exposes indexed access like `get(0)` — breaking the restriction that makes a stack useful.
+- It extends `Vector`, so it also exposes indexed access like `get(0)`, breaking the restriction that makes a stack useful.
 
 `ArrayDeque` is faster and only offers stack-appropriate methods when you declare it as a `Deque`. Java's own documentation points to it as the better choice.
 
@@ -67,7 +67,7 @@ One caveat: `ArrayDeque` does not accept `null` elements. That is usually a feat
 
 `pop` and `peek` on an empty `ArrayDeque` throw `NoSuchElementException`. Always check first.
 
-```java
+```java norun
 while (!history.isEmpty()) {
     System.out.println(history.pop());
 }
@@ -75,14 +75,14 @@ while (!history.isEmpty()) {
 
 If you would rather get `null` than an exception, use the polling forms:
 
-```java
+```java norun
 String top = history.poll();     // null when empty, instead of throwing
 String look = history.peekFirst();
 ```
 
 ### Where stacks show up
 
-**Undo history.** Each action gets pushed. Undo pops the most recent one — exactly the behaviour you want.
+**Undo history.** Each action gets pushed. Undo pops the most recent one, which is the behaviour you want.
 
 **Matching brackets.** Push each opening bracket; on a closing bracket, pop and check it matches.
 
@@ -111,13 +111,13 @@ Two checks are easy to forget: popping from an empty stack means a closing brack
 
 **Reversing.** Push everything, then pop everything.
 
-```java
+```java norun
 Deque<Integer> stack = new ArrayDeque<>();
 for (int v : values) stack.push(v);
 while (!stack.isEmpty()) System.out.print(stack.pop() + " ");
 ```
 
-**Method calls.** Java itself uses a stack. Each method call pushes a frame holding its local variables; returning pops it. This is why infinite recursion throws `StackOverflowError` — the call stack has a size limit.
+**Method calls.** Java itself uses a stack. Each method call pushes a frame holding its local variables; returning pops it. This is why infinite recursion throws `StackOverflowError`: the call stack has a size limit.
 
 That connection is worth holding onto: a recursive method and an explicit stack can express the same thing. Deep recursion that overflows can often be rewritten as a loop with a `Deque`.
 
@@ -151,17 +151,19 @@ class IntStack {
 }
 ```
 
-All three operations touch only the last slot, so all three are instant. Growing happens rarely, exactly as in [ArrayLists](/java/java-ds-arraylists).
+All three operations touch only the last slot, so all three are instant. Growing happens rarely, exactly as in [ArrayLists](/java/java-ds-arraylists#how-it-grows).
 
 <RulesBox title="Common mistakes">
 
 - **Popping without checking `isEmpty()`.**
 - **Using `java.util.Stack`** out of habit. Prefer `ArrayDeque` behind a `Deque`.
 - **Pushing `null` into an `ArrayDeque`**, which throws.
-- **Expecting `push` to add at the end.** On a `Deque`, `push` adds at the *front*. Mixing `push` with `addLast` on the same object gives confusing results — pick one style.
+- **Expecting `push` to add at the end.** On a `Deque`, `push` adds at the *front*. Mixing `push` with `addLast` on the same object gives confusing results; pick one style.
 - **Forgetting the final emptiness check** in matching problems.
 
 </RulesBox>
+
+<JavaPlayground id="java-ds-stacks" />
 
 <ExerciseBox title="Practice">
 
@@ -178,11 +180,22 @@ All three operations touch only the last slot, so all three are instant. Growing
 2. Push each character, then pop into a `StringBuilder`.
 3. The method above. Test the tricky cases: `"("`, `")"`, `"([)]"`.
 4. `doAction` pushes; `undo` pops if not empty.
-5. Split on spaces. Push numbers. On an operator, pop two values, apply, push the result. Mind the order — the *first* value popped is the right-hand operand, which matters for subtraction and division.
+5. Split on spaces. Push numbers. On an operator, pop two values, apply, push the result. Mind the order: the *first* value popped is the right-hand operand, which matters for subtraction and division.
 
 </details>
 
 </ExerciseBox>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "dev-java", "path": "api/collections-framework/stacks-queues/", "note": "Stacks and queues."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayDeque.html", "note": "<code>ArrayDeque</code> as a stack."},
+  {"source": "java-api", "path": "java.base/java/util/Stack.html", "note": "Why not <code>Stack</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/StackOverflowError.html", "note": "The call stack."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/Deque.html", "note": "<code>Deque</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."}
+]} />
 
 <LinkGrid
   title="Next"

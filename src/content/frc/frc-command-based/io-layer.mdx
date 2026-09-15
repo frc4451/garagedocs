@@ -3,13 +3,19 @@ title: Hardware Abstraction with IO Layers
 lessonId: io-layer
 section: frc
 group: frc-command-based
-groupLabel: Command-Based Programming
+groupLabel: "Command-Based Programming"
 groupOrder: 3
-order: 8
-difficulty: advanced
-duration: 35 min
+order: 9
+difficulty: intermediate
+duration: 20 min
 description: Putting an interface between a subsystem and its hardware so the same code runs on the robot, in simulation, and against a recorded log.
 ---
+
+<RulesBox title="You have done this in Kit Bot">
+
+You wrote an IO interface, a real and a sim implementation, and the runtime selector in Kit Bot ([R07](/kit-bot/r07-launcher-io), [R08](/kit-bot/r08-drive-io), [R12](/kit-bot/r12-real-vs-sim)). This lesson adds what Cobra adds: AdvantageKit's `@AutoLog` inputs, the `REPLAY` branch, and the naming that makes logs readable.
+
+</RulesBox>
 
 ### The Problem It Solves
 
@@ -25,13 +31,13 @@ The **IO layer** puts one interface between the subsystem and the hardware. The 
 
 <RulesBox title="Three pieces, every time">
 
-- **`XxxIO`** — an interface holding an inputs class and a few methods.
-- **`XxxIOSomething`** — one implementation per hardware or environment: `ModuleIOTalonFX`, `ModuleIOSim`, `VisionIOLimelight`.
-- **`Xxx`** — the subsystem, which holds an `XxxIO` and never names a motor class.
+- **`XxxIO`**: an interface holding an inputs class and a few methods.
+- **`XxxIOSomething`**: one implementation per hardware or environment: `ModuleIOTalonFX`, `ModuleIOSim`, `VisionIOPhoton`.
+- **`Xxx`**: the subsystem, which holds an `XxxIO` and never names a motor class.
 
 </RulesBox>
 
-This pattern comes from Team 6328's AdvantageKit template and is the standard way to structure a subsystem you intend to simulate or replay.
+This pattern comes from Team 6328's AdvantageKit template and is the standard way to structure a subsystem you intend to simulate or replay, which at FRC 4451 is every subsystem. The [Simulation](/frc/simulation-first) group that follows this one is where the `…IOSim` half gets written.
 
 ### The Interface
 
@@ -73,7 +79,7 @@ public interface ModuleIO {
 
 Three things to notice.
 
-**Every method is `default` and empty.** That is deliberate — it means `new ModuleIO() {}` compiles and gives you a working do-nothing implementation, which is exactly what log replay needs.
+**Every method is `default` and empty.** That is deliberate. It means `new ModuleIO() {}` compiles and gives you a working do-nothing implementation, which is what log replay needs.
 
 **The inputs class is plain public fields with defaults.** No getters, no logic. Primitives, arrays, and WPILib geometry types only.
 
@@ -83,7 +89,7 @@ Three things to notice.
 
 `@AutoLog` on the inputs class makes the build generate a companion class called `ModuleIOInputsAutoLogged`. It extends your inputs class and adds the code to write every field to a log and read every field back out.
 
-You never write that class and you do not commit it — it appears in `build/` when you compile. You just use it:
+You never write that class and you do not commit it; it appears in `build/` when you compile. You use it directly:
 
 ```java
 private final ModuleIO io;
@@ -114,7 +120,7 @@ public void periodic() {
 }
 ```
 
-`updateInputs` fills the struct from wherever the data comes from. `processInputs` logs it — **or, in replay, overwrites it from the log**. Everything after those two lines is ordinary code that reads `inputs.something` and cannot tell the difference.
+`updateInputs` fills the struct from wherever the data comes from. `processInputs` logs it, **or, in replay, overwrites it from the log**. Everything after those two lines is ordinary code that reads `inputs.something` and cannot tell the difference.
 
 <RulesBox title="The rule that makes replay work">
 
@@ -124,7 +130,7 @@ After `Logger.processInputs(...)`, the subsystem must only read from `inputs`. N
 // correct
 double velocity = inputs.driveVelocityRadPerSec;
 
-// wrong — invisible to the log, and replay will not reproduce it
+// wrong: invisible to the log, and replay will not reproduce it
 double velocity = driveTalon.getVelocity().getValueAsDouble();
 ```
 
@@ -140,7 +146,7 @@ The `Alert` calls show a second thing the pattern gives you: `driveConnected` is
 Logger.processInputs("Drive/Module" + Integer.toString(index), inputs);
 ```
 
-The first argument becomes the prefix for every field in the struct — `Drive/Module0/drivePositionRad`, `Drive/Module1/turnConnected`, and so on. Four modules each get their own subtree because the index is in the path.
+The first argument becomes the prefix for every field in the struct: `Drive/Module0/drivePositionRad`, `Drive/Module1/turnConnected`, and so on. Four modules each get their own subtree because the index is in the path.
 
 ### Swapping Implementations
 
@@ -177,9 +183,9 @@ switch (Constants.currentMode) {
 }
 ```
 
-`Drive` is constructed identically in all three branches. It has no mode flag and no `if (isSimulation())` — everything mode-specific is in which object gets passed in. See [Simulation Basics](/frc/simulation-basics) for what each mode does.
+`Drive` is constructed identically in all three branches. It has no mode flag and no `if (isSimulation())`; everything mode-specific is in which object gets passed in. See [Simulation First](/frc/simulation-first#the-three-modes) for what each mode does, and [Physics in the IO Layer](/frc/physics-sim-io#the-sim-io-pattern) for what goes inside a `…IOSim`.
 
-`new ModuleIO() {}` looks like a mistake and is the most important line here. It creates an anonymous implementation that overrides nothing, so `updateInputs` leaves the struct untouched — and `Logger.processInputs` then fills it from the log file a line later.
+`new ModuleIO() {}` looks like a mistake and is the most important line here. It creates an anonymous implementation that overrides nothing, so `updateInputs` leaves the struct untouched, and `Logger.processInputs` then fills it from the log file a line later.
 
 ### When To Use It, and When Not
 
@@ -195,7 +201,7 @@ The IO layer costs an interface, an implementation per environment, and an input
   ]}
 />
 
-For a conveyor that runs one motor at one duty cycle, the abstraction usually costs more than it returns. Use `@AutoLogOutput` on that subsystem's getters and setters instead — see [Subsystems](/frc/subsystems) — and accept that its outputs are logged but its inputs are not replayed.
+For a conveyor that runs one motor at one duty cycle, the abstraction usually costs more than it returns. Use `@AutoLogOutput` on that subsystem's getters and setters instead (see [Subsystems](/frc/subsystems#setters-that-return-what-they-set)) and accept that its outputs are logged but its inputs are not replayed.
 
 <RulesBox title="Common mistakes">
 
@@ -207,4 +213,20 @@ For a conveyor that runs one motor at one duty cycle, the abstraction usually co
 
 </RulesBox>
 
-<LinkGrid links={[{"label":"Subsystems","id":"subsystems"},{"label":"AdvantageKit","id":"advantagekit"},{"label":"Simulation Basics","id":"simulation-basics"},{"label":"Swerve Drive","id":"swerve-drive-example"},{"label":"AdvantageKit IO Interfaces","url":"https://docs.advantagekit.org/data-flow/recording-inputs/io-interfaces/"}]} title="Resources" section="frc" />
+<Sources items={[
+  {"source": "advantagekit", "path": "data-flow/recording-inputs/io-interfaces/", "note": "The IO interface pattern and why inputs are a class."},
+  {"source": "advantagekit", "path": "data-flow/recording-inputs/annotation-logging", "note": "<code>@AutoLog</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIO.java", "note": "An IO interface with its inputs class."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOTalonFX.java", "note": "Real implementation."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOSim.java", "note": "Sim implementation."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/GyroIO.java", "note": "Gyro IO interface."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/GyroIOPigeon2.java", "note": "Real gyro."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Module.java", "note": "The class that owns an IO and calls <code>updateInputs</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "Where the module IOs are consumed."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "A library mechanism on the same pattern."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "Choosing the implementation by mode."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "<code>Mode</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/generated/TunerConstants.java", "note": "Constants handed to the module IO."}
+]} />
+
+<LinkGrid links={[{"label":"Subsystems","id":"subsystems"},{"label":"AdvantageKit","id":"advantagekit"},{"label":"Physics in the IO Layer","id":"physics-sim-io"},{"label":"Swerve Drive","id":"swerve-drive-example"},{"label":"AdvantageKit IO Interfaces","url":"https://docs.advantagekit.org/data-flow/recording-inputs/io-interfaces/"}]} title="Resources" section="frc" />

@@ -7,81 +7,69 @@ groupLabel: PID Tuning Practice
 groupOrder: 6
 order: 1
 difficulty: intermediate
-duration: 55 min
-description: ""
+duration: 45 min
+description: "Getting the practice project running in WPILib desktop simulation with Elastic and AdvantageScope open, so the three tuning sessions that follow are edits in a table while a graph updates."
+durationFixed: true
 ---
 
-### Overview
+The three sessions in this group tune an elevator, an arm and a shooter by hand. They run the [Manual Tuning](/frc/manual-pid-tuning) recipes against simulated mechanisms, so the procedure and the habits carry over to the robot and only the numbers change. This page gets the environment running; do it once.
 
-This guide covers setting up the PID tuning practice repository using YAMS simulation. YAMS provides better simulation than the default WPILib examples, which can be buggy and may not always load. The setup includes configuring the simulation, Elastic, and AdvantageScope for live tuning.
+<RulesBox title="Before you start">
 
-### Browser or local?
+Read [Manual Tuning: Every Gain Is Canonical](/frc/manual-pid-tuning) first. Each session below names the recipe it runs and assumes you know the skeleton: zero everything, feedforward first, then `kP`, then `kD`, then verify at other setpoints.
 
-<RulesBox title="Choose your path">
-
-- **Tier 1 — Browser:** Open [PID Simulation](/pid-simulation) on Mantik. No install. Use for classroom labs, Chromebooks, or a first pass at tuning. Pick REV or CTRE and mechanism (**elevator**, **arm**, or **flywheel**) to match your hardware. Elevator/arm: setpoint and kP use motor rotations (V/rot). Flywheel: velocity setpoint in motor rot/s; graph shows wheel RPM.
-- **Tier 2 — Local (this lesson):** Clone [mantik-pid-practice](https://github.com/itkan-robotics/mantik-pid-practice), install WPILib, and run full YAMS simulation with Elastic and AdvantageScope. Use when your team has a dev machine and wants the same tools as the lesson videos.
-
-Both paths teach the same kG → kP workflow. Start in the browser if setup time or IT policy is a constraint; graduate to Tier 2 before tuning on a real robot.
-
-The browser sim (Tier 1) ports WPILib’s [controls_js_sim](https://github.com/wpilibsuite/wpilib-docs/tree/main/source/_extensions/controls_js_sim) elevator loop with vendor-specific motors and rotation-based on-controller PID. Tier 2 adds YAMS and full JVM WPILib sim — closer to the lesson videos.
+You need WPILib installed ([Environment Setup](/frc/environment-setup)), which includes Elastic and AdvantageScope, plus Git and either GitHub Desktop or a command-line clone ([Install Git](/tools/install-git)).
 
 </RulesBox>
 
-### Video Tutorial
+### The practice project
 
-Watch this video for a complete walkthrough of the setup process:
+The sessions use [mantik-pid-practice](https://github.com/itkan-robotics/mantik-pid-practice), a WPILib project with four simulated mechanisms: an elevator, the same elevator under an exponential profile, an arm, and a shooter flywheel. Each is a NEO on a SparkMax driven through the [YAMS](https://github.com/Yet-Another-Software-Suite/YAMS) mechanism library, which publishes the gains as live-tunable numbers and draws the mechanism for AdvantageScope. Gains are in volts: `kP` is volts per metre (elevator) or per degree (arm), `kV` is volts per unit of velocity, and so on. The recipes were written for torque-current amps; the steps are the same and the numbers are much smaller. The project is a 2025 WPILib project, so build it with the 2025 tools or update the vendordeps first.
+
+You can run the same sessions against FRC 4451's own code instead. Every `SingleRoller` in Cobra publishes its gains as tunables and has a simulated TalonFX behind it ([Tunable Constants](/frc/tunable-constants#reacting-to-a-change), [Simulating a TalonFX](/frc/talonfx-simulation)). The practice project is simpler to start with because there is nothing else in it.
+
+### Video walkthrough
 
 <YouTubeEmbed id="7ZNNbFWNo_s" title="PID Practice Setup" />
 
-### Prerequisites
+<StepsBox title="Setup steps">
 
-Before starting, ensure you have:
-
-
-
-• Git installed
-
-• GitHub Desktop installed
-
-• WPILib installed (includes Elastic and AdvantageScope)
-
-• Visual Studio Code with WPILib extension
-
-<StepsBox title="Setup Steps">
-
-1. Navigate to the provided URL. Click the green "Code" button, then select "Open with GitHub Desktop." Choose a location on your C: drive (avoid OneDrive, as WPILib doesn't work well with it). Create a dedicated folder for all your robotics projects to keep everything organized.
-2. Open VS Code. Press `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (Mac) to open the Command Palette. Type "WPILib: Open Folder" and select it. Navigate to the cloned repository folder and click "Add Folder."
-3. Start the simulation. In VS Code, click the WPI button (next to the play button). Alternatively, press `Ctrl+Shift+P` and type "simulate." Select "Simulate Robot Code." Wait for "Build successful" message. Choose "Sim GUI" when prompted (easier than using the real Driver Station, and not everyone has FRC Game Tools downloaded). Click "OK."
-4. Configure Sim GUI. If you don't have a joystick loaded, drag one from slot 16 into the joystick area. Note that the buttons are mapped to Z, X, C, and V keys. Set the mode to Teleoperated.
-5. Open Elastic and AdvantageScope. Both tools should be included with your WPILib installation. These tools will be used for live tuning and visualization.
-6. Select mechanism in Smart Dashboard. Choose which mechanism you want to simulate: arm, elevator, or flywheel. For this example, select "Elevator." Individual tutorials will show you how to tune each mechanism.
-7. Set up Elastic for live tuning. Create a new tab and rename it to "example." Right-click (or use the menu) and select "Add Widget." Search for "live." Navigate to Smart Dashboard → Mechanisms → Commands. Select your mechanism (e.g., "Elevator Subsystem"). Drag the "Live Tuning Command" widget into the tab (top-left corner works well).
-8. Enable Teleoperated mode in Sim GUI. This is the driver-controlled period where tuning will occur. Note: If using Phoenix Tuner with real hardware, you need teleoperated mode enabled and the motor must be allowed to work outside of what the code tells it to do.
-9. Set up AdvantageScope mechanism visualization. Press `Ctrl+Shift+K` (or go to File → Connect to Simulator). Go to the "Mechanism" view. In Smart Dashboard, select your mechanism (e.g., "Elevator") and drag it into AdvantageScope. You'll see a visualization of the mechanism you're coding. Note: This visualization tab isn't necessary when using Phoenix Tuner with real hardware, as you'll have the actual mechanism in front of you.
-10. Create line graph in AdvantageScope. Connect to the simulator and go to "Line Graph." Search for "position." Based on your mechanism:
-   - For elevator: "elevator/position" and "elevator/velocity"
-   - For flywheel: search for the corresponding position and velocity values
-11. Drag these values into the graph. Note: In Phoenix Tuner, look for "Rotor Position" and "Velocity" to graph. REV Hardware Client should be similar.
-12. Enable tuning mode. In AdvantageScope, go to "Tuning" and click the button next to the search bar to make all values publishable (editable). You can now change values like max velocity. These same values in Phoenix Tuner are under the Config tab: go to the top of your motor, click the config button, find the motor settings, and scroll down to see parallels with these values. REV Hardware Client should be similar.
-13. Configure graph view. Zoom the graph to show about 1-2 seconds of data (otherwise it can be confusing).
-   - Use your scroll wheel to zoom in and out
-   - If using a touchpad, swipe up and down with two fingers
-   - To pause the graph, click the pause button
-   - To scrub through time, left-click and drag along the timeline axis
-   - To resume, click the play button again
-14. Start live tuning. Ensure you're in teleoperated mode. Click the "Live Tuning" button in Elastic. When it turns blue, live tuning is active. You can now start tuning your mechanism. Watch the mechanism-specific tutorial videos for detailed tuning instructions.
+1. Clone the repository. On the GitHub page, use the green *Code* button and *Open with GitHub Desktop*, or clone from a terminal. Put it somewhere on the local drive, not in OneDrive or another synced folder; WPILib builds are unreliable there.
+2. Open it in the WPILib copy of VS Code: `Ctrl+Shift+P`, *WPILib: Open Folder*, choose the cloned folder.
+3. Start the simulation: the WPILib button, or `Ctrl+Shift+P` and *WPILib: Simulate Robot Code*. Wait for *Build successful*, then choose *Sim GUI*. The Sim GUI is a stand-in for the Driver Station and does not need the FRC Game Tools installed ([Running the Simulator](/frc/running-the-simulator)).
+4. In the Sim GUI, drag a keyboard joystick from the *System Joysticks* list into slot 0 if none is loaded. Its buttons are mapped to the Z, X, C and V keys.
+5. Choose a mechanism. The project publishes a chooser to SmartDashboard; pick *Elevator* for the first session.
+6. Open Elastic and add a *Live Tuning Command* widget: new tab, *Add Widget*, then SmartDashboard, Mechanisms, Commands, the mechanism's subsystem. This is the switch that lets you edit gains while the code runs.
+7. Open AdvantageScope and connect to the simulator (*File*, *Connect to Simulator*, or `Ctrl+Shift+K`). Open a *Mechanism* tab and drag the mechanism's entry from SmartDashboard onto it. This is the drawing of the mechanism.
+8. Open a *Line Graph* tab. Under the mechanism's entry, drag `measurement/position` and `closedloop/setpoint/position` onto the left axis, so commanded and measured share a scale ([commanded versus measured](/frc/advantagescope-sim#the-line-graph-commanded-versus-measured)), and `motor/outputVoltage` onto the right axis. The velocity pair (`measurement/velocity`, `closedloop/setpoint/velocity`) goes on a second graph, or on this one when a session asks for it.
+9. Zoom the graph to a window of one to two seconds. Scroll to zoom; drag along the time axis to scrub; the pause button freezes it while you read a value.
+10. In the AdvantageScope *Tuning* tab, enable publishing (the button next to the search box) so the gain fields become editable. The gains are under `closedloop/feedback` (`kP`, `kI`, `kD`) and `closedloop/feedforward` (`kS`, `kV`, `kA`, `kG`); the profile limits are under `closedloop/motionprofile`. The same fields exist in Phoenix Tuner's *Config* tab and in the REV Hardware Client when you move to hardware.
+11. Set the Sim GUI to *Teleoperated* and press the *Live Tuning* button in Elastic. It turns blue while tuning is active. Pressing a joystick button turns it off again; turn it back on before editing a gain.
 
 </StepsBox>
 
-<RulesBox title="Important Notes">
+<RulesBox title="Two things to check before every session">
 
-- This setup works the same way regardless of which dashboard or graphing tool you're using.
-- If using Phoenix Tuner with real hardware, keep teleoperated mode enabled and allow motors to run outside code control.
-- The mechanism visualization in AdvantageScope isn't needed when using Phoenix Tuner with physical hardware.
-- YAMS simulation is more reliable than default WPILib simulation examples.
+- The graph shows **setpoint and measurement on one axis**. If you cannot see both, you cannot see error, and every recipe is about error.
+- **All gains are zero.** A value left from the last session hides the effect of the one you are finding. The recipes say to zero everything first; do it in the tuning table, not from memory.
 
 </RulesBox>
 
-<LinkGrid links={[{"label":"Try in browser","url":"/pid-simulation"},{"label":"PID Control","id":"frc-pid-control"},{"label":"PID Tuning Practice - Elevator","id":"pid-tuning-practice-elevator"},{"label":"Elastic Dashboard","id":"elastic-basics"},{"label":"AdvantageScope","id":"advantagescope"},{"label":"GitHub Repository","url":"https://github.com/itkan-robotics/mantik-pid-practice"}]} title="Resources" section="frc" />
+### On the real robot
 
+The same sessions transfer to hardware with the vendor tool in place of the tuning table. In Phoenix Tuner the gains are on the *Config* tab and the graph is *Rotor Position* and *Velocity*; the robot must be enabled in the Driver Station, and Tuner's control must be allowed to take over from the code. The REV Hardware Client is arranged the same way. The mechanism drawing is unnecessary on hardware, since the mechanism is in front of you; the line graph is not, since overshoot at the speeds a tuned mechanism reaches is hard to see and easy to measure.
+
+<Sources items={[
+  {"url": "https://github.com/itkan-robotics/mantik-pid-practice", "label": "mantik-pid-practice", "note": "The practice project: four YAMS mechanisms in WPILib simulation."},
+  {"url": "https://github.com/itkan-robotics/mantik-pid-practice/blob/main/src/main/java/frc/robot/subsystems/ElevatorSubsystem.java", "label": "mantik-pid-practice ElevatorSubsystem.java", "note": "NEO on SparkMax, 12:1, 16 lb, 0.5 m start."},
+  {"url": "https://github.com/Yet-Another-Software-Suite/YAMS", "label": "YAMS", "note": "The mechanism library the project is built on; the telemetry keys named on this page."},
+  {"url": "https://github.com/Yet-Another-Software-Suite/YAMS/blob/master/yams/java/yams/telemetry/SmartMotorControllerTelemetry.java", "label": "YAMS SmartMotorControllerTelemetry.java", "note": "<code>measurement/*</code>, <code>closedloop/setpoint/*</code>, <code>closedloop/feedback/*</code>, <code>motor/outputVoltage</code>."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/simulation-gui.html", "note": "The Sim GUI and keyboard joystick."},
+  {"source": "advantagescope", "path": "overview/live-sources/", "note": "Connecting AdvantageScope to the simulator; tuning mode."},
+  {"url": "https://frc-elastic.gitbook.io/docs", "label": "Elastic docs", "note": "Adding a command widget."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "Running the same sessions against the team's code."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFX.java", "note": "The simulated TalonFX behind it."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "Tuning mode."}
+]} />
+
+<LinkGrid links={[{"label":"Manual Tuning: Every Gain Is Canonical","id":"manual-pid-tuning"},{"label":"PID Tuning Practice - Elevator","id":"pid-tuning-practice-elevator"},{"label":"Running the Simulator","id":"running-the-simulator"},{"label":"Elastic Dashboard","id":"elastic-basics"},{"label":"Watching Simulation in AdvantageScope","id":"advantagescope-sim"},{"label":"mantik-pid-practice","url":"https://github.com/itkan-robotics/mantik-pid-practice"}]} title="Next" section="frc" />

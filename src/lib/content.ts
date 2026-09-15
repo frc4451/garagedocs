@@ -1,7 +1,7 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
 import type { SectionId } from '@/config/navigation';
 
-export type LessonEntry = CollectionEntry<'java' | 'ftc' | 'frc' | 'comp'>;
+export type LessonEntry = CollectionEntry<'tools' | 'java' | 'assignments' | 'kit-bot' | 'frc'>;
 
 export interface SidebarGroup {
   id: string;

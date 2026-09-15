@@ -19,16 +19,6 @@ const SOURCES = [
     major: 'frc',
     defaultMinor: 'General',
   },
-  {
-    file: 'src/content/ftc/onbot-java-setup/onbot-java-setup.mdx',
-    major: 'ftc',
-    defaultMinor: 'OnBot Java Setup',
-  },
-  {
-    file: 'src/content/ftc/android-studio-setup/android-studio-setup.mdx',
-    major: 'ftc',
-    defaultMinor: 'Android Studio Setup',
-  },
 ];
 
 const LINKGRID_RE =
@@ -46,7 +36,7 @@ function resolveUrl(link, section) {
   if (link.url) return link.url;
   if (link.id) {
     const sec = section || 'frc';
-    if (['java', 'ftc', 'frc', 'comp'].includes(link.id)) return `/${link.id}`;
+    if (['java', 'frc'].includes(link.id)) return `/${link.id}`;
     return `/${sec}/${link.id}`;
   }
   return null;
@@ -123,7 +113,7 @@ function extractLessonIntro(mdxPath) {
 }
 
 function lessonIntroFromUrl(url) {
-  const match = url.match(/^\/(java|ftc|frc|comp)\/([^/?#]+)$/);
+  const match = url.match(/^\/(java|frc)\/([^/?#]+)$/);
   if (!match) return null;
   const [, section, lessonId] = match;
   const mdxPath = findLessonMdx(section, lessonId);

@@ -1,0 +1,131 @@
+---
+title: "How a Network Works"
+lessonId: how-a-network-works
+section: tools
+group: networking
+groupLabel: "Networking"
+groupOrder: 2
+order: 1
+difficulty: beginner
+description: "Understand IPv4 addresses, subnet masks, DHCP, name resolution, ports, and MAC addresses."
+---
+
+### Why learn this at all
+
+Ethernet and Wi-Fi devices use addresses and protocols to exchange data. This page explains the concepts used in [Network diagnostics](/tools/network-diagnostics) and [Setting a static IP](/tools/static-ip).
+
+None of this is specific to robots. The FRC track applies it to a robot's network in [The Robot Network](/frc/robot-network).
+
+### Addresses
+
+An **IPv4 address** is written as four numbers from 0 to 255, such as `192.168.1.42`. IP uses addresses to identify the source and destination of packets. A network interface can have more than one address, and addresses can change. IPv6 uses a different format; the examples here use IPv4.
+
+The following ranges have different purposes. The first three are private address ranges; link-local and loopback addresses are separate categories.
+
+<ContentTable
+  headers={["Range", "Where you meet it"]}
+  rows={[
+    ["<code>192.168.x.x</code>", "Common on home and shop networks"],
+    ["<code>10.x.x.x</code>", "Larger organisations, and FRC robots (<code>10.TE.AM.x</code>)"],
+    ["<code>172.16.x.x</code> – <code>172.31.x.x</code>", "Less common; the roboRIO's USB connection lives at <code>172.22.11.2</code>"],
+    ["<code>169.254.x.x</code>", "IPv4 link-local addresses, often assigned when a DHCP lease is unavailable"],
+    ["<code>127.0.0.1</code>", "Loopback: this computer. A server listening only on loopback cannot accept direct connections from other computers"]
+  ]}
+/>
+
+A `169.254.x.x` address can support communication on the local link. It often appears when automatic configuration cannot obtain a DHCP lease; it does not mean the device is alone. `127.0.0.1` refers to the computer itself. See [IPv4 link-local addressing](https://www.rfc-editor.org/rfc/rfc3927.html).
+
+### The subnet mask and local addresses
+
+The **subnet mask** identifies the network portion of an IPv4 address. The laptop uses its address, mask, and routing table to decide whether a destination is on a directly connected network or needs a router.
+
+<ContentTable
+  headers={["Mask", "Also written", "Network part", "Devices that count as local"]}
+  rows={[
+    ["<code>255.255.255.0</code>", "<code>/24</code>", "First three numbers", "<code>192.168.1.0/24</code>: normally 254 usable host addresses"],
+    ["<code>255.255.0.0</code>", "<code>/16</code>", "First two numbers", "<code>10.44.<em>anything</em></code>"],
+    ["<code>255.0.0.0</code>", "<code>/8</code>", "First number", "<code>10.0.0.0/8</code>"]
+  ]}
+/>
+
+`/24` is the shorthand you will see in tools: the number of leading bits that are "network". Every `255` is eight bits, so `255.255.255.0` is 24 and `255.0.0.0` is 8.
+
+For a basic directly connected subnet, compare the network parts of the addresses using the configured mask. An on-link destination is reached through the local interface. Other destinations need a matching route, often through the default gateway. Matching addresses and masks alone do not prove a working connection.
+
+For example, `10.0.0.20/24` treats `10.0.0.5` as local but needs a route for `10.0.1.5`. With `/8`, both are treated as local. The remote device also needs a valid path back. Use the network's intended mask rather than widening it until a test happens to pass.
+
+### DHCP versus static
+
+Two common configuration methods are DHCP and a manually assigned static address.
+
+**DHCP:** a server leases an address and supplies settings such as a subnet mask and gateway. The address may change when the lease or network changes. Many laptop networks use DHCP.
+
+**Static:** an administrator configures the address on the device. Keep an allocation record so two devices do not receive the same address.
+
+Use the network's addressing plan. A device that needs a stable address can use a static configuration or a DHCP reservation. On a direct connection without DHCP, a static address may be needed to reach the device's configured subnet. See [Setting a static IP](/tools/static-ip).
+
+Keep manually assigned addresses outside the DHCP allocation pool, or coordinate them through the server's reservation settings. Record the addresses where the team can find them.
+
+### Names versus numbers
+
+**Name resolution** finds addresses from names:
+
+- **DNS** asks a DNS server for records associated with a name. The server may be on the local network or reached through other networks. Local DNS does not inherently require internet access.
+- **mDNS** uses multicast on the local link to resolve names such as `mydevice.local`. Support depends on the operating system, services, and network configuration. It does not normally cross routers.
+
+If a connection works by the expected address but not by name, compare the address returned by name resolution. A stale or missing answer is one possible cause; this test does not validate every part of the network.
+
+### Ports
+
+A **port** identifies a transport endpoint for a service. For example, `10.0.0.5:8080` specifies an address and port. TCP and UDP use separate port spaces. A successful TCP connection does not test a UDP service on the same number.
+
+<ContentTable
+  headers={["Port", "Usually"]}
+  rows={[
+    ["<code>22</code>", "SSH: a shell on the device"],
+    ["<code>80</code> / <code>443</code>", "A web page (HTTP / HTTPS). Typing an address into a browser goes to 80 or 443 unless you add <code>:port</code>"],
+    ["<code>5173</code>, <code>3000</code>, <code>8080</code>", "Development web servers: a program you are running on your own laptop"],
+    ["Custom service ports", "Consult the service configuration. FRC-specific ports are listed in <a href=\"/frc/robot-network#the-ports-a-robot-uses\">The Robot Network</a>"]
+  ]}
+/>
+
+A device may answer ping while a particular service is unavailable. Check the port, protocol, listening address, and firewall as well as whether the service is running.
+
+### The hardware address
+
+Ethernet and Wi-Fi interfaces use **MAC addresses** on the local link. A typical address has six hexadecimal pairs, such as `d8:3a:dd:4e:72:0f`. Addresses may be assigned by the manufacturer or configured locally; Wi-Fi privacy features can randomize them.
+
+For a globally assigned address, its prefix can help identify the manufacturer. It is a clue, not proof of device identity. The laptop's **ARP cache** maps IPv4 neighbors to MAC addresses; it is not an inventory of all devices. [Network diagnostics](/tools/network-diagnostics#rung-3-who-is-actually-here) explains how to inspect it.
+
+### Wired, wireless, and more than one at once
+
+A laptop can have Ethernet, Wi-Fi, and VPN connections active at once. Its routes determine where traffic goes. If overlapping networks make the route unclear, temporarily disconnect an unneeded connection and repeat the test.
+
+Wireless interference and damaged cables can both cause intermittent failures. Compare repeated tests and check link indicators before deciding which connection or device is at fault.
+
+<RulesBox title="Common checks">
+
+1. Check whether the address and mask match the network's plan.
+2. If DHCP was expected, check whether the laptop obtained a lease.
+3. Check which interface and route the laptop uses.
+4. Compare neighbor information with the address allocation record.
+5. Compare connection attempts by name and by address.
+6. Test the service's port and check its logs and firewall rules.
+
+</RulesBox>
+
+<Sources items={[
+  {"url": "https://www.rfc-editor.org/rfc/rfc1918.html", "label": "RFC 1918", "note": "Private address ranges (10.x, 192.168.x)."},
+  {"url": "https://www.rfc-editor.org/rfc/rfc2131.html", "label": "RFC 2131", "note": "DHCP."},
+  {"url": "https://www.rfc-editor.org/rfc/rfc3927.html", "label": "RFC 3927", "note": "169.254.x.x link-local addresses, what a laptop gets with no DHCP."},
+  {"url": "https://www.rfc-editor.org/rfc/rfc6762.html", "label": "RFC 6762", "note": "mDNS, the <code>.local</code> names."},
+  {"source": "wpilib", "path": "docs/networking/networking-introduction/networking-basics.html", "note": "WPILib's networking basics: addresses, subnets, DHCP, mDNS."},
+  {"source": "wpilib", "path": "docs/networking/networking-introduction/ip-configurations.html", "note": "The FRC addressing scheme this page prepares for."}
+]} />
+
+<LinkGrid title="Next" section="tools" links={[
+  {"label":"Network Diagnostics","id":"network-diagnostics"},
+  {"label":"Setting a Static IP","id":"static-ip"},
+  {"label":"FRC: The Robot Network","url":"/frc/robot-network"},
+  {"label":"The Command Line","id":"command-line-basics"}
+]} />

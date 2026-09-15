@@ -13,9 +13,9 @@ description: Why ArrayList and HashMap break under concurrent use, which thread-
 
 ### Ordinary collections are not thread-safe
 
-`ArrayList`, `HashMap`, and `ArrayDeque` assume one thread at a time. Used concurrently they do not merely lose an update — they can corrupt their internal structure.
+`ArrayList`, `HashMap`, and `ArrayDeque` assume one thread at a time. Used concurrently they can do worse than lose an update: they can corrupt their internal structure.
 
-```java
+```java racy
 List<Integer> shared = new ArrayList<>();
 
 Runnable adder = () -> {
@@ -31,7 +31,7 @@ System.out.println(shared.size());     // rarely 20000; may throw
 
 `add` reads a size, writes an element, and updates the size. Two threads interleaving those steps can lose elements, overwrite each other, or leave the list in a state that throws `ArrayIndexOutOfBoundsException` from a later, innocent-looking call.
 
-A corrupted `HashMap` has historically been able to produce an infinite loop on a subsequent `get` — a hang with no obvious cause, long after the damage was done.
+A corrupted `HashMap` has historically been able to produce an infinite loop on a subsequent `get`, a hang with no obvious cause, long after the damage was done.
 
 ### The thread-safe options
 
@@ -40,7 +40,7 @@ A corrupted `HashMap` has historically been able to produce an infinite loop on 
   headers={["Instead of", "Use", "Notes"]}
   rows={[
     ["<code>HashMap</code>", "<code>ConcurrentHashMap</code>", "The workhorse; fast under contention"],
-    ["<code>ArrayList</code> (mostly reads)", "<code>CopyOnWriteArrayList</code>", "Writes copy the whole array &mdash; reads must dominate"],
+    ["<code>ArrayList</code> (mostly reads)", "<code>CopyOnWriteArrayList</code>", "Writes copy the whole array; reads must dominate"],
     ["<code>ArrayDeque</code> as a queue", "<code>ConcurrentLinkedQueue</code>", "Non-blocking, unbounded"],
     ["Handing work between threads", "<code>ArrayBlockingQueue</code>", "Blocks when full or empty"],
     ["<code>TreeMap</code>", "<code>ConcurrentSkipListMap</code>", "Sorted and concurrent"],
@@ -52,7 +52,7 @@ A corrupted `HashMap` has historically been able to produce an infinite loop on 
 
 The one you will use most.
 
-```java
+```java norun
 import java.util.concurrent.ConcurrentHashMap;
 
 Map<String, Integer> counts = new ConcurrentHashMap<>();
@@ -64,13 +64,13 @@ counts.computeIfAbsent("shooter", k -> 0);      // atomic
 
 Individual operations are atomic and safe. But **combining two operations is not**:
 
-```java
-// BROKEN — another thread can act between the get and the put
+```java norun
+// BROKEN: another thread can act between the get and the put
 if (!counts.containsKey(key)) {
     counts.put(key, 0);
 }
 
-// CORRECT — one atomic operation
+// CORRECT: one atomic operation
 counts.putIfAbsent(key, 0);
 ```
 
@@ -80,12 +80,12 @@ This is the most common misunderstanding about concurrent collections. Each meth
 
 Use the compound methods, which do the whole thing atomically:
 
-- `putIfAbsent(k, v)` — insert only if absent
-- `computeIfAbsent(k, fn)` — insert a computed value if absent
-- `merge(k, v, fn)` — combine with any existing value
-- `replace(k, old, new)` — replace only if it currently holds `old`
+- `putIfAbsent(k, v)`: insert only if absent
+- `computeIfAbsent(k, fn)`: insert a computed value if absent
+- `merge(k, v, fn)`: combine with any existing value
+- `replace(k, old, new)`: replace only if it currently holds `old`
 
-If none fits, you need external synchronisation — and at that point ask whether the design should share less.
+If none fits, you need external synchronisation, and at that point ask whether the design should share less.
 
 </RulesBox>
 
@@ -93,7 +93,7 @@ If none fits, you need external synchronisation — and at that point ask whethe
 
 The best tool for concurrency, because it lets threads hand work to each other rather than share variables.
 
-```java
+```java norun
 import java.util.concurrent.*;
 
 BlockingQueue<String> queue = new ArrayBlockingQueue<>(100);
@@ -130,7 +130,7 @@ new Thread(() -> {
 
 `ArrayBlockingQueue` has a fixed capacity. When it fills, `put` blocks until the consumer catches up.
 
-That is a feature. An unbounded queue with a producer faster than its consumer grows until memory runs out — and the failure appears far from the cause. A bounded queue applies back-pressure instead, slowing the producer to match.
+That is a feature. An unbounded queue with a producer faster than its consumer grows until memory runs out, and the failure appears far from the cause. A bounded queue applies back-pressure instead, slowing the producer to match.
 
 Pick a capacity and let the queue enforce it.
 
@@ -152,13 +152,13 @@ Blocking queues offer four behaviours for the same operation:
   ]}
 />
 
-Choose deliberately. Using `add` on a full queue throws; `offer` silently returns `false` and drops the item — a quiet data-loss bug if you ignore the return value.
+Choose deliberately. Using `add` on a full queue throws; `offer` silently returns `false` and drops the item, a quiet data-loss bug if you ignore the return value.
 
 ### CopyOnWriteArrayList
 
 Safe for concurrent use, but every write copies the entire backing array:
 
-```java
+```java norun
 List<Listener> listeners = new CopyOnWriteArrayList<>();
 listeners.add(listener);              // copies the whole array
 
@@ -167,7 +167,7 @@ for (Listener l : listeners) {        // never throws ConcurrentModificationExce
 }
 ```
 
-Only appropriate when reads vastly outnumber writes — a listener list is the classic case. Using it for a collection written in a loop is much worse than a lock.
+Only appropriate when reads vastly outnumber writes; a listener list is the classic case. Using it for a collection written in a loop is much worse than a lock.
 
 Its iteration is a genuine advantage: you get a snapshot, so modification during iteration cannot break the loop.
 
@@ -179,7 +179,7 @@ The older approach still appears in existing code:
 List<Integer> list = Collections.synchronizedList(new ArrayList<>());
 ```
 
-Every method is individually synchronized, but iteration is **not** — you must lock manually:
+Every method is individually synchronized, but iteration is **not**, so you must lock manually:
 
 ```java
 synchronized (list) {
@@ -196,7 +196,7 @@ Prefer the purpose-built concurrent collections. They are faster and do not have
 1. **Share nothing.** Give each thread its own data and combine results at the end.
 2. **Share immutable data.** Anything that cannot change is safe to read from anywhere.
 3. **Hand work over a `BlockingQueue`** instead of sharing a variable.
-4. **Use a concurrent collection** when threads genuinely must share a structure.
+4. **Use a concurrent collection** when threads must share a structure.
 5. **Synchronise manually** only when nothing above fits.
 
 Each step down is more code and more ways to be subtly wrong. Concurrent collections are a good tool, but needing one is worth a moment's thought about whether the design could avoid it.
@@ -211,9 +211,11 @@ Each step down is more code and more ways to be subtly wrong. Concurrent collect
 - **Ignoring `offer`'s return value** and silently dropping items.
 - **An unbounded queue** with a fast producer.
 - **Iterating a synchronized wrapper** without holding its lock.
-- **Looking for `ConcurrentHashSet`.** It does not exist &mdash; use `ConcurrentHashMap.newKeySet()`.
+- **Looking for `ConcurrentHashSet`.** It does not exist; use `ConcurrentHashMap.newKeySet()`.
 
 </RulesBox>
+
+<JavaPlayground id="java-concurrent-collections" />
 
 <ExerciseBox title="Practice">
 
@@ -226,7 +228,7 @@ Each step down is more code and more ways to be subtly wrong. Concurrent collect
 <details>
 <summary>Hints</summary>
 
-1. The variety of failures is the point — sometimes short, sometimes an exception.
+1. The variety of failures is the point: sometimes short, sometimes an exception.
 2. Distinct values so the count is predictable.
 3. Print queue size in the producer to watch it cap out.
 4. Add a tiny sleep between the two calls to widen the window and make the race reliable.
@@ -235,6 +237,21 @@ Each step down is more code and more ways to be subtly wrong. Concurrent collect
 </details>
 
 </ExerciseBox>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "java-tutorial", "path": "essential/concurrency/collections.html", "note": "Concurrent collections."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/package-summary.html", "note": "The <code>java.util.concurrent</code> package."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/ConcurrentHashMap.html", "note": "Atomic compound operations."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/BlockingQueue.html", "note": "Bounded queues and back-pressure."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/CopyOnWriteArrayList.html", "note": "When copy-on-write fits."},
+  {"source": "java-api", "path": "java.base/java/util/Collections.html", "note": "<code>synchronizedList</code> and manual iteration locking."},
+  {"source": "java-api", "path": "java.base/java/util/HashMap.html", "note": "<code>HashMap</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/ArrayBlockingQueue.html", "note": "<code>ArrayBlockingQueue</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/ArrayIndexOutOfBoundsException.html", "note": "<code>ArrayIndexOutOfBoundsException</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayDeque.html", "note": "<code>ArrayDeque</code> API reference."}
+]} />
 
 <LinkGrid
   title="Related"

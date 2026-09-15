@@ -1,0 +1,167 @@
+---
+title: "VirtualSubsystem: A Heartbeat Without the Scheduler"
+lessonId: virtual-subsystem
+section: frc
+group: frc-architecture
+groupLabel: "Cobra Architecture"
+groupOrder: 8.5
+order: 1
+difficulty: intermediate
+duration: 20 min
+description: "The thirty-line base class that gives BobotState, the vision subsystems and the dashboard manager a periodic() without making them things a command can require: how it registers itself, exactly when it runs relative to the CommandScheduler and why that order is what makes vision work, what extends it in Cobra, and how to decide between SubsystemBase, VirtualSubsystem and neither."
+---
+
+`SubsystemBase` does two unrelated things: it gives a class a `periodic()` that runs every loop, and it makes that class a **resource the scheduler arbitrates**: commands `require` it, and two commands that require the same subsystem cannot run together. For a motor that is exactly right. For "the robot's estimate of where it is" or "a camera that publishes what it sees" it is wrong: nothing should be able to own the pose, and a command that accidentally required the vision system would block every other command that did. Cobra's answer is a base class that provides the first thing without the second.
+
+### The class
+
+All of it, from `org.robotzgarage.frc2026.util.VirtualSubsystem`:
+
+```java
+/** Subsystems that are intended to run periodically, independently of the CommandScheduler. */
+public abstract class VirtualSubsystem {
+  private static final List<VirtualSubsystem> virtualSubsystems = new ArrayList<>();
+
+  /** Every subsystem that extends VirtualSubsystem gets added to the list of Subsystems
+      that are called every robot period. */
+  public VirtualSubsystem() {
+    virtualSubsystems.add(this);
+  }
+
+  public static void listVirtualSubsystems() {
+    for (VirtualSubsystem subsystem : virtualSubsystems) {
+      System.out.println(String.format(
+          "[robotzgarage] Connected Virtual Subsystem '%s'", subsystem.getClass().getSimpleName()));
+    }
+  }
+
+  /** Call periodic() on every virtual subsystem. */
+  public static void runPeriodically() {
+    for (VirtualSubsystem subsystem : virtualSubsystems) subsystem.periodic();
+  }
+
+  /** Call simulationPeriodic() on every virtual subsystem. */
+  public static void runSimulationPeriodically() {
+    for (VirtualSubsystem subsystem : virtualSubsystems) subsystem.simulationPeriodic();
+  }
+
+  public abstract void periodic();
+  public abstract void simulationPeriodic();
+}
+```
+
+Three ideas, each a line or two:
+
+- **Self-registration.** The constructor adds `this` to a static list. Extend the class, construct one instance, and it is in the loop, with no registration call to forget. (`SubsystemBase` does the same thing: its constructor registers with the `CommandScheduler`.)
+- **A static entry point.** `runPeriodically()` walks the list. Whoever calls it decides *when* in the loop the virtual subsystems run.
+- **A simulation hook.** `simulationPeriodic()` mirrors `Robot.simulationPeriodic()`; a virtual subsystem that owns a simulated world, such as the vision sim from [Simulating Vision](/frc/sim-vision#the-three-pieces), updates it here.
+
+### When it runs, and why that is the point
+
+The call site is `Robot.robotPeriodic()`, and the order is the reason the architecture works:
+
+```java
+@Override
+public void robotPeriodic() {
+  Threads.setCurrentThreadPriority(true, 99);
+  VirtualSubsystem.runPeriodically();       // ① BobotState, vision, dashboard, before any subsystem
+  CommandScheduler.getInstance().run();      // ② subsystem periodic()s, then commands
+  Threads.setCurrentThreadPriority(false, 10);
+}
+```
+
+So within one 20 ms loop:
+
+<StepsBox title="One loop">
+
+1. **Virtual subsystems, in construction order.** `RobotContainer` constructs `BobotState` first, then the vision subsystems, then the dashboard manager. `BobotState` recomputes the VARCs, interpolators and zone from last loop's pose. `AprilTagVision` reads its cameras and offers pose observations into `BobotState`'s queues. `TeleopShiftManager` logs the shift clock.
+2. **The scheduler runs subsystem `periodic()`s.** `Drive` runs odometry, **drains** the observation queues (the observations from step 1) into its pose estimators, and writes the new pose back into `BobotState`. The mechanisms update their inputs.
+3. **The scheduler runs commands.** A scoring command reads `BobotState.getHubInterpolator().getCalculation()`, computed in step 1 from the previous loop's step-2 pose, and commands the shooter.
+
+</StepsBox>
+
+Two consequences. Vision observations reach the pose estimator in the same loop they were made, because vision runs before drive. Had vision been a `SubsystemBase`, its `periodic` would run inside step 2 in whatever order the scheduler chose, and an observation might sit in the queue a loop longer. And everything `BobotState` derives is one loop behind the pose, which its own comments acknowledge as acceptable ([BobotState](/frc/bobot-state#the-flow-through-one-loop)). Twenty milliseconds of staleness in aim is acceptable; twenty milliseconds of staleness in a vision measurement's timestamp would be wrong, which is why observations carry their own capture time.
+
+### What extends it in Cobra
+
+<ContentTable
+  headers={["Class", "Owns", "Why not a SubsystemBase", "simulationPeriodic"]}
+  rows={[
+    ["<code>BobotState</code>", "The shared world state: pose, velocity, observation queues, VARCs, interpolators, zones", "No command should require the robot's knowledge of itself", "Empty"],
+    ["<code>AprilTagVision</code>", "The AprilTag cameras and their IO", "No command drives a camera; it must run <em>before</em> the drivetrain each loop", "Updates the <code>VisionSystemSim</code> world to the current pose (<code>Robot.simulationPeriodic</code> calls <code>runSimulationPeriodically</code> after the main loop)"],
+    ["<code>ObjectDetectionVision</code>", "Game-piece detection (with <code>FuelTracker</code> as a helper)", "Same as above; publishes into <code>BobotState.knownFuelPoses</code>", "Updates the object-detection sim world to the current pose"],
+    ["<code>TeleopShiftManager</code>", "The match-shift clock, for the dashboard", "Pure computation from <code>DriverStation.getMatchTime()</code>; nothing to arbitrate", "Empty"]
+  ]}
+/>
+
+None of them has a motor. That is the tell: a class with a motor is a `SubsystemBase`, because a motor is a thing two commands must not fight over. A class with a camera, a clock, or a table of derived numbers has nothing to fight over, and giving it scheduler semantics only creates a way to deadlock it.
+
+### Choosing
+
+<ContentTable
+  headers={["If the class…", "Make it a", "Because"]}
+  rows={[
+    ["Owns hardware that commands move", "<code>SubsystemBase</code>", "Requirements are how the scheduler stops two commands driving one motor"],
+    ["Needs a heartbeat but nothing should own it", "<code>VirtualSubsystem</code>", "periodic() without requirements; runs before the scheduler"],
+    ["Must run <em>before</em> the drivetrain every loop", "<code>VirtualSubsystem</code>", "The call order in <code>robotPeriodic</code>"],
+    ["Is only computed from other state, on demand", "Neither: a static method, or a field on <code>BobotState</code>", "If nobody needs it every loop, do not run it every loop"],
+    ["Runs on its own thread (a 5 ms Notifier, an odometry thread)", "Neither: a <code>Notifier</code> or a <code>Thread</code>, with care", "Faster than the loop; see <a href=\"/frc/talonfx-simulation#the-reference-implementation\">the sim IO's Notifier</a> and <a href=\"/frc/swerve-drive-example#apply-synchronized-odometry-samples\">the odometry thread</a>"]
+  ]}
+/>
+
+### Writing one
+
+```java
+public class BatteryMonitor extends VirtualSubsystem {
+  private static final LoggedTunableNumber warnVolts = new LoggedTunableNumber("Battery/WarnVolts", 11.5);
+  private final Alert lowBattery = new Alert("Battery below warning voltage", AlertType.kWarning);
+  private final LinearFilter filter = LinearFilter.movingAverage(25);   // ~0.5 s of samples
+
+  @Override
+  public void periodic() {
+    double volts = filter.calculate(RobotController.getBatteryVoltage());
+    Logger.recordOutput("Battery/FilteredVolts", volts);
+    lowBattery.set(volts < warnVolts.get());
+  }
+
+  @Override
+  public void simulationPeriodic() {}
+}
+```
+
+Construct it once (`new BatteryMonitor();` in `RobotContainer`) and it runs. It logs, it raises an `Alert` the dashboard shows, and no command can require it, which is right: no command should be able to own the battery voltage.
+
+Test it in simulation by dragging `Battery/FilteredVolts` onto a graph and spinning up the shooter: the `BatterySim` from [Simulating a TalonFX](/frc/talonfx-simulation#the-reference-implementation) sags the simulated supply, the filtered line dips, and the alert appears if it crosses the tunable.
+
+<RulesBox title="Common mistakes">
+
+- **Constructing one twice.** Each construction registers; two instances run twice per loop. Construct in one place.
+- **Requiring it.** It cannot be required, because it is not a <code>Subsystem</code>, but a <code>Trigger</code> built from it can gate a command, which is what you wanted.
+- **Depending on construction order.** The list runs in the order the constructors ran. If a virtual subsystem must run after another, make the dependency explicit (read last loop's value, as <code>BobotState</code> does) rather than relying on which line came first in <code>RobotContainer</code>.
+- **Throwing from <code>periodic()</code>.** One exception in <code>runPeriodically()</code> stops every virtual subsystem after it in the list, and then the scheduler. Guard anything that can fail.
+- **Doing hardware I/O in one.** A camera read is fine (it is already asynchronous); a blocking CAN call is not. Keep the loop under 20 ms; the <code>Threads.setCurrentThreadPriority</code> lines around the call are there because timing matters here.
+- **Forgetting <code>simulationPeriodic</code> is abstract.** You must implement it, even as <code>{}</code>. The compiler will remind you.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/VirtualSubsystem.java", "note": "The base class: static registry, <code>runPeriodically()</code> and <code>runSimulationPeriodically()</code>, the constructor that registers the instance."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "Where <code>VirtualSubsystem.runPeriodically()</code> is called in <code>robotPeriodic()</code> and <code>runSimulationPeriodically()</code> in <code>simulationPeriodic()</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "The largest <code>VirtualSubsystem</code>: global state recomputed every loop."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagVision.java", "note": "A vision subsystem as a <code>VirtualSubsystem</code>: reads cameras, publishes observations, requires nothing."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/vision/ObjectDetectionVision.java", "note": "Second vision example."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/dashboard/TeleopShiftManager.java", "note": "A dashboard manager as a <code>VirtualSubsystem</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/vision/FuelTracker.java", "note": "Field-object tracking as a <code>VirtualSubsystem</code>."},
+  {"source": "mech-adv", "path": "src/main/java/org/littletonrobotics/frc2025/util/VirtualSubsystem.java", "note": "The Team 6328 class this pattern comes from."},
+  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "What a scheduler-registered <code>Subsystem</code> is, and the requirement semantics a virtual one deliberately lacks."},
+  {"source": "wpilib", "path": "docs/software/commandbased/command-scheduler.html", "note": "When <code>CommandScheduler.run()</code> calls subsystem <code>periodic()</code> methods."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/CommandScheduler.html", "note": "<code>registerSubsystem</code> and the order of <code>run()</code>."}
+]} />
+
+<LinkGrid links={[
+  {"label":"BobotState: The One Global","id":"bobot-state"},
+  {"label":"Lombok: Less Boilerplate, Same Class","id":"lombok"},
+  {"label":"Subsystems","id":"subsystems"},
+  {"label":"Vision Subsystem","id":"vision-subsystem"},
+  {"label":"Kit Bot R04: Subsystems","url":"/kit-bot/r04-subsystems"}
+]} title="Next" section="frc" />

@@ -1,0 +1,128 @@
+---
+title: "A18: Records"
+lessonId: a18-records
+section: assignments
+group: objects
+groupLabel: "Track 2 — Objects"
+groupOrder: 2
+order: 18
+difficulty: intermediate
+duration: 75 min
+description: Let the compiler write the boilerplate — records, compact constructors that validate and normalise, and Comparable.
+---
+
+**Topic:** records, compact constructors, `Comparable<T>`, immutable data carriers.
+**Cites:** [Classes](/java/java-classes), [Objects](/java/java-objects), [Sorting](/java/java-algo-sorting).
+**Difficulty:** medium. **Estimated time:** 75 minutes.
+
+### Scenario
+
+Look back at [A11](/assignments/a11-robot-class). Four fields cost you a constructor,
+four getters, a `toString` and an `equals` — perhaps eighty lines, of which maybe six
+carried a decision. Every one of those lines is somewhere a typo can hide.
+
+A **record** is a class whose whole job is to carry values. You declare the components;
+Java writes the constructor, the accessors, `equals`, `hashCode` and `toString`. What
+is left is exactly the part that needed thought.
+
+Vision measurements and elevator setpoints are the clearest case in robot code: they
+are values, they arrive by the hundred, and nothing should ever mutate one after the
+fact.
+
+### What to build
+
+**`VisionResult`** — a record with `timestampMs`, `xMeters`, `yMeters`,
+`areaSqPixels` and `confidence`, implementing `Comparable<VisionResult>`:
+
+- A **compact constructor** rejecting a negative `timestampMs`, a `confidence` outside
+  `[0.0, 1.0]`, and a negative `areaSqPixels`
+- `compareTo` ordering by `timestampMs` ascending
+- `static int recent(VisionResult[] results, long maxAgeMs, long now)` counting the
+  results no more than `maxAgeMs` older than `now`
+
+**`Setpoint`** — a record with `name`, `valueMeters` and `toleranceMeters`:
+
+- A compact constructor that **trims the name**, rejects blank, and rejects a negative
+  tolerance
+- `boolean isReached(double currentMeters)` — true when `currentMeters` is within
+  `toleranceMeters` of `valueMeters`
+
+### The compact constructor
+
+This is the one piece of record syntax worth staring at. It has **no parameter list**:
+
+```java
+record Setpoint(String name, double valueMeters, double toleranceMeters) {
+    Setpoint {
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("name must not be blank");
+        }
+        name = name.trim();   // assigning the component normalises what gets stored
+    }
+}
+```
+
+Assigning to `name` there is not pointless — the compact constructor runs *before* the
+fields are assigned, so whatever the parameters hold at the end is what the record
+keeps. That is how a record validates and normalises without you writing a
+constructor at all.
+
+<RulesBox title="This assignment needs Java 17" items={[
+  "Records arrived in Java 16. The in-page editor runs <strong>Java 17</strong>, so everything here compiles and runs in the browser exactly as it does locally on Java 25.",
+  "<code>main</code> is written for you and exercises both records. Leave it alone and implement the records above it."
+]} />
+
+
+<RulesBox title="Plan it as sessions" items={[
+  "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Comparable orders the results by timestamp</em>, <em>The generated toString names every component</em>, <em>recent counts by age, not by position</em>, <em>Records compare by value, and accessors work</em>.",
+  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>The compact constructor normalises as well as validates</em>, <em>isReached respects the tolerance</em>, <em>Every validation rule fires</em>."
+]} />
+
+<JavaPlayground id="a18-records" />
+
+<RulesBox title="Hints" items={[
+  "<strong>You get more than you think.</strong> Accessors are named after the components with no <code>get</code> prefix — <code>result.confidence()</code>, not <code>getConfidence()</code>. <code>equals</code> compares every component, <code>hashCode</code> agrees with it, and <code>toString</code> prints them all. You do not write, or override, any of those.",
+  "<strong>Validate in the compact constructor, not in a factory.</strong> If validation lives in a static <code>of(...)</code> method, somebody can still call <code>new</code> and skip it. The compact constructor is the only door.",
+  "<strong>A record is shallowly immutable.</strong> Components cannot be reassigned after construction — but a record holding an array still shares that array with whoever passed it. Worth knowing before you put a <code>double[]</code> in one.",
+  "<strong><code>compareTo</code> is yours to write.</strong> Records generate <code>equals</code>, not ordering. Use <code>Long.compare</code> for the timestamps rather than subtracting, which overflows.",
+  "<strong>Mind what &quot;recent&quot; means at the boundary.</strong> <code>now - timestamp &lt;= maxAgeMs</code> includes a result exactly <code>maxAgeMs</code> old. Decide deliberately, because the checks test a window where it matters."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Functionality", "60", "Both types declared as records with the listed components. Compact constructors validate. <code>compareTo</code>, <code>recent</code> and <code>isReached</code> behave as specified."],
+    ["Edge cases", "15", "A confidence of exactly 0.0 and 1.0 is accepted; 1.5 is not. A blank or padded name is handled. A value exactly on the tolerance counts as reached."],
+    ["Code quality", "20", "No hand-written constructor, accessors, <code>equals</code>, <code>hashCode</code> or <code>toString</code> — if you wrote one, ask what the record was for. Normalisation happens in the compact constructor, not at every call site."],
+    ["Comments", "5", "Author header, and a note on why these two types are records while <code>Robot</code> from A11 is not."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Convert [A19](/assignments/a19-sort-roster)'s `TeamEntry` to a record and count the
+  lines that disappear. Keep its `toString`, since the checks there compare it.
+- Add `VisionResult withConfidence(double)` returning a *new* result with everything
+  else unchanged. That is how you "modify" an immutable value, and it is why
+  `Setpoint` needs no setters.
+- Write down which of the classes you built in this track *should* have been records,
+  and which genuinely should not. The test is whether the type has behaviour or just
+  data.
+
+### References
+
+- JavaDoc: [Record classes](https://docs.oracle.com/en/java/javase/25/language/records.html)
+- JavaDoc: [`java.lang.Record`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Record.html)
+- WPILib: [`PhotonTrackedTarget`](https://docs.wpilib.org/en/stable/docs/software/vision-processing/index.html) — the kind of value a `VisionResult` stands in for
+- Wikipedia: [Value object](https://en.wikipedia.org/wiki/Value_object)
+
+<Sources items={[
+  {"source": "csce146", "note": "Records."},
+  {"source": "dev-java", "path": "records/", "note": "Records: components, compact constructors, generated <code>equals</code>/<code>hashCode</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/Record.html", "note": "<code>Record</code>."},
+  {"source": "jls", "path": "jls-8.html", "note": "Record classes (section 8.10)."},
+  {"source": "java-api", "path": "java.base/java/lang/Comparable.html", "note": "<code>Comparable</code> API reference."}
+]} />

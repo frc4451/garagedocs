@@ -1,0 +1,325 @@
+---
+title: "Files, Pipes and PATH"
+lessonId: files-pipes-and-path
+section: tools
+group: command-line
+groupLabel: "The Command Line"
+groupOrder: 1
+order: 2
+difficulty: beginner
+description: "Find and manage files, redirect output, use pipes, and configure environment variables and PATH."
+---
+
+### Where this picks up
+
+[The command line](/tools/command-line-basics) introduces prompts, folders, and arguments. This page covers file operations, output redirection, pipes, and the environment used to locate programs.
+
+Choose the PowerShell or Terminal tab for your shell. Similar command names can accept different options and produce different output.
+
+### Finding files
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+Get-ChildItem -Recurse -Filter *.java              # every .java file below here
+Get-ChildItem -Recurse -Filter *.java | Select-Object -First 5
+Get-ChildItem -Recurse | Where-Object Name -like "*Intake*"   # by part of the name
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+find . -name "*.java"                  # every .java file below here
+find . -name "*.java" | head -5
+find . -iname "*intake*"               # by part of the name, case-insensitive
+```
+
+</CodeTab>
+</CodeTabs>
+
+The pattern `*.java` is a **wildcard**. The `*` matches anything. On Terminal, quote it so the shell hands the pattern to `find` instead of expanding it first.
+
+### Searching inside files
+
+Search for a name or message to find the files that contain it:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+Select-String -Pattern "setVoltage" -Path *.java                        # this folder
+Get-ChildItem -Recurse -Filter *.java | Select-String "setVoltage"      # the whole tree
+Select-String "error" build.log -Context 2                              # two lines either side
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+grep -n "setVoltage" *.java                    # this folder, with line numbers
+grep -rn "setVoltage" --include=*.java .       # the whole tree
+grep -n -C 2 "error" build.log                 # two lines either side
+grep -in "error" build.log                     # case-insensitive
+```
+
+</CodeTab>
+</CodeTabs>
+
+VS Code's Search view (`Ctrl+Shift+F` / `Cmd+Shift+F`) searches the open project. Shell commands are useful for logs, other folders, or a remote session.
+
+### Reading files without opening them
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+Get-Content build.log                    # the whole file ("cat" works too)
+Get-Content build.log -TotalCount 20     # first 20 lines
+Get-Content build.log -Tail 20           # last 20 lines
+Get-Content build.log -Wait              # keep showing new lines as they arrive; Ctrl-C to stop
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+cat build.log                 # the whole file
+head -20 build.log            # first 20 lines
+tail -20 build.log            # last 20 lines
+tail -f build.log             # keep showing new lines as they arrive; Ctrl-C to stop
+less build.log                # page through it; space for next page, / to search, q to leave
+```
+
+</CodeTab>
+</CodeTabs>
+
+`tail -f` and `Get-Content -Wait` show new lines as a file grows. Leave one running while reproducing a problem, then interrupt it when finished.
+
+### Making, copying, moving, deleting
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+New-Item -ItemType Directory logs          # make a folder ("mkdir logs" works too)
+Copy-Item build.log logs\                  # copy a file into it
+Copy-Item -Recurse src src-backup          # copy a whole folder
+Move-Item old.txt new.txt                  # move, which is also how you rename
+Remove-Item old.txt                        # delete a file
+Remove-Item -Recurse build                 # delete a folder and everything in it
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+mkdir -p logs                 # make a folder (-p: and any parents; no error if it exists)
+cp build.log logs/            # copy a file into it
+cp -r src src-backup          # copy a whole folder
+mv old.txt new.txt            # move, which is also how you rename
+rm old.txt                    # delete a file
+rm -r build                   # delete a folder and everything in it
+```
+
+</CodeTab>
+</CodeTabs>
+
+<RulesBox title="Delete does not mean recycle">
+
+`rm` and `Remove-Item` bypass the Recycle Bin or Trash. Confirm the current folder and target before deleting. Copy anything you need to retain first.
+
+</RulesBox>
+
+### Sending output somewhere else
+
+Many commands write normal output and errors to separate streams. `>` redirects normal output to a file, replacing its contents. `>>` appends instead.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+ipconfig /all > network.txt              # write the output to a file (replaces it)
+ipconfig /all >> network.txt             # append instead
+.\gradlew build > build.log 2>&1         # errors too: 2>&1 folds the error stream into the output
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+ifconfig > network.txt                   # write the output to a file (replaces it)
+ifconfig >> network.txt                  # append instead
+./gradlew build > build.log 2>&1         # errors too: 2>&1 folds the error stream into the output
+```
+
+</CodeTab>
+</CodeTabs>
+
+For native programs, `2>&1` combines standard error with standard output. PowerShell also has additional streams; `*>` can redirect all its redirectable streams. If a saved log is incomplete, check which stream the missing messages use.
+
+### Pipes
+
+A **pipe**, written `|`, passes one command's output to another command. Use it to filter, count, sort, or select results.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+ipconfig | Select-String "IPv4"                          # only the lines that matter
+Get-ChildItem -Recurse -Filter *.java | Measure-Object   # how many files
+Get-Content build.log | Select-String "error" | Select-Object -First 1   # the first error
+git log --oneline | Select-Object -First 10               # the last ten commits
+Get-Process | Sort-Object CPU -Descending | Select-Object -First 5       # highest accumulated CPU time
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+ifconfig | grep "inet "                     # only the lines that matter
+find . -name "*.java" | wc -l               # how many files
+grep -i "error" build.log | head -1         # the first error
+git log --oneline | head -10                # the last ten commits
+ps aux | sort -k3 -nr | head -5             # what is eating the CPU
+```
+
+</CodeTab>
+</CodeTabs>
+
+Read the first command's output before adding a filter. Then add commands such as `Select-String`, `grep`, or `Select-Object` to select the information you need.
+
+bash and zsh pipes carry byte streams, commonly text. PowerShell commands can pass structured objects. For example, `Get-Process` produces objects with properties that `Sort-Object` can use.
+
+### Environment variables
+
+The **environment** contains named values that a process can pass to programs it starts. `JAVA_HOME` commonly identifies a JDK for build tools, and `PATH` lists directories searched for executable programs.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+$env:JAVA_HOME                              # show one
+Get-ChildItem env:                          # show them all
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-25"   # set for this window only
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+echo $JAVA_HOME                             # show one
+env                                         # show them all
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home   # this window only
+```
+
+</CodeTab>
+</CodeTabs>
+
+A setting made in the shell affects that process and programs it starts. To retain it across sessions, use Windows user environment settings or the startup file for your bash/zsh configuration. Restart applications that need the new environment. Substitute your installed JDK path in these examples; the Terminal path shown is for macOS.
+
+### PATH, and "command not found"
+
+When resolving an external command such as `java`, the shell searches directories in **PATH**. Aliases, functions, and built-in commands may take precedence. A command-not-found error means the shell could not resolve the entered command; check its spelling, installation, and search path.
+
+Inspect PATH and the command it resolves:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+$env:PATH -split ";"                     # which folders, in order
+Get-Command java                         # which java would run, and from where
+Get-Command java -All                    # every java on the PATH: the first one wins
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+echo $PATH | tr ":" "\n"                 # which folders, in order
+which java                               # which java would run, and from where
+which -a java                            # every java on the PATH: the first one wins
+```
+
+</CodeTab>
+</CodeTabs>
+
+The outcomes and what they mean:
+
+<ContentTable
+  headers={["What you see", "Meaning", "Fix"]}
+  rows={[
+    ["Not recognized / not found", "The program's folder is not on the PATH, or it is not installed", "Install it, or add its <code>bin</code> folder to PATH. Installers usually offer to; say yes"],
+    ["Found, but the wrong version", "Two installs; the older one's folder comes first", "Reorder PATH, or uninstall the one you do not want"],
+    ["Works in one window, not another", "PATH was changed after the second window opened", "Open a new window. Restart VS Code"],
+    ["Works in Terminal, not in VS Code's terminal", "VS Code was launched from somewhere that had a different environment", "Quit VS Code fully and reopen it from the Dock / Start menu"]
+  ]}
+/>
+
+Add a directory without deleting the existing PATH entries. In Windows user environment settings, edit Path and add a new entry. In your shell startup file, `export PATH="$PATH:/the/new/folder"` appends a directory. Order matters when several directories contain the same command.
+
+When the current folder is not on PATH, run a local program with an explicit path: `./gradlew` in bash/zsh or `.\gradlew` in PowerShell. This selects the project's wrapper rather than another command found through PATH.
+
+### Installing things from the shell
+
+A package manager can install and update programs from configured sources. The examples below show common choices; install the appropriate package manager first if it is not available. Review the package and version before installing or upgrading.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+winget search temurin                              # find the package name
+winget install Git.Git                             # Git
+winget install Microsoft.VisualStudioCode          # VS Code
+winget install EclipseAdoptium.Temurin.25.JDK      # a JDK for the Java lessons
+winget upgrade --all                               # update everything it installed
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+# macOS: install Homebrew first from https://brew.sh
+brew install git
+brew install --cask visual-studio-code
+brew install --cask temurin@25             # Java 25 for the Java lessons
+brew upgrade
+
+# Debian / Ubuntu Linux
+sudo apt update && sudo apt install git
+```
+
+</CodeTab>
+</CodeTabs>
+
+Use the WPILib installer for the robot toolchain and follow [R00](/kit-bot/r00-wpilib-setup#step-1-download-and-install-wpilib). It supplies the supported tools and JDK for that WPILib version.
+
+<RulesBox title="Common mistakes">
+
+- **<code>rm -r</code> without looking first.** <code>pwd</code>, <code>ls</code>, then delete.
+- **A log with no errors in it.** You forgot <code>2>&1</code>. The errors went to the screen and scrolled away.
+- **Editing PATH and testing in the same window.** Persistent settings do not update existing processes. Open a new shell; a direct shell assignment takes effect there immediately.
+- **Typing <code>gradlew</code> and getting <em>not found</em>.** Use <code>./gradlew</code> because the program is in the current directory rather than on the PATH.
+- **Unquoted wildcards on Terminal.** <code>find . -name *.java</code> can fail confusingly when the current folder happens to contain a .java file. Quote the pattern.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "powershell", "path": "scripting/learn/ps101/04-pipelines", "note": "The PowerShell pipeline and how objects pass through it."},
+  {"source": "powershell", "path": "module/microsoft.powershell.utility/select-string", "note": "<code>Select-String</code>, the <code>grep</code> equivalent."},
+  {"source": "powershell", "path": "module/microsoft.powershell.management/get-content", "note": "<code>Get-Content</code>, <code>-Tail</code>, <code>-Wait</code>."},
+  {"source": "powershell", "path": "module/microsoft.powershell.core/about/about_environment_variables", "note": "Environment variables and <code>$env:</code>."},
+  {"url": "https://man7.org/linux/man-pages/man1/grep.1.html", "label": "Linux man page: grep", "note": "<code>grep</code> options used here."},
+  {"url": "https://man7.org/linux/man-pages/man1/find.1.html", "label": "Linux man page: find", "note": "<code>find</code>."},
+  {"url": "https://man7.org/linux/man-pages/man1/bash.1.html", "label": "Linux man page: bash", "note": "Redirection, pipes and <code>PATH</code> in Bash."},
+  {"url": "https://brew.sh", "label": "Homebrew", "note": "Installing tools on macOS from the shell."},
+  {"source": "ms-learn", "path": "windows/wsl/install", "note": "WSL, for a Linux shell on Windows."}
+]} />
+
+<LinkGrid title="Next" section="tools" links={[
+  {"label":"Troubleshooting from the Shell","id":"shell-troubleshooting"},
+  {"label":"The Command Line","id":"command-line-basics"},
+  {"label":"Java: Setting Up Java Locally","url":"/java/java-setup#installing-a-jdk"}
+]} />

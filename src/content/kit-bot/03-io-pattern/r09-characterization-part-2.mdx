@@ -1,0 +1,155 @@
+---
+title: "R09: Characterization, Part 2: The Drivetrain"
+lessonId: r09-characterization-part-2
+section: kit-bot
+group: io-pattern
+groupLabel: "Phase 3: Hardware via IO"
+groupOrder: 3
+order: 9.5
+duration: 30 min
+description: "The same characterization routine applied to the drivetrain: what changes when there are two sides to keep in sync, and what the measured gains provide."
+durationFixed: true
+---
+[Part 1](/kit-bot/r09-characterization) built the ramp routine and the fit against the launcher. This part applies it to the drivetrain.
+
+### Characterizing the drivetrain
+
+Same technique, applied to `Drive`. The shape, the `Queue`, the FIFO drain, the regression, none of it changes. What's genuinely different traces back to the mechanism, not the technique:
+
+```java
+package frc.robot.commands;
+
+import edu.wpi.first.units.measure.LinearVelocity;
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
+import frc.robot.subsystems.drive.Drive;
+
+import java.util.ArrayDeque;
+import java.util.Queue;
+
+import static edu.wpi.first.units.Units.MetersPerSecond;
+import static edu.wpi.first.units.Units.Seconds;
+import static edu.wpi.first.units.Units.Volts;
+
+public final class DriveCharacterization {
+
+    private static final double RAMP_VOLTS_PER_SECOND = 0.1;
+    private static final double MAX_VOLTS = 4.0;
+    private static final double MIN_VELOCITY_MPS = 0.05;   // below this, static friction hasn't broken yet
+
+    private record Sample(Voltage voltage, LinearVelocity velocity) {}
+
+    public static Command run(Drive drive) {
+        Queue<Sample> samples = new ArrayDeque<>();
+        Timer timer = new Timer();
+
+        Command ramp = Commands.run(() -> {
+            Voltage voltage = Volts.of(RAMP_VOLTS_PER_SECOND * timer.get());
+            drive.runAt(voltage);
+            samples.offer(new Sample(voltage, drive.leftVelocity()));
+        }, drive).withTimeout(Seconds.of(MAX_VOLTS / RAMP_VOLTS_PER_SECOND));
+
+        return Commands.runOnce(() -> { samples.clear(); timer.restart(); })
+            .andThen(ramp)
+            .andThen(Commands.runOnce(drive::stop, drive))
+            .andThen(Commands.runOnce(() -> fitAndReport(samples)));
+    }
+
+    private static void fitAndReport(Queue<Sample> samples) {
+        int n = 0;
+        double sumV = 0, sumU = 0, sumVV = 0, sumVU = 0;
+
+        Sample sample;
+        while ((sample = samples.poll()) != null) {
+            double velocity = sample.velocity().in(MetersPerSecond);
+            if (velocity < MIN_VELOCITY_MPS) {
+                continue;
+            }
+            double voltage = sample.voltage().in(Volts);
+            n++;
+            sumV  += velocity;
+            sumU  += voltage;
+            sumVV += velocity * velocity;
+            sumVU += velocity * voltage;
+        }
+
+        if (n < 2) {
+            System.out.println("Not enough moving samples to fit a line. "
+                + "Raise MAX_VOLTS, or check the drivetrain isn't stuck.");
+            return;
+        }
+
+        double kV = (n * sumVU - sumV * sumU) / (n * sumVV - sumV * sumV);
+        double kS = (sumU - kV * sumV) / n;
+
+        System.out.printf("kS = %.4f volts%n", kS);
+        System.out.printf("kV = %.4f volts per m/s%n", kV);
+    }
+
+    private DriveCharacterization() {}
+}
+```
+
+- **`Drive` needed a new method; `Launcher` didn't.** `runAt(Voltage)` was added to `Drive` in R08 specifically as a characterization escape hatch, `arcadeDrive` never exposed direct voltage control. `Launcher.runAt(Voltage)` had been there since R07; `SHOOT_VOLTAGE` was going through it the whole time.
+- **`LinearVelocity`/`MetersPerSecond`, not `AngularVelocity`/`RPM`.** R08's `DriveIO` converts motor rotations to wheel distance internally, so `Drive` only ever reports meters and meters-per-second. Characterize in whatever unit the mechanism already hands you; here that's m/s, on the launcher it was RPM. `SimpleMotorFeedforward` doesn't mind either way.
+- **Only one side gets sampled.** The ramp drives straight (`runAt` commands both sides identically), and `drive.leftVelocity()` alone is enough to characterize the drivetrain: a healthy Kit Bot's two sides should read almost the same speed for the same commanded voltage. If they diverge noticeably during this test, that's a real signal, uneven friction, a scrubbing wheel, a gearbox that isn't quite matched side to side, worth chasing down before you trust the fit.
+- **A slower ramp, a lower ceiling.** `0.1 V/s` up to `4.0 V` (40 seconds) instead of `0.25 V/s` up to `6.0 V` (24 seconds). A drivetrain typically has more static friction to fight through and a lower top speed than a flywheel, so the numbers that made sense for the launcher don't automatically make sense here. Same reasoning either way: slow enough to stay quasistatic, high enough to get a real spread of samples.
+
+---
+
+### Try it: drivetrain
+
+Bind it the same way as the launcher version, on a different spare button:
+
+```java
+driver.start().onTrue(DriveCharacterization.run(drive));
+```
+
+Run the sim, enable in teleop, press the button, and leave the robot alone until it stops on its own. You should see something like:
+
+```
+kS = 0.1500 volts
+kV = 3.8000 volts per m/s
+```
+
+Same sanity check as before, adapted to the drivetrain: `kS` should be small and positive, and `kS + kV × topSpeedMps` should land somewhere near 12 V.
+
+---
+
+### What this bought the drivetrain
+
+Wiring `SimpleMotorFeedforward` into `arcadeDrive` in place of the flat `* 12.0 * MAX_DRIVE_PERCENT` is real, valuable work, and it's also a bigger redesign than this module covers: `arcadeDrive` would need to convert its `[-1, 1]` stick fraction into a *target velocity* first, then feed that through the feedforward, instead of going straight to voltage. That's the natural next step once you're comfortable with what's here. For now, having measured, real `kS`/`kV` numbers for your drivetrain, printed to the console and ready to use, is the win, the same win the launcher got, in the mechanism where it's less immediately obvious how to use it.
+
+That closes out Phase 3. [R10](/kit-bot/r10-joysticks-and-stick-math) starts Phase 4 by turning raw stick input into something a driver can actually steer.
+
+---
+
+<RulesBox title="Evaluate in simulation">
+
+Same routine, drivetrain: a small positive `kS` and a `kV` in volts per m/s that reaches roughly 12 V at the Kit Bot's top speed. Both sets of numbers are written into the constants files, with the date and the fact that they came from simulation.
+
+</RulesBox>
+
+### References
+
+- [Queues](/java/java-ds-queues#using-one): the `Queue`/`ArrayDeque` interface used to collect samples
+- [A18: Records](/assignments/a18-records): the `Sample` record
+- [R05: Commands and Triggers](/kit-bot/r05-commands-and-triggers), [R14: Time-based Autonomous](/kit-bot/r14-time-based-autonomous): where `Commands.run`, `.withTimeout`, and `.andThen` were introduced
+- [R07: LauncherIO](/kit-bot/r07-launcher-io): `Launcher.runAt(Voltage)`, `Launcher.velocity()`, and the calibration table that consumes `KS`/`KV`
+- [R08: DriveIO](/kit-bot/r08-drive-io): `Drive.runAt(Voltage)`, `Drive.leftVelocity()`
+- WPILib: [Introduction to DC Motor Feedforward](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/introduction/introduction-to-feedforward.html)
+- WPILib: [Characterization Routines (SysId)](https://docs.wpilib.org/en/stable/docs/software/pathplanning/system-identification/introduction.html), the automated, production version of what this module builds by hand
+- WPILib JavaDoc: [`SimpleMotorFeedforward`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/controller/SimpleMotorFeedforward.html)
+- WPILib JavaDoc: [`Timer`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/Timer.html)
+- Wikipedia: [Simple linear regression](https://en.wikipedia.org/wiki/Simple_linear_regression)
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/advanced-controls/introduction/introduction-to-feedforward.html", "note": "Feedforward terms."},
+  {"source": "wpilib", "path": "docs/software/pathplanning/system-identification/introduction.html", "note": "SysId, the tool that does this properly."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/controller/SimpleMotorFeedforward.html", "note": "<code>SimpleMotorFeedforward</code>."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/Timer.html", "note": "<code>Timer</code>."},
+  {"url": "https://en.wikipedia.org/wiki/Simple_linear_regression", "label": "Simple linear regression", "note": "The fit behind kS and kV."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "FRC 4451's drivetrain <code>SysIdRoutine</code>."}
+]} />

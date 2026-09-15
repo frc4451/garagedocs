@@ -1,0 +1,124 @@
+---
+title: "GitHub Actions"
+lessonId: github-actions
+section: tools
+group: version-control
+groupLabel: "Version Control with Git & GitHub"
+groupOrder: 3
+order: 6.5
+difficulty: intermediate
+description: "Read a GitHub Actions result, understand FRC 4451's robot build workflow, and investigate common failures."
+---
+
+### What the tick means
+
+A pull request or commit can show a status icon for GitHub Actions checks. Open the check details to see which workflow and job produced the result. FRC 4451's robot repository runs a build workflow on pushes and pull requests.
+
+This automated build is an example of **continuous integration** (CI): changes are checked on a separate runner as they are shared.
+
+### FRC 4451's workflow
+
+FRC 4451's robot repository defines this workflow in `.github/workflows/build.yml`:
+
+```yaml
+name: Build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    container: wpilib/roborio-cross-ubuntu:2024-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Grant execute permission
+        run: chmod +x gradlew
+      - name: Build robot code
+        run: ./gradlew build
+```
+
+Line by line:
+
+<ContentTable
+  headers={["Line", "Means"]}
+  rows={[
+    ["<code>name: Build</code>", "What the check is called on GitHub. This is the word next to the tick"],
+    ["<code>on: push / pull_request</code>", "When to run: every push to any branch, and every pull request. Both, so a branch is checked as you work and again when you propose merging it"],
+    ["<code>jobs: build:</code>", "A workflow can have several jobs; this one has one"],
+    ["<code>runs-on: ubuntu-latest</code>", "Selects a GitHub-hosted Ubuntu runner"],
+    ["<code>container: wpilib/roborio-cross-ubuntu:…</code>", "Runs the job steps inside the specified WPILib container image on the runner"],
+    ["<code>uses: actions/checkout@v4</code>", "A ready-made step from GitHub: clone the repository at the commit being tested"],
+    ["<code>run: chmod +x gradlew</code>", "Linux needs the Gradle wrapper marked executable. Git from Windows sometimes loses that bit; this step puts it back"],
+    ["<code>run: ./gradlew build</code>", "Runs the Gradle build. In the current Cobra project, that includes compilation, Spotless application, and configured tests"]
+  ]}
+/>
+
+The YAML file defines the events that start the workflow and the steps the runner executes. A `run:` entry executes a shell command; a `uses:` entry invokes a published action. The result covers only the commands in the workflow.
+
+### Reading a result
+
+Open the check details from the commit or pull request. Select the job and expand the failed step to read its output. Interface labels can change, so use the Actions tab if the status menu is unclear.
+
+For a compile failure, find the first relevant `error:` line. For another Gradle failure, read the failing task and the `What went wrong` block. Download the log when you need to preserve or share the complete output.
+
+A pending status means the check has not finished. A skipped, cancelled, neutral, or stale status has a different meaning; open the details instead of inferring the cause from the icon alone.
+
+### Common failures
+
+<ContentTable
+  headers={["What the log says", "What happened", "Fix"]}
+  rows={[
+    ["<code>The following files had format violations</code> (from <code>spotlessCheck</code>)", "Spotless reported a formatting mismatch", "<code>./gradlew spotlessApply</code> locally, commit the result, push. Review the formatting change produced by the project task before committing it"],
+    ["<code>error: cannot find symbol</code> / any <code>compileJava FAILED</code>", "The compiler could not resolve the named symbol or another compile step failed", "Read the file, line, and symbol. Check spelling, imports, dependencies, and required files"],
+    ["<code>Permission denied: ./gradlew</code>", "The runner cannot execute the Gradle wrapper", "Confirm that the workflow grants permission or that the repository records the executable bit"]
+  ]}
+/>
+
+The runner starts from a checkout of the committed files. It cannot see an uncommitted file or an unsaved editor buffer. Build and review the intended commit locally before pushing, then use the remote result as another check.
+
+### Why a red cross matters
+
+A failed check reports that one or more workflow steps failed. Repository rules can require selected status checks before a pull request is merged. Check the repository rules rather than assuming every failure blocks the merge.
+
+Treat required formatting, compilation, and test failures as work to resolve or explain before merge.
+
+### Anatomy, for when you need to change it
+
+Edit workflow files when the automation itself needs to change. Review the repository's current file and documentation first:
+
+- **Run the tests only, or a second job.** Add another item under `jobs:` with its own `steps:`; jobs run in parallel on separate machines.
+- **The container tag.** The image tag (`2024-22.04` above) is a WPILib year. FRC 4451's file still pins 2024 and builds 2026 code fine, because GradleRIO downloads the roboRIO toolchain it needs during the build; what the image really provides is a JDK that WPILib is happy with. When WPILib changes its Java version, update the tag. Available tags are listed on [Docker Hub](https://hub.docker.com/r/wpilib/roborio-cross-ubuntu/tags).
+- **Cache Gradle downloads when repeated downloads are a measured bottleneck.** A `uses: gradle/actions/setup-gradle@v4` step before the build keeps dependencies between runs and can reduce download time; measure the workflow before and after.
+- **Secrets.** Put private values such as tokens and passwords in *Settings → Secrets* and is referenced as `${{ secrets.NAME }}`, never typed into the file. The file is public to everyone who can read the repository.
+
+Workflow files are YAML, so indentation controls structure. GitHub reports workflow syntax and configuration problems in the Actions interface.
+
+<RulesBox title="Common mistakes">
+
+- **Reading only the status icon.** Open the job and identify the failed step.
+- **Pushing without local checks.** Run the checks relevant to the change and review the committed files.
+- **Reading only the bottom of a build log.** Locate the failing task and its first relevant error.
+- **Testing workflow edits only on the default branch.** Use a branch or pull request when the workflow triggers there.
+- **Putting credentials in YAML.** Store secrets through repository or environment settings and limit their permissions.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "github", "path": "actions/about-github-actions/understanding-github-actions", "note": "Workflows, jobs, steps, runners."},
+  {"source": "github", "path": "actions/writing-workflows/workflow-syntax-for-github-actions", "note": "The YAML keys in the team workflow."},
+  {"source": "wpilib", "path": "docs/software/advanced-gradlerio/robot-code-ci.html", "note": "WPILib's CI workflow for robot code and the roboRIO container image."},
+  {"url": "https://hub.docker.com/r/wpilib/roborio-cross-ubuntu/tags", "label": "wpilib/roborio-cross-ubuntu tags", "note": "The container image tags."},
+  {"source": "cobra", "path": ".github/workflows/", "note": "FRC 4451's robot build workflow."},
+  {"source": "cobra", "path": "build.gradle", "note": "What the workflow builds."}
+]} />
+
+<LinkGrid title="Next" section="tools" links={[
+  {"label":"Pull Requests and Collaboration","id":"pull-requests"},
+  {"label":"Reading a Gradle failure","url":"/tools/shell-troubleshooting#reading-a-gradle-failure"},
+  {"label":"GitHub docs: Understanding GitHub Actions","url":"https://docs.github.com/en/actions/about-github-actions/understanding-github-actions"},
+  {"label":"WPILib: Using a GitHub Action to build","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-gradlerio/robot-code-ci.html"}
+]} />

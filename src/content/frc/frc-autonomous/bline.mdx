@@ -1,0 +1,181 @@
+---
+title: "BLine: Point-to-Point Autonomous"
+lessonId: bline
+section: frc
+group: frc-autonomous
+groupLabel: Autonomous
+groupOrder: 9
+order: 3
+difficulty: intermediate
+duration: 20 min
+description: "A path follower that chases the robot's real position instead of a clock: what that buys you, what it costs, and the forty lines that wire it to a drivetrain."
+---
+
+### What BLine is
+
+BLine is an open-source path-following suite for holonomic drivetrains: a web editor for drawing paths, and a Java library, **BLine-Lib**, that follows them. Its pitch is *build fast autos, tune what the robot actually does*, and its distinguishing choice is that a path is a **sequence of points**, not a trajectory in time.
+
+That one decision is worth understanding, because it is the reason to pick BLine over the alternatives, and the reason not to, on the wrong day.
+
+### Points, not time
+
+[PathPlanner](/frc/pathplanner#paths-autos-and-event-markers) and Choreo generate a **trajectory**: at every instant `t`, here is where the robot should be, how fast, and pointing which way. The follower's job is to make the robot match that schedule. It is time-optimal, and if the robot is bumped, or the wheels slip, or a mechanism takes longer than expected, the schedule has moved on without it and the follower is now chasing a ghost.
+
+BLine reads the robot's current pose every cycle and asks a geometric question: *how far along the drawn line am I, and which point is next?* There is no clock to fall behind. If the robot gets shoved two feet sideways it simply drives back onto the line from where it is; if it is blocked for a second, it resumes from where it stopped. The docs put it plainly: paths "should wait for physical progress rather than a clock."
+
+<ContentTable
+  headers={["", "Trajectory follower (PathPlanner, Choreo)", "Point-to-point (BLine)"]}
+  rows={[
+    ["Reference", "Desired state at time <em>t</em>", "Next point along the line, from the current pose"],
+    ["After a bump", "Chases a schedule that has moved on", "Resumes from wherever the robot is"],
+    ["Sharp corner", "Slowed automatically by the optimiser", "Not slowed unless you add a constraint"],
+    ["Blocked by a robot", "Time runs out; the path finishes", "Keeps trying; add a timeout"],
+    ["Strength", "Fastest possible motion, known in advance", "Robust motion, tuned empirically"]
+  ]}
+/>
+
+The trade is real in both directions. BLine will not slow down for a corner just because it is sharp; a drawn polyline is not proof the chassis can follow it at the requested acceleration; and a physically blocked robot "may keep trying forever unless the command composition adds a timeout or fallback." What you get in exchange is an auto that survives contact, which in a game with defence is worth a great deal.
+
+BLine trusts whatever pose you give it. With odometry alone it works for short, clean routines; for longer autos, direction changes, and anything that might involve a collision, the docs strongly recommend vision correction, which is what [PhotonVision](/frc/photonvision#pass-observations-to-the-estimator) feeds into your pose estimator. Bad pose in, bad path out.
+
+### Installing it
+
+BLine-Lib is a vendordep. In WPILib VS Code: *Manage Vendor Libraries* → *Install new libraries (online)* and paste
+
+```
+https://bline-metrics.edan-liahovetsky.workers.dev/vendor/BLine-Lib.json
+```
+
+The classes land under `frc.robot.lib.BLine`. The current release as of this writing is **v0.9.1**; the [versions page](https://bline-docs.pages.dev/reference/versions/) is where to check.
+
+### Wiring it to the drivetrain
+
+Everything goes through one `FollowPath.Builder`, built once and reused for every path. It needs the drive subsystem and three things the subsystem must be able to do (report its pose, report its speeds, and accept a speed command), plus three PID controllers.
+
+```java
+package frc.robot.autonomous.bline;
+
+import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
+import frc.robot.lib.BLine.FollowPath;
+import frc.robot.lib.BLine.Path;
+import frc.robot.subsystems.drive.Drive;
+
+public class BLineManager {
+    private final FollowPath.Builder pathBuilder;
+
+    public BLineManager(Drive drive) {
+        pathBuilder =
+            new FollowPath.Builder(
+                    drive,                              // the subsystem every built command requires
+                    drive::getPose,                     // Supplier<Pose2d>: field-relative pose
+                    drive::getChassisSpeeds,            // Supplier<ChassisSpeeds>: robot-relative
+                    drive::runVelocity,                 // Consumer<ChassisSpeeds>: robot-relative
+                    new PIDController(2.5, 0.0, 0.0),   // translation: error is distance left along the line
+                    new PIDController(3.0, 0.0, 0.0),   // rotation: error is heading, wraps at ±180°
+                    new PIDController(2.0, 0.0, 0.0))   // cross-track: error is sideways distance off the line
+                .withDefaultShouldFlip()                // author on blue; flip for red from the Driver Station
+                .withPoseReset(drive::setPose);         // seed odometry at the first path's start
+    }
+
+    public Command followPath(String name) {
+        return pathBuilder.build(new Path(name));
+    }
+}
+```
+
+This is FRC 4451's actual wiring from their 2026 robot, lightly trimmed. Three things in it to notice:
+
+- **The three PIDs are three different errors.** Translation is *how much line is left*, rotation is *heading*, cross-track is *how far off the line sideways*. The docs' tuning advice follows from that: tune translation first, rotation second, cross-track last, "so each plot has one main unknown."
+- **`withDefaultShouldFlip()`** means you draw every path as if you are the blue alliance and BLine mirrors it when the Driver Station says red. One set of paths, not two.
+- **`withPoseReset`** tells the drivetrain where the path starts. Apply it when building the *first* path of an auto, not every path; later paths should trust the pose the robot has earned.
+
+### Where paths come from
+
+**Drawn.** [BLine Web](https://bline-docs.pages.dev/gui/) is a browser editor: click waypoints onto the field, set headings and constraints, preview, export JSON. The file goes in the deploy folder and is loaded by name:
+
+```
+src/main/deploy/autos/
+├── config.json           global defaults, written by the editor
+└── paths/
+    └── score-left.json
+```
+
+```java
+Path scoreLeft = new Path("score-left");    // no .json
+```
+
+**Written.** A path is also just Java, which is what makes runtime-built routes possible, such as a path from wherever the robot is now to the loading zone:
+
+```java
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
+import frc.robot.lib.BLine.Path;
+
+Path.setDefaultGlobalConstraints(new Path.DefaultGlobalConstraints(
+    4.5,     // max translation velocity (m/s)
+    12.0,    // max translation acceleration (m/s²)
+    720.0,   // max rotation velocity (deg/s)
+    1500.0,  // max rotation acceleration (deg/s²)
+    0.03,    // end translation tolerance (m)
+    2.0,     // end rotation tolerance (deg)
+    0.45     // intermediate handoff radius (m)
+));
+
+Path toLoading = new Path(
+    new Path.Waypoint(new Translation2d(4.0, 2.0), Rotation2d.fromDegrees(0)),
+    new Path.TranslationTarget(new Translation2d(6.0, 2.8)),
+    new Path.RotationTarget(Rotation2d.fromDegrees(90), 0.5, true),
+    new Path.EventTrigger(0.7, "deployIntake"),
+    new Path.Waypoint(new Translation2d(7.5, 3.4), Rotation2d.fromDegrees(90))
+);
+```
+
+A **Waypoint** is a position with a heading; a **TranslationTarget** is a position the robot passes through without caring about heading; a **RotationTarget** asks for a heading by a certain fraction of progress. The **handoff radius** is the circle around each intermediate target inside which BLine considers it reached and moves on. It decides whether the robot cuts corners or squares them.
+
+### Events
+
+An `EventTrigger` at `t = 0.7` fires when the robot is 70 % of the way along the path, by progress rather than by time, which is the same design again. It is bound by name:
+
+```java
+FollowPath.registerEventTrigger("deployIntake", intake.deployCommand());
+```
+
+A `Runnable` runs inline and must be fast; a `Command` is scheduled and keeps running under normal WPILib rules, even after the path ends. The one trap: a command that *requires the drivetrain* will fight `FollowPath`, which already owns it, and the scheduler will cancel one of them. Events should touch other subsystems.
+
+### Which tool, when
+
+Both are on the same robot for a reason. Use **PathPlanner** when the motion itself is the hard part: a long, fast, curved route where the optimiser's speed profile is the point. Use **BLine** when robustness is the hard part: short segments between scoring positions, anything that might take contact, routes that start from wherever the robot happens to be. FRC 4451 runs both; the manager above is their BLine side.
+
+<RulesBox title="Common mistakes">
+
+- **Tuning all three PIDs at once.** Translation, then rotation, then cross-track: one unknown per plot.
+- **No timeout on a path that might be blocked.** `withTimeout(...)` on the built command, or a fallback in the sequence.
+- **A sharp corner drawn at full speed.** Add a velocity constraint on that segment; nothing will slow it for you.
+- **`withPoseReset` on every path**, throwing away the corrected pose mid-auto.
+- **An event command that requires the drive subsystem.**
+- **Trusting the drawn line more than the pose estimate.** If the pose is off by half a metre, so is the path.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "bline", "note": "BLine overview: points, not time."},
+  {"source": "bline", "path": "gui/", "note": "The path editor."},
+  {"source": "bline", "path": "reference/versions/", "note": "Library and vendordep versions."},
+  {"url": "https://github.com/edanliahovetsky/BLine-Lib", "label": "BLine-Lib source", "note": "The follower library."},
+  {"url": "https://github.com/edanliahovetsky/BLine-Web", "label": "BLine-Web source", "note": "The editor."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/autonomous/bline/BLineManager.java", "note": "Cobra's wiring: the manager that owns the follower, loads paths and exposes events."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "The <code>runVelocity</code> and pose suppliers handed to BLine; the rotation override."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/autonomous/AutonomousManager.java", "note": "Where BLine routines are chosen alongside PathPlanner ones."},
+  {"source": "cobra", "path": "vendordeps/BLine-Lib.json", "note": "BLine-Lib 0.8.4."}
+]} />
+
+<LinkGrid title="Next" section="frc" links={[
+  {"label":"PathPlanner","id":"pathplanner"},
+  {"label":"PhotonVision","id":"photonvision"},
+  {"label":"BLine Documentation","url":"https://bline-docs.pages.dev/"},
+  {"label":"BLine-Lib on GitHub","url":"https://github.com/edanliahovetsky/BLine-Lib"},
+  {"label":"BLine Web on GitHub","url":"https://github.com/edanliahovetsky/BLine-Web"},
+  {"label":"FRC 4451 Cobra2026","url":"https://github.com/frc4451/Cobra2026Private"}
+]} />

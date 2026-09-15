@@ -15,7 +15,7 @@ description: Passing a class the things it needs instead of letting it build the
 
 Here is a class that creates what it depends on:
 
-```java
+```java norun
 class Shooter {
     private final Motor motor;
 
@@ -31,13 +31,13 @@ class Shooter {
 
 This works, and it is what most people write first. But three things are now impossible.
 
-You cannot **test** it without real hardware — constructing a `Shooter` constructs a `Motor` on port 5. You cannot **reuse** it on a robot where the shooter is on a different port. And you cannot **substitute** a different kind of motor without editing the class.
+You cannot **test** it without real hardware, because constructing a `Shooter` constructs a `Motor` on port 5. You cannot **reuse** it on a robot where the shooter is on a different port. And you cannot **substitute** a different kind of motor without editing the class.
 
 The class made a decision that was not really its business.
 
 ### Passing it in instead
 
-```java
+```java norun
 class Shooter {
     private final Motor motor;
 
@@ -53,7 +53,7 @@ class Shooter {
 
 The change is small. The consequences are not.
 
-```java
+```java norun
 Motor shooterMotor = new Motor(5);
 Shooter shooter = new Shooter(shooterMotor);
 ```
@@ -66,19 +66,19 @@ That is dependency injection: a class receives what it needs rather than constru
 
 Passing dependencies through the constructor is the best of the three options:
 
-```java
-// constructor injection — preferred
+```java norun
+// constructor injection: preferred
 Shooter(Motor motor) { this.motor = motor; }
 
-// setter injection — object exists in an incomplete state first
+// setter injection: object exists in an incomplete state first
 void setMotor(Motor motor) { this.motor = motor; }
 
-// field injection via a framework — hidden, hard to follow
+// field injection via a framework: hidden, hard to follow
 ```
 
 Constructor injection lets you mark the field `final`, and it makes the object valid the moment it exists. With a setter, there is a window where `motor` is `null` and any method call fails.
 
-Use a setter only for genuinely optional dependencies.
+Use a setter only for optional dependencies.
 
 </RulesBox>
 
@@ -104,7 +104,7 @@ class Shooter {
 }
 ```
 
-`Shooter` now works with anything satisfying that interface — a vendor's motor class, a simulated one, or a recording one used for diagnostics. It does not know or care, thanks to [runtime polymorphism](/java/java-runtime-polymorphism).
+`Shooter` now works with anything satisfying that interface: a vendor's motor class, a simulated one, or a recording one used for diagnostics. It does not know or care, thanks to [runtime polymorphism](/java/java-runtime-polymorphism#two-kinds-of-type).
 
 ### Testing becomes possible
 
@@ -125,7 +125,7 @@ FakeMotor fake = new FakeMotor();
 Shooter shooter = new Shooter(fake);
 
 shooter.spinUp();
-System.out.println(fake.lastOutput);     // 0.9 — verified with no hardware
+System.out.println(fake.lastOutput);     // 0.9: verified with no hardware
 
 shooter.stop();
 System.out.println(fake.stopped);        // true
@@ -135,9 +135,9 @@ You just tested shooter logic on a laptop. With the original version this test c
 
 ### Injecting values, not just objects
 
-The same reasoning applies to plain values and to [suppliers](/java/java-fn-supplier).
+The same reasoning applies to plain values and to [suppliers](/java/java-fn-supplier#lazy-and-expensive-work).
 
-```java
+```java norun
 class DriveCommand {
     private final Drivetrain drive;
     private final DoubleSupplier forward;
@@ -155,25 +155,25 @@ class DriveCommand {
 }
 ```
 
-```java
+```java norun
 new DriveCommand(drivetrain,
                  () -> -joystick.getLeftY(),
                  () -> joystick.getRightX());
 ```
 
-Injecting suppliers rather than numbers is what keeps the command reading live inputs. Passing `joystick.getLeftY()` directly would freeze one reading forever — the mistake described in the `Supplier` lesson.
+Injecting suppliers rather than numbers is what keeps the command reading live inputs. Passing `joystick.getLeftY()` directly would freeze one reading forever, the mistake described in the `Supplier` lesson.
 
 For a test, inject constants:
 
-```java
+```java norun
 new DriveCommand(fakeDrive, () -> 0.5, () -> 0.0);
 ```
 
 ### Where the wiring goes
 
-If every class receives its dependencies, something must eventually create the real objects. That job collects in one place — often called the composition root.
+If every class receives its dependencies, something must eventually create the real objects. That job collects in one place, often called the composition root.
 
-```java
+```java norun
 class RobotContainer {
     private final MotorController shooterMotor = new Motor(5);
     private final MotorController intakeMotor  = new Motor(6);
@@ -206,24 +206,26 @@ Passing arguments to constructors *is* dependency injection. Nothing more is req
   ]}
 />
 
-The last row is the honest cost. Constructors get longer, and wiring code appears. For a small program that trade is not always worth it — but for anything you intend to test or reuse, it is.
+The last row is the honest cost. Constructors get longer, and wiring code appears. For a small program that trade is not always worth it; for anything you intend to test or reuse, it is.
 
 <RulesBox title="Common mistakes">
 
 - **Injecting a concrete class** instead of an interface, keeping you locked in.
 - **Setter injection by default**, leaving a window where fields are `null`.
-- **A constructor with eight parameters.** That is a sign the class does too much — split it.
+- **A constructor with eight parameters.** That is a sign the class does too much; split it.
 - **Injecting a value where a `Supplier` is needed**, freezing a changing reading.
 - **Reaching for a framework** to solve a problem that constructor parameters already solve.
 - **Keeping a hidden dependency** on a static or global, which defeats the whole exercise.
 
 </RulesBox>
 
+<JavaPlayground id="java-dp-dependency-injection" />
+
 <ExerciseBox title="Practice">
 
 1. Rewrite a class that constructs its own dependency so the dependency is passed in.
 2. Define a `MotorController` interface, a real implementation, and a fake one that records calls.
-3. Write a `Shooter` taking a `MotorController` and test it with the fake — no hardware.
+3. Write a `Shooter` taking a `MotorController` and test it with the fake, with no hardware.
 4. Write a class taking a `DoubleSupplier` and show that it sees updated values when the source changes.
 5. Write a small composition root creating two subsystems and their dependencies in one place.
 
@@ -234,7 +236,7 @@ The last row is the honest cost. Constructors get longer, and wiring code appear
 2. The fake stores whatever it is told so the test can inspect it afterwards.
 3. Call a method, then assert against the fake's recorded field.
 4. Back the supplier with a mutable field; change it between calls.
-5. A class whose fields are the real objects, constructed in declaration order. Note that order matters — a dependency must exist before whatever needs it.
+5. A class whose fields are the real objects, constructed in declaration order. Note that order matters: a dependency must exist before whatever needs it.
 
 </details>
 
@@ -247,6 +249,13 @@ The last row is the honest cost. Constructors get longer, and wiring code appear
     {"label":"The Command Pattern","id":"java-dp-command"}
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"url": "https://en.wikipedia.org/wiki/Dependency_injection", "label": "Wikipedia: Dependency injection", "note": "The pattern."},
+  {"url": "/frc/io-layer", "label": "The IO layer on the robot", "note": "Injection of hardware interfaces in FRC 4451's code."},
+  {"source": "java-api", "path": "java.base/java/util/function/Supplier.html", "note": "<code>Supplier</code> API reference."}
+]} />
 
 <LinkGrid
   title="Related"

@@ -1,0 +1,190 @@
+---
+title: "CANcoder: Absolute Position and a Consistent Zero"
+lessonId: cancoder-absolute-position
+section: frc
+group: frc-advanced-motor-config
+groupLabel: "Advanced Motor Control"
+groupOrder: 5
+order: 4
+difficulty: advanced
+duration: 40 min
+description: "Why a mechanism with a CANcoder knows where it is the instant the robot powers on: the magnet and what it reports, absolute versus relative position, MagnetOffset and the zeroing procedure FRC 4451 uses, the discontinuity point, sensor direction, the one-sensor-turn rule for geared sensors, FusedCANcoder versus Remote versus Sync, and the boot-time checks that make 'it starts in the wrong place' a thing that cannot happen."
+---
+
+A rotor encoder counts from wherever the shaft was when the controller powered on. A hood, a pivot, an end-effector wrist starts each match wherever the last person left it, and the code has to know where that is before the first command, or the first command drives it into a hard stop. The Kit Bot side-stepped this: its launcher had no position to know, and its drive zeroed at boot because "wherever it starts is zero" is fine for a drivetrain. Cobra's hood and end-effector cannot do that. They carry a **CANcoder**, and this lesson is how FRC 4451 uses it so that every boot starts at the same, correct zero with no homing routine.
+
+### What the sensor reports
+
+A CANcoder is a magnetic absolute encoder: a diametrically magnetised magnet on the shaft, a chip on the board that reads the magnet's angle. Because it reads an *angle*, not a *count*, it knows the shaft's position within one rotation the moment it has power. It publishes three things worth knowing:
+
+<ContentTable
+  headers={["Signal", "Range", "Survives a power cycle?", "Use it for"]}
+  rows={[
+    ["<code>getAbsolutePosition()</code>", "One rotation, placed by the discontinuity point (default <code>[-0.5, 0.5)</code>)", "<strong>Yes</strong>; it is the magnet's physical angle plus the offset", "Knowing where the mechanism is at boot"],
+    ["<code>getPosition()</code>", "Unbounded rotations", "Initialised from the absolute position at boot, then counts continuously", "Everyday feedback: it never wraps mid-move"],
+    ["<code>getMagnetHealth()</code>", "<code>Magnet_Green</code> / <code>Orange</code> / <code>Red</code> / <code>Invalid</code>", "n/a", "Trusting the other two. Orange is reduced accuracy; Red means the magnet is out of range and the position is not usable"]
+  ]}
+/>
+
+The two positions are the whole idea. **Absolute** answers "where am I" once, correctly, at power-on. **Position** answers "how far have I moved" thereafter without ever jumping across a wrap. A mechanism that uses the CANcoder well reads the first once and the second always, and with `FusedCANcoder` the TalonFX does both for you.
+
+### The whole travel must fit in one sensor turn
+
+The absolute reading is unique only within a single turn of the *sensor*. If the sensor turns more than once over the mechanism's travel, the same absolute angle appears at two mechanism positions and the boot-time position is ambiguous: the offset is right at one of them and wrong by a full sensor turn at the other, depending on where the mechanism was parked.
+
+That does **not** mean the sensor has to be 1:1 with the mechanism. It means: *travel × (sensor turns per mechanism turn) < 1 rotation*, with margin. Cobra gears its CANcoders *up* on purpose, because a sensor that turns further over the same travel has more resolution to give:
+
+<ContentTable
+  headers={["Mechanism", "Sensor turns per mechanism turn", "Travel", "Sensor angle over the travel", "Fits?"]}
+  rows={[
+    ["Hood", "<code>170 / 20 = 8.5</code>", "28° – 50° (22°)", "22° × 8.5 = <strong>187°</strong>", "Yes, with 173° to spare, and 8.5× the resolution of a 1:1 mount"],
+    ["End-effector pivot", "<code>3.0</code>", "−2° – 90° (92°)", "92° × 3 = <strong>276°</strong>", "Yes, with 84° to spare; the discontinuity is moved to sit in that gap"],
+    ["A 1:1 mount", "<code>1.0</code>", "Anything under 360°", "Same as the travel", "Always, and it is the simple case"]
+  ]}
+/>
+
+The gearing lives in two ratios in FRC 4451's config:
+
+```java
+public record CANCoderConfig(
+    Integer canId, CANBus canBus,
+    Angle magnetOffset,
+    Angle minAngle, Angle maxAngle,
+    Double discontinuity,
+    double rotorToSensorReduction,        // motor rotor turns per CANcoder turn
+    double sensorToMechanismReduction,    // CANcoder turns per mechanism turn (8.5 on the hood, 3 on the pivot, 1 for a direct mount)
+    boolean isClockwisePositive) {}
+```
+
+`rotorToSensorReduction` is the gearing between the motor and the sensor; `sensorToMechanismReduction` is the gearing between the sensor and the thing you care about. Their product is `totalReduction`, motor turns per mechanism turn, which is what the physics model and the rotor-units conversion in [Simulating a TalonFX](/frc/talonfx-simulation#the-units-trap-sensortomechanismratio) need. When you design a new mechanism, do the arithmetic in the table above before the CAD is frozen: a sensor stage that turns 1.5 times over the travel is a boot-time bug that no software fixes.
+
+### Configuring the sensor
+
+`SingleRollerIOTalonFXWithCANCoder` configures the CANcoder before the motor:
+
+```java
+CANcoderConfiguration encoderConfig = new CANcoderConfiguration();
+
+encoderConfig.MagnetSensor.MagnetOffset =
+    canCoderConfig.magnetOffset().in(Rotations) * canCoderConfig.sensorToMechanismReduction();
+
+encoderConfig.MagnetSensor.SensorDirection =
+    canCoderConfig.isClockwisePositive()
+        ? SensorDirectionValue.Clockwise_Positive
+        : SensorDirectionValue.CounterClockwise_Positive;
+
+if (canCoderConfig.discontinuity() != null) {
+  encoderConfig.MagnetSensor.AbsoluteSensorDiscontinuityPoint = canCoderConfig.discontinuity();
+}
+
+PhoenixUtil.tryUntilOk(5, () -> cancoder.getConfigurator().apply(encoderConfig, 0.25));
+```
+
+Three settings, each of which is a class of bug when wrong.
+
+**`MagnetOffset`** is *added* to the raw magnet angle to produce the reported position. It is how you decide which physical pose reads zero. FRC 4451 expresses the offset as a *mechanism* angle in the constants (`Degrees.of(-37.5)` on the hood) and multiplies by `sensorToMechanismReduction` here, so the number in the file is in the units a person measures (hood degrees) and the sensor gets the equivalent sensor angle (−37.5° × 8.5 = −318.75° of sensor, which is −0.885 rotations). The sign convention matters: **offset = −(raw absolute reading at the pose you want to be zero)**, in whichever units you are working in.
+
+**`SensorDirection`** decides which way is positive. It should match the motor's positive direction after the gearbox, so that when the motor drives "forward" the fused position increases. Get it backwards and the closed loop runs away: the controller pushes positive, the sensor reports more negative, the error grows, the output grows. CTRE's hardware page has the verification procedure; the short version is *turn the mechanism by hand in the direction you call positive and watch the sign*.
+
+**`AbsoluteSensorDiscontinuityPoint`** places the wrap. The absolute position is one *sensor* rotation long; this number, in sensor rotations, is where the range ends: `0.5` gives `[-0.5, 0.5)`, `1.0` gives `[0, 1)`, `0.875` gives `[-0.125, 0.875)`. **Put the wrap where the sensor can never be while the mechanism is inside its travel.** Work it out: sensor angle = mechanism angle × `sensorToMechanismReduction`, plus the offset, taken over the whole travel and reduced modulo one turn; that interval is where the mechanism lives, and the discontinuity point must be outside it. FRC 4451 sets `0.875` on the end-effector pivot and `0.783333` on the hood for this reason. Both geared sensors sweep well past 180°, so the default `0.5` (a wrap at 180° of sensor) could land inside the sweep. When it does, the absolute reading jumps a full rotation mid-move, and on the boots where the mechanism is parked past that point it starts a turn away from where it is. (`AbsoluteSensorRange` in older code is this same setting with two fixed choices.)
+
+### Zeroing: the procedure
+
+The offset is measured once per mechanism, whenever the magnet, the sensor or the linkage is disturbed, and lives in the constants file. FRC 4451's own comment in `HoodConstants` is the procedure:
+
+> Set the Pivot to "DEPLOYED", keep this as Zero, then assign the Absolute Position of the CANCoder to this magnetOffset.
+
+Expanded:
+
+<StepsBox title="Measuring MagnetOffset">
+
+1. **Decide the reference pose**, the one physical position that will read zero. Pick something a person can put the mechanism at exactly and repeatably: against a hard stop, on a pin, flat on a surface. Write it in the constants file as a comment. FRC 4451 uses the hood's deployed stop and the intake pivot's deployed position.
+2. **Set the offset to zero** in the config (or leave it as it is and note the current value; the maths works either way).
+3. **Deploy, power on, put the mechanism at the reference pose by hand.** Robot disabled.
+4. **Read the raw absolute position.** Phoenix Tuner X shows it live on the device page; or log `cancoder.getAbsolutePosition()` and read it in AdvantageScope. Say it reads `0.104` rotations.
+5. **The new offset is the negative:** `magnetOffset = −0.104 rot` of *sensor*. FRC 4451's constants want a *mechanism* angle, so divide by `sensorToMechanismReduction` first. On the hood, −0.104 rot ÷ 8.5 = −0.0122 rot = −4.4°. (`Degrees.of(-37.5)` in the file is a sensor reading of −0.885 rotations, done the same way.) If step 2 left an old offset in place, subtract the reading from it instead.
+6. **Deploy again and check:** at the reference pose the mechanism position reads `0` within a fraction of a degree, and moving it in the positive direction reads positive. Then move it to the *other* end of travel and confirm the reading is the expected span, with no wrap in between.
+7. **Commit the constant** with the date and who measured it. An offset nobody can explain is an offset that gets "fixed" wrongly at an event.
+
+</StepsBox>
+
+Tuner X can do steps 4 and 5 in one click: its **Zero CANcoder** button sets `MagnetOffset` so the current pose reads zero and reports the value it applied. Use it to find the number, then put that number in code: FRC 4451's IO applies the full configuration at construction, so a value that exists only in the device's flash is overwritten by whatever the constants file says on the next boot. Code is the source of truth; Tuner X is the measuring tool.
+
+### Wiring it to the TalonFX
+
+With the sensor configured, the motor is told to use it:
+
+```java
+cfg.Feedback = new FeedbackConfigs()
+    .withFeedbackSensorSource(FeedbackSensorSourceValue.FusedCANcoder)
+    .withFeedbackRemoteSensorID(canCoderConfig.canId())
+    .withRotorToSensorRatio(canCoderConfig.rotorToSensorReduction())
+    .withSensorToMechanismRatio(canCoderConfig.sensorToMechanismReduction());
+```
+
+From this point the TalonFX's `getPosition()` **is** the mechanism position, in mechanism rotations, correct from the first loop after power-on, and every closed-loop request (Motion Magic, position, the soft limits) works in those units. Nothing in the subsystem seeds anything.
+
+There are three ways to use a remote CANcoder, and the choice is a licensing and precision decision:
+
+<ContentTable
+  headers={["Mode", "Position comes from", "Velocity comes from", "Needs Phoenix Pro", "Use when"]}
+  rows={[
+    ["<code>FusedCANcoder</code>", "CANcoder absolute at boot, then rotor <em>corrected</em> continuously by the CANcoder", "Rotor (high resolution, low latency)", "<strong>Yes</strong>; unlicensed devices fall back to Remote and set a fault", "FRC 4451's default. Best position and velocity; backlash between rotor and sensor is continuously reconciled"],
+    ["<code>RemoteCANcoder</code>", "The CANcoder, every time it publishes", "The CANcoder", "No", "No Pro license. Lower-rate, lower-resolution feedback, acceptable for slow mechanisms"],
+    ["<code>SyncCANcoder</code>", "Rotor, <em>seeded</em> from the CANcoder absolute at boot", "Rotor", "No", "Backlash is negligible and you only need the boot-time zero"]
+  ]}
+/>
+
+Whichever mode: the TalonFX still needs its own copy of the ratios, because its rotor runs through `RotorToSensorRatio` before it can be compared with the sensor, and both run through `SensorToMechanismRatio` to become mechanism units.
+
+### Starting consistently, every time
+
+Everything above is what makes "the hood starts where it is" true. What keeps it true through a season is checking, at boot, that the assumptions still hold:
+
+- **Log `MagnetHealth` as an input** and raise an `Alert` when it is not green. Orange at boot means the magnet has shifted or the gap has grown; the position is still *a* number, and it is the number every command will trust.
+- **Log the raw absolute position at boot**, before any command runs. Plot it across a week of logs: it should sit in the same narrow band every time the robot powers on in the same pose. A day where it is a full rotation off is a discontinuity that moved into the travel; a slow drift is a loose magnet.
+- **Sanity-check against the travel.** If `getPosition()` at boot is outside `[minAngle, maxAngle]` by more than the tolerance, something is mechanically wrong; refuse to run the mechanism's closed loop until a human has looked. This is the one case where a mechanism *should* wait for a person.
+- **Never `setPosition` on a fused motor to "fix" a bad reading.** `SingleRollerIOTalonFXWithCANCoder.resetPosition` calls `talon.setPosition(...)`, and on a fused device that adds a temporary offset that the next boot discards, so the symptom returns tomorrow with no record of why. Fix the `MagnetOffset` instead; that is what it is for.
+- **Re-measure the offset after touching the hardware.** Any time the magnet, the CANcoder or the linkage between them is removed, the number is void. Put "re-zero the hood" on the checklist next to "reattach the hood".
+
+<RulesBox title="Common mistakes">
+
+- **A sensor that turns more than once over the travel.** Two mechanism positions share one absolute reading. Check <em>travel × sensor-to-mechanism</em> against 360° before the CAD is frozen.
+- **The offset with the wrong sign.** Reads <code>0.208</code> at the reference instead of <code>0</code>, which is twice the raw value. Negate it.
+- **The wrap inside the travel.** Boots fine most days; one day the mechanism thinks it is 360° away. Move the discontinuity point.
+- **Sensor direction opposite to the motor.** The loop runs away on the first command. Verify by hand before enabling.
+- **Zeroing in Tuner X and not in code.** Works until the next deploy applies the constants file.
+- **Trusting a red magnet.** The number is still published. It is not a position.
+- **In simulation, forgetting the CANcoder's sim state.** The fused position never moves; see <a href="/frc/talonfx-simulation#the-missing-piece-the-cancoder">Simulating a TalonFX</a>.
+
+</RulesBox>
+
+<ExerciseBox title="Practice">
+
+1. Read `HoodConstants.cancoderConfig` and `IntakeConstants.cancoderConfig` in FRC 4451's Cobra repository. For each, state the reference pose, the offset in mechanism degrees and in sensor rotations, the sensor direction, and how many sensor degrees the travel spans.
+2. Both configs set `discontinuity` explicitly (`0.783333` and `0.875`). Using the travel limits and reductions, show where the wrap sits relative to the sensor angles the mechanism actually visits, and what would go wrong at the default `0.5`. For the hood specifically, find the hood angle at which the jump would happen.
+3. Add a `magnetHealth` field to `SingleRollerIOInputs`, fill it from `cancoder.getMagnetHealth()` in `updateInputs`, and raise an `Alert` in the subsystem when it is not `Magnet_Green`. Prove it in simulation by logging the field and confirming it appears in AdvantageScope.
+4. Write the boot-time travel check: if the position at the first `updateInputs` is outside `[minAngle, maxAngle]`, log an error and hold the mechanism with `NeutralOut` until a tunable "override" is set.
+
+</ExerciseBox>
+
+<Sources items={[
+  {"source": "ctre", "path": "docs/hardware-reference/cancoder/index.html", "note": "What the CANcoder reports; magnet offset and sensor direction."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/remote-sensors.html", "note": "<code>FeedbackSensorSource</code>: fused, synced and remote CANcoder; <code>RotorToSensorRatio</code> and <code>SensorToMechanismRatio</code>."},
+  {"source": "ctre", "path": "docs/api-reference/api-usage/configuration.html", "note": "<code>MagnetSensorConfigs</code>: <code>MagnetOffset</code>, <code>AbsoluteSensorDiscontinuityPoint</code>, <code>SensorDirection</code>."},
+  {"source": "ctre", "path": "docs/licensing/licensing.html", "note": "Fused and synced modes need a Pro licence; unlicensed devices fall back."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/HoodConstants.java", "note": "The zeroing procedure written as a comment, the offset in mechanism units, the discontinuity point."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/IntakeConstants.java", "note": "The intake pivot's CANcoder configuration."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFXWithCANCoder.java", "note": "How the library wires the sensor to the TalonFX at construction."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/CTREUtils.java", "note": "<code>calculateDiscontinuity</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/util/PhoenixUtil.java", "note": "Applying the CANcoder configuration with retries."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/Hood.java", "note": "The mechanism the example zeroes."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Simulating a TalonFX","id":"talonfx-simulation"},
+  {"label":"Motor Configuration","id":"motor-controller-configuration"},
+  {"label":"Reading Our Robot Code","id":"team-robot-code"},
+  {"label":"CTRE: CANcoder hardware reference (magnet placement, direction, zeroing)","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/hardware-reference/cancoder/index.html"},
+  {"label":"CTRE: Remote sensors (Fused, Remote, Sync)","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/remote-sensors.html"}
+]} title="Resources" section="frc" />

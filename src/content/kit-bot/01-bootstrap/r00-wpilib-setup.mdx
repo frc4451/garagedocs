@@ -1,0 +1,230 @@
+---
+title: "R00: WPILib Setup"
+lessonId: r00-wpilib-setup
+section: kit-bot
+group: bootstrap
+groupLabel: "Phase 1: Bootstrap"
+groupOrder: 1
+order: 0
+duration: 60 min
+description: "Install the WPILib toolchain and confirm it works: an empty project that compiles, a simulator that opens, and AdvantageScope ready to read it."
+durationFixed: true
+---
+Before writing any robot code, you need WPILib: the official software suite for FRC programming. This module walks through installation, project creation, and the tools you will use every session.
+
+---
+
+### What WPILib Installs
+
+The WPILib offline installer bundles everything you need in one package:
+
+| Component | Purpose |
+|-----------|---------|
+| VS Code (WPILib edition) | The editor, pre-configured for FRC development |
+| WPILib extension | Robot project templates, deploy tools, and IntelliSense for WPILib APIs |
+| Java 17 JDK | The Java version required by WPILib 2026 |
+| GradleRIO | The build system that compiles and deploys robot code |
+| Robot Simulation | Run and test robot code without physical hardware |
+| AdvantageScope | The log and telemetry viewer this curriculum uses from R13 on |
+| Elastic | The driver dashboard; not used in Kit Bot |
+
+Both AdvantageScope and Elastic are installed by the WPILib installer. There is nothing separate to download. Launch AdvantageScope from WPILib VS Code with *WPILib: Start Tool* → *AdvantageScope*, or from the shortcut the installer places in `wpilib/2026/tools`. (Team 6328 also publishes newer builds on the [AdvantageScope releases page](https://github.com/Mechanical-Advantage/AdvantageScope/releases); the WPILib copy is enough for this curriculum.) We skip the older Shuffleboard and SmartDashboard entirely.
+
+<RulesBox title="Always use the WPILib VS Code">
+
+The WPILib installer creates its own copy of VS Code. Always open it from the **WPILib icon on your desktop** (not a regular VS Code shortcut). It has the correct Java version and extensions pre-configured.
+
+</RulesBox>
+---
+
+### Step 1: Download and Install WPILib
+
+1. Go to the [WPILib GitHub releases page](https://github.com/wpilibsuite/allwpilib/releases)
+2. Download the latest **2026** offline installer for your operating system (`WPILib_Windows-2026.x.x.iso` for Windows)
+3. Mount the ISO (double-click on Windows 11) and run `WPILibInstaller.exe`
+4. Select **Everything** when prompted for installation options
+5. Click **Install for this User** (does not require admin rights)
+
+Installation takes a few minutes. When it finishes, a WPILib icon will appear on your desktop.
+
+---
+
+### Step 2: Create a New Robot Project
+
+1. Open **WPILib VS Code** (the desktop icon)
+2. Press `Ctrl+Shift+P` to open the Command Palette
+3. Type `WPILib: Create a new project` and select it
+4. Fill in the project wizard:
+
+| Field | KitBot value | What it means |
+|-------|-------------|---------------|
+| Project type | Template | Start from a template, not a blank file |
+| Language | Java | |
+| Template | **Command Robot** | Uses the command-based framework |
+| Base folder | Your documents folder | Where the project folder will be created |
+| Project name | `KitBot` | |
+| Team number | Your team number | Used during deploy to find the RoboRIO |
+| Enable desktop support | ✓ checked | Allows simulation without a RoboRIO |
+
+5. Click **Generate Project**. VS Code opens the new project automatically.
+
+---
+
+### Project Structure
+
+```
+KitBot/
+├── src/main/java/frc/robot/
+│   ├── Main.java           ← entry point (never edit this)
+│   ├── Robot.java          ← robot lifecycle
+│   ├── RobotContainer.java ← subsystems + button bindings
+│   ├── Constants.java      ← all constants
+│   ├── subsystems/         ← one class per mechanism
+│   └── commands/           ← one class per action
+├── vendordeps/             ← third-party library configs
+├── build.gradle            ← GradleRIO build config
+└── .wpilib/
+    └── wpilib_preferences.json  ← team number
+```
+
+The `frc.robot` package is where all your code lives. The template generates empty placeholder files; you will replace their contents as you build the KitBot.
+
+---
+
+### Step 3: Add REVLib (SparkMax Support)
+
+The KitBot uses REV Robotics SparkMax motor controllers. WPILib does not include their library by default: you add it as a vendor dependency.
+
+1. Press `Ctrl+Shift+P` → `WPILib: Manage Vendor Libraries`
+2. Select **Install new libraries (online)**
+3. Paste the REVLib URL from the [REV documentation](https://docs.revrobotics.com/revlib/)
+4. Press Enter: VS Code downloads and adds `REVLib.json` to your `vendordeps/` folder
+5. Click **Yes** when prompted to run a Gradle build
+
+After the build completes, `import com.revrobotics.*;` will resolve correctly in your code.
+
+---
+
+### Step 4: Build the Project
+
+Press `Ctrl+Shift+P` → `WPILib: Build Robot Code` (or press `F5` to simulate, which builds first).
+
+You can also build from the terminal:
+
+```
+./gradlew build
+```
+
+A successful build prints `BUILD SUCCESSFUL`. Errors appear in the **Problems** panel.
+
+---
+
+### Step 5: Deploy to a RoboRIO
+
+When you are connected to the robot (over USB or radio):
+
+1. Press `Ctrl+Shift+P` → `WPILib: Deploy Robot Code`
+
+Or from the terminal:
+
+```
+./gradlew deploy
+```
+
+GradleRIO compiles the code, connects to the RoboRIO over the network, and installs the JAR file. The robot restarts and runs your new code immediately.
+
+<RulesBox title="Team number matters">
+
+The deploy tool finds the RoboRIO using your team number. If deploy fails with a connection error, verify the team number in `.wpilib/wpilib_preferences.json` matches your RoboRIO configuration.
+
+</RulesBox>
+---
+
+### Step 6: Simulate the Robot
+
+Desktop simulation lets you test code without physical hardware. Press `F5` or run `WPILib: Simulate Robot Code`. A simulation GUI opens alongside VS Code showing:
+
+- Robot state (enabled/disabled, teleop/auto)
+- Joystick inputs (connect a real controller or use the keyboard)
+- SmartDashboard values
+
+Simulation catches most logic bugs before you ever touch real hardware.
+
+---
+
+### The GradleRIO Build System
+
+WPILib projects use **GradleRIO**, a Gradle plugin that knows how to compile Java into a fat JAR and deploy it to a RoboRIO.
+
+The key section of `build.gradle`:
+
+```groovy
+plugins {
+    id "edu.wpi.first.GradleRIO" version "2026.1.1"
+}
+
+deploy {
+    targets {
+        roborio(getTargetTypeClass('RoboRIO')) {
+            team = thr_frc.getTeamOrDefault(team)
+        }
+    }
+    artifacts {
+        frcJavaArtifact('frcJava') {
+            targets << "roborio"
+            debug = frc.getDebugOrDefault(false)
+        }
+    }
+}
+```
+
+You will almost never need to modify `build.gradle` directly. The WPILib tools handle vendordep management through the Command Palette.
+
+---
+
+### Useful WPILib VS Code Commands
+
+| Command Palette entry | What it does |
+|----------------------|-------------|
+| `WPILib: Build Robot Code` | Compile without deploying |
+| `WPILib: Deploy Robot Code` | Build and deploy to RoboRIO |
+| `WPILib: Simulate Robot Code` | Build and run in simulation |
+| `WPILib: Manage Vendor Libraries` | Add/update/remove third-party libraries |
+| `WPILib: Create a new class` | Generate a new subsystem or command from a template |
+All WPILib commands start with `WPILib:`, typing that in the Command Palette filters the list. If VS Code itself is new to you, the [Tools section](/tools/vscode-tour#the-command-palette) covers the editor: the window, hotkeys, the Java tooling, and the debugger.
+
+---
+
+### Try it
+
+1. Install WPILib and create a new Command Robot project named `KitBot` with your team number.
+2. Add REVLib using the vendor library manager.
+3. Build the project and confirm `BUILD SUCCESSFUL`.
+4. Run the simulation (`F5`) and enable the robot in teleop mode. Nothing happens yet: the template is empty. That's expected. R01 walks through what each generated file does and where you'll start filling it in.
+
+---
+
+<RulesBox title="Evaluate in simulation">
+
+The project builds with `BUILD SUCCESSFUL`, `WPILib: Simulate Robot Code` launches, and the Sim GUI's Robot State switches to Teleoperated without an exception in the terminal. Nothing moves yet; the point is that the pipeline from source to a running simulated robot exists on your laptop.
+
+</RulesBox>
+
+### References
+
+- WPILib: [Zero to Robot Step 2: Installing Software](https://docs.wpilib.org/en/stable/docs/zero-to-robot/step-2/wpilib-setup.html), the canonical reference for the bits this page skims
+- WPILib: [Creating a Robot Project](https://docs.wpilib.org/en/stable/docs/software/vscode-overview/creating-robot-program.html)
+- WPILib: [Importing a Project / 3rd Party Libraries](https://docs.wpilib.org/en/stable/docs/software/vscode-overview/3rd-party-libraries.html)
+- WPILib: [Robot Simulation](https://docs.wpilib.org/en/stable/docs/software/wpilib-tools/robot-simulation/introduction.html)
+- REV: [REVLib install and JSON URL](https://docs.revrobotics.com/revlib/)
+- AdvantageScope: included with WPILib; [documentation](https://docs.advantagescope.org/) and, for newer builds than the WPILib copy, the [releases page](https://github.com/Mechanical-Advantage/AdvantageScope/releases)
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/zero-to-robot/step-2/wpilib-setup.html", "note": "The WPILib installer and what it installs, including AdvantageScope and Elastic."},
+  {"source": "wpilib", "path": "docs/software/vscode-overview/creating-robot-program.html", "note": "Creating the project."},
+  {"source": "wpilib", "path": "docs/software/vscode-overview/3rd-party-libraries.html", "note": "Installing the REVLib vendordep."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/introduction.html", "note": "Running the project in simulation."},
+  {"source": "rev", "path": "revlib/", "note": "REVLib installation and the vendordep URL."},
+  {"source": "advantagescope", "path": "overview/installation/", "note": "AdvantageScope, bundled with WPILib."},
+  {"url": "https://github.com/wpilibsuite/allwpilib/releases", "label": "WPILib releases", "note": "Installer downloads."}
+]} />

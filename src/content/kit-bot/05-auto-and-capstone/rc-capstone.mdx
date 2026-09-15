@@ -1,0 +1,207 @@
+---
+title: "RC: Capstone: a working Kit Bot"
+lessonId: rc-capstone
+section: kit-bot
+group: auto-and-capstone
+groupLabel: "Phase 5: Autonomous and Capstone"
+groupOrder: 5
+order: 16
+duration: multi-session
+description: "The complete project: drive and launcher, real or sim, with teleop, autonomous and telemetry. The rubric for done."
+durationFixed: true
+---
+You finished R00 through R15. This isn't a new module; it's the rubric. The capstone is **a single, working Kit Bot project** that demonstrates everything the curriculum covered.
+
+If you can show a mentor every checkpoint below, you've completed Kit Bot. The line is deliberately concrete: it's not "you understand things"; it's "the robot does these things and the code looks like this."
+
+---
+
+### The deliverable
+
+One Git repository containing one WPILib project. The project compiles and simulates; the assessment is the simulation demo below, watched in AdvantageScope. It also deploys and, on a real Kit Bot wired to spec, drives. That is confirmation for when a robot is available and is not part of the grade. The `README.md` at the project root explains how to run it.
+
+The robot does the following:
+
+| In simulation (assessed) | On a real Kit Bot (confirmation, when available) |
+|---|---|
+| Drives in teleop with conditioned sticks | Same |
+| Spins the launcher on the right bumper | Same |
+| Runs the selected auto routine on Enable in Autonomous mode | Same |
+| Publishes telemetry to NetworkTables; visible in AdvantageScope live | Same; AdvantageScope connects to the roboRIO over the robot network |
+
+The Kit Bot doesn't have to *succeed at the game*. It has to do the four things above without crashes, without leaks, without TODOs in the code that mean "this hasn't been tested."
+
+---
+
+### The repo layout: the shape your mentor will look at first
+
+```
+KitBot/
+├── README.md                       ← run instructions; this is what your mentor reads first
+├── build.gradle
+├── vendordeps/
+│   └── REVLib-... .json
+├── src/main/java/frc/robot/
+│   ├── Main.java
+│   ├── Robot.java                  ← DataLogManager.start() in robotInit
+│   ├── RobotContainer.java         ← IO selection, bindings, chooser
+│   ├── Constants.java              ← OperatorConstants only
+│   ├── commands/
+│   │   ├── TeleopDrive.java
+│   │   ├── AutoRoutines.java
+│   │   ├── DriveCharacterization.java
+│   │   └── LauncherCharacterization.java
+│   └── subsystems/
+│       ├── drive/
+│       │   ├── Drive.java
+│       │   ├── DriveConstants.java
+│       │   ├── DriveIO.java
+│       │   ├── DriveIOReal.java
+│       │   ├── DriveIOSim.java
+│       │   └── StickCurve.java
+│       └── launcher/
+│           ├── Launcher.java
+│           ├── LauncherConstants.java
+│           ├── LauncherIO.java
+│           ├── LauncherIOReal.java
+│           └── LauncherIOSim.java
+└── logs/                           ← .wpilog files from sim runs
+```
+
+If your project has files outside this shape, ask yourself why. Sometimes there's a good reason; usually it's a leftover from an experiment that should have been deleted. Compressed build season = high signal-to-noise. Clean it before turning it in.
+
+---
+
+### The checklist
+
+Each line below is binary. Either it's true or it isn't. Be honest with yourself; the mentor demo is going to check anyway.
+
+#### Project hygiene
+
+- [ ] `README.md` at the project root explains how to build, sim, and deploy. Three commands at most.
+- [ ] `git status` is clean. No `.class` files committed. No IDE-specific noise.
+- [ ] `git log` has commits with messages someone else could understand. No "WIP", "fix stuff", or "asdf" at HEAD.
+- [ ] The project builds without warnings (`./gradlew build` produces zero warnings).
+- [ ] The project sims without crashes (`F5` opens the sim GUI and the robot is constructable).
+
+#### Java fundamentals
+
+- [ ] Every class is in the right package. The folder structure matches the `package` declaration.
+- [ ] No `public` fields anywhere. Every field is `private` or `private final`. (Constants are the exception.)
+- [ ] Every overriding method has `@Override`.
+- [ ] Every class that holds collaborators (subsystems, commands) holds them as `private final`.
+- [ ] No unused imports. (Your IDE has a one-click "organize imports"; use it.)
+
+#### IO pattern
+
+- [ ] `DriveIO` and `LauncherIO` are interfaces with **no** field declarations.
+- [ ] Each IO has both a `*Real` and a `*Sim` implementation.
+- [ ] The `*Real` files are the **only** files that import any REVLib type.
+- [ ] The `*Sim` files are the **only** files that import any `wpilibj.simulation` type.
+- [ ] The subsystem classes import neither REVLib nor `wpilibj.simulation`.
+- [ ] The IO inputs class (`DriveInputs`, `LauncherInputs`) is a mutable nested class, not allocated per tick.
+
+#### Runtime selection
+
+- [ ] `RobotContainer` has exactly one `if (RobotBase.isReal())` block.
+- [ ] No file outside `RobotContainer` knows whether it's running on real hardware or in sim.
+- [ ] Sim runs without an Xbox controller plugged in (graceful fallback to keyboard or no input).
+- [ ] Real deploy works without code changes (the IO swap is the *only* difference).
+
+#### Telemetry
+
+- [ ] `DataLogManager.start()` is called once, in `Robot.robotInit`.
+- [ ] Every subsystem publishes its meaningful state to NetworkTables in `periodic()`.
+- [ ] Publishers are opened **once** as `private final` fields. No publishers opened inside `periodic`.
+- [ ] At least one `StructPublisher<Pose2d>` is published so AdvantageScope's field viewer works.
+- [ ] AdvantageScope can connect to the sim and render at least one chart and the field view.
+
+#### Driver experience
+
+- [ ] Teleop drive feels responsive but not twitchy. No creep at rest.
+- [ ] The launcher spins up and stops on a button hold/release.
+- [ ] No `System.out.println` in production code paths. (Print statements left in for debugging count as a TODO.)
+
+#### Autonomous
+
+- [ ] `SendableChooser<Command>` is published once in the constructor.
+- [ ] At least three auto routine options exist, including a "Do nothing" default.
+- [ ] `Robot.autonomousInit` schedules the chosen command; `teleopInit` cancels it.
+- [ ] Each routine actually does the thing its name claims, verified in sim.
+
+---
+
+### The demo, for your mentor
+
+A 10-minute walkthrough, entirely in simulation. The mentor sits next to you with the project open and AdvantageScope on the other screen. No robot is in the room, and none is needed; the layout you exported in [R13](/kit-bot/r13-telemetry-with-advantagescope) is the one you open.
+
+#### Minute 0–2: The shape
+
+Open the project. Show the directory tree. Point at `DriveIO.java`, then `DriveIOReal.java`, then `DriveIOSim.java`. Explain in your own words why they exist as three separate files. (Two minutes.)
+
+#### Minute 2–4: The runtime selection
+
+Open `RobotContainer.java`. Highlight the `if (RobotBase.isReal())` block. Walk through what changes between the two branches and what doesn't. Confirm that nothing else in the project has knowledge of the choice. (Two minutes.)
+
+#### Minute 4–7: The demo
+
+1. Press `F5`. Sim starts.
+2. Open AdvantageScope; connect to localhost.
+3. Drag the `Drive/pose` topic onto the field view.
+4. Drag `Drive/leftVelocityMps` and `Drive/rightVelocityMps` onto a chart. Drag `Launcher/currentAmps` onto a second chart.
+5. Enable in teleop. Drive around. Show the field view tracking the robot. Show the velocity chart updating.
+6. Hold the right bumper. Show the launcher current chart spiking.
+7. Disable. Select an auto routine. Enable in Autonomous. Show the robot running it.
+
+(Three minutes.)
+
+#### Minute 7–10: The conversation
+
+The mentor asks one or more of:
+
+- "How would you add a third subsystem?" (You answer: copy the IO pattern from `Launcher`, add another `if`/factory line to `RobotContainer`.)
+- "What does `DriveIOReal` report for heading right now, and why?" (You answer: it's hardcoded to 0, because the stock Kit Bot ships with no gyro; the field view's rotation is only trustworthy in sim until a real gyro is added, per R15. Teleop driving still works fine, since `arcadeDrive` never reads heading.)
+- "Where would PathPlanner integration go?" (You answer: the auto routine commands would change from `Commands.run(...).withTimeout(...)` to `AutoBuilder.followPath(path)`; the subsystem itself is unchanged.)
+- "What's the maximum current your drivetrain can pull right now?" (You answer: `SMART_CURRENT_LIMIT_AMPS × 2 × 2` = 240 A theoretical, real-world limited by the 120 A breaker on the main robot supply.)
+
+If you can answer these without opening the code, you understand the project. If you can't, that's the homework before the next demo.
+
+(Three minutes.)
+
+---
+
+### After the demo
+
+Two questions to ask yourself.
+
+#### "What's the next thing I'd add?"
+
+Pick one item from [R15](/kit-bot/r15-where-to-next). Write down what's involved in adding it. If it's "two days of work," do it. If it's "two weeks," save it for the off-season.
+
+#### "What's the worst part of the code?"
+
+Be specific. "The auto routines are stringly-typed" is specific. "The code is messy" is not. Refactor the specific thing. Resist refactoring the rest until you've shipped one season.
+
+---
+
+### You're done
+
+The Kit Bot drives. The launcher launches. Autonomous runs. Telemetry visible. You understand every file in your repo. That is the bar.
+
+If a mentor asks "do you know what your robot is doing right now?" and the honest answer is *yes*, you've completed Kit Bot. Go win some matches.
+
+---
+
+### References
+
+- [R00–R15](/kit-bot): the whole curriculum
+- [Practice Assignments](/assignments): the prerequisite
+- [WPILib Zero to Robot](https://docs.wpilib.org/en/stable/docs/zero-to-robot/introduction.html): the WPILib walkthrough this curriculum runs in parallel with
+- [WPILib documentation](https://docs.wpilib.org/en/stable/): the bookmark to keep
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/zero-to-robot/introduction.html", "note": "Zero to Robot."},
+  {"source": "wpilib", "path": "docs/software/commandbased/index.html", "note": "Command-based."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/introduction.html", "note": "Simulation, where the capstone is evaluated."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "FRC 4451's container for comparison."}
+]} />

@@ -35,7 +35,7 @@ Every recursive method needs both parts:
   ]}
 />
 
-The third is the one people forget. A base case is useless if the recursive call does not actually move toward it.
+The third is the one people forget. A base case is useless if the recursive call does not move toward it.
 
 ### Tracing it
 
@@ -49,7 +49,7 @@ factorial(4) = 4 * factorial(3)
              = 24
 ```
 
-Notice the multiplications happen on the way *back up*. Nothing is computed until the base case is reached — the calls stack up first, then resolve in reverse.
+Notice the multiplications happen on the way *back up*. Nothing is computed until the base case is reached; the calls stack up first, then resolve in reverse.
 
 ### The call stack
 
@@ -62,7 +62,7 @@ factorial(3)
 factorial(4)   <- bottom, returns last
 ```
 
-This is a literal [stack](/java/java-ds-stacks) — the same last-in-first-out structure — which is why running out of space is a `StackOverflowError`.
+This is a literal [stack](/java/java-ds-stacks#last-in-first-out), the same last-in-first-out structure, which is why running out of space is a `StackOverflowError`.
 
 <RulesBox title="Java's recursion depth limit">
 
@@ -72,17 +72,17 @@ Java's default stack holds somewhere around ten to twenty thousand frames. Excee
 Exception in thread "main" java.lang.StackOverflowError
 ```
 
-For most recursion on trees or small inputs this is nowhere close. It becomes a real concern when the depth scales with a large input — recursing once per element of a 200,000-item list will overflow.
+For most recursion on trees or small inputs this is nowhere close. It becomes a real concern when the depth scales with a large input; recursing once per element of a 200,000-item list will overflow.
 
 Two fixes: rewrite as a loop, or run on a thread with a bigger stack:
 
-```java
+```java norun
 public static void main(String[] args) {
     new Thread(null, Main::solve, "main", 1 << 26).start();   // 64 MB stack
 }
 ```
 
-The loop is more robust. The thread trick is faster to apply.
+The loop removes the limit; the thread trick only raises it.
 
 </RulesBox>
 
@@ -91,7 +91,7 @@ The loop is more robust. The thread trick is faster to apply.
 Anything recursive can be written as a loop, and vice versa. The question is which is clearer.
 
 ```java
-// iterative — better here
+// iterative: better here
 static int factorialLoop(int n) {
     int result = 1;
     for (int i = 2; i <= n; i++) {
@@ -105,7 +105,7 @@ For factorial, the loop is simpler and uses no stack. Recursion earns its place 
 
 <RulesBox title="When recursion is the right choice">
 
-- **The data structure is recursive.** A [tree](/java/java-ds-trees) node contains subtrees, which are trees. Recursion mirrors the shape.
+- **The data structure is recursive.** A [tree](/java/java-ds-trees#recursive-measurements) node contains subtrees, which are trees. Recursion mirrors the shape.
 - **The problem splits into several sub-problems.** Exploring both branches of a decision, or all four directions on a grid.
 - **You do not know the depth in advance.** Nested folders, or a search whose length depends on input.
 
@@ -117,14 +117,14 @@ When the problem is a simple linear repetition, use a loop.
 
 Summing a tree with a loop requires managing your own stack. Recursively it is three lines:
 
-```java
+```java norun
 static int sum(TreeNode node) {
     if (node == null) return 0;                       // base case
     return node.value + sum(node.left) + sum(node.right);
 }
 ```
 
-Two recursive calls, and the structure handles the bookkeeping. Most tree and graph work looks like this — see [Tree Traversals](/java/java-algo-tree-traversals) and [Depth-First Search](/java/java-algo-dfs).
+Two recursive calls, and the structure handles the bookkeeping. Most tree and graph work looks like this; see [Tree Traversals](/java/java-algo-tree-traversals#four-orders) and [Depth-First Search](/java/java-algo-dfs#going-deep-first).
 
 ### Watch out for accidental exponential work
 
@@ -137,7 +137,7 @@ static int fib(int n) {
 }
 ```
 
-This is correct but recomputes the same values constantly — `fib(40)` makes over a billion calls. The fix is to remember results you have already computed, covered in [Memoization and Dynamic Programming](/java/java-algo-memoization).
+This is correct but recomputes the same values constantly; `fib(40)` makes over a billion calls. The fix is to remember results you have already computed, covered in [Memoization and Dynamic Programming](/java/java-algo-memoization#memoization).
 
 Correct and fast are separate questions. Recursion makes it easy to write something correct that is unusably slow.
 
@@ -164,11 +164,13 @@ The public method has a clean signature; the private one carries the position. T
 - **No base case**, or one that is unreachable.
 - **Not reducing the problem**, so it recurses forever with the same argument.
 - **Forgetting to return the recursive call's result.** Calling `factorial(n - 1)` without using the value discards the work.
-- **Modifying shared state without undoing it.** See [Backtracking](/java/java-algo-backtracking).
+- **Modifying shared state without undoing it.** See [Backtracking](/java/java-algo-backtracking#choose-recurse-undo).
 - **Assuming recursion is free.** Each call costs a stack frame.
 - **Recomputing the same sub-problem** exponentially.
 
 </RulesBox>
+
+<JavaPlayground id="java-algo-recursion" />
 
 <ExerciseBox title="Practice" description="Write each recursively first, then decide whether a loop would be clearer.">
 
@@ -185,7 +187,7 @@ The public method has a clean signature; the private one carries the position. T
 2. Base case: a string shorter than 2 is its own reverse. Otherwise the reverse of everything after the first character, plus that character at the end.
 3. Base case `n < 10` returns 1; otherwise `1 + countDigits(n / 10)`.
 4. `gcd(a, b)` is `a` when `b` is 0, otherwise `gcd(b, a % b)`. Two lines, and it terminates because the remainder always shrinks.
-5. At each index you either include the element or skip it — two recursive calls. This is the shape behind backtracking.
+5. At each index you either include the element or skip it: two recursive calls. This is the shape behind backtracking.
 
 </details>
 
@@ -200,6 +202,13 @@ The public method has a clean signature; the private one carries the position. T
     {"label":"Backtracking","id":"java-algo-backtracking"}
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "jls", "path": "jls-15.html", "note": "Method invocation and the call stack (section 15.12)."},
+  {"source": "java-api", "path": "java.base/java/lang/StackOverflowError.html", "note": "<code>StackOverflowError</code>."},
+  {"url": "https://en.wikipedia.org/wiki/Recursion_(computer_science)", "label": "Wikipedia: Recursion", "note": "Base cases and structure."}
+]} />
 
 <LinkGrid
   title="Related"

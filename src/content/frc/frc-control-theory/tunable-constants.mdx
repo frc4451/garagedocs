@@ -3,11 +3,11 @@ title: Tunable Constants and Characterization
 lessonId: tunable-constants
 section: frc
 group: frc-control-theory
-groupLabel: Control Theory
-groupOrder: 5
-order: 5
+groupLabel: "Control Theory"
+groupOrder: 4
+order: 6
 difficulty: advanced
-duration: 30 min
+duration: 25 min
 description: Changing gains from the dashboard instead of redeploying, measuring feedforward instead of guessing, and reading the result off a graph.
 ---
 
@@ -86,8 +86,8 @@ AdvantageScope can write values back to NetworkTables, which is how you change a
 
 Everything is **read-only by default**. To change that, click the **slider icon to the right of the search bar** while connected to a live source. When the icon is purple, tuning mode is on and fields become editable:
 
-- **Numeric field** — type a new value in the text box to the right of the field in the sidebar. It publishes when the box loses focus or you press Enter. Leave it blank to go back to the robot-published value.
-- **Boolean field** — click the red or green circle to the right of the field.
+- **Numeric field:** type a new value in the text box to the right of the field in the sidebar. It publishes when the box loses focus or you press Enter. Leave it blank to go back to the robot-published value.
+- **Boolean field:** click the red or green circle to the right of the field.
 
 That read-only default is a real safeguard: nobody can nudge a gain by clicking around in the pit unless they deliberately turn the toggle on first.
 
@@ -95,7 +95,7 @@ That read-only default is a real safeguard: nobody can nudge a gain by clicking 
 
 The AdvantageScope toggle controls whether **AdvantageScope** may write. It does not change whether the **robot** reads.
 
-With `tuningMode = true`, the robot still takes its values from NetworkTables no matter what the viewer is doing — so a value someone set an hour ago is still in effect. Setting `tuningMode = false` is what makes the robot ignore NetworkTables entirely and use the compiled-in constants.
+With `tuningMode = true`, the robot still takes its values from NetworkTables no matter what the viewer is doing, so a value someone set an hour ago is still in effect. Setting `tuningMode = false` is what makes the robot ignore NetworkTables entirely and use the compiled-in constants.
 
 Use both. The toggle prevents accidental edits during a session; the flag is what you ship.
 
@@ -115,7 +115,7 @@ With the **NetworkTables (AdvantageKit)** live source, AdvantageScope surfaces e
 // Editable from AdvantageScope
 new LoggedNetworkNumber("/Tuning/Flywheel/kP", 0.4);
 
-// Publishes to /TunableNumbers/... — outside the Tuning table
+// Publishes to /TunableNumbers/..., outside the Tuning table
 new LoggedNetworkNumber("TunableNumbers/Flywheel/kP", 0.4);
 ```
 
@@ -125,7 +125,7 @@ If your tunables are not showing up as editable, this is almost always why. Pref
 
 ### Reacting To A Change
 
-Some values cannot simply be read each loop — a PID gain has to be pushed into the motor controller. Re-applying the configuration every loop would flood the CAN bus, so act only when a value has actually moved:
+Some values cannot simply be read each loop; a PID gain has to be pushed into the motor controller. Re-applying the configuration every loop would flood the CAN bus, so act only when a value has actually moved:
 
 ```java
 LoggedTunableNumber.ifChanged(
@@ -148,7 +148,7 @@ The first argument is an id used to track "changed since last check" per caller.
 
 1. Make the values tunable and confirm `tuningMode = true`.
 2. Deploy once.
-3. Connect AdvantageScope to the robot and turn on tuning mode — the slider icon right of the search bar.
+3. Connect AdvantageScope to the robot and turn on tuning mode (the slider icon to the right of the search bar).
 4. Run the mechanism, change a value in the sidebar, watch the effect immediately.
 5. Watch **commanded vs actual** on a graph, not the mechanism itself. Your eyes cannot see 20 ms of overshoot.
 6. When it is right, copy the values into the defaults in code.
@@ -156,7 +156,7 @@ The first argument is an id used to track "changed since last check" per caller.
 
 </StepsBox>
 
-Step 5 is where logging discipline pays off. If your setters return the value they set and carry `@AutoLogOutput` — see [Subsystems](/frc/subsystems) — both halves of the comparison are already recorded:
+Step 5 is where logging discipline pays off. If your setters return the value they set and carry `@AutoLogOutput` (see [Subsystems](/frc/subsystems#setters-that-return-what-they-set)), both halves of the comparison are already recorded:
 
 ```java
 @AutoLogOutput(key = "Intake/targetPos")
@@ -178,7 +178,7 @@ That is the difference between "the shooter was off that day" and "the shooter w
 
 ### Measure Feedforward, Do Not Guess It
 
-Feedback gains have to be tuned by feel. Feedforward gains do not — they are physical properties and can be measured.
+Feedback gains have to be tuned by feel. Feedforward gains do not; they are physical properties and can be measured.
 
 <ContentTable
   headers={["Routine", "Produces", "How it works"]}
@@ -248,4 +248,19 @@ Fitting a curve to the same data is the alternative, and it is worth keeping bot
 
 </RulesBox>
 
-<LinkGrid links={[{"label":"PID Control","id":"frc-pid-control"},{"label":"Advanced Control","id":"advanced-control-theory"},{"label":"PID Tuning Practice","id":"pid-tuning-practice-setup"},{"label":"AdvantageScope","id":"advantagescope"},{"label":"WPILib System Identification","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/system-identification/index.html"}]} title="Resources" section="frc" />
+<Sources items={[
+  {"source": "mech-adv", "path": "src/main/java/org/littletonrobotics/frc2025/util/LoggedTunableNumber.java", "note": "The Team 6328 class Cobra's <code>LoggedTunableNumber</code> comes from."},
+  {"source": "cobra", "path": "src/main/java/org/littletonrobotics/LoggedTunableNumber.java", "note": "The tunable: default value, <code>hasChanged</code>, <code>ifChanged</code>."},
+  {"source": "advantagescope", "path": "overview/live-sources/", "note": "Tuning mode on the AdvantageKit live source: the editable <code>/Tuning</code> table."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/system-identification/index.html", "note": "SysId: quasistatic and dynamic tests, the analysis tool."},
+  {"source": "ctre", "path": "docs/api-reference/wpilib-integration/sysid-integration/index.html", "note": "SysId with Phoenix signal logging."},
+  {"source": "ctre", "path": "docs/api-reference/api-usage/signal-logging.html", "note": "The hoot log SysId reads."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "<code>tuningMode</code>."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "Gains published as tunables and re-applied on change; the steady-state characterization command."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "The drivetrain <code>SysIdRoutine</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "SysId and characterization commands on the auto chooser."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "A subsystem reading tunables in <code>periodic()</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/util/PhoenixUtil.java", "note": "Re-applying a configuration when a tunable changes."}
+]} />
+
+<LinkGrid links={[{"label":"PID Control","id":"frc-pid-control"},{"label":"Feedforward","id":"feedforward"},{"label":"PID Tuning Practice","id":"pid-tuning-practice-setup"},{"label":"AdvantageScope","id":"advantagescope"},{"label":"WPILib System Identification","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/system-identification/index.html"}]} title="Resources" section="frc" />

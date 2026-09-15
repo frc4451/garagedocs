@@ -1,0 +1,62 @@
+---
+/**
+ * Bibliography block for a lesson: the documentation pages, Javadoc entries and team
+ * repository files the page was written against. Placed before the closing LinkGrid.
+ *
+ * Each item names a registry source (`src/data/sources.ts`) and a `path` joined to that
+ * source's base URL, or gives a full `url` for a one-off source. `note` says what the
+ * page took from it, so a reader can go straight to the relevant part.
+ */
+import { withBase, withBaseHtml } from '@/lib/url';
+import { sourceRegistry, type SourceId } from '@/data/sources';
+
+interface SourceItem {
+  /** Registry id, e.g. `cobra`, `wpilib`, `photonvision`. */
+  source?: SourceId;
+  /** Path appended to the registry base URL (a repo file path, a docs page). */
+  path?: string;
+  /** Full URL for a source outside the registry. */
+  url?: string;
+  /** Display text; defaults to the registry name (plus path) or the URL. */
+  label?: string;
+  /** What this page relied on the source for. Inline HTML allowed. */
+  note?: string;
+}
+
+interface Props {
+  title?: string;
+  items: SourceItem[];
+}
+
+const { title = 'Sources', items } = Astro.props;
+
+function resolve(item: SourceItem): { href: string; name: string; detail: string; version?: string } {
+  if (item.source) {
+    const def = sourceRegistry[item.source];
+    const href = item.path ? def.base + item.path.replace(/^\//, '') : def.base;
+    return { href, name: def.name, detail: item.label ?? item.path ?? '', version: def.version };
+  }
+  const href = item.url ?? '#';
+  return { href, name: item.label ?? href, detail: '' };
+}
+---
+
+<section class="sources" aria-label={title}>
+  <h3>{title}</h3>
+  <ol class="sources-list">
+    {items.map((item) => {
+      const { href, name, detail, version } = resolve(item);
+      const internal = href.startsWith('/');
+      return (
+        <li class="sources-item">
+          <a href={internal ? withBase(href) : href} target={internal ? undefined : '_blank'} rel={internal ? undefined : 'noopener'}>
+            <span class="sources-name">{name}</span>
+            {detail && <span class="sources-detail">{detail}</span>}
+          </a>
+          {version && <span class="sources-version">{version}</span>}
+          {item.note && <span class="sources-note" set:html={withBaseHtml(item.note)} />}
+        </li>
+      );
+    })}
+  </ol>
+</section>

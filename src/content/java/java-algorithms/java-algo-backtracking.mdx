@@ -5,9 +5,9 @@ section: java
 group: java-algorithms
 groupLabel: "Common Algorithms"
 groupOrder: 6
-order: 7
+order: 8
 difficulty: advanced
-duration: 30 min
+duration: 25 min
 description: Building a solution one choice at a time and undoing choices that lead nowhere, plus pruning to keep the search from exploding.
 ---
 
@@ -20,7 +20,7 @@ Every backtracking method has the same three parts:
 <ContentTable
   headers={["Step", "Purpose"]}
   rows={[
-    ["Base case", "All decisions made &mdash; record or evaluate the result"],
+    ["Base case", "All decisions made; record or evaluate the result"],
     ["Loop over choices", "The options available at this position"],
     ["Choose, recurse, undo", "Apply a choice, explore, then reverse it"]
   ]}
@@ -52,9 +52,9 @@ static void subsets(int[] values, int index) {
 
 <RulesBox title="Two lines that are easy to get wrong">
 
-**`new ArrayList<>(current)`** — storing `current` directly would put the *same* list object into every result, and since it keeps changing, every entry would end up identical (and empty at the end).
+**`new ArrayList<>(current)`.** Storing `current` directly would put the *same* list object into every result, and since it keeps changing, every entry would end up identical (and empty at the end).
 
-**`current.remove(current.size() - 1)`** — every `add` before a recursive call needs a matching removal after it. Forget it and `current` grows without bound, contaminating every later branch.
+**`current.remove(current.size() - 1)`.** Every `add` before a recursive call needs a matching removal after it. Forget it and `current` grows without bound, contaminating every later branch.
 
 The symptom of a missing undo is output that is correct for the first branch and wrong afterwards.
 
@@ -62,9 +62,9 @@ The symptom of a missing undo is output that is correct for the first branch and
 
 ### Permutations
 
-Here the state to undo is two things — the list and the used-markers.
+Here the state to undo is two things: the list and the used-markers.
 
-```java
+```java norun
 static void permute(int[] values, boolean[] used) {
     if (current.size() == values.length) {
         results.add(new ArrayList<>(current));
@@ -87,13 +87,13 @@ static void permute(int[] values, boolean[] used) {
 
 Both mutations must be reversed. Undoing only one leaves the search in a corrupt state that is hard to diagnose.
 
-Permutations grow as n factorial — 10 items is about 3.6 million arrangements, 13 is over 6 billion. Check the size before choosing this approach.
+Permutations grow as n factorial: 10 items is about 3.6 million arrangements, 13 is over 6 billion. Check the size before choosing this approach.
 
 ### Choosing k of n
 
 Passing a `start` index keeps combinations in increasing order, so each is produced once rather than in every possible ordering:
 
-```java
+```java norun
 static void choose(int[] values, int start, int k) {
     if (current.size() == k) {
         results.add(new ArrayList<>(current));
@@ -128,15 +128,15 @@ static boolean canReachTarget(int[] values, int index, int sum, int target) {
 
 The `sum > target` check cuts off entire subtrees. Assuming all values are positive, adding more can never bring an overshooting sum back down, so nothing below that branch can succeed.
 
-<RulesBox title="A prune must actually be sound">
+<RulesBox title="A prune must be sound">
 
-Pruning is only valid if the condition genuinely rules out *every* completion of that branch. The check above relies on values being positive — with negatives, an overshooting sum could come back down, and the prune would discard real answers.
+Pruning is only valid if the condition rules out *every* completion of that branch. The check above relies on values being positive. With negatives, an overshooting sum could come back down, and the prune would discard real answers.
 
 A prune that is merely usually-right produces wrong answers on the cases you did not think about. Be able to state why nothing below the branch can succeed.
 
 </RulesBox>
 
-Carrying `sum` as a parameter rather than recomputing it at the base case is what makes the prune possible at all — you need the running value at every level, not just the end.
+Carrying `sum` as a parameter rather than recomputing it at the base case is what makes the prune possible at all; you need the running value at every level, not just the end.
 
 ### A worked example: placing rooks
 
@@ -166,10 +166,10 @@ Handling one row per call means rows can never clash, so only columns need track
 
 - The problem asks for **all** arrangements, combinations, or paths
 - It asks whether *some* arrangement is possible
-- The input bound is small — roughly n ≤ 20 for subsets, n ≤ 10 for permutations
+- The input bound is small, roughly n ≤ 20 for subsets and n ≤ 10 for permutations
 - Choices are made in sequence and each constrains the next
 
-If the bound is large, backtracking will not finish, and the intended solution is probably [dynamic programming](/java/java-algo-memoization) or something greedy.
+If the bound is large, backtracking will not finish, and the intended solution is probably [dynamic programming](/java/java-algo-memoization#tabulation-the-same-thing-bottom-up) or something greedy.
 
 </RulesBox>
 
@@ -184,6 +184,8 @@ If the bound is large, backtracking will not finish, and the intended solution i
 - **Ignoring the input bound** and writing an exponential search for a large input.
 
 </RulesBox>
+
+<JavaPlayground id="java-algo-backtracking" />
 
 <ExerciseBox title="Practice">
 
@@ -213,6 +215,14 @@ If the bound is large, backtracking will not finish, and the intended solution i
     {"label":"Memoization and Dynamic Programming","id":"java-algo-memoization"}
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"url": "https://en.wikipedia.org/wiki/Backtracking", "label": "Wikipedia: Backtracking", "note": "Choose, explore, undo."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "Copying the partial solution."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."}
+]} />
 
 <LinkGrid
   title="Related"

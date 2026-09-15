@@ -7,11 +7,17 @@ groupLabel: Command-Based Programming
 groupOrder: 3
 order: 3
 difficulty: beginner
-duration: 30 min
+duration: 15 min
 description: Subsystem command factories for single-mechanism actions, and full Command classes for the multi-subsystem cases that need them.
 ---
 
-### Overview
+<RulesBox title="You have done this in Kit Bot">
+
+You wrote commands and bindings in [Kit Bot R05](/kit-bot/r05-commands-and-triggers) and a default command in [R11](/kit-bot/r11-teleop-drive). Assumed here; this lesson is the full set of command forms and when each is the right one.
+
+</RulesBox>
+
+### Define actions as commands
 
 Commands define robot actions. They use subsystem methods to perform tasks, and the scheduler decides which ones run.
 
@@ -46,14 +52,14 @@ public class Intake extends SubsystemBase {
   title="The factory methods on SubsystemBase"
   headers={["Method", "Behaviour", "Ends when"]}
   rows={[
-    ["<code>run(Runnable)</code>", "Calls the runnable every loop", "Never &mdash; runs until interrupted"],
+    ["<code>run(Runnable)</code>", "Calls the runnable every loop", "Never; runs until interrupted"],
     ["<code>runOnce(Runnable)</code>", "Calls the runnable once", "Immediately"],
     ["<code>startEnd(onStart, onEnd)</code>", "One action at start, another at end", "When interrupted"],
     ["<code>runEnd(whileRunning, onEnd)</code>", "Every loop, plus cleanup", "When interrupted"]
   ]}
 />
 
-Which one you want follows from what the hardware needs. A **duty cycle** must be re-commanded every loop or the motor safety watchdog cuts it off, so use `run()`. A **closed-loop setpoint** is held by the motor controller itself, so `runOnce()` is enough — re-sending it 50 times a second achieves nothing.
+Which one you want follows from what the hardware needs. A **duty cycle** must be re-commanded every loop or the motor safety watchdog cuts it off, so use `run()`. A **closed-loop setpoint** is held by the motor controller itself, so `runOnce()` is enough; re-sending it 50 times a second achieves nothing.
 
 <RulesBox title="Requirements come free">
 
@@ -63,7 +69,7 @@ That matters more than it sounds. A command with no requirements conflicts with 
 
 </RulesBox>
 
-Because a factory is a method, it can take arguments — one method covers what would otherwise be several classes:
+Because a factory is a method, it can take arguments, so one method covers what would otherwise be several classes:
 
 ```java
 intake.setIntakeCommand(1)      // intake
@@ -102,7 +108,7 @@ Command stopCmd = Commands.runOnce(() -> intake.setIntakeDutyCycle(0), intake);
 Command untilCmd = intake.setIntakeCommand(0.6).until(intake::hasGamePiece);
 ```
 
-Note the subsystem passed as the second argument — with the static form, requirements are **not** automatic.
+Note the subsystem passed as the second argument. With the static form, requirements are **not** automatic.
 
 ### Full Command Classes
 
@@ -169,7 +175,7 @@ Commands declare subsystem requirements to prevent conflicts. The scheduler ensu
 
 Four subsystems are passed into the constructor above. Only three are required.
 
-`drive` is deliberately left out, because the command only *reads* the drive pose — it never commands the drivetrain. Requiring it would interrupt the joystick drive, and the driver would lose control the instant they pressed the shoot button.
+`drive` is deliberately left out, because the command only reads the drive pose; it never commands the drivetrain. Requiring it would interrupt the joystick drive, and the driver would lose control the instant they pressed the shoot button.
 
 Over-requiring is the more common mistake and the harder one to debug: the mechanism works, but pressing the button silently cancels something else.
 
@@ -177,7 +183,7 @@ Over-requiring is the more common mistake and the harder one to debug: the mecha
 
 ### Ending Cleanly
 
-`isFinished()` returning `false` means the command runs until something cancels it — correct for a `whileTrue` binding, where the trigger controls its lifetime.
+`isFinished()` returning `false` means the command runs until something cancels it, which is correct for a `whileTrue` binding, where the trigger controls its lifetime.
 
 That makes `end()` load-bearing. It runs on interruption as well as normal completion, and it must stop **everything** the command started. Default commands only cover subsystems this command required; anything else left commanded here stays commanded.
 
@@ -196,7 +202,7 @@ Log the intermediate values, not just the final output. When a shot misses, `dis
   headers={["Situation", "Write"]}
   rows={[
     ["One subsystem", "A factory method on that subsystem"],
-    ["Several subsystems, independent of each other", "Compose factories &mdash; see <a href=\"/frc/command-groups\">Command Groups</a>"],
+    ["Several subsystems, independent of each other", "Compose factories; see <a href=\"/frc/command-groups\">Command Groups</a>"],
     ["Several subsystems that must react to each other", "A class extending <code>Command</code>"]
   ]}
 />
@@ -208,9 +214,19 @@ Log the intermediate values, not just the final output. When a shot misses, `dis
 - **Requiring a subsystem you only read from.**
 - **An `end()` that does not stop everything it started.**
 - **State initialised in the constructor instead of `initialize()`.** The constructor runs once at startup; the command may be scheduled hundreds of times.
-- **Blocking loops in `execute()`.** Everything runs on one thread — a loop that waits freezes the whole robot.
+- **Blocking loops in `execute()`.** Everything runs on one thread, so a loop that waits freezes the whole robot.
 - **Reaching for a class too early.** If the action fits one subsystem, it is a factory.
 
 </RulesBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/commandbased/commands.html", "note": "The command lifecycle: <code>initialize</code>, <code>execute</code>, <code>end</code>, <code>isFinished</code>; requirements."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Commands.html", "note": "The factory methods: <code>run</code>, <code>runOnce</code>, <code>startEnd</code>, <code>waitSeconds</code>."},
+  {"source": "wpilib", "path": "docs/software/commandbased/command-compositions.html", "note": "Decorators such as <code>withTimeout</code> and <code>until</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "Command factories on a subsystem."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "Commands that wait on a <code>Trigger</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "A default command from a factory."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "Where the commands are bound."}
+]} />
 
 <LinkGrid links={[{"label":"Command Groups","id":"command-groups"},{"label":"RobotContainer & Bindings","id":"robot-container-and-bindings"},{"label":"Subsystems","id":"subsystems"},{"label":"WPILib Commands Documentation","url":"https://docs.wpilib.org/en/stable/docs/software/commandbased/commands.html"}]} title="Resources" section="frc" />

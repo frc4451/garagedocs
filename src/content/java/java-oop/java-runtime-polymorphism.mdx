@@ -5,7 +5,7 @@ section: java
 group: java-oop
 groupLabel: "Object-Oriented Programming"
 groupOrder: 4
-order: 8
+order: 9
 difficulty: intermediate
 duration: 30 min
 description: How Java decides which version of a method to run while the program is running, and why that lets you write code against a type you have not written yet.
@@ -19,7 +19,7 @@ Every object reference in Java has two types.
 Subsystem s = new Drivetrain();
 ```
 
-The **declared type** is `Subsystem` — what the compiler sees, and what decides which methods you are allowed to call. The **actual type** is `Drivetrain` — the real object, and what decides which version of a method actually runs.
+The **declared type** is `Subsystem`: what the compiler sees, and what decides which methods you are allowed to call. The **actual type** is `Drivetrain`: the real object, and what decides which version of a method runs.
 
 Runtime polymorphism is that second part: the choice of implementation happens while the program runs, based on the real object, not on what the variable was declared as.
 
@@ -70,15 +70,15 @@ The loop contains no `if` checking the type. Each object supplies its own behavi
 
 <RulesBox title="Why this matters more than it first appears">
 
-The loop was written before `Intake` existed, and it needs no change when a third subsystem is added. That is the real payoff — you write code against the *idea* of a subsystem, and new implementations slot in without editing the code that uses them.
+The loop was written before `Intake` existed, and it needs no change when a third subsystem is added. That is the payoff: you write code against the idea of a subsystem, and new implementations slot in without editing the code that uses them.
 
 This is the mechanism behind almost every design pattern, and behind lambdas. Everything in the next two modules rests on it.
 
 </RulesBox>
 
-### Always use @Override
+### Write @Override every time
 
-```java
+```java norun
 class Intake extends Subsystem {
     @Override
     void periodic() { ... }
@@ -87,9 +87,9 @@ class Intake extends Subsystem {
 
 `@Override` is optional to the compiler but you should treat it as mandatory. It asks the compiler to verify that you really are overriding something. Misspell the name or get a parameter type wrong, and you have quietly written a *new* method that nothing ever calls:
 
-```java
+```java norun
 class Intake extends Subsystem {
-    void periodick() { ... }      // typo — compiles fine, never runs
+    void periodick() { ... }      // typo: compiles fine, never runs
 }
 ```
 
@@ -112,7 +112,7 @@ Both let you write code against a type rather than a specific class.
 
 A rough rule: if you are describing what something *can do*, use an interface. If you are sharing actual implementation and fields between related classes, use an abstract class.
 
-```java
+```java norun
 interface Stoppable {
     void stop();
 }
@@ -136,7 +136,7 @@ class Parent { String name = "parent"; }
 class Child extends Parent { String name = "child"; }
 
 Parent p = new Child();
-System.out.println(p.name);          // "parent" — not "child"
+System.out.println(p.name);          // "parent", not "child"
 ```
 
 This is called field hiding, and it is a good reason to keep fields `private` and expose them through methods, which *are* polymorphic.
@@ -156,13 +156,13 @@ The two words look similar and are frequently confused.
   ]}
 />
 
-Only overriding is polymorphism. See [Method and Constructor Overloading](/java/java-overloading) for the other one.
+Only overriding is polymorphism. See [Method and Constructor Overloading](/java/java-overloading#method-overloading) for the other one.
 
 ### Checking the actual type
 
-Occasionally you genuinely need to know what you have:
+Occasionally you need to know what you have:
 
-```java
+```java norun
 for (Subsystem s : subsystems) {
     if (s instanceof Stoppable stoppable) {     // pattern matching, Java 16+
         stoppable.stop();
@@ -174,7 +174,7 @@ The variable after the type is declared and assigned in one step, so no separate
 
 <RulesBox title="Frequent instanceof checks are a warning sign">
 
-```java
+```java norun
 // this defeats the purpose
 if (s instanceof Drivetrain) {
     ((Drivetrain) s).driveForward();
@@ -183,7 +183,7 @@ if (s instanceof Drivetrain) {
 }
 ```
 
-A chain like this is polymorphism written by hand, badly — every new subsystem means editing it. The fix is usually to add a method to the base type so each class handles itself.
+A chain like this is polymorphism written by hand, and every new subsystem means editing it. The fix is usually to add a method to the base type so each class handles itself.
 
 Checking for a *capability interface* like `Stoppable` is more defensible, since it asks what the object can do rather than what it is.
 
@@ -199,6 +199,8 @@ Checking for a *capability interface* like `Stoppable` is more defensible, since
 - **Confusing overriding with overloading.**
 
 </RulesBox>
+
+<JavaPlayground id="java-runtime-polymorphism" />
 
 <ExerciseBox title="Practice">
 
@@ -229,6 +231,16 @@ Checking for a *capability interface* like `Stoppable` is more defensible, since
     {"label":"Instance Factory Methods","id":"java-dp-factory-method"}
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "dev-java", "path": "inheritance/polymorphism/", "note": "Polymorphism."},
+  {"source": "jls", "path": "jls-15.html", "note": "Runtime method dispatch (section 15.12.4)."},
+  {"source": "dev-java", "path": "pattern-matching/", "note": "Pattern matching for <code>instanceof</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/Override.html", "note": "<code>Override</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List</code> API reference."}
+]} />
 
 <LinkGrid
   title="Review"

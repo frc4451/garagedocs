@@ -1,0 +1,144 @@
+---
+title: Kit Bot
+lessonId: overview
+section: kit-bot
+isOverview: true
+description: Rebuild the 2026 KitBot end to end (drive and launcher, IO pattern, telemetry, autonomous) with every module proven in simulation and shown in AdvantageScope. The real robot is the final confirmation.
+---
+A hands-on curriculum for writing FRC robot code. By the end you will have rebuilt the **2026 KitBot** end to end, differential drive plus the KOP launcher, with real-hardware and simulation implementations sharing the same subsystem code.
+
+**Everything here is built and evaluated in simulation.** Each module ends with something you make the simulated robot do and show in the simulator or in AdvantageScope; that is what "done" means. A physical Kit Bot is the last confirmation, when there is one available. It is not where you find out whether the code works. This is FRC 4451's rule for every robot, stated in full in [Simulation First](/frc/simulation-first); Kit Bot is where you learn to work that way.
+
+The 2026 KitBot is FRC 4451's standing training robot. It stays the reference build across seasons, so what you write here is what the next cohort reads.
+
+This curriculum assumes you have completed [Java Training](/java) and the [Practice Assignments](/assignments) through at least Track 2. Every WPILib pattern below maps to something you've already built in plain Java.
+
+Nothing here runs in the in-page editor: WPILib code needs the WPILib toolchain, which is what R00 installs. Every Java listing on these pages is meant to be typed into your own project.
+
+---
+
+### What you're building
+
+```
+2026 KitBot
+├── Drive               4× SparkMax + NEO, DifferentialDrive
+└── Launcher            2× SparkMax + NEO, simple roller mechanism
+```
+
+Driver controller (port 0): stick-based arcade drive.
+Operator controller (port 1): triggers and buttons for intake / launch.
+
+Both subsystems use the **IO interface pattern** from Practice Assignment [A17](/assignments/a17-io-interface). The same subsystem code drives both real SparkMax hardware and a WPILib physics simulation. Switching between the two is a one-line change in `RobotContainer`.
+
+Telemetry uses **AdvantageScope** end-to-end. No SmartDashboard, no Shuffleboard, no `Field2d` widget. From R13 on, AdvantageScope connected to the simulator is how every module's result is shown; before that, the simulator's console and GUI are.
+
+---
+
+### Curriculum at a glance
+
+Five phases, sixteen modules (three of them in two parts, so each sits inside one session), one capstone project.
+
+#### Phase 1: Bootstrap (R00–R02)
+
+| # | Module | Goal |
+|---|---|---|
+| 00 | [WPILib environment](/kit-bot/r00-wpilib-setup) | Empty project compiles, sim opens, AdvantageScope launches from the WPILib tools |
+| 01 | [Project anatomy](/kit-bot/r01-project-anatomy) | The four files: Main, Robot, RobotContainer, Constants, and the package layout |
+| 02 | [Robot lifecycle](/kit-bot/r02-robot-lifecycle) | TimedRobot, the 20 ms tick, the state matrix, the scheduler |
+
+#### Phase 2: First subsystem, no hardware (R03–R05)
+
+| # | Module | Goal |
+|---|---|---|
+| 03 | [Constants](/kit-bot/r03-constants) | Top-level + per-subsystem `public static final` |
+| 04 | [Subsystems](/kit-bot/r04-subsystems) | `SubsystemBase`, `periodic()`, a counter subsystem with no hardware |
+| 05 | [Commands and triggers](/kit-bot/r05-commands-and-triggers) | `Commands.runOnce` / `Commands.run`, `CommandXboxController`, button bindings |
+
+#### Phase 3: Hardware via the IO pattern (R06–R09)
+
+| # | Module | Goal |
+|---|---|---|
+| 06 | [Motor controllers (concept)](/kit-bot/r06-motor-controllers) | Voltage vs percent, encoders, current limits, gear ratios |
+| 07 | [LauncherIO](/kit-bot/r07-launcher-io): [Part 1](/kit-bot/r07-launcher-io), [Part 2](/kit-bot/r07-launcher-io-part-2) | A working `LauncherIO` / `LauncherIOReal` (SparkMax) / `LauncherIOSim` (FlywheelSim) |
+| 08 | [DriveIO](/kit-bot/r08-drive-io): [Part 1](/kit-bot/r08-drive-io), [Part 2](/kit-bot/r08-drive-io-part-2) | A working `DriveIO` with both impls; `DifferentialDrivetrainSim` for sim |
+| 09 | [Characterization: kS and kV](/kit-bot/r09-characterization): [Part 1](/kit-bot/r09-characterization), [Part 2](/kit-bot/r09-characterization-part-2) | Measure real `kS`/`kV` for launcher and drive with a queued quasistatic ramp, instead of guessing `12.0` or hand-tuning shot voltages |
+
+#### Phase 4: Kit Bot integration (R10–R13)
+
+| # | Module | Goal |
+|---|---|---|
+| 10 | [Joysticks and stick math](/kit-bot/r10-joysticks-and-stick-math) | Deadband, scaling, the curve from [A08](/assignments/a08-stick-curve-calculator) applied |
+| 11 | [Teleop drive](/kit-bot/r11-teleop-drive) | Default-command pattern, sticks → drivetrain |
+| 12 | [Real vs sim at runtime](/kit-bot/r12-real-vs-sim) | `RobotBase.isReal()` picks IO impl; subsystem code unchanged |
+| 13 | [Telemetry with AdvantageScope](/kit-bot/r13-telemetry-with-advantagescope) | `DoublePublisher`, `DataLogManager.start()`, the AdvantageScope viewer |
+
+#### Phase 5: Autonomous, next steps, and capstone (R14–RC)
+
+| # | Module | Goal |
+|---|---|---|
+| 14 | [Time-based autonomous](/kit-bot/r14-time-based-autonomous) | A drive-forward auto, the `SendableChooser` pattern |
+| 15 | [Where to next](/kit-bot/r15-where-to-next) | Pointers: PathPlanner / BLine, AdvantageKit, PhotonVisions, sensors |
+| RC | **[Kit Bot capstone](/kit-bot/rc-capstone)** | Complete project. Drive + launcher. Real or sim. Teleop, auto, telemetry. The rubric for "done." |
+
+---
+
+### How this maps back to the Java curriculum
+
+| WPILib pattern | Java concept it specializes |
+|---|---|
+| `Robot extends TimedRobot` | [Inheritance](/java/java-inheritance#sharing-what-is-common) |
+| `Subsystem extends SubsystemBase` | [Inheritance](/java/java-inheritance#overriding), [A16](/assignments/a16-subsystem-fleet) |
+| `Constants.java` + `XxxConstants.java` | [static and final](/java/java-static-final#putting-them-together-constants), [Packages and Project Layout](/java/java-packages#what-the-layout-looks-like) |
+| `Commands.runOnce(() -> ...)` | [Lambdas](/java/java-fn-lambdas#where-you-will-meet-them), [A22](/assignments/a22-command-binding) |
+| `Trigger.onTrue / .whileTrue` | [`BooleanSupplier`](/java/java-fn-supplier#primitive-variants), [A22](/assignments/a22-command-binding) |
+| `DriveIO` / `DriveIOReal` / `DriveIOSim` | [Interfaces](/java/java-interfaces#programming-to-the-interface), [A17](/assignments/a17-io-interface) |
+| `record VisionResult(...)` for log values | [A18: Records](/assignments/a18-records) |
+| `DoublePublisher` fields for AdvantageScope telemetry | [Classes: Instance Variables and Encapsulation](/java/java-classes#instance-variables-and-encapsulation) |
+| `Queue<Sample>` collecting characterization data | [Queues](/java/java-ds-queues#using-one), [A23](/assignments/a23-ring-buffer) |
+
+If a pattern feels new while reading these modules, follow the link back: it's almost certainly something you've already used.
+
+---
+
+### Tooling
+
+- **WPILib 2026** (R00)
+- **REVLib** for SparkMax (R00, used from R06 onwards)
+- **AdvantageScope** for telemetry (R00, used heavily from R13 onwards)
+- A real Xbox controller plugged into USB makes the sim experience much better than the keyboard fallback. Borrow one if you don't have your own.
+
+---
+
+### References
+
+- [WPILib documentation](https://docs.wpilib.org/en/stable/): the canonical reference for every WPILib API named in these modules
+- [WPILib Zero to Robot](https://docs.wpilib.org/en/stable/docs/zero-to-robot/introduction.html): the original walkthrough this curriculum runs in parallel with
+- [REVLib documentation](https://docs.revrobotics.com/): SparkMax + NEO reference
+- [AdvantageScope documentation](https://docs.advantagescope.org/)
+
+### How you are evaluated
+
+Every module has an **Evaluate in simulation** box at the end. It names the one thing the simulated robot must visibly do, and where to look. Do it, and where the box says so, keep the evidence (a screenshot of the console or of the AdvantageScope tab), because the [capstone](/kit-bot/rc-capstone) is a ten-minute simulation demo built from exactly these.
+
+| Module | Evidence, in simulation |
+|---|---|
+| R00–R02 | The project builds, simulates, enables; `teleopPeriodic` visibly runs at 50 Hz |
+| R03–R05 | A subsystem's `periodic` ticks in the console; two controller bindings change what it prints |
+| R07 | Launcher RPM rises under a held button and current is non-zero; the calibration table changes RPM with distance |
+| R08 | Driving forward for two seconds accumulates roughly six metres; turning splits the sides |
+| R09 | The characterization routine prints a small positive `kS` and a `kV` that lands near 12 V at top speed |
+| R10–R11 | Deadband holds the robot still at small stick; the curve makes 30 % stick glide, not jolt |
+| R12 | The console reports which IO it picked; sim and real branches differ in one place |
+| R13 | AdvantageScope live: the pose tracks on the field, left/right velocity separate in a turn, launcher current spikes |
+| R14 | The auto chooser lists every routine; each runs to completion on the field view; teleop interrupts it |
+| RC | The whole demo, in simulation, in ten minutes |
+
+Real hardware, when it is available, is checked after simulation passes. When the two disagree, the [sim-to-real checklist](/frc/sim-autos#the-hand-off-to-the-real-robot) says what to look at.
+
+---
+
+<RulesBox title="Origin">
+
+This section was written by FRC 4451's mentors from the experience of FRC 4864, the 4451 B team, building its robot *Skorpion*. It is FRC 4451's own material and is maintained here directly: cross-references point at this site's Java Training and Practice Assignments, three modules are split into two parts, and every module ends with a simulation check.
+
+</RulesBox>

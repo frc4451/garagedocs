@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Estimates realistic student completion time from lesson content and updates
- * frontmatter `duration` fields across FRC, FTC, Java, and Comp collections.
+ * frontmatter `duration` fields across FRC, FTC, and Java collections.
  */
 import fs from 'fs';
 import path from 'path';
@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const SECTIONS = ['frc', 'ftc', 'java', 'comp'];
+const SECTIONS = ['frc', 'ftc', 'java'];
 
 function parseFrontmatter(raw) {
   const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -136,10 +136,6 @@ export function estimateDuration(filePath, fm, body) {
     minutes += 12;
   }
 
-  if (section === 'comp') {
-    minutes += Math.min(m.codeLines, 80) * 0.08;
-    if (/advanced|segment|dynamic-programming|backtracking/i.test(name)) minutes += 8;
-  }
 
   if (section === 'frc' || section === 'ftc') {
     if (/pid|odometry|path|vision|autonomous|control|profiling/i.test(name)) {
@@ -178,9 +174,6 @@ export function estimateDuration(filePath, fm, body) {
     minutes = Math.max(10, Math.min(minutes, 25));
   }
 
-  if (section === 'comp' && m.proseWords < 180 && m.codeLines === 0 && m.exerciseBoxes === 0) {
-    minutes = 15;
-  }
 
   // Practical bounds for a single sitting
   const max =

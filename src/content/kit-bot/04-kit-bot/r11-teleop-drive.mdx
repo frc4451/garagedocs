@@ -1,0 +1,173 @@
+---
+title: "R11: Teleop drive"
+lessonId: r11-teleop-drive
+section: kit-bot
+group: kit-bot
+groupLabel: "Phase 4: Kit Bot Integration"
+groupOrder: 4
+order: 11
+duration: 10 min
+description: "The default-command pattern that turns stick input into drivetrain output."
+---
+You have a `Drive` subsystem (R08) and stick math that conditions raw input (R10). This module is where they meet: a proper teleop default command, two button-bound conveniences, and the driving experience all the previous batches were building toward.
+
+---
+
+### The default command, in its own class
+
+Up to now the default command has been a lambda inside `configureBindings`. That works, but once a command grows past three lines it's worth a class. Extracting also makes the command reusable from autonomous later.
+
+```java
+package frc.robot.commands;
+
+import edu.wpi.first.wpilibj2.command.Command;
+import frc.robot.subsystems.drive.Drive;
+import frc.robot.subsystems.drive.DriveConstants;
+import frc.robot.subsystems.drive.StickCurve;
+
+import java.util.function.DoubleSupplier;
+
+public class TeleopDrive extends Command {
+
+    private final Drive drive;
+    private final DoubleSupplier forwardSupplier;
+    private final DoubleSupplier rotationSupplier;
+
+    public TeleopDrive(Drive drive,
+                       DoubleSupplier forwardSupplier,
+                       DoubleSupplier rotationSupplier) {
+        this.drive = drive;
+        this.forwardSupplier = forwardSupplier;
+        this.rotationSupplier = rotationSupplier;
+        addRequirements(drive);
+    }
+
+    @Override
+    public void execute() {
+        double speed = StickCurve.shape(
+            forwardSupplier.getAsDouble(),
+            DriveConstants.TELEOP_DEADBAND,
+            1.0);
+
+        double rotation = StickCurve.shape(
+            rotationSupplier.getAsDouble(),
+            DriveConstants.TELEOP_DEADBAND,
+            1.0);
+
+        drive.arcadeDrive(speed, rotation);
+    }
+
+    @Override
+    public void end(boolean interrupted) {
+        drive.stop();
+    }
+
+    @Override
+    public boolean isFinished() {
+        return false;   // default commands run forever; the scheduler interrupts them
+    }
+}
+```
+
+Notice `shape` is called with `1.0` as the max output, not `DriveConstants.MAX_DRIVE_PERCENT`. `arcadeDrive` (R08) already multiplies by `MAX_DRIVE_PERCENT` internally, since it's documented to take `speed`/`rotation` in the full `[-1, 1]` range. Passing `MAX_DRIVE_PERCENT` into `shape` too would cap twice, leaving you well under the 85% you'd expect at full stick. One cap, one place: `arcadeDrive` owns it.
+
+Two things to absorb from this shape:
+
+- **The constructor takes `DoubleSupplier`s, not raw doubles**. Same trick as your assignment work in [A22](/assignments/a22-command-binding). The command doesn't capture a snapshot; it captures *how to get the current value*. Each tick, it asks the supplier for a fresh value. That's how `() -> -driver.getLeftY()` keeps reflecting the *current* stick position.
+- **`addRequirements(drive)` in the constructor**. This is how the command says "I need the drivetrain." The scheduler then ensures no other command can use it at the same time.
+
+---
+
+### Wiring it in
+
+In `RobotContainer`:
+
+```java
+private void configureBindings() {
+    drive.setDefaultCommand(
+        new TeleopDrive(
+            drive,
+            () -> -driver.getLeftY(),     // forward = up on stick = negative Y
+            () -> -driver.getRightX()     // turn = right on stick = negative X (convention varies)
+        )
+    );
+
+    driver.b().onTrue(
+        Commands.runOnce(drive::stop, drive)
+    );
+}
+```
+
+The two `() -> ...` lambdas are `DoubleSupplier` instances. They close over the `driver` controller, so every time the command's `execute()` asks for `forwardSupplier.getAsDouble()`, the driver's current stick position flows in.
+
+`drive::stop` is a method reference: the same as `() -> drive.stop()` but shorter. The `B` button binds a `Commands.runOnce` that calls it.
+
+---
+
+### The two stick conventions
+
+In the snippet above the rotation supplier is `() -> -driver.getRightX()`. You may want to drop the negative depending on which way "turn right" feels right to your driver:
+
+| Style | `rotationSupplier` |
+|---|---|
+| "Right stick right = robot turns right" (most common) | `() -> -driver.getRightX()` (or `+`; flip until it feels right) |
+| "Right stick right = field-right turn" (less common) | depends on orientation; usually fine to leave as the previous |
+
+Don't agonise over this. Plug in a controller, push the stick right, and confirm the robot rotates the way the driver expects. Flip the sign if not.
+
+---
+
+### What you've now built
+
+Run it:
+
+1. Build, sim, enable in teleop.
+2. Plug in an Xbox controller (or use the sim keyboard).
+3. Drive around.
+
+The driving should feel:
+
+- **Calm in the middle.** Small stick motions produce small drive commands.
+- **Strong at the edges.** Full stick produces about 10.2 V at the motors (85% of 12 V).
+- **Dead at rest.** No creep when the stick is centred.
+
+If any of these aren't true, suspect the `TELEOP_DEADBAND` and `MAX_DRIVE_PERCENT` values in `DriveConstants` first, then your stick negate signs.
+
+---
+
+### A note on what is NOT in this module
+
+Three things you'll see in other curricula at this stage; we're skipping them on purpose for the compressed plan.
+
+- **Slew-rate limiting.** A `SlewRateLimiter` smooths step changes in the commanded value, useful at competitions for not browning out the battery. Worth adding once the rest of the robot works. WPILib has [`SlewRateLimiter`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/filter/SlewRateLimiter.html) built in.
+- **Cheesy/curvature drive.** A more advanced control scheme. Beyond Kit Bot scope.
+- **Trigger-based throttling.** "Hold left trigger to go slow." A nice driver-comfort feature. Add it if and when you want it: it's a multiplier on the `MAX_DRIVE_PERCENT` cap.
+
+The default command above is intentionally minimal. It does one thing well; you'll add things on top of it through composition later, the same `.andThen` / `.withTimeout` decorators [R14](/kit-bot/r14-time-based-autonomous) uses to build autonomous routines out of small commands.
+
+---
+
+<RulesBox title="Evaluate in simulation">
+
+With the default command in its own class, enabling in teleop drives with no button pressed, disabling stops it, and no other command has to be scheduled for the robot to respond to the sticks. The console shows nothing; the robot moving under a default command is the check.
+
+</RulesBox>
+
+### References
+
+- [A22: Command-Binding Lab](/assignments/a22-command-binding): `DoubleSupplier` as command input
+- [R05: Commands and triggers](/kit-bot/r05-commands-and-triggers): `setDefaultCommand` and the scheduler
+- [R10: Joysticks and stick math](/kit-bot/r10-joysticks-and-stick-math): where `StickCurve` came from
+- [R14: Time-based autonomous](/kit-bot/r14-time-based-autonomous): the composition patterns referenced above
+- WPILib: [Default Commands](https://docs.wpilib.org/en/stable/docs/software/commandbased/subsystems.html#default-commands)
+- WPILib: [Subclassing Command](https://docs.wpilib.org/en/stable/docs/software/commandbased/commands.html#creating-commands)
+- WPILib JavaDoc: [`Command`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/Command.html)
+- WPILib JavaDoc: [`SlewRateLimiter`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/filter/SlewRateLimiter.html), skipped this module but useful later
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/commandbased/commands.html", "note": "Creating commands."},
+  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "Default commands."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Command.html", "note": "<code>Command</code>."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/filter/SlewRateLimiter.html", "note": "<code>SlewRateLimiter</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/commands/DriveCommands.java", "note": "The joystick drive command in FRC 4451's code."}
+]} />

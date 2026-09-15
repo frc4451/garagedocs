@@ -1,0 +1,246 @@
+---
+title: "R07: LauncherIO, Part 1: The IO Layer"
+lessonId: r07-launcher-io
+section: kit-bot
+group: io-pattern
+groupLabel: "Phase 3: Hardware via IO"
+groupOrder: 3
+order: 7
+duration: 40 min
+description: "The IO interface for the launcher, its constants, and the two implementations behind it: a SparkMax for the robot and a FlywheelSim for the desk."
+durationFixed: true
+---
+This is the module where the IO pattern from [A17](/assignments/a17-io-interface) stops being an exercise and starts being your robot.
+
+The Kit Bot's launcher is a leader/follower pair of SparkMax + NEO driving one roller. You build a `LauncherIO` interface, two implementations (real and sim), and a `Launcher` subsystem that holds the IO without knowing which one it has. By the end of the module, you can spin a simulated launcher up to RPM with a button press.
+
+We start with the launcher rather than the drivetrain because it's simpler: one commanded voltage (the follower just mirrors the leader), no per-side split, no kinematics. Every architectural choice is on display without the noise.
+
+---
+
+### The shape we're building
+
+```
+subsystems/launcher/
+├── LauncherConstants.java
+├── Launcher.java            ← subsystem; holds an IO
+├── LauncherIO.java          ← the interface
+├── LauncherIOReal.java      ← talks to a leader/follower SparkMax pair
+└── LauncherIOSim.java       ← talks to a FlywheelSim
+```
+
+The subsystem holds **state and policy** ("how fast do I want to be going?"). The IO holds **hardware access** ("send a voltage; read the current RPM"). Nothing else mixes the two.
+
+---
+
+### The IO interface
+
+```java
+package frc.robot.subsystems.launcher;
+
+import edu.wpi.first.units.measure.MutAngularVelocity;
+import edu.wpi.first.units.measure.MutCurrent;
+import edu.wpi.first.units.measure.MutVoltage;
+import edu.wpi.first.units.measure.Voltage;
+import static edu.wpi.first.units.Units.Amps;
+import static edu.wpi.first.units.Units.RPM;
+import static edu.wpi.first.units.Units.Volts;
+
+public interface LauncherIO {
+
+    /** Apply a voltage to the launcher motor. Range is normally [-12, 12] V. */
+    void setVoltage(Voltage volts);
+
+    /** Refresh the inputs object with the latest hardware/sim readings. */
+    void updateInputs(LauncherInputs inputs);
+
+    /** Snapshot of everything the subsystem reads from the IO each tick. */
+    final class LauncherInputs {
+        public final MutAngularVelocity velocity = RPM.mutable(0);
+        public final MutCurrent current = Amps.mutable(0);
+        public final MutVoltage appliedVoltage = Volts.mutable(0);
+    }
+}
+```
+
+Four things to notice:
+
+1. **Two methods.** `setVoltage` is the output side. `updateInputs` is the input side. That's it.
+2. **`setVoltage` takes a `Voltage`, not a `double`.** [R03](/kit-bot/r03-constants) introduced WPILib's Units library; this is where it starts paying off. A caller can't accidentally pass a raw RPM number where a voltage is expected, the compiler won't let them, there's no `double` for it to mistake.
+3. **`LauncherInputs` fields are `Mut*` measures**, not `double`s and not a record. `RPM.mutable(0)` creates one `MutAngularVelocity` object, once, and every tick the IO calls `.mut_replace(...)` on it instead of allocating a fresh measure. Same reasoning as the plain-`double` mutable class from before: allocating a new object every 20 ms is wasteful, and WPILib's own docs recommend exactly this pattern in periodic code. (This still matches the shape AdvantageKit's auto-generation produces, so if you later adopt AdvantageKit, this is already familiar.)
+4. **No `update(dt)` method.** WPILib's `*Sim` classes use a fixed 20 ms tick that matches the scheduler's tick. The sim IO does its own step inside `updateInputs`.
+
+---
+
+### The constants
+
+```java
+package frc.robot.subsystems.launcher;
+
+import edu.wpi.first.units.measure.MomentOfInertia;
+import edu.wpi.first.units.measure.Voltage;
+import static edu.wpi.first.units.Units.KilogramSquareMeters;
+import static edu.wpi.first.units.Units.Volts;
+
+public final class LauncherConstants {
+
+    public static final int LEADER_CAN_ID = 21;
+    public static final int FOLLOWER_CAN_ID = 22;
+    public static final int SMART_CURRENT_LIMIT_AMPS = 40;   // config-time REVLib parameter; see R03
+
+    // sim parameters
+    public static final MomentOfInertia SIM_MOI = KilogramSquareMeters.of(0.0018);   // approximate roller inertia
+    public static final double SIM_GEAR_RATIO   = 1.0;   // direct drive, dimensionless
+
+    // target speeds
+    public static final Voltage SHOOT_VOLTAGE = Volts.of(10.0);
+    public static final Voltage IDLE_VOLTAGE  = Volts.of(0.0);
+
+    // feedforward gains, measured with R09's characterization routine on
+    // your own Kit Bot; these are illustrative, not tuned for a real one.
+    public static final double KS = 0.20;      // volts
+    public static final double KV = 0.0021;    // volts per RPM
+
+    private LauncherConstants() {}
+}
+```
+
+The sim parameters are *approximate*. The roller spins up a little faster than reality with the values above; tune them once you have a real robot to compare against. For now, they make the sim behave plausibly.
+
+---
+
+### The real implementation
+
+```java
+package frc.robot.subsystems.launcher;
+
+import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkBase.ResetMode;
+import com.revrobotics.spark.SparkBase.PersistMode;
+import com.revrobotics.spark.config.SparkMaxConfig;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+import edu.wpi.first.units.measure.Voltage;
+import static edu.wpi.first.units.Units.Amps;
+import static edu.wpi.first.units.Units.RPM;
+import static edu.wpi.first.units.Units.Volts;
+
+public class LauncherIOReal implements LauncherIO {
+
+    private final SparkMax leader;
+    private final SparkMax follower;
+
+    public LauncherIOReal() {
+        leader = new SparkMax(LauncherConstants.LEADER_CAN_ID, MotorType.kBrushless);
+
+        SparkMaxConfig leaderConfig = new SparkMaxConfig();
+        leaderConfig.idleMode(IdleMode.kCoast)
+                    .smartCurrentLimit(LauncherConstants.SMART_CURRENT_LIMIT_AMPS);
+
+        leader.configure(leaderConfig,
+            ResetMode.kResetSafeParameters,
+            PersistMode.kPersistParameters);
+
+        follower = new SparkMax(LauncherConstants.FOLLOWER_CAN_ID, MotorType.kBrushless);
+
+        SparkMaxConfig followerConfig = new SparkMaxConfig();
+        followerConfig.idleMode(IdleMode.kCoast)
+                      .smartCurrentLimit(LauncherConstants.SMART_CURRENT_LIMIT_AMPS)
+                      .follow(LauncherConstants.LEADER_CAN_ID);
+
+        follower.configure(followerConfig,
+            ResetMode.kResetSafeParameters,
+            PersistMode.kPersistParameters);
+    }
+
+    @Override
+    public void setVoltage(Voltage volts) {
+        leader.setVoltage(volts.in(Volts));
+    }
+
+    @Override
+    public void updateInputs(LauncherInputs inputs) {
+        inputs.velocity.mut_replace(leader.getEncoder().getVelocity(), RPM);
+        inputs.current.mut_replace(leader.getOutputCurrent() + follower.getOutputCurrent(), Amps);
+        inputs.appliedVoltage.mut_replace(leader.getAppliedOutput() * leader.getBusVoltage(), Volts);
+    }
+}
+```
+
+Everything REVLib-specific lives in this one file. Nothing outside `LauncherIOReal` imports a single REV type. That's the win.
+
+Only the leader takes a voltage command; the follower mirrors it via SparkMax follower mode (see [R06](/kit-bot/r06-motor-controllers)). `updateInputs` reads velocity and applied voltage from the leader only, since the follower tracks it, but sums current draw from both because that's what actually leaves the battery.
+
+`getAppliedOutput()` returns a fraction in `[-1, 1]` representing the current duty cycle; multiplying by `getBusVoltage()` gives the volts the controller is actually delivering, slightly different from your commanded value when current limits kick in. Notice the boundary: REVLib's own methods (`setVoltage`, `getEncoder().getVelocity()`, `getOutputCurrent()`, `getBusVoltage()`) are all plain `double`, REVLib doesn't know about WPILib's Units library. `LauncherIOReal` is exactly where the conversion happens: `.in(Volts)` going out to REVLib, `.mut_replace(double, Unit)` coming back in from it. Nothing on either side of that boundary has to change for the other to stay typed.
+
+---
+
+### The sim implementation
+
+```java
+package frc.robot.subsystems.launcher;
+
+import edu.wpi.first.math.system.plant.DCMotor;
+import edu.wpi.first.math.system.plant.LinearSystemId;
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj.simulation.FlywheelSim;
+import static edu.wpi.first.units.Units.Amps;
+import static edu.wpi.first.units.Units.KilogramSquareMeters;
+import static edu.wpi.first.units.Units.Volts;
+
+public class LauncherIOSim implements LauncherIO {
+
+    private final FlywheelSim sim;
+    private Voltage appliedVoltage = Volts.of(0);
+
+    public LauncherIOSim() {
+        sim = new FlywheelSim(
+            LinearSystemId.createFlywheelSystem(
+                DCMotor.getNEO(1),
+                LauncherConstants.SIM_MOI.in(KilogramSquareMeters),
+                LauncherConstants.SIM_GEAR_RATIO),
+            DCMotor.getNEO(1)
+        );
+    }
+
+    @Override
+    public void setVoltage(Voltage volts) {
+        appliedVoltage = Volts.of(Math.max(-12.0, Math.min(12.0, volts.in(Volts))));
+        sim.setInputVoltage(appliedVoltage.in(Volts));
+    }
+
+    @Override
+    public void updateInputs(LauncherInputs inputs) {
+        sim.update(0.020);                                  // 20 ms tick
+        inputs.velocity.mut_replace(sim.getAngularVelocity());   // FlywheelSim hands back a typed AngularVelocity directly
+        inputs.current.mut_replace(sim.getCurrentDrawAmps(), Amps);
+        inputs.appliedVoltage.mut_replace(appliedVoltage);
+    }
+}
+```
+
+[`FlywheelSim`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/FlywheelSim.html) is WPILib's built-in physics model for a flywheel: a spinning mass driven by a motor through a gearbox. The constructor takes:
+
+- a `LinearSystem` describing the plant (motor, inertia, gear ratio),
+- a `DCMotor` model for current-limit calculations.
+
+`LinearSystemId.createFlywheelSystem` still takes a plain `double` moment of inertia, so `LauncherConstants.SIM_MOI.in(KilogramSquareMeters)` unwraps it right at that call. `FlywheelSim` itself is a partial exception to the "sim classes use raw doubles" rule: `getCurrentDrawAmps()` is still a bare `double`, but `getAngularVelocity()` hands back a real `AngularVelocity` measure directly, no unwrapping needed on that one. Not every WPILib class has caught up to the Units library at the same pace; check the JavaDoc for each one rather than assuming.
+
+Inside `updateInputs`, the order matters: **clip and apply the voltage in `setVoltage`** (so current-limit math is right), **advance the sim** (`sim.update(0.020)` for a 20 ms tick), **then read** the new state into `inputs`. Reversing the order (advance, then apply) means readings lag one tick behind commands.
+
+<RulesBox title="Evaluate in simulation">
+
+The five files build, and `LauncherIOSim` exists alongside `LauncherIOReal` with the subsystem unaware of which it has. The running check is in Part 2.
+
+</RulesBox>
+
+---
+
+That is the whole IO layer: one interface, one constants file, two implementations that agree on the contract. Nothing has used it yet. [Part 2](/kit-bot/r07-launcher-io-part-2) builds the subsystem on top of it, wires it into `RobotContainer`, and replaces the single shot voltage with a calibration table.
+
+<Sources items={[
+  {"source": "advantagekit", "path": "data-flow/recording-inputs/io-interfaces/", "note": "The IO-interface pattern this page introduces without the logger."},
+  {"source": "revlib", "path": "com/revrobotics/spark/SparkMax.html", "note": "The real IO."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/FlywheelSim.html", "note": "The simulated IO."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html", "note": "Physics simulation classes."}
+]} />

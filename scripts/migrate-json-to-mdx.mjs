@@ -14,9 +14,7 @@ const CONTENT = path.join(ROOT, 'src', 'content');
 
 const SECTION_CONFIGS = [
   { config: 'java-training-config.json', section: 'java' },
-  { config: 'ftc-specific-config.json', section: 'ftc' },
   { config: 'frc-specific-config.json', section: 'frc' },
-  { config: 'competitive-training-config.json', section: 'comp' },
 ];
 
 function htmlToMarkdownInline(str) {
@@ -429,7 +427,7 @@ function migrateOrphanJson() {
     }
   }
 
-  const sectionDirs = { java: 'java', ftc: 'ftc', frc: 'frc', comp: 'comp' };
+  const sectionDirs = { java: 'java', frc: 'frc' };
 
   function walk(dir, section) {
     if (!fs.existsSync(dir)) return;
@@ -470,7 +468,7 @@ function migrateOrphanJson() {
 }
 
 // Main — destructive: regenerates all src/content from legacy JSON
-for (const dir of ['java', 'ftc', 'frc', 'comp', 'homepage']) {
+for (const dir of ['java', 'frc', 'homepage']) {
   const p = path.join(CONTENT, dir);
   if (fs.existsSync(p)) fs.rmSync(p, { recursive: true });
   fs.mkdirSync(p, { recursive: true });

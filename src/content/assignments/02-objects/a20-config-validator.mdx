@@ -1,0 +1,117 @@
+---
+title: "A20: Config Validator"
+lessonId: a20-config-validator
+section: assignments
+group: objects
+groupLabel: "Track 2 — Objects"
+groupOrder: 2
+order: 20
+difficulty: intermediate
+duration: 90 min
+description: Read constants from a file and refuse the bad ones at the boundary, so the rest of the robot can trust its own numbers.
+---
+
+**Topic:** `try`/`catch`/`finally`, throwing your own exceptions, validation at boundaries, try-with-resources.
+**Cites:** [Try/Catch](/java/java-try-catch), [Classes](/java/java-classes).
+**Difficulty:** medium. **Estimated time:** 90 minutes.
+
+### Scenario
+
+Tuning constants live in a file so you can change them without recompiling. That
+convenience cuts both ways: the file is also where a typo turns into a robot that
+drives at 850% power because somebody wrote `8.5` instead of `0.85`.
+
+The fix is to refuse bad values **once, at the edge**, where the file becomes objects.
+After that boundary, the rest of the code can stop asking.
+
+### Input format
+
+```text
+# comments start with #
+maxDriveSpeed = 0.85
+maxAccel = 2.5
+intakeRPM = 1800
+shooterTargetRPM = 4500
+climberEnabled = true
+teamNumber = 1234
+```
+
+Order does not matter. Blank lines and `#` lines are ignored. Whitespace around the
+`=` is allowed.
+
+### What to build
+
+**`Config`** with six `private final` fields, validated in the constructor. A bad value
+throws `IllegalArgumentException` **naming the key and the value**:
+
+<ContentTable
+  headers={["Key", "Valid range"]}
+  rows={[
+    ["<code>maxDriveSpeed</code>", "0.0 to 1.0"],
+    ["<code>maxAccel</code>", "greater than 0.0"],
+    ["<code>intakeRPM</code>", "0 to 6000"],
+    ["<code>shooterTargetRPM</code>", "0 to 6000"],
+    ["<code>climberEnabled</code>", "<code>true</code> or <code>false</code>, case-insensitive"],
+    ["<code>teamNumber</code>", "greater than 0"]
+  ]}
+/>
+
+**`ConfigLoader.load(String path)`** opens the file with try-with-resources, skips
+blanks and comments, splits each line on the first `=`, then builds a `Config`. A
+missing key, an unparseable number and an out-of-range value all throw
+`IllegalArgumentException`. A missing *file* throws `IOException` — a different kind of
+problem, and callers will want to tell them apart.
+
+<RulesBox title="How the browser version differs" items={[
+  "Three files locally, one here, with only <code>ConfigLoader</code> declared <code>public</code>.",
+  "<code>main</code> is written for you: it writes sample files, loads them, then rewrites them with one bad line at a time. Leave <code>main</code> and <code>dataDir</code> alone — <code>dataDir</code> picks a directory that is writable both locally and in the in-page editor."
+]} />
+
+
+<RulesBox title="Plan it as sessions" items={[
+  "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>A valid file loads</em>, <em>climberEnabled is case-insensitive</em>, <em>Out-of-range values are refused</em>.",
+  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Unparseable values are refused</em>, <em>Missing key and missing file are different failures</em>."
+]} />
+
+<JavaPlayground id="a20-config-validator" />
+
+<RulesBox title="Hints" items={[
+  "<strong>Split on the <em>first</em> <code>=</code>.</strong> <code>indexOf('=')</code> plus two <code>substring</code> calls, not <code>split(\"=\")</code> — a value could one day contain one, and the two-argument split limit is easy to forget.",
+  "<strong>Try-with-resources closes for you.</strong> <code>try (BufferedReader in = new BufferedReader(new FileReader(path))) { ... }</code> closes the reader on the way out, including when an exception leaves early. That is the whole reason to prefer it over a <code>finally</code> block you have to remember to write.",
+  "<strong>Two failure kinds, two exception types.</strong> The file not existing is an <code>IOException</code> and is nobody's typo. A value out of range is an <code>IllegalArgumentException</code> and is somebody's typo. Let them stay different — do not catch one and rethrow it as the other.",
+  "<strong>Parse and validate are separate steps.</strong> <code>Integer.parseInt</code> throws <code>NumberFormatException</code> for <code>fast</code>; your range check throws for <code>9000</code>. Catch the first and rethrow it with the key name attached, so the message says which line to look at."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Functionality", "60", "A valid file loads all six values. Comments, blank lines and spaces around <code>=</code> are handled. <code>climberEnabled</code> accepts any casing."],
+    ["Edge cases", "15", "Out-of-range, unparseable and missing keys each throw <code>IllegalArgumentException</code>; a missing file throws <code>IOException</code>. Messages name the offending key."],
+    ["Code quality", "20", "Try-with-resources rather than a hand-written <code>finally</code>. Validation lives in the <code>Config</code> constructor, not scattered through the loader. Fields <code>private final</code>."],
+    ["Comments", "5", "Author header, and a note on why the ranges are what they are — a reader six weeks from now will want the reasoning, not the number."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Collect *every* problem in the file and throw once with all of them listed, instead of
+  stopping at the first. Far kinder at 11pm before a competition.
+- Add `saveTo(String path)` writing the config back out in the same format, and confirm
+  a load-save-load round trip is stable.
+
+### References
+
+- JavaDoc: [`java.io.BufferedReader`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/io/BufferedReader.html)
+- JavaDoc: [`java.lang.NumberFormatException`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/NumberFormatException.html)
+- Oracle: [The try-with-resources statement](https://docs.oracle.com/javase/tutorial/essential/exceptions/tryResourceClose.html)
+
+<Sources items={[
+  {"source": "csce146", "note": "Exceptions and validation."},
+  {"source": "dev-java", "path": "exceptions/", "note": "Exceptions."},
+  {"source": "dev-java", "path": "exceptions/catching-handling/", "note": "try/catch and custom exceptions."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer.parseInt</code> and <code>NumberFormatException</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/IllegalArgumentException.html", "note": "<code>IllegalArgumentException</code> API reference."}
+]} />

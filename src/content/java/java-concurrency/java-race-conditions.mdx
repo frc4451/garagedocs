@@ -7,13 +7,13 @@ groupLabel: "Concurrency and Multithreading"
 groupOrder: 9
 order: 2
 difficulty: advanced
-duration: 35 min
-description: How two threads corrupt shared data, what synchronized and volatile actually guarantee, and why avoiding shared state beats protecting it.
+duration: 30 min
+description: How two threads corrupt shared data, what synchronized and volatile guarantee, and why avoiding shared state beats protecting it.
 ---
 
 ### A counter that loses count
 
-This program looks obviously correct and is not:
+This program looks correct and is not:
 
 ```java
 class Counter {
@@ -36,7 +36,7 @@ Thread b = new Thread(() -> { for (int i = 0; i < 100_000; i++) counter.incremen
 a.start(); b.start();
 a.join();  b.join();
 
-System.out.println(counter.get());     // expected 200000 — usually less
+System.out.println(counter.get());     // expected 200000; usually less
 ```
 
 Run it and you get some number below 200,000, different each time.
@@ -66,10 +66,10 @@ This is a **race condition**: the result depends on the timing of threads, and t
 
 An operation is atomic if it cannot be observed half-done. Very little is:
 
-- `count++` and `count += 1` — **not atomic**
-- `x = y + 1` — **not atomic**
-- Reading or writing a single `int` or reference — atomic
-- Reading or writing a `long` or `double` — **not guaranteed** on all platforms, unless declared `volatile`
+- `count++` and `count += 1`: **not atomic**
+- `x = y + 1`: **not atomic**
+- Reading or writing a single `int` or reference: atomic
+- Reading or writing a `long` or `double`: **not guaranteed** on all platforms, unless declared `volatile`
 
 Assume any operation touching shared mutable data needs protection unless you can point to a specific rule saying otherwise.
 
@@ -93,13 +93,13 @@ class Counter {
 
 Now the total is 200,000 every time.
 
-Every Java object has an intrinsic lock. A `synchronized` instance method acquires that object's lock on entry and releases it on exit — including when an exception is thrown.
+Every Java object has an intrinsic lock. A `synchronized` instance method acquires that object's lock on entry and releases it on exit, including when an exception is thrown.
 
 **`get()` must be synchronized too.** Locking only the writer still leaves readers able to see a stale or half-written value. Both sides of shared state need protection.
 
 You can also lock a smaller region:
 
-```java
+```java norun
 class Tracker {
     private final Object lock = new Object();
     private int count = 0;
@@ -114,7 +114,7 @@ class Tracker {
 }
 ```
 
-Holding a lock for less time lets more work proceed in parallel. Using a dedicated private lock object — rather than `this` — also prevents outside code from locking on your object and interfering.
+Holding a lock for less time lets more work proceed in parallel. Using a dedicated private lock object, rather than `this`, also prevents outside code from locking on your object and interfering.
 
 ### volatile
 
@@ -122,7 +122,7 @@ Holding a lock for less time lets more work proceed in parallel. Using a dedicat
 
 Without it, one thread's write may never become visible to another. The compiler and processor are allowed to cache values in registers, so this loop can run forever even after `running` becomes false:
 
-```java
+```java norun
 class Worker {
     private boolean running = true;         // BUG: not volatile
 
@@ -183,7 +183,7 @@ class Counter {
     ["A counter or accumulator", "<code>AtomicInteger</code> / <code>AtomicLong</code>"],
     ["Several fields that must change together", "<code>synchronized</code>"],
     ["A shared collection", "A concurrent collection"],
-    ["Nothing genuinely shared", "Nothing &mdash; the best option"]
+    ["Nothing shared", "Nothing; the best option"]
   ]}
 />
 
@@ -198,18 +198,18 @@ synchronized (lockOne) {
 }
 
 // thread B
-synchronized (lockTwo) {          // opposite order — deadlock risk
+synchronized (lockTwo) {          // opposite order: deadlock risk
     synchronized (lockOne) { ... }
 }
 ```
 
-Neither can proceed. The program does not crash; it simply stops.
+Neither can proceed. The program does not crash; it stops.
 
 <RulesBox title="Avoiding deadlock">
 
 - **Always acquire multiple locks in the same order** everywhere in the program. That alone prevents most deadlocks.
 - **Hold one lock at a time** when you can.
-- **Never call unknown code while holding a lock** — it might try to acquire another.
+- **Do not call unknown code while holding a lock.** It might try to acquire another.
 - **Keep locked regions short.**
 
 </RulesBox>
@@ -231,7 +231,7 @@ Every one of these is easier to reason about than a correctly-locked shared obje
 
 ### Why these bugs are so unpleasant
 
-A race condition may appear in one run in ten thousand, vanish under a debugger, and behave differently on another machine. Tests passing does not mean the code is correct — only that the bad interleaving did not occur this time.
+A race condition may appear in one run in ten thousand, vanish under a debugger, and behave differently on another machine. Tests passing does not mean the code is correct, only that the bad interleaving did not occur this time.
 
 That is why the design-level advice above matters more than the locking mechanics. Code with nothing shared cannot race.
 
@@ -246,6 +246,8 @@ That is why the design-level advice above matters more than the locking mechanic
 - **Assuming a passing test proves correctness.**
 
 </RulesBox>
+
+<JavaPlayground id="java-race-conditions" />
 
 <ExerciseBox title="Practice">
 
@@ -276,6 +278,17 @@ That is why the design-level advice above matters more than the locking mechanic
     { "label": "Concurrent Collections", "id": "java-concurrent-collections" }
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "java-tutorial", "path": "essential/concurrency/sync.html", "note": "Synchronization."},
+  {"source": "java-tutorial", "path": "essential/concurrency/memconsist.html", "note": "Memory consistency and <code>volatile</code>."},
+  {"source": "java-tutorial", "path": "essential/concurrency/deadlock.html", "note": "Deadlock."},
+  {"source": "java-tutorial", "path": "essential/concurrency/atomic.html", "note": "Atomic variables."},
+  {"source": "jls", "path": "jls-17.html", "note": "The memory model, <code>synchronized</code>, <code>volatile</code> (chapter 17)."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/atomic/AtomicInteger.html", "note": "<code>AtomicInteger</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/Thread.html", "note": "<code>Thread</code> API reference."}
+]} />
 
 <LinkGrid
   title="Related"

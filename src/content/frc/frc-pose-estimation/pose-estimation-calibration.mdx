@@ -3,282 +3,194 @@ title: Pose Estimation Calibration
 lessonId: pose-estimation-calibration
 section: frc
 group: frc-pose-estimation
-groupLabel: Pose Estimation
+groupLabel: "Pose Estimation"
 groupOrder: 8
-order: 5
+order: 7
 difficulty: advanced
-duration: 65 min
-description: ""
+duration: 35 min
+description: "Testing drivetrain measurements, camera calibration and mounting, observation filters, and pose-estimator uncertainty."
 ---
 
-### Calibration: The Foundation of Accuracy
+Calibrate pose estimation one source at a time. If wheel distance, module angles, gyro direction, camera intrinsics, and camera placement all change during the same test, the log cannot identify which change fixed or caused an error.
 
-Even the best fusion algorithm can't overcome poor sensor calibration. Your pose estimation is only as good as your sensor measurements. Calibration ensures your sensors report accurate values, which directly translates to accurate pose estimation.
+For every test, record:
 
+- Hardware and software version
+- Starting pose and test path
+- Expected measurement
+- Logged measurement
+- Error
+- Configuration change
+- Result after the change
 
+### 1. Verify coordinate conventions
 
-Think of calibration as teaching your robot to measure correctly. If your encoders think the wheels are a different size than they actually are, every distance calculation will be wrong. If your gyro has an offset, every heading will be wrong. These errors compound over time, making accurate pose estimation impossible.
+Lift the drivetrain so the wheels can move safely. Check the signs before measuring scale:
 
-### Calibrating Wheel Diameters
+1. Push or command the robot forward. Robot-relative +X velocity should be positive.
+2. Move a swerve module toward the robot's left. Its Robot-relative +Y component should be positive.
+3. Rotate the robot counterclockwise when viewed from above. Heading should increase under WPILib's convention.
+4. Display each module angle and verify its zero direction.
+5. Confirm that the module array order matches `SwerveDriveKinematics`.
 
-Wheel diameter directly affects distance calculations. A small error in diameter measurement creates a systematic error in every distance measurement. Use calipers to measure the actual wheel diameter precisely—don't rely on manufacturer specifications, as wheels can compress or wear over time.
+Fix sign, axis, and ordering errors before tuning dimensions.
 
-### Configuring Encoder Distance Per Pulse
+### 2. Measure effective wheel travel
 
-```java
-import edu.wpi.first.wpilibj.Encoder;
+A nominal wheel diameter is a starting value. Compression, tread wear, gearing, and sensor conversion affect the distance reported under load.
 
-// Measured values (calibrate these with actual hardware)
-private static final double kMeasuredWheelDiameter = 0.1524;
-private static final double kEncoderCPR = 2048.0;
+1. Mark a straight test line on a consistent surface.
+2. Record the initial encoder or module positions.
+3. Move the robot a measured distance without turning.
+4. Record the final positions.
+5. Compare measured travel with reported travel.
+6. Repeat in both directions and at more than one speed.
 
-// Calculate distance per encoder pulse
-private static final double kDistancePerPulse = 
-    (kMeasuredWheelDiameter * Math.PI) / kEncoderCPR;
+Calculate a scale correction:
 
-// Configure encoder with calibrated value
-m_encoder.setDistancePerPulse(kDistancePerPulse);
+```text
+corrected conversion =
+    current conversion × actual distance / reported distance
 ```
 
-### Calibrating Track Width
+Apply the result in the sensor conversion used by the IO layer. Repeat until the error is acceptably small and consistent. If the error changes sharply with acceleration, investigate slip before changing the scale again.
 
-Track width (the distance between left and right wheels) affects rotation calculations. For swerve drives, you need both track width and wheelbase. Measure these carefully using precise tools—even a small error causes significant heading errors over time.
+### 3. Check rotation and module geometry
 
-### Testing Calibration Accuracy
+For differential drive, effective track width affects calculated rotation. For swerve, module locations, wheel scale, steering offsets, and scrub all affect the motion inferred from module positions.
 
-```java
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+Run repeated rotations through a measured angle:
 
-public void testCalibration(double knownDistanceMeters) {
-    double encoderDistance = m_encoder.getDistance();
-    double error = Math.abs(encoderDistance - knownDistanceMeters);
-    double errorPercent = (error / knownDistanceMeters) * 100.0;
-    
-    // Display results for analysis
-    SmartDashboard.putNumber("Calibration Error (m)", error);
-    SmartDashboard.putNumber("Calibration Error (%)", errorPercent);
-}
-```
+1. Start from a marked heading.
+2. Rotate several complete turns in one direction.
+3. Return to the marked heading.
+4. Compare gyro heading, wheel-derived heading, and physical heading.
+5. Repeat in the other direction.
 
-### Vision System Calibration
+A constant scale error suggests a geometry or conversion problem. A direction-dependent error suggests scrub, backlash, or an offset problem. A sudden error during acceleration suggests slip.
 
-Vision systems require camera calibration to correct for lens distortion and measure accurate distances. This is typically done using calibration tools provided by your vision library (PhotonVision, Limelight, etc.). The calibration process captures images of a known pattern and calculates the camera's intrinsic parameters.
+### 4. Calibrate camera intrinsics
 
-### Validating Vision Measurements
+PhotonVision camera calibration estimates the lens parameters used to convert image points into rays.
 
-```java
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import java.util.Optional;
+- Calibrate at the exact resolution used by the pipeline.
+- Fill the image with the calibration board at varied positions and angles.
+- Reject blurry captures.
+- Review the calibration error reported by the tool.
+- Recalibrate after changing the lens, focus, resolution, or camera.
 
-public void testVisionAccuracy(Pose2d knownActualPose) {
-    Optional<Pose2d> visionPose = m_vision.getAprilTagPose();
-    
-    if (visionPose.isPresent()) {
-        Pose2d estimatedPose = visionPose.get();
-        
-        // Calculate errors
-        double xError = Math.abs(estimatedPose.getX() - knownActualPose.getX());
-        double yError = Math.abs(estimatedPose.getY() - knownActualPose.getY());
-        double headingError = Math.abs(
-            estimatedPose.getRotation().minus(knownActualPose.getRotation()).getDegrees()
-        );
-        
-        // Display for analysis
-        SmartDashboard.putNumber("Vision X Error (m)", xError);
-        SmartDashboard.putNumber("Vision Y Error (m)", yError);
-        SmartDashboard.putNumber("Vision Heading Error (deg)", headingError);
-    }
-}
-```
+Intrinsics and mounting transform solve different problems. Camera calibration does not determine where the camera sits on the robot.
 
-### Tuning Fusion Parameters
+### 5. Measure robotToCamera
 
-The standard deviation parameters in your PoseEstimator control how much weight each measurement type receives. These are tuning parameters that you adjust based on your sensor accuracy and field conditions.
+Measure from the same robot origin used by odometry:
 
-### Adjusting Standard Deviations
+- +X forward
+- +Y left
+- +Z up
+- Roll about +X
+- Pitch about +Y
+- Yaw about +Z
 
-```java
-import edu.wpi.first.math.VecBuilder;
+Record how the measurement was taken and the physical reference point used on the camera. A consistent pose offset across the field often indicates an incorrect translation or rotation in this transform.
 
-// If odometry is accurate (good encoders, calibrated well)
-var stateStdDevs = VecBuilder.fill(0.05, 0.05, 0.05);
+Use simulation to catch large sign and orientation errors. Confirm the final transform on hardware because simulation cannot reproduce a flexible mount or lens error.
 
-// If vision is accurate (good camera, multiple tags)
-var visionStdDevs = VecBuilder.fill(0.3, 0.3, 0.3);
-```
+### 6. Test raw vision observations
 
-### Testing and Validation
+Place the robot at several surveyed poses and log raw camera estimates without fusing them.
 
-Regular testing is essential to ensure your pose estimation remains accurate. Test at multiple field positions, under different conditions, and monitor for drift or errors. Use SmartDashboard to visualize your pose estimate and compare it to known positions.
+At each pose:
 
-### Pose Accuracy Testing
+1. Face the tags from several distances and angles.
+2. Record single-tag and multi-tag observations separately.
+3. Compare translation and heading error with the surveyed pose.
+4. Record tag IDs, ambiguity, distance, latency, and estimation method.
+5. Repeat while the robot moves.
+
+Calculate translation error with:
 
 ```java
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+double translationErrorMeters =
+    observedPose.getTranslation().getDistance(
+        knownPose.getTranslation());
 
-public void testPoseAccuracy(Pose2d targetPose, Pose2d actualPose) {
-    Pose2d estimatedPose = m_poseEstimation.getPose();
-    
-    // Calculate errors
-    double xError = Math.abs(estimatedPose.getX() - actualPose.getX());
-    double yError = Math.abs(estimatedPose.getY() - actualPose.getY());
-    double headingError = Math.abs(
-        estimatedPose.getRotation().minus(actualPose.getRotation()).getDegrees()
-    );
-    double positionError = estimatedPose.getTranslation()
-        .getDistance(actualPose.getTranslation());
-    
-    // Display for analysis
-    SmartDashboard.putNumber("Pose X Error (m)", xError);
-    SmartDashboard.putNumber("Pose Y Error (m)", yError);
-    SmartDashboard.putNumber("Pose Heading Error (deg)", headingError);
-    SmartDashboard.putNumber("Pose Position Error (m)", positionError);
-}
+Rotation2d headingError =
+    observedPose.getRotation().minus(
+        knownPose.getRotation());
 ```
 
-### Complete Fused Pose Estimation Flow
+Do not tune the pose estimator until the raw observations are plausible.
 
-```java
-package frc.robot.subsystems;
+### 7. Set rejection limits
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
-import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
-import edu.wpi.first.math.kinematics.SwerveModulePosition;
-import edu.wpi.first.math.VecBuilder;
-import edu.wpi.first.wpilibj.ADXRS450_Gyro;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import frc.robot.LimelightHelpers;
-import frc.robot.LimelightHelpers.PoseEstimate;
-import java.util.Optional;
+Choose limits from the distribution in the logs:
 
-public class FusedPoseEstimation extends SubsystemBase {
-    private final SwerveDriveKinematics m_kinematics;
-    private SwerveDrivePoseEstimator m_poseEstimator;
-    private SwerveModulePosition[] m_modulePositions;
-    private final ADXRS450_Gyro m_gyro;
-    private SwerveModule[] m_modules;
-    private final VisionSubsystem m_vision;
-    
-    private static final double kTrackWidth = 0.5;
-    private static final double kWheelBase = 0.5;
-    
-    public FusedPoseEstimation(SwerveModule[] modules) {
-        Translation2d frontLeft = new Translation2d(kWheelBase / 2.0, kTrackWidth / 2.0);
-        Translation2d frontRight = new Translation2d(kWheelBase / 2.0, -kTrackWidth / 2.0);
-        Translation2d rearLeft = new Translation2d(-kWheelBase / 2.0, kTrackWidth / 2.0);
-        Translation2d rearRight = new Translation2d(-kWheelBase / 2.0, -kTrackWidth / 2.0);
-        
-        m_kinematics = new SwerveDriveKinematics(
-            frontLeft, frontRight, rearLeft, rearRight
-        );
-        
-        m_gyro = new ADXRS450_Gyro();
-        m_gyro.calibrate();
-        
-        m_modules = modules;
-        m_modulePositions = new SwerveModulePosition[4];
-        for (int i = 0; i < 4; i++) {
-            m_modulePositions[i] = m_modules[i].getPosition();
-        }
-        
-        var stateStdDevs = VecBuilder.fill(0.1, 0.1, 0.1);
-        var visionStdDevs = VecBuilder.fill(0.5, 0.5, 0.5);
-        
-        m_poseEstimator = new SwerveDrivePoseEstimator(
-            m_kinematics,
-            m_gyro.getRotation2d(),
-            m_modulePositions,
-            new Pose2d(),
-            stateStdDevs,
-            visionStdDevs
-        );
-        
-        m_vision = new VisionSubsystem();
-    }
-    
-    @Override
-    public void periodic() {
-        // Update odometry continuously
-        updateOdometry();
-        
-        // Update vision when available
-        updateVision();
-        
-        // Get fused pose estimate
-        Pose2d currentPose = getPose();
-        
-        // Optional: Display for debugging
-        SmartDashboard.putNumber("Fused X", currentPose.getX());
-        SmartDashboard.putNumber("Fused Y", currentPose.getY());
-        SmartDashboard.putNumber("Fused Heading", 
-            currentPose.getRotation().getDegrees());
-    }
-    
-    public void updateOdometry() {
-        Rotation2d heading = m_gyro.getRotation2d();
-        
-        m_modulePositions[0] = m_modules[0].getPosition();
-        m_modulePositions[1] = m_modules[1].getPosition();
-        m_modulePositions[2] = m_modules[2].getPosition();
-        m_modulePositions[3] = m_modules[3].getPosition();
-        
-        m_poseEstimator.update(heading, m_modulePositions);
-    }
-    
-    public void updateVision() {
-        Optional<PoseEstimate> visionEstimate = m_vision.getAprilTagPoseEstimate();
-        
-        if (visionEstimate.isPresent()) {
-            PoseEstimate estimate = visionEstimate.get();
-            
-            // Validate measurement quality
-            boolean isValid = estimate.tagCount > 0 && 
-                LimelightHelpers.validPoseEstimate(estimate);
-            
-            if (isValid) {
-                if (estimate.tagCount >= 2) {
-                    m_poseEstimator.setVisionMeasurementStdDevs(
-                        VecBuilder.fill(0.3, 0.3, 9999999)
-                    );
-                } else {
-                    m_poseEstimator.setVisionMeasurementStdDevs(
-                        VecBuilder.fill(0.5, 0.5, 9999999)
-                    );
-                }
-                
-                m_poseEstimator.addVisionMeasurement(
-                    estimate.pose,
-                    estimate.timestampSeconds
-                );
-            }
-        }
-    }
-    
-    public Pose2d getPose() {
-        return m_poseEstimator.getEstimatedPosition();
-    }
-    
-    public void resetPose(Pose2d newPose) {
-        Rotation2d heading = m_gyro.getRotation2d();
-        SwerveModulePosition[] modulePositions = getModulePositions();
-        m_poseEstimator.resetPosition(heading, modulePositions, newPose);
-    }
-    
-    private SwerveModulePosition[] getModulePositions() {
-        SwerveModulePosition[] positions = new SwerveModulePosition[4];
-        for (int i = 0; i < 4; i++) {
-            positions[i] = m_modules[i].getPosition();
-        }
-        return positions;
-    }
-}
-```
+- Identify conditions that consistently produce outliers.
+- Set a limit that rejects those conditions.
+- Check how many useful observations the limit also removes.
+- Record the tested camera settings and field conditions.
 
-<LinkGrid links={[{"label":"Fused Pose Estimation","id":"vision-pose-estimation-fusion"},{"label":"Pose Estimation Introduction","id":"pose-estimation-intro"},{"label":"Odometry","id":"odometry"},{"label":"Vision Subsystem","id":"vision-subsystem"},{"label":"WPILib Pose Estimator","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/state-space/state-space-pose-estimators.html#pose-estimators"},{"label":"WPILib Kinematics and Odometry","url":"https://docs.wpilib.org/en/stable/docs/software/kinematics-and-odometry/index.html"}]} title="Resources" section="frc" />
+A single ambiguity or distance number is not universal. Exposure, resolution, lens, tag placement, and motion change the result.
 
+### 8. Tune uncertainty
+
+Start with conservative vision influence. Run a repeatable path with wheel slip, turns, and tag transitions.
+
+Compare:
+
+- Raw odometry
+- Raw vision observations
+- Accepted vision observations
+- Fused estimate
+- A surveyed endpoint or other independent reference
+
+If good observations correct too slowly, reduce their standard deviations in small steps. If accepted noise moves the fused pose too much, increase them. If isolated bad observations cause jumps, improve rejection before increasing every standard deviation.
+
+Tune single-tag and multi-tag observations separately. If uncertainty increases with distance, verify the chosen curve against the logged errors.
+
+### 9. Validate the complete system
+
+A final test should include:
+
+- Multiple field locations
+- Forward, sideways, and rotational motion
+- Acceleration and wheel slip
+- Tags entering and leaving view
+- Temporary camera occlusion
+- Autonomous pose reset
+- Disabled and enabled transitions
+- The actual field-layout variant
+- Every installed camera or visual-inertial source
+
+Save the log and the configuration that produced it. Record what passed, what failed, and what remains uncertain.
+
+<RulesBox title="Stop and diagnose">
+
+- **Straight travel has a scale error:** check distance conversion and slip.
+- **Rotation error grows each turn:** check gyro convention, module geometry, and steering offsets.
+- **Every camera pose has the same offset:** check `robotToCamera` and field layout.
+- **Only distant single-tag poses jump:** inspect ambiguity, distance, and rejection limits.
+- **Static tests pass but moving tests fail:** inspect timestamps, latency, blur, and sample synchronization.
+- **The fused estimate ignores good observations:** inspect the standard deviations actually passed to `addVisionMeasurement`.
+- **The fused estimate follows every noisy observation:** increase measurement uncertainty after confirming the observations should be accepted.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/basic-programming/coordinate-system.html", "note": "The axis and rotation signs checked in step 1."},
+  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/swerve-drive-kinematics.html", "note": "Module order and geometry checked in steps 1 and 3."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/state-space/state-space-pose-estimators.html", "note": "State and vision standard deviations tuned in step 8."},
+  {"source": "photonvision", "path": "docs/calibration/calibration.html", "note": "Camera intrinsics calibration procedure (step 4)."},
+  {"source": "photonvision", "path": "docs/apriltag-pipelines/coordinate-systems.html", "note": "Camera axes for measuring <code>robotToCamera</code> (step 5)."},
+  {"source": "photonvision", "path": "docs/apriltag-pipelines/3D-tracking.html", "note": "Ambiguity as a rejection input (step 7)."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagAlgorithms.java", "note": "The uncertainty heuristic step 8 tests."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/vision/VisionConstants.java", "note": "Where the measured mounts are recorded."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Fused Pose Estimation","id":"vision-pose-estimation-fusion"},
+  {"label":"Simulating Vision","id":"sim-vision"},
+  {"label":"PhotonVision Camera Calibration","url":"https://docs.photonvision.org/en/latest/docs/calibration/calibration.html"},
+  {"label":"WPILib Pose Estimators","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/state-space/state-space-pose-estimators.html"}
+]} title="Next" section="frc" />

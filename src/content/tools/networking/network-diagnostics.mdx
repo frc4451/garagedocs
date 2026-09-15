@@ -1,0 +1,331 @@
+---
+title: "Network Diagnostics"
+lessonId: network-diagnostics
+section: tools
+group: networking
+groupLabel: "Networking"
+groupOrder: 2
+order: 3
+difficulty: intermediate
+description: "Check addresses, reachability, neighbor caches, name resolution, service ports, and routes on PowerShell and Terminal."
+---
+
+### Ask the questions in order
+
+Work through these checks to narrow a connection problem. Each test supplies evidence about part of the connection. A failed test is not always a complete diagnosis: for example, a device may block ping while accepting a web connection.
+
+<ContentTable
+  headers={["Rung", "Question", "Tool"]}
+  rows={[
+    ["1", "What address does <em>my</em> laptop have?", "<code>ipconfig</code> / <code>ifconfig</code> / <code>ip addr</code>"],
+    ["2", "Can I reach anything at all?", "<code>ping</code>"],
+    ["3", "Who is really on this network?", "<code>arp -a</code>"],
+    ["4", "Does the name resolve?", "<code>ping name</code>, <code>Resolve-DnsName</code> / <code>dns-sd</code>"],
+    ["5", "Is the service listening?", "<code>Test-NetConnection -Port</code> / <code>nc -zv</code>"],
+    ["6", "Where does it stop?", "<code>tracert</code> / <code>traceroute</code>"]
+  ]}
+/>
+
+Examples use PowerShell and macOS/Linux Terminal, with OS-specific commands labeled. Read [The command line](/tools/command-line-basics#running-a-program-and-giving-it-arguments) if needed. Substitute your device and laptop addresses for `10.0.0.5` and `10.0.0.20/24`. [How a network works](/tools/how-a-network-works) defines the terms.
+
+### Rung 1: what does my laptop think it is?
+
+Check the address and mask of the interface connected to the device.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+ipconfig
+# Find the adapter you are actually using (Ethernet or Wi-Fi):
+#   IPv4 Address. . . . . . : 10.0.0.20
+#   Subnet Mask . . . . . . : 255.255.255.0
+ipconfig /all              # adds the MAC address, DHCP server, and whether DHCP is on
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+ifconfig                   # macOS. Find the interface you are using (en0, en5 …):
+#   inet 10.0.0.20 netmask 0xffffff00
+ip addr                    # Linux. Look for the device that is UP (eth0, enp3s0, wlan0):
+#   inet 10.0.0.20/24
+```
+
+</CodeTab>
+</CodeTabs>
+
+Check these settings:
+
+- **Address:** compare it with the intended network. A link-local `169.254.x.x` address may mean DHCP did not provide the expected lease.
+- **Mask:** compare it with the network plan. `0xffffff00` and `/24` both represent `255.255.255.0`.
+- **Interface and route:** identify whether the test uses Ethernet, Wi-Fi, or a VPN. Temporarily disconnect an unneeded connection if overlapping routes make the result unclear.
+
+If the settings differ from the network plan, correct them through DHCP or the [static-address procedure](/tools/static-ip), then repeat the test.
+
+### Rung 2: can I reach anything?
+
+`ping` sends ICMP echo requests. A reply confirms that an echo request and response traversed a path at that moment. No reply can result from filtering as well as a connection failure. See the [ping reference](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/ping).
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+ping 10.0.0.1           # test the router or nearest device
+ping 10.0.0.5           # the device you want
+ping -t 10.0.0.5        # keep pinging until Ctrl-C; leave this running while you work
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+ping -c 4 10.0.0.1      # the router or the nearest device, four packets
+ping -c 4 10.0.0.5      # the device you want
+ping 10.0.0.5           # runs until Ctrl-C by default; leave it running while you work
+```
+
+</CodeTab>
+</CodeTabs>
+
+Compare response times and packet loss across repeated tests. High latency or missing replies can have several causes, including congestion, filtering, power loss, and link problems. An unreachable message or timeout alone does not identify which one occurred.
+
+If a known nearby device or gateway answers but the target does not, compare the paths and target settings. An unmanaged switch may have no address to ping. Do not assume one successful ping rules out every local problem.
+
+### Rung 3: who is actually here?
+
+The **ARP cache** records IPv4-to-MAC mappings for neighbors on a local link. It does not list every device or prove that an entry is still reachable. For a routed destination, the local mapping may be for the gateway. See the [ARP reference](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/arp).
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+arp -a
+#   Interface: 10.0.0.20 --- 0x9
+#     Internet Address      Physical Address      Type
+#     10.0.0.1              e8-eb-1b-1a-2c-3d     dynamic
+#     10.0.0.5              00-80-2f-33-9a-1b     dynamic
+#     10.0.0.11             d8-3a-dd-4e-72-0f     dynamic
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+arp -a                     # macOS (and Linux, if net-tools is installed)
+#   ? (10.0.0.1) at e8:eb:1b:1a:2c:3d on en0 ifscope [ethernet]
+#   ? (10.0.0.5) at 0:80:2f:33:9a:1b on en0 ifscope [ethernet]
+ip neigh                   # Linux, the modern form
+#   10.0.0.5 dev eth0 lladdr 00:80:2f:33:9a:1b REACHABLE
+```
+
+</CodeTab>
+</CodeTabs>
+
+Generate traffic to a known local address, then inspect its entry. Entries may also be learned from other ARP traffic or added statically.
+
+- **Manufacturer prefix:** a globally assigned MAC prefix may identify the vendor. Locally assigned or randomized addresses limit this clue.
+- **Missing entry:** check whether the destination is on the local subnet and whether the cache entry expired.
+- **Incomplete entry:** address resolution has not completed; check the local link and target configuration.
+- **Changing mapping:** investigate a possible duplicate address or device replacement. Two IP addresses sharing one MAC are not by themselves proof of a duplicate IP.
+
+On a small network you manage, you can try the expected address range and inspect the cache. This is not a complete device-discovery method: some devices do not respond, and the cache only reflects local neighbors.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+1..50 | ForEach-Object { ping -n 1 -w 200 "10.0.0.$_" | Out-Null }   # knock on .1 through .50
+arp -a                                                                # now see who answered
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+for i in $(seq 1 50); do ping -c 1 10.0.0.$i > /dev/null 2>&1 & done; wait   # knock on .1 through .50
+arp -a                                                                             # now see who answered
+```
+
+</CodeTab>
+</CodeTabs>
+
+<RulesBox title="Stale entries">
+
+ARP entries expire, but stale mappings can persist after a device changes. If evidence points to a stale cache, clear it and repeat the test. These commands require administrator rights:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+arp -d *                   # in an administrator PowerShell
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+sudo arp -a -d             # macOS
+sudo ip neigh flush all    # Linux
+```
+
+</CodeTab>
+</CodeTabs>
+
+</RulesBox>
+
+### Rung 4: does the name work?
+
+If ping resolves the name to a different address than expected, investigate name resolution. If it resolves to the expected address but gets no reply, compare the address family and connectivity tests.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+ping mydevice.local                    # mDNS name: same network only
+Resolve-DnsName mydevice.local         # DNS query; not a general test of application mDNS resolution
+Resolve-DnsName github.com             # an internet name: tests DNS rather than mDNS
+ipconfig /flushdns                     # forget cached answers, then try again
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+ping -c 2 mydevice.local               # mDNS name: same network only
+dns-sd -G v4 mydevice.local            # macOS: watch the name resolve (Ctrl-C to stop)
+avahi-resolve -n mydevice.local        # Linux
+dig github.com                         # an internet name: tests DNS rather than mDNS
+```
+
+</CodeTab>
+</CodeTabs>
+
+`.local` normally uses mDNS on the local link. Support and filtering vary by operating system and network. A DNS query tool does not necessarily use the same resolver as an application, so compare its result with the application connection.
+
+### Rung 5: is anyone listening on the port?
+
+Test the service's actual port and protocol. The commands below test TCP connections; they do not test UDP services.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+Test-NetConnection 10.0.0.5 -Port 22        # TcpTestSucceeded : True means something is listening
+Test-NetConnection 10.0.0.5 -Port 80
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+nc -zv 10.0.0.5 22          # "succeeded" / "open" means something is listening
+nc -zv 10.0.0.5 80
+```
+
+</CodeTab>
+</CodeTabs>
+
+If ping succeeds and the TCP test fails, check the service, listening address, chosen port, and firewall rules. Read the service logs before restarting it. [Ports](/tools/how-a-network-works#ports) explains the distinction; [The Robot Network](/frc/robot-network#the-ports-a-robot-uses) lists FRC-specific ports.
+
+Opening `http://10.0.0.5:5800` also tests the web application. A browser error may involve HTTP, TLS, a proxy, or the service itself, so record the actual error.
+
+### Rung 6: where does it stop?
+
+`tracert` and `traceroute` send probes to reveal responding hops along a route. Missing replies can mean a router filters these probes; they do not necessarily mark where ordinary application traffic stops.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+tracert 10.0.0.5
+tracert github.com
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+traceroute 10.0.0.5
+traceroute github.com
+```
+
+</CodeTab>
+</CodeTabs>
+
+For a directly connected device, traceroute usually adds little. For routed connections, compare the responding hops with a working destination and share the output with the network administrator when needed.
+
+### Resetting things
+
+Reset a connection only after recording its current state. The following are separate options, not a sequence to run blindly. Renewing DHCP or restarting an adapter interrupts traffic; substitute the correct adapter or connection name.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+ipconfig /flushdns                     # forget cached name lookups
+ipconfig /release ; ipconfig /renew    # give the DHCP address back and ask for a new one
+Restart-NetAdapter -Name "Ethernet"    # administrator: unplug and replug, in software
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder   # macOS: forget cached lookups
+sudo ipconfig set en0 DHCP                                       # macOS: ask DHCP again
+sudo nmcli connection down "Wired connection 1" && sudo nmcli connection up "Wired connection 1"   # Linux: replug in software
+```
+
+</CodeTab>
+</CodeTabs>
+
+Reseating a cable or restarting the target can also help isolate a problem. Save relevant logs first and coordinate before interrupting a device in use.
+
+### What each failure usually means
+
+<ContentTable
+  headers={["What you see", "Possible cause", "Check"]}
+  rows={[
+    ["Laptop address is <code>169.254.x.x</code>", "The expected DHCP lease was not obtained", "Check link status and DHCP configuration before assigning an address"],
+    ["Laptop address is on the wrong network", "Connected to the building Wi-Fi, not the device", "Turn Wi-Fi off, or join the right network"],
+    ["Near device pings, far one does not", "The cable or switch between them, or the far device is not booted", "Status lights on the far device; reseat that one cable"],
+    ["Nothing pings, <code>arp -a</code> is empty", "Wrong interface, address, mask, or unavailable local neighbors", "Recheck the adapter settings and physical link"],
+    ["Number pings, name does not", "mDNS or DNS not working on the laptop", "Use the number; fix name resolution later"],
+    ["Ping works, port closed", "Service unavailable, wrong port, or filtering", "Check the service logs, listening address, and firewall"],
+    ["Replies come and go", "Loose cable, weak Wi-Fi, or a device losing power", "Leave a ping running while you wiggle the cable; check the device's power"],
+    ["Everything worked yesterday", "A leftover static address, or a duplicate", "Compare settings and neighbor mappings with the known configuration"]
+  ]}
+/>
+
+<RulesBox title="Common mistakes">
+
+- **Skipping local settings.** Confirm the adapter, address, and mask before changing the target.
+- **Treating the ARP cache as an inventory.** Missing entries do not prove a device is absent.
+- **Assuming the address is correct.** Confirm it against the network plan or device settings.
+- **Changing several things at once.** Change one setting, repeat the test, and record the result.
+- **Missing intermittent failures.** A continuous ping can help correlate lost replies with other observations, but it does not identify the cause by itself.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "ms-learn", "path": "windows-server/administration/windows-commands/ipconfig", "note": "<code>ipconfig</code>."},
+  {"source": "ms-learn", "path": "windows-server/administration/windows-commands/ping", "note": "<code>ping</code>."},
+  {"source": "ms-learn", "path": "windows-server/administration/windows-commands/arp", "note": "<code>arp -a</code>."},
+  {"source": "ms-learn", "path": "windows-server/administration/windows-commands/nslookup", "note": "<code>nslookup</code>."},
+  {"source": "ms-learn", "path": "windows-server/administration/windows-commands/tracert", "note": "<code>tracert</code>."},
+  {"source": "ms-learn", "path": "windows-server/administration/windows-commands/netstat", "note": "<code>netstat</code>."},
+  {"source": "powershell", "path": "module/nettcpip/get-netipaddress", "note": "<code>Get-NetIPAddress</code>."},
+  {"source": "powershell", "path": "module/nettcpip/get-nettcpconnection", "note": "<code>Get-NetTCPConnection</code> for the port rung."},
+  {"url": "https://man7.org/linux/man-pages/man8/ip.8.html", "label": "Linux man page: ip", "note": "<code>ip addr</code>, <code>ip neigh</code> on Linux."},
+  {"url": "https://man7.org/linux/man-pages/man8/ss.8.html", "label": "Linux man page: ss", "note": "<code>ss -ltn</code> for listening ports."},
+  {"source": "wpilib", "path": "docs/networking/networking-introduction/roborio-network-troubleshooting.html", "note": "WPILib's roboRIO troubleshooting ladder."}
+]} />
+
+<LinkGrid title="Next" section="tools" links={[
+  {"label":"Setting a Static IP","id":"static-ip"},
+  {"label":"How a Network Works","id":"how-a-network-works"},
+  {"label":"Troubleshooting from the Shell","id":"shell-troubleshooting"},
+  {"label":"FRC: Troubleshooting a Robot Connection","url":"/frc/network-troubleshooting"}
+]} />

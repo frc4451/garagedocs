@@ -7,119 +7,102 @@ groupLabel: PID Tuning Practice
 groupOrder: 6
 order: 2
 difficulty: intermediate
-duration: 55 min
-description: ""
+duration: 75 min
+description: "Two parts on one simulated elevator. Part 1 brackets kG to get kG and kS, then climbs the kP/kD ladder; Part 2 puts an exponential profile on the same elevator and finds kA and kV by matching the graph, so the difference a profile makes is visible on one mechanism."
+durationFixed: true
 ---
 
-### Overview
+This session tunes the practice project's elevator twice. **Part 1** is a plain position loop: gravity and friction first, then `kP` and `kD`. **Part 2** switches to the project's exponential-profile elevator and finds the feedforward terms a profile makes possible. The two runs on one graph show what the profile buys.
 
-This lesson demonstrates PID tuning for an elevator mechanism. You'll learn the tuning method derived from SuperNURDS FRC 3255's 2025 build thread, combined with WPILib recommendations. The process involves tuning kG (gravity feedforward) first, then P (proportional gain).
+<RulesBox title="Before you start">
 
+The [Setup](/frc/pid-tuning-practice-setup) page done, with the *Elevator* mechanism chosen, the line graph showing position, setpoint and applied voltage, and *Live Tuning* on. Every gain at zero.
 
+The procedure is the [arm-and-elevator recipe](/frc/manual-tuning-arm-elevator) from Manual Tuning, in voltage mode: volts instead of amps, and a much smaller `kP` because the motor's back-EMF damps the loop for you. The video below demonstrates the shortcut version (first hold point as `kG`, then `kP` by doubling); the steps here run the full recipe, which also gives you `kS`.
 
-kG is a type of feedforward, which is open-loop control that doesn't depend on the setpoint. kS is a constant voltage added to counteract friction. Setpoint units depend on your mechanism - in this example, meters are used.
+</RulesBox>
 
-### Video Tutorial
-
-Watch this video for a complete walkthrough of elevator PID tuning:
+### Video walkthrough
 
 <YouTubeEmbed id="Td7UHjy4DRY" title="PID Practice: Elevator" />
 
-### Prerequisites
+### Part 1: gravity, friction, then feedback
 
-Before starting this lesson, you should have:
+The elevator is a 16 lb carriage on a 12:1 reduction with about three metres of travel, starting at half a metre. `kG` is the voltage that cancels its weight, and it is the same at every height, which is what makes an elevator the easiest gravity mechanism to bracket.
 
+<StepsBox title="Part 1 steps">
 
-
-• Completed the Setup lesson
-
-• Elevator mechanism selected in SmartDashboard
-
-• Live tuning enabled in Elastic
-
-• Position and velocity graphs set up in AdvantageScope
-
-• Teleoperated mode enabled
-
-<StepsBox title="Tuning Steps">
-
-1. Set the setpoint to an unreasonable value (outside the mechanism's normal range). Setpoint units depend on your mechanism - for an elevator, this might be 2-3 meters.
-2. Find the smallest kG value that holds position without moving up:
-   - Start with a low value (e.g., 0.1)
-   - Watch the position graph (blue line) - it should stay flat
-   - If it creeps up, the value is too high
-   - Double the value until it starts moving
-   - Use binary search between the last good value and the first value that moves
-   - Example: 0.4 (good) → 0.8 (too high) → 0.6 (good) → 0.7 (too high) → 0.61 (final)
-3. Verify the kG result:
-   - Position stays stable
-   - Velocity stays stable
-   - Small velocity changes may be due to simulation limitations
-4. Set the setpoint to a valid position.
-5. Start with a low P value (e.g., 0.1).
-6. Double P until the response looks good:
-   - Watch the position graph
-   - Target: rectangular shape (sharp rise, flat hold, sharp fall)
-   - Avoid slow curves or gradual taper
-7. Watch the mechanism's motion.
-8. Continue increasing P until the response is fast and clean.
-9. Compare response times as you increase P. At low P, the mechanism reaches the target slowly. As P increases, it should reach the target faster with sharper transitions. The final P value depends on your mechanism's characteristics (gear ratio, weight, design). In the video example, a P value around 25.6–51.2 worked well for the YAMS simulated elevator on SparkMax tuners. The [browser PID Simulation](/pid-simulation) uses motor-rotation PID (V/rot) with REV NEO or CTRE Kraken physics — start at 0.1 and double. kP numbers from the video may transfer more closely than the old meter-based sim, but still retune on your setup.
+1. **Zero every gain** in the tuning table: `kP`, `kI`, `kD`, `kS`, `kG`, `kV`, `kA`.
+2. **Set a setpoint the elevator cannot reach**, such as 10 m. With `kP` at zero the setpoint does nothing except keep the loop enabled; the carriage moves only on `kG`.
+3. **Find the lower bound of `kG`.** Raise `kG` by doubling (0.1, 0.2, 0.4 …) until the carriage stops falling, then narrow between the last value that fell and the first that held. This value is gravity minus friction, `kG − kS`.
+4. **Find the upper bound.** Keep raising `kG` until the carriage starts to climb, then narrow between the last value that held and the first that climbed. This is gravity plus friction, `kG + kS`.
+5. **Compute both gains.** `kG` is the midpoint of the two bounds; `kS` is half their difference. Enter both. In the simulator the two bounds are close together, because the model has little friction; on a real elevator they are not.
+6. **Set a reachable setpoint** a short distance from the current height, such as 0.1 m above it.
+7. **Raise `kP`** by doubling from 0.1 until the carriage overshoots noticeably. Watch the position trace against the setpoint: at low `kP` it approaches slowly with a long taper; as `kP` rises the corner sharpens; past the limit it passes the setpoint and comes back.
+8. **Raise `kD`** by doubling from a small value (0.01) until the overshoot stops.
+9. **Repeat 7 and 8**, more `kP` then enough `kD` to tame it, until raising `kD` adds oscillation or the carriage oscillates on the way to the setpoint. That is the latency limit. Back `kD` off until the on-the-way oscillation stops, then back `kP` off until any remaining overshoot stops.
+10. **Verify at other setpoints**: a far move (two metres), a move down, a move near the top. Gains found on a 0.1 m move often overshoot a 2 m one; if so, decide which case the elevator lives in, and read [near and far](/frc/manual-tuning-turret#near-and-far-when-one-set-of-gains-is-not-enough).
 
 </StepsBox>
 
-<RulesBox title="Browser vs desktop tuning units">
+<RulesBox title="What the graph should show">
 
-- **kG** (gravity feedforward) is in volts — the value depends on plant mass, gearing, and motor. Use binary search; one lesson video landed near ~0.61 V for a similar plant, but your sim may differ.
-- **kP** is in volts per motor rotation (V/rot) in the browser sim and in SparkMax / Phoenix tuners — same unit family. Start at 0.1 and double; lesson videos may show values in a similar range for this plant.
-- Use the same workflow (binary search kG, double kP) on every tool — do not copy kP numbers from the video into the browser sim without retuning.
+- During the bracket (steps 3 and 4), position is a flat line between the bounds and drifts outside them. Velocity stays near zero; small wobbles are the simulation's integration step, not a gain problem.
+- A well-tuned move is a position trace that rises, turns one corner and sits on the setpoint. A trace that rounds off slowly is `kP` too low; one that crosses the setpoint and returns is `kP` too high for the current `kD`; one that shivers around the setpoint is `kD` too high.
+- Applied voltage should be well under 12 V during a small move. If it is pinned at 12 V for most of the move, the motor is saturated and no gain will make the move faster; that is the case for Part 2.
 
-</RulesBox>
-
-<RulesBox title="Elevator Tuning Summary" subtitle="The process:">
-
-- Set setpoint to unreasonable value (out of range) - units depend on your mechanism
-- Tune kG using binary search - find smallest value that holds position
-- Tune P by doubling until position graph is rectangular
-- Look for sharp up, sharp across, sharp down in position graph
-- Compare response times - should get faster as P increases
+The video's `kP` landed in the tens of volts per metre for this plant. Yours should be in the same range, and a value copied from any other mechanism is meaningless.
 
 </RulesBox>
 
-### Important Notes
+### Part 2: feedforward under an exponential profile
 
-This elevator example was relatively simple and didn't require motion profiling. However, the arm mechanism (covered in the next lesson) is more complex and demonstrates:
+Part 1's loop sends the whole error to `kP` at once. On a long move that saturates the motor, and the tuning ends up compromised between the near and far cases. A **profile** turns the step into a setpoint that moves at a rate the motor can follow, and it gives the controller a velocity and acceleration setpoint at every instant, so `kV` and `kA` can do most of the work ([Why Motion Magic](/frc/motion-magic-why), [Exponential profiles](/frc/exponential-motion-profiling)). The practice project's *Elevator Expo* mechanism is the same elevator under an exponential profile.
 
+Switch the chooser to the exponential elevator, re-add its live tuning widget and graph entries, and zero its gains. The procedure is now the [profiled recipe](/frc/manual-tuning-profiled): the feedforward terms are found by matching the measured velocity to the profiled velocity, and `kP`/`kD` come last.
 
+<YouTubeEmbed id="nlRjdr1KUg4" title="PID Practice: Exponential Profiles" />
 
-• More finicky tuning requirements
+<StepsBox title="Part 2 steps">
 
-• The need for motion profiling
+1. **Zero every gain.** Enter the `kG` and `kS` you found in Part 1; gravity and friction have not changed.
+2. **Put `closedloop/setpoint/velocity` and `measurement/velocity` on one graph.** The profile's velocity is what the next two steps match against; without it on the graph there is nothing to compare.
+3. **`kA`:** command a move and look at the start of it, where the profiled velocity ramps up. Raise `kA` by doubling until the *slope* of the measured velocity matches the slope of the profiled velocity. Too little and the measurement lags the ramp; too much and it overshoots the ramp.
+4. **`kV`:** look at the middle of a longer move, where the profiled velocity is constant. Raise `kV` until the measured velocity sits on the profiled velocity there. The video finds a starting value by another route: apply a fixed duty cycle (the C key), read the steady velocity and the voltage, and divide; that gives the same number for a mechanism with little drag, and either way the graph is the check.
+5. **`kP`:** raise until you see overshoot or oscillation, including during the cruise, not only at the end of the move.
+6. **`kD`:** raise until it stops. Under a profile `kD` acts like a `kP` on velocity: it pulls the measured velocity toward the profile's.
+7. **Repeat 5 and 6** to the latency limit and back off, as in Part 1.
+8. **Verify** on a short move, a long move and a move down.
 
-• Trapezoidal motion profiles
+</StepsBox>
 
-• More realistic tuning scenarios
+<RulesBox title="Read the difference">
 
+Put a Part 1 move and a Part 2 move of the same distance on one graph. With the profile and `kV`/`kA` in place, the setpoint is a curve the carriage can follow, the voltage is smooth rather than pinned at 12 V, and the `kP` that overshot in Part 1 is now correcting a small error against the profile instead of hauling the carriage across the whole move. The exponential shape (fast start, asymptotic finish) is the one that matches what a motor can do; the [arm session](/frc/pid-tuning-practice-arm) uses a trapezoid so you have seen both.
 
+</RulesBox>
 
-It's recommended to watch the arm tuning video as well to see a more complete example of the tuning process, including motion profiling.
+<RulesBox title="Common mistakes">
 
-### Applying to Physical Hardware
+- **Taking the first hold point as `kG`.** That is `kG − kS`. Find the upper bound too and take the midpoint; the difference is your `kS` for free.
+- **A large `kP` during the bracket.** It holds the carriage for you and hides where the bounds are. `kP` stays zero until step 6.
+- **Tuning `kP` before `kA` in Part 2.** Feedback found first compensates for the missing feedforward, and the numbers are wrong once `kA` goes in.
+- **Editing a gain with Live Tuning off.** A joystick press turns it off; the table accepts the edit and the code ignores it.
+- **Stopping at one setpoint.** Verify near, far and downward before writing the numbers down.
 
-The same principles apply when tuning with physical hardware using Phoenix Tuner or REV Hardware Client:
+</RulesBox>
 
+### On the real robot
 
+The same two procedures run in Phoenix Tuner or the REV Hardware Client with the mechanism in front of you. On hardware the bracket bounds are further apart (real friction), `kS` matters, and an overshoot on an elevator with hard stops is a collision. Tune in simulation first, then repeat on the robot with the gains from simulation as starting points and expect them to change. Where the numbers live in FRC 4451's code, and how a `SingleRoller` runs this loop on the controller, is in [Elevator Example](/frc/elevator-example).
 
-• **Phoenix Tuner:** Use the Config tab to adjust values. Look for "rotor position" and "velocity" for graphing.
+<Sources items={[
+  {"url": "https://github.com/itkan-robotics/mantik-pid-practice/blob/main/src/main/java/frc/robot/subsystems/ElevatorSubsystem.java", "label": "mantik-pid-practice ElevatorSubsystem.java", "note": "The Part 1 elevator."},
+  {"url": "https://github.com/itkan-robotics/mantik-pid-practice/blob/main/src/main/java/frc/robot/subsystems/ElevatorExpoSubsystem.java", "label": "mantik-pid-practice ElevatorExpoSubsystem.java", "note": "The Part 2 exponential-profile elevator."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/manual-pid-tuning.html#arm-tuning-with-torquecurrentfoc", "note": "The bracket-and-ladder recipe Part 1 runs."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/manual-pid-tuning.html#profiled-tuning", "note": "The profiled recipe Part 2 runs."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/trajectory/ExponentialProfile.html", "note": "The profile shape in Part 2."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "Where the numbers live in the team's code."}
+]} />
 
-• **REV Hardware Client:** Similar configuration options are available
-
-• The tuning process is the same: tune kG first, then kP
-
-• Watch for the same rectangular shape in position graphs
-
-
-
-The tools may look different, but the techniques and principles remain the same.
-
-<LinkGrid links={[{"label":"Try in browser","url":"/pid-simulation"},{"label":"PID Control","id":"frc-pid-control"},{"label":"PID Tuning Practice - Setup","id":"pid-tuning-practice-setup"},{"label":"PID Tuning Practice - Arm","id":"pid-tuning-practice-arm"},{"label":"Elevator Example","id":"elevator-example"}]} title="Resources" section="frc" />
-
+<LinkGrid links={[{"label":"Manual Tuning: Arm and Elevator","id":"manual-tuning-arm-elevator"},{"label":"Manual Tuning: Profiled","id":"manual-tuning-profiled"},{"label":"PID Tuning Practice - Arm","id":"pid-tuning-practice-arm"},{"label":"Feedforward","id":"feedforward"},{"label":"Elevator Example","id":"elevator-example"}]} title="Next" section="frc" />

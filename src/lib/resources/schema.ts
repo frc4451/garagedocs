@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const resourceMajorSchema = z.enum(['java', 'ftc', 'frc', 'comp', 'general']);
+export const resourceMajorSchema = z.enum(['java', 'frc', 'general']);
 
 export const resourceEntrySchema = z.object({
   id: z
@@ -29,9 +29,7 @@ export type ResourcesCatalog = z.infer<typeof resourcesCatalogSchema>;
 /** Majors shown in filter UI */
 export const RESOURCE_MAJOR_LABELS: Record<ResourceMajor, string> = {
   java: 'Java',
-  ftc: 'FTC',
   frc: 'FRC',
-  comp: 'Competitive',
   general: 'General',
 };
 
@@ -55,6 +53,12 @@ export const RESOURCE_MINOR_OPTIONS = [
   'Odometry',
   'Path Planning',
   'Advanced Movement Control',
+  'Official Documentation',
+  'Logging & Telemetry',
+  'Simulation & Testing',
+  'Localization',
+  'Team Code',
+  'Setup & Resources',
   'Other',
 ] as const;
 

@@ -1,0 +1,227 @@
+---
+title: "QuestNav: A Headset as the Pose Source"
+lessonId: questnav
+section: frc
+group: frc-pose-estimation
+groupLabel: "Pose Estimation"
+groupOrder: 8
+order: 6
+difficulty: advanced
+duration: 35 min
+description: "A Meta Quest 3S bolted to the robot as a visual-inertial pose source: what it measures and why it drifts less than tags alone, the hardware and network setup, the 2026 QuestNavLib API (PoseFrame, commandPeriodic, setPose, the robot-to-quest transform), fitting it into FRC 4451's IO / VirtualSubsystem / BobotState architecture as Riptide did in 2025, calibrating the offset by spinning in place, seeding the pose at match start, and the checklists."
+---
+
+FRC 4451's pose estimate is built from wheel odometry corrected by AprilTag observations ([Fusing Vision and Odometry](/frc/vision-pose-estimation-fusion)). It works, and it has a weakness everyone who has driven with it knows: when no tag is in view (mid-field, facing a wall, behind another robot) the estimate is odometry alone, and odometry drifts with every wheel slip and every bump. **QuestNav** adds a third source that does not have that weakness: a Meta Quest headset, mounted on the robot, tracking its own motion with cameras and an IMU the way it tracks a player's head, at up to 120 Hz, whether or not a tag is anywhere in sight.
+
+Riptide ran one in 2025. The hardware idea is unchanged; the software has been rewritten since, so this lesson teaches the **2026 library** and uses the 2025 code for the architectural decisions, which still hold.
+
+### What it measures
+
+The Quest runs **visual-inertial odometry** (VIO): its four cameras watch the world, its IMU measures acceleration and rotation, and the headset's XR2 chip fuses them into a 6-degree-of-freedom pose many times a second. It is the same tracking that keeps a VR world steady while you walk around a room, and it is better than a robot's wheel odometry, because it does not care whether the wheels slipped.
+
+What it is *not* is absolute. Like odometry, the Quest reports where it is **relative to where it started** (or was last reset). It has no idea where the field is. So QuestNav needs two things from you that AprilTags do not: a known starting pose, and the transform from the robot's centre to the headset.
+
+<ContentTable
+  headers={["Source", "Absolute?", "Drifts?", "Needs line of sight to", "Rate", "Fails when"]}
+  rows={[
+    ["Wheel odometry + gyro", "No; relative to reset", "Yes, with every slip", "Nothing", "Every loop (250 Hz in Cobra's thread)", "Wheels slip, robot is pushed"],
+    ["AprilTags (PhotonVision)", "Yes; the field layout is the reference", "No", "A tag", "10–30 Hz, latency tens of ms", "No tag in view, tag too far, bad lighting"],
+    ["QuestNav", "No; relative to its reset", "Very little", "Any textured surface", "Up to 120 Hz, wired", "Headset disconnects, tracking is lost (covered cameras, featureless view, violent impact)"]
+  ]}
+/>
+
+The point of fusing all three is that their failures are different. Tags fix the Quest's small drift when they are visible; the Quest carries the estimate through the stretches when they are not; odometry is the fallback under everything.
+
+### Hardware and network
+
+The [Quick Start](https://questnav.gg/docs/getting-started/quick-start) is the checklist; this is the shape of it.
+
+<StepsBox title="Setting up a headset">
+
+1. **A Meta Quest 3S** (recommended) or Quest 3. Nothing older.
+2. **Install the app.** Plug the headset into a laptop by USB and open [setup.questnav.gg](https://setup.questnav.gg); it installs QuestNav and its KeepAwake companion. Launch QuestNav on the headset, enter the **team number**, click Set. From the team number it knows to find the robot at `10.TE.AM.2`, the same address the Driver Station uses ([The Robot Network](/frc/robot-network)).
+3. **Wire it.** A USB-C Ethernet adapter with power pass-through (the docs keep a [tested list](https://questnav.gg/docs/getting-started/wiring)), a 5 V supply into the adapter (a USB battery bank or a regulated converter), and a short Ethernet cable (under a metre) to the robot's network switch. Wi-Fi and Bluetooth **off**; the headset must be on the wire.
+4. **Mount it** rigidly, with a 3D-printed mount and no wobble, at least 30 cm off the floor, upright, cameras unobstructed. Every bit of flex in the mount is error in the pose. The [mounting page](https://questnav.gg/docs/getting-started/mounting) has the constraints.
+5. **Measure the offset** from the robot's centre to the headset (forward, left, up, and the yaw it is turned by) in the robot's frame (+X forward, +Y left, +Z up). This becomes `ROBOT_TO_QUEST` below.
+
+</StepsBox>
+
+The headset publishes to the robot's NetworkTables under `QuestNav/…`. `QuestNav/Connected` and `QuestNav/Tracking` are the two keys to watch on any dashboard or in AdvantageScope before every match.
+
+### Installing the library
+
+A vendordep, like every other tool here. In WPILib VS Code, *Manage Vendor Libraries* → *Install new libraries (online)* and paste the URL from the [Robot Code Setup](https://questnav.gg/docs/getting-started/robot-code) page. As of this writing it is:
+
+```
+https://maven.questnav.gg/snapshots/gg/questnav/questnavlib-json/2026-2.2.0/questnavlib-json-2026-2.2.0.json
+```
+
+The classes are in `gg.questnav.questnav`. The version number is in the URL; check the docs page for the current one rather than copying this.
+
+### The API
+
+Everything goes through one object, and it has one rule that is easy to break:
+
+```java
+import gg.questnav.questnav.PoseFrame;
+import gg.questnav.questnav.QuestNav;
+
+private final QuestNav questNav = new QuestNav();
+
+@Override
+public void periodic() {
+  questNav.commandPeriodic();     // REQUIRED, every loop; it processes commands and callbacks
+  // ...
+}
+```
+
+Forget `commandPeriodic()` and `setPose` never takes effect and the callbacks never fire.
+
+<ContentTable
+  headers={["Method", "Returns", "Meaning"]}
+  rows={[
+    ["<code>getAllUnreadPoseFrames()</code>", "<code>PoseFrame[]</code>", "Every pose the headset has sent since you last asked, possibly several per robot loop at 120 Hz. Each is a record: <code>questPose3d()</code>, <code>dataTimestamp()</code>, <code>isTracking()</code>, <code>frameCount()</code>"],
+    ["<code>isConnected()</code> / <code>isTracking()</code>", "<code>boolean</code>", "The wire is up / the headset knows where it is. Tracking can be lost with the connection fine"],
+    ["<code>setPose(Pose3d)</code>", "void", "Tell the headset where <em>it</em> is on the field. This is the seed"],
+    ["<code>getBatteryPercent()</code>", "<code>OptionalInt</code>", "Empty until the first packet; alert below 25 %"],
+    ["<code>getLatency()</code>", "<code>double</code>", "Headset-to-robot latency"],
+    ["<code>getTrackingLostCounter()</code>", "<code>OptionalInt</code>", "How many times tracking has dropped; log it"],
+    ["<code>onConnected / onDisconnected / onTrackingAcquired / onTrackingLost(Runnable)</code>, <code>onLowBattery(int, IntConsumer)</code>", "void", "Callbacks; the simple way to set an <code>Alert</code>"]
+  ]}
+/>
+
+The pose the headset reports is the pose of the **headset**. Two transforms convert between that and the robot, and the docs are emphatic about which way round each goes:
+
+```java
+// RobotToQuest: the headset, from the robot centre, in Robot axes: 30 cm forward, on centre, 50 cm up, facing forward
+public static final Transform3d ROBOT_TO_QUEST =
+    new Transform3d(0.30, 0.0, 0.50, new Rotation3d());
+
+// FieldToQuest + QuestToRobot = FieldToRobot: the inverse flips RobotToQuest into QuestToRobot
+Pose3d fieldToRobot = fieldToQuest.transformBy(ROBOT_TO_QUEST.inverse());
+
+// FieldToRobot + RobotToQuest = FieldToQuest, for seeding: the arrow as mounted, NOT the inverse
+questNav.setPose(fieldToRobot.transformBy(ROBOT_TO_QUEST));
+```
+
+Measure the transform to QuestNav's reported **third-eye pose**, the point centered between the two lenses on the lens plane. This is not the center or front face of the housing. QuestNav's mounting guide also documents a 7° lens-plane tilt on Quest 3 hardware. Account for that angle in the physical mount or in `ROBOT_TO_QUEST`.
+
+And the loop that feeds the estimator, straight from the [docs](https://questnav.gg/docs/getting-started/robot-code):
+
+```java
+private static final Matrix<N3, N1> QUESTNAV_STD_DEVS =
+    VecBuilder.fill(0.02, 0.02, 0.0872665);   // 2 cm, 2 cm, 5°
+
+for (PoseFrame frame : questNav.getAllUnreadPoseFrames()) {
+  if (!frame.isTracking()) continue;
+  Pose3d fieldToRobot = frame.questPose3d().transformBy(ROBOT_TO_QUEST.inverse());   // FieldToQuest + QuestToRobot
+  if (shouldReject(fieldToRobot)) continue;              // off the field → a bad frame
+  poseEstimator.addVisionMeasurement(fieldToRobot.toPose2d(), frame.dataTimestamp(), QUESTNAV_STD_DEVS);
+}
+
+private boolean shouldReject(Pose3d pose) {
+  return pose.getX() < 0.0 || pose.getX() > FIELD_LAYOUT.getFieldLength()
+      || pose.getY() < 0.0 || pose.getY() > FIELD_LAYOUT.getFieldWidth();
+}
+```
+
+`dataTimestamp()` is already in the robot's time base, so it goes to `addVisionMeasurement` as-is, exactly like a PhotonVision observation. The standard deviations say how much to trust it; the docs' 2 cm / 5° is a reasonable start and much tighter than a single-tag vision estimate, which is the point.
+
+### Fitting it into FRC 4451's architecture
+
+None of the above lives in `RobotContainer`. Riptide's 2025 design is the one to copy, because it is the same three patterns everything else in Cobra uses:
+
+<ContentTable
+  headers={["Piece", "Pattern", "What it does"]}
+  rows={[
+    ["<code>QuestIO</code> + <code>QuestIOInputs</code>", "<a href=\"/frc/io-layer\">IO layer</a>", "<code>connected</code>, <code>tracking</code>, <code>batteryPercent</code>, <code>latency</code>, the frames since last loop. <code>QuestIOReal</code> wraps the vendordep; <code>new QuestIO() {}</code> is the sim/replay stand-in"],
+    ["<code>Quest extends VirtualSubsystem</code>", "<a href=\"/frc/virtual-subsystem\">VirtualSubsystem</a> (Cobra Architecture, the next group)", "No command should ever <em>require</em> a headset. Runs before the drivetrain every loop, so this loop's frames reach the estimator this loop"],
+    ["<code>BobotState.offerQuestMeasurement(TimestampedPose)</code>", "<a href=\"/frc/bobot-state#the-flow-through-one-loop\">BobotState</a> queue", "<code>Quest</code> offers; <code>Drive.periodic()</code> drains into the estimator, same as the AprilTag queue"]
+  ]}
+/>
+
+Riptide's [`Quest.java`](https://github.com/frc4451/Riptide2025/blob/main/src/main/java/frc/robot/subsystems/quest/Quest.java) shows the rest of FRC 4451's 2025 design: two `Alert`s (disconnected, battery under 25%); a teleport check that compares the observation with the global pose; and a commented-out `offerQuestMeasurement` line. The team logged the Quest pose as a ghost robot and compared it with the fused pose before allowing it to affect the estimator.
+
+FRC 4451 recommends the same validation process for a new localization sensor: log its observations, compare them through representative matches, then choose rejection limits and standard deviations from that evidence.
+
+The 2025 code talked to the headset over raw NetworkTables topics (`questnav/position`, `eulerAngles`, a `mosi`/`miso` command handshake) and hand-rolled the coordinate conversion. All of that is gone; the library does it, and the only things worth keeping from `QuestNav.java` are the ideas. Write `QuestIOReal` against `gg.questnav.questnav.QuestNav`.
+
+### Calibrating the offset
+
+Measuring `ROBOT_TO_QUEST` by hand is what the [calibration page](https://questnav.gg/docs/getting-started/calibration) currently asks for, and a tape measure gets you within a centimetre or two. Verifying it is easy, and Riptide's `QuestCalibration` automated the correction:
+
+**The spin test.** Put the robot on the floor and rotate it in place. If the offset is right, the *robot* pose computed from the headset stays put while the heading sweeps. If the offset is wrong by some vector, the robot pose traces a circle, and the circle's radius is the error. Watch `Odometry/Quest` as a Ghost on the 2D Field while spinning: a dot is calibrated; a circle is not.
+
+Riptide's [`QuestCalibration`](https://github.com/frc4451/Riptide2025/blob/main/src/main/java/frc/robot/subsystems/quest/QuestCalibration.java) (adapted from Team 5010) turned the circle into a number. It spins the drivetrain slowly, samples the headset's pose relative to where it started, and for each sample with enough rotation solves for the offset that would make the motion pure rotation:
+
+```text
+// headset displacement d and rotation θ since the start of the spin
+// → the offset from the robot's centre of rotation to the headset
+double x = ((cos θ − 1) · dx + sin θ · dy) / (2 (1 − cos θ));
+double y = ((−sin θ) · dx + (cos θ − 1) · dy) / (2 (1 − cos θ));
+```
+
+averaged over the spin and logged as `QuestCalibration/CalculatedOffset`. It ran from the auto chooser as *Quest Offset Calibration*. The comment in the file is the practical warning: the result is in the headset's frame, so if your mount has a non-zero yaw in `ROBOT_TO_QUEST` you may need to swap x and y or their signs; compare against the tape measure. Port it to the new API as a command that reads `questPose3d()` relative to the first frame; the math does not change.
+
+### Seeding the pose
+
+The headset starts at its own origin. Before it is useful you tell it where the robot is, once, and you have the same two options as [vision](/frc/vision-pose-estimation-fusion):
+
+- **From the autonomous start pose.** The selected auto knows where the robot begins: Choreo's `trajectory.resetOdometry()`, or PathPlanner's starting pose. Wherever the code resets the drivetrain's pose, also call `questNav.setPose(robotPose.transformBy(ROBOT_TO_QUEST))`. Riptide did this inside `Quest.resetRobotPose`, which `Drive.setPose` called.
+- **From AprilTags.** Once the estimator has a confident tag-based pose, seed the headset from it. Do this at the start of the match (in disabled, with a tag in view) rather than continuously; reseeding every loop throws away the headset's own tracking.
+
+Automatic field alignment, meaning the headset recognising the field by itself, is listed on the calibration page as work in progress, waiting on spatial-anchor support. Until then, seeding is your job, every match.
+
+### Before and after a match
+
+The [pre-match](https://questnav.gg/docs/getting-started/pre-match-checklist) and [post-match](https://questnav.gg/docs/getting-started/post-match-checklist) checklists in full; the short form:
+
+- Battery charged (the headset's, and the bank feeding the adapter). `getBatteryPercent()` on the dashboard.
+- Wi-Fi and Bluetooth off; Ethernet cable seated at both ends.
+- QuestNav app running, KeepAwake running, team number correct.
+- `QuestNav/Connected` and `QuestNav/Tracking` both true on the dashboard before the robot goes on the field.
+- Pose seeded: the Ghost robot on the 2D Field sits where the robot actually is.
+- After the match: charge it, and pull the log to compare `Odometry/Quest` against `Odometry/Global` for the whole match.
+
+### Simulation
+
+There is no physics model for a headset; in `SIM` and `REPLAY` modes `Quest` gets the empty `QuestIO`, exactly as Riptide's `RobotContainer` did. What you *can* test without hardware is the integration: the [QuestNav Robot Sim Example](https://github.com/juchong/QuestNav-Robot-Sim-Example) is a runnable WPILib project that fuses headset frames into a pose estimator, filters them by field bounds, and seeds the pose, and the [Testing & Simulation](https://questnav.gg/docs/getting-started/simulation) page shows how to point a real headset at the simulator running on your laptop (`./gradlew simulateJava`, then the headset's *Debug IP Override* to the laptop's address). That is how to bring up a new mount with the robot on blocks.
+
+<RulesBox title="Common mistakes">
+
+- **No <code>commandPeriodic()</code>.** <code>setPose</code> silently does nothing.
+- **<code>ROBOT_TO_QUEST.inverse()</code> in <code>setPose</code>.** The docs say it in bold: seeding applies the transform, reading applies the inverse.
+- **Using it before validation.** Log it as a ghost pose and compare it with an independent estimate before allowing it to affect control.
+- **Standard deviations of zero.** Riptide's constants had <code>VecBuilder.fill(0, 0, 0)</code>, meaning total trust, which would let one bad frame own the estimate. Start at the docs' values.
+- **A flexible mount.** Every wobble is measured as motion.
+- **Wi-Fi left on.** The headset joins some network and the robot never sees it.
+- **Reseeding continuously from tags.** You have thrown away the reason you bought a headset.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "questnav", "path": "docs/getting-started/about", "note": "What the headset measures and how tracking is lost."},
+  {"source": "questnav", "path": "docs/getting-started/mounting", "note": "Third-eye pose origin, the Quest 3 lens-plane tilt, mounting constraints."},
+  {"source": "questnav", "path": "docs/getting-started/wiring", "note": "Power and Ethernet to the robot network."},
+  {"source": "questnav", "path": "docs/getting-started/robot-code", "note": "<code>QuestNav</code>, <code>PoseFrame</code>, <code>getAllUnreadPoseFrames()</code>, <code>commandPeriodic()</code>, <code>setPose</code>, the standard-deviation defaults."},
+  {"source": "questnav", "path": "docs/getting-started/calibration", "note": "Measuring and checking <code>ROBOT_TO_QUEST</code>."},
+  {"source": "questnav", "path": "docs/getting-started/simulation", "note": "Running without a headset."},
+  {"source": "questnav", "path": "docs/getting-started/pre-match-checklist", "note": "Before-match steps."},
+  {"source": "questnav", "path": "docs/getting-started/post-match-checklist", "note": "After-match steps."},
+  {"source": "questnav", "path": "static/api/java/", "note": "QuestNavLib Javadoc."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/quest/Quest.java", "note": "The 2025 subsystem this lesson's <code>VirtualSubsystem</code> shape is copied from."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/quest/QuestCalibration.java", "note": "The offset-calibration routine."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/VirtualSubsystem.java", "note": "<code>VirtualSubsystem</code> as used for the IO/BobotState fit."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Fusing Vision and Odometry","id":"vision-pose-estimation-fusion"},
+  {"label":"PhotonVision: AprilTags and Robot Pose","id":"photonvision"},
+  {"label":"BobotState: The One Global","id":"bobot-state"},
+  {"label":"VirtualSubsystem","id":"virtual-subsystem"},
+  {"label":"Poses on the Field (Tools)","url":"/tools/advantagescope-field"},
+  {"label":"QuestNav documentation","url":"https://questnav.gg/docs/getting-started/about"},
+  {"label":"QuestNav: Robot Code Setup","url":"https://questnav.gg/docs/getting-started/robot-code"},
+  {"label":"QuestNav Java API","url":"https://questnav.gg/static/api/java/"},
+  {"label":"Riptide 2025: the quest package","url":"https://github.com/frc4451/Riptide2025/tree/main/src/main/java/frc/robot/subsystems/quest"}
+]} title="Next" section="frc" />

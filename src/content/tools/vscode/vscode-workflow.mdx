@@ -1,0 +1,161 @@
+---
+title: "A Working Day in VS Code"
+lessonId: vscode-workflow
+section: tools
+group: vscode
+groupLabel: "Visual Studio Code"
+groupOrder: 4
+order: 6
+difficulty: beginner
+description: "Use VS Code to update a project, edit on a branch, build and simulate, then commit and request review."
+---
+
+### The loop
+
+This page brings the editor features together into a typical team workflow. Adapt it to the work already in progress. [Git lessons](/tools/intro-version-control) explain the concepts, and [Source Control](/tools/vscode-source-control) describes the controls.
+
+<StepsBox title="One session">
+
+1. **Open the project**: `Ctrl+R`, pick it from the recent list.
+2. **Get the latest**: inspect local changes, then fetch or pull from the Source Control menu.
+3. **Make a branch**: click the branch name in the Status Bar → *Create new branch* → name it.
+4. **Edit** and review the Problems panel.
+5. **Build and check** the change. Evaluate robot behavior in simulation before hardware confirmation.
+6. **Commit**: Source Control view, stage, message, commit.
+7. **Push** the commit, or use *Publish Branch* for a new branch.
+8. **Open a pull request**: on GitHub, from the banner it shows for a freshly pushed branch.
+
+</StepsBox>
+
+### 1–2. Open and pull
+
+`Ctrl+R` (Windows/Linux and macOS) lists recently opened folders. Pick the project. The Explorer fills in, the Java language server starts loading (`{}` spinner in the Status Bar), and the branch name appears bottom-left.
+
+Check the current branch and uncommitted changes first. Preserve work in progress, then choose **Fetch** to inspect remote updates or **Pull** to integrate them. The sync icon performs both pull and push; use it only when you intend both.
+
+Updating before new work reduces the amount of unseen work you must later combine. It does not prevent all conflicts. Use [Conflict resolution](/tools/branching-merging#conflict-resolution) when Git cannot combine changes.
+
+### 3. Branch
+
+FRC 4451's workflow uses feature branches and pull requests for changes to `main`. Choose **Create new branch** from the branch picker, confirm the intended starting branch, and give it a name describing the work.
+
+The same click is how you move between branches. If you have unsaved or uncommitted changes when you switch, Git will refuse or carry them across; either way, VS Code tells you. Commit or *stash* (the `…` menu) before switching if the changes belong to the branch you are leaving.
+
+### 4. Edit
+
+Use the Problems panel to review editor diagnostics as you work. Resolve relevant errors, then run the build; the panel is not a complete build result.
+
+Save the files you want to build and commit. Auto Save is an option, but still review the saved content and staged diff.
+
+### 5. Build or run
+
+For a plain Java lesson: the *Run* link above `main`, or `Ctrl+F5`.
+
+For the robot project, the Command Palette:
+
+<ContentTable
+  headers={["Palette entry", "What it does", "When"]}
+  rows={[
+    ["<code>WPILib: Build Robot Code</code>", "Compiles everything, runs Spotless, reports errors in the terminal", "Before sharing code changes; also run checks relevant to the behavior"],
+    ["<code>WPILib: Simulate Robot Code</code>", "Builds, then runs the code on your laptop with a simulated robot", "Develop and check robot behavior here before hardware confirmation"],
+    ["<code>WPILib: Deploy Robot Code</code>", "Builds, then sends the code to the roboRIO over the network", "After simulation checks, with the robot secured and the team's hardware procedure followed"],
+    ["<code>WPILib: Test Robot Code</code>", "Runs the project's unit tests", "When the project has them. See <a href=\"/frc/unit-tests-in-sim#where-tests-live-and-how-they-run\">Unit Testing</a>"],
+    ["<code>WPILib: Manage Vendor Libraries</code>", "Adds or updates CTRE, REV, PhotonVision and the rest", "Start of season, or when a library releases a fix"]
+  ]}
+/>
+
+Typing `WPILib:` in the palette filters to just these. The `W` icon at the top right of the editor opens the same list with the mouse.
+
+WPILib commands invoke project build tasks. If a command fails, read the task output and the relevant error, rather than relying only on the final status. [Kit Bot R00](/kit-bot/r00-wpilib-setup#the-gradlerio-build-system) explains Gradle.
+
+### 6. Commit
+
+Open Source Control: `Ctrl+Shift+G` (both platforms), or the branching icon in the Activity Bar. [Source Control in Visual Studio Code](/tools/vscode-source-control#the-layout) walks through every part of the view; the loop needs three of them.
+
+**Read the diff.** Inspect each changed file for the intended behavior, temporary debugging code, and unrelated edits.
+
+**Stage the intended changes.** Select files or ranges that form one coherent change. Include new files the project requires, and keep unrelated formatting or feature work separate when practical.
+
+**Write the message.** Summarize the behavior, such as *Fix vision timestamp offset*. Add the reason and test details when needed. See [Commit messages](/tools/best-practices#writing-good-commit-messages). Then commit the staged changes.
+
+### 7. Push
+
+A commit is local until pushed. Use **Push** to upload it, or **Publish Branch** for a branch with no remote counterpart. **Sync Changes** first pulls and then pushes; check incoming work before choosing it.
+
+If a push is rejected, read the message. Incoming commits, permissions, authentication, and branch rules need different responses. Do not assume a private feature branch cannot receive remote changes.
+
+### 8. Pull request
+
+Create a pull request on GitHub or through the optional GitHub Pull Requests extension. Check the source and destination branches. Describe the change, explain why it is needed, record the checks performed, and request review.
+
+Read the [GitHub Actions](/tools/github-actions#reading-a-result) results. Fix failures relevant to the change, or document unrelated failures for the reviewer. Push follow-up commits to the same branch. After merging, switch to the intended base branch and update it before starting new work.
+
+### What FRC 4451 shares
+
+A project can share editor configuration through files in `.vscode/`. Their contents and availability depend on the project:
+
+<ContentTable
+  headers={["File", "Holds", "In the robot project"]}
+  rows={[
+    ["<code>settings.json</code>", "Workspace settings: override your user settings for this project only", "WPILib generates it: Java build settings, test configuration, files to hide from the Explorer. FRC 4451 adds formatter settings here"],
+    ["<code>extensions.json</code>", "A list of recommended extensions. VS Code offers to install them when the folder is opened", "Worth adding if the team settles on any beyond the WPILib defaults"],
+    ["<code>launch.json</code>", "Debug configurations: what <code>F5</code> runs", "Debug launch configurations. Use the WPILib workflow unless you need and understand a custom configuration"]
+  ]}
+/>
+
+Settings Sync can carry preferences between your own machines. On shared computers, use separate accounts or profiles according to team policy. Signing out does not erase locally stored settings or extensions.
+
+### Extensions
+
+WPILib supplies the standard robot tooling. For regular VS Code, install the Java extensions and JDK described in [Java setup](/java/java-setup). Optional extensions include:
+
+<ContentTable
+  headers={["Extension", "What it adds"]}
+  rows={[
+    ["<strong>GitLens</strong>", "Who last changed each line, inline, and a much richer history view. Additional features depend on the installed version and plan"],
+    ["<strong>Error Lens</strong>", "Prints the error message at the end of the line instead of making you hover. Useful if you prefer inline diagnostics"],
+    ["<strong>Gradle for Java</strong>", "A side bar of Gradle tasks with run buttons, for when you cannot remember the task name"]
+  ]}
+/>
+
+Install extensions through the Extensions view. Check the publisher and purpose, and disable an extension if you suspect a conflict with existing tooling.
+
+<RulesBox title="Common mistakes">
+
+- **Wrong branch.** Check the current branch before editing and before committing.
+- **No build or simulation evidence.** Run the checks appropriate to the change and record their results.
+- **Unrelated changes in one commit.** Stage focused changes with descriptions that explain their purpose.
+- **Unintended synchronization.** Sync includes both pull and push; use individual actions when needed.
+- **Extension conflicts.** Disable a suspected extension and repeat the check.
+
+</RulesBox>
+
+<ExerciseBox title="Practice">
+
+On a scratch repository or a fork:
+
+1. Open it with `Ctrl+R`. Make a branch from the Status Bar named `practice/your-name`.
+2. Edit two files. In Source Control, stage only one, commit it with a proper message, then stage and commit the other with a different message.
+3. Open the diff of a change and stage only half its lines. Commit. Look at the two commits in the **Graph** section under the changes list (or the Timeline view at the bottom of the Explorer).
+4. Publish the branch. Open the pull request from GitHub's banner. Close it without merging.
+5. Switch back to `main` from the Status Bar and pull.
+
+</ExerciseBox>
+
+<Sources items={[
+  {"source": "vscode", "path": "sourcecontrol/overview", "note": "Branch, commit and push from the editor."},
+  {"source": "github", "path": "get-started/using-github/github-flow", "note": "The flow the loop follows."},
+  {"source": "wpilib", "path": "docs/software/vscode-overview/wpilib-commands-vscode.html", "note": "Build, deploy and simulate commands."},
+  {"source": "vscode", "path": "configure/settings-sync", "note": "Syncing settings across machines."},
+  {"source": "vscode", "path": "editor/extension-marketplace", "note": "Extensions and recommendations."},
+  {"source": "cobra", "path": ".vscode/settings.json", "note": "The settings FRC 4451 shares."},
+  {"source": "cobra", "path": ".vscode/extensions.json", "note": "The extension recommendations FRC 4451 shares."}
+]} />
+
+<LinkGrid title="Next" section="tools" links={[
+  {"label":"Source Control in Visual Studio Code","id":"vscode-source-control"},
+  {"label":"Git: the three areas","url":"/tools/local-workflow#understanding-the-three-areas-of-git"},
+  {"label":"Git: reviewing pull requests","url":"/tools/pull-requests#reviewing-pull-requests"},
+  {"label":"FRC: Reading Our Robot Code","url":"/frc/team-robot-code"},
+  {"label":"VS Code docs: Source Control","url":"https://code.visualstudio.com/docs/sourcecontrol/overview"}
+]} />

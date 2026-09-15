@@ -1,0 +1,241 @@
+---
+title: "R07: LauncherIO, Part 2: The Subsystem"
+lessonId: r07-launcher-io-part-2
+section: kit-bot
+group: io-pattern
+groupLabel: "Phase 3: Hardware via IO"
+groupOrder: 3
+order: 7.5
+duration: 45 min
+description: "The Launcher subsystem on top of the IO, wiring it in RobotContainer, and turning one fixed voltage into a calibration table."
+durationFixed: true
+---
+[Part 1](/kit-bot/r07-launcher-io) built `LauncherIO`, `LauncherConstants`, `LauncherIOReal` and `LauncherIOSim`. This part builds the subsystem that uses them, wires it in, and makes it shoot at the right speed for the distance.
+
+### The subsystem
+
+```java
+package frc.robot.subsystems.launcher;
+
+import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import static edu.wpi.first.units.Units.Volts;
+
+public class Launcher extends SubsystemBase {
+
+    private final LauncherIO io;
+    private final LauncherIO.LauncherInputs inputs = new LauncherIO.LauncherInputs();
+
+    private Voltage targetVoltage = Volts.of(0);
+
+    public Launcher(LauncherIO io) {
+        this.io = io;
+    }
+
+    @Override
+    public void periodic() {
+        io.updateInputs(inputs);
+        io.setVoltage(targetVoltage);
+    }
+
+    public void runAt(Voltage volts) {
+        targetVoltage = volts;
+    }
+
+    public void stop() {
+        targetVoltage = Volts.of(0);
+    }
+
+    public AngularVelocity velocity() {
+        return inputs.velocity;
+    }
+
+    public Current current() {
+        return inputs.current;
+    }
+}
+```
+
+The subsystem:
+
+- Holds the IO as a constructor-injected `private final` field. Same composition pattern as [A14](/assignments/a14-robot-and-battery), and the same reason [Dependency Injection](/java/java-dp-dependency-injection#passing-it-in-instead) gives for passing a collaborator in rather than building it.
+- Owns its target voltage. Commands write to it via `runAt(volts)` and `stop()`.
+- Owns the `inputs` snapshot. Reads from it for the public getters (`velocity`, `current`).
+- Calls `io.updateInputs` first in periodic so the snapshot is fresh for any consumer this tick. Then writes the new commanded voltage. (Read-then-write is the safe order; the opposite is fine too as long as you're consistent.)
+- **`velocity()` and `current()` return the plain `AngularVelocity`/`Current` interfaces, not the `MutAngularVelocity`/`MutCurrent` fields directly.** `inputs.velocity` *is* a `MutAngularVelocity`, but a method declared to return `AngularVelocity` only promises the read-only interface at the call site. A caller can read it, print it, convert it, but can't call `.mut_replace(...)` on what they got back and corrupt the subsystem's internal snapshot next tick. Same instinct as returning an unmodifiable view of a mutable collection.
+
+The subsystem has no knowledge of SparkMax or `FlywheelSim`. None of its imports come from REVLib or `wpilibj.simulation`. That's the whole point.
+
+---
+
+### Wiring it in `RobotContainer`
+
+For this module we hard-code the sim implementation. The runtime swap between real and sim is covered in R12; we keep it simple here.
+
+```java
+private final Launcher launcher = new Launcher(new LauncherIOSim());
+
+private void configureBindings() {
+    driver.rightBumper().whileTrue(
+        Commands.startEnd(
+            () -> launcher.runAt(LauncherConstants.SHOOT_VOLTAGE),
+            () -> launcher.stop(),
+            launcher
+        )
+    );
+
+    driver.a().onTrue(
+        Commands.runOnce(() ->
+            System.out.printf("launcher RPM=%.1f, A=%.2f%n",
+                launcher.velocity().in(RPM), launcher.current().in(Amps)),
+            launcher
+        )
+    );
+}
+```
+
+`velocity()` and `current()` return typed measures; `.in(RPM)`/`.in(Amps)` is where you unwrap to a bare `double` for `printf`, exactly the "only unwrap at the boundary" rule from R03.
+
+Two new patterns:
+
+- `Commands.startEnd(start, end, subsystem)`: runs `start` on schedule, then sits idle, then runs `end` on cancel. Perfect for "hold the button to run the motor; release to stop." A close cousin of `Commands.runOnce`.
+- `whileTrue` on a bumper. While right bumper is held, the launcher runs at `SHOOT_VOLTAGE`. Release → stops.
+
+---
+
+### From one fixed voltage to a calibration table
+
+`SHOOT_VOLTAGE` gets you shooting. It does not get you shooting *accurately* from more than one distance, real matches need more power from far away than up close. You solved exactly this problem already, by hand, in [A10: Shooter Lookup Table](/assignments/a10-shooter-lookup): sorted `(distance, value)` samples, a linear scan to find the bracket, linear interpolation between the two nearest points, clamped at both ends.
+
+WPILib ships the production version of that: [`InterpolatingDoubleTreeMap`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/interpolation/InterpolatingDoubleTreeMap.html). Same idea, same guarantees (sorted keys, linear interpolation, clamped at both ends), no hand-rolled sort or bracket search required.
+
+The table belongs in `Launcher`, not in the constants file. [R03](/kit-bot/r03-constants) gave the rule: constants files hold values, not tables that need setup logic. So the calibration table is built once by `Launcher` itself. Add a field and two methods to the `Launcher` class from above:
+
+```java
+import edu.wpi.first.math.controller.SimpleMotorFeedforward;
+import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
+import edu.wpi.first.units.measure.Distance;
+import static edu.wpi.first.units.Units.Meters;
+import static edu.wpi.first.units.Units.Volts;   // already imported above; shown for clarity
+
+public class Launcher extends SubsystemBase {
+
+    private final LauncherIO io;
+    private final LauncherIO.LauncherInputs inputs = new LauncherIO.LauncherInputs();
+    private final InterpolatingDoubleTreeMap shotCalibration = buildShotCalibration();  // new field
+    private final SimpleMotorFeedforward feedforward =
+        new SimpleMotorFeedforward(LauncherConstants.KS, LauncherConstants.KV);          // new field
+
+    // ... targetVoltage, constructor, periodic(), runAt(), stop(), velocity(), current() unchanged ...
+
+    /** Look up the calibrated target RPM for a distance and command the voltage that reaches it. */
+    public void runAtDistance(Distance distance) {
+        double targetRpm = shotCalibration.get(distance.in(Meters));
+        runAt(Volts.of(feedforward.calculate(targetRpm)));
+    }
+
+    // distance (meters) -> target RPM, measured by shooting from each
+    // distance and recording the RPM that worked. Same workflow as A10;
+    // these numbers are illustrative, not tuned for a real Kit Bot.
+    private static InterpolatingDoubleTreeMap buildShotCalibration() {
+        InterpolatingDoubleTreeMap table = new InterpolatingDoubleTreeMap();
+        table.put(1.0, 3200.0);
+        table.put(2.0, 3800.0);
+        table.put(3.0, 4300.0);
+        table.put(4.0, 4700.0);
+        table.put(5.0, 5000.0);
+        return table;
+    }
+}
+```
+
+Two boundary conversions stack in `runAtDistance` now, and they're doing different jobs:
+
+- `InterpolatingDoubleTreeMap` predates the Units library and only knows `double`. `distance.in(Meters)` unwraps to feed it; the table hands back a bare RPM number.
+- `SimpleMotorFeedforward` is *also* all `double`, constructor and `calculate` both, same story as `DifferentialDrivetrainSim` in R08. `feedforward.calculate(targetRpm)` takes that bare RPM and returns a bare volts number, which `Volts.of(...)` wraps back into a `Voltage` for `runAt`.
+
+Neither boundary forces the rest of the class back to raw doubles. Both get one line of conversion at the seam, the same rule from R03 applied twice in three lines.
+
+**Why RPM and not voltage.** The table used to store `distance -> target voltage` directly, measured by shooting from each distance and writing down whatever voltage worked. That works, but it's fragile: the voltage a NEO needs to *hit* a given RPM depends on battery state, current draw, and everything else `kS`/`kV` model. A voltage that hit the right RPM on a fresh battery undershoots on a tired one. Storing the *RPM* instead, a physically meaningful target that doesn't drift with battery voltage, and converting to volts through a feedforward measured once via [R09](/kit-bot/r09-characterization)'s characterization routine, is exactly the fix R09 leaves as an exercise for `arcadeDrive`'s flat `12.0`, done here instead: this calibration table is where that upgrade actually lands first. `KS`/`KV` above are the numbers that routine produces; measure your own rather than trusting the illustrative ones.
+
+`shotCalibration.get(2.5)` interpolates between the `2.0 → 3800` and `3.0 → 4300` samples. `shotCalibration.get(0.2)` and `shotCalibration.get(50.0)` both clamp, returning `3200` and `5000` respectively, the same clamping behavior your `rpmFor` enforced by hand in A10.
+
+One open question this module deliberately leaves open: **where does `distance` come from?** For now, nowhere real, you don't have a sensor that measures it yet. Bind it to a couple of test values so you can confirm the table itself works:
+
+```java
+driver.povUp().onTrue(
+    Commands.runOnce(() -> launcher.runAtDistance(Meters.of(2.0)), launcher));
+driver.povDown().onTrue(
+    Commands.runOnce(() -> launcher.runAtDistance(Meters.of(4.0)), launcher));
+```
+
+[R15](/kit-bot/r15-where-to-next) covers PhotonVision, which can hand you a real, live distance reading off an AprilTag. When you get there, the only thing that changes is what `Distance` you pass to `runAtDistance`. The table, the subsystem, and everything else in this file stays exactly as it is, the same payoff the IO pattern gives you elsewhere.
+
+A closed-loop controller (a `PIDController` reacting to measured RPM instead of an open-loop voltage guess) would track the target more precisely, especially as your battery sags over a match. That's future work; this curriculum doesn't cover PID control. An accurate voltage-per-distance table gets a Kit Bot shooting from a real range of distances without it.
+
+---
+
+### Try it
+
+Add all five files from above. Build. Run the sim (`F5`). Enable in teleop.
+
+Hold the right bumper (or `B` on the keyboard joystick, depending on your sim mapping). Press the A button periodically. The console should print rising RPM and a non-zero current draw, then RPM falling back to zero when you release the bumper.
+
+If RPM goes up but the current stays at zero, you forgot to call `sim.setInputVoltage` in your sim's `setVoltage` method.
+
+If RPM jumps instantly to a huge number, the moment of inertia in `LauncherConstants` is too small: the simulated wheel has no mass. Bump it to `0.01` and the spin-up will take about a second, which feels closer to real.
+
+Add `buildShotCalibration()` and `runAtDistance`, then bind the D-pad up/down as shown above. Tap D-pad up, hold the right bumper: confirm the console reports a higher RPM than tapping D-pad down first. Try a value like `2.5` from a temporary test binding, and confirm the RPM lands between the `2.0` and `3.0` readings, proof the interpolation, not just the clamping, is doing something.
+
+---
+
+### What you now have
+
+- A reusable IO interface for any single-actuator mechanism, leader/follower pair included.
+- A real implementation that confines REVLib to one file.
+- A sim implementation that runs without hardware.
+- A subsystem whose code is identical whether it's talking to silicon or a math model.
+- A distance-to-target-RPM calibration table, built with WPILib's production interpolation tool instead of the by-hand version from A10, converted to voltage through a feedforward instead of storing voltage directly.
+- Every physical quantity that crosses `LauncherIO` typed with WPILib's Units library (`Voltage`, `AngularVelocity`, `Current`, `Distance`) instead of a bare `double` and a variable name you have to trust.
+
+[R08](/kit-bot/r08-drive-io) applies the same IO pattern to the drivetrain: four motors with follower setup, plus an odometry model. The shapes will look identical.
+
+---
+
+<RulesBox title="Evaluate in simulation">
+
+Hold the launch binding: RPM rises over about a second and current is non-zero, then both settle. Tap D-pad up and hold again: a higher target RPM. If RPM reaches the target instantly, check the sim's moment of inertia; a flywheel with realistic inertia takes time to spin up. Correct the model rather than the reading. Keep the console output.
+
+</RulesBox>
+
+### References
+
+- [A10: Shooter Lookup Table](/assignments/a10-shooter-lookup): the hand-rolled version of the calibration table built above
+- [A17: IO Interface Technique](/assignments/a17-io-interface): the assignment that built this pattern in miniature
+- [Interfaces](/java/java-interfaces#programming-to-the-interface), and [A17: IO Interface Technique](/assignments/a17-io-interface) for the plain-Java version of exactly this pattern
+- [Dependency Injection](/java/java-dp-dependency-injection#injecting-an-interface): the constructor-injected `private final` IO field, same pattern as [A14](/assignments/a14-robot-and-battery)
+- WPILib: [Physics Simulation](https://docs.wpilib.org/en/stable/docs/software/wpilib-tools/robot-simulation/physics-sim.html)
+- WPILib JavaDoc: [`FlywheelSim`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/FlywheelSim.html)
+- WPILib JavaDoc: [`DCMotor`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/system/plant/DCMotor.html)
+- WPILib JavaDoc: [`LinearSystemId`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/system/plant/LinearSystemId.html)
+- WPILib JavaDoc: [`InterpolatingDoubleTreeMap`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/interpolation/InterpolatingDoubleTreeMap.html)
+- WPILib JavaDoc: [`SimpleMotorFeedforward`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/controller/SimpleMotorFeedforward.html)
+- [R09: Characterization](/kit-bot/r09-characterization): where `LauncherConstants.KS`/`KV` come from
+- WPILib: [The Java Units Library](https://docs.wpilib.org/en/stable/docs/software/basic-programming/java-units.html), section "Mutability and Object Creation" for the `MutVoltage`/`MutAngularVelocity`/`MutCurrent` pattern used in `LauncherInputs`
+- WPILib JavaDoc: [`MutableMeasure`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/units/MutableMeasure.html)
+- REV: [SparkMax getting started](https://docs.revrobotics.com/brushless/spark-max/gs)
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "The subsystem over the IO."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/controller/SimpleMotorFeedforward.html", "note": "<code>SimpleMotorFeedforward</code>."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/controller/PIDController.html", "note": "<code>PIDController</code>."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/interpolation/InterpolatingDoubleTreeMap.html", "note": "Distance-to-speed table."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/FlywheelSim.html", "note": "<code>FlywheelSim</code>."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/system/plant/DCMotor.html", "note": "<code>DCMotor</code> models."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/system/plant/LinearSystemId.html", "note": "<code>LinearSystemId.createFlywheelSystem</code>."},
+  {"source": "wpilib", "path": "docs/software/basic-programming/java-units.html", "note": "Typed units on the subsystem API."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html", "note": "Physics simulation."},
+  {"source": "rev", "path": "brushless/spark-max/gs", "note": "The SPARK MAX side."}
+]} />

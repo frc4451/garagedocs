@@ -1,0 +1,186 @@
+---
+title: "R03: Constants"
+lessonId: r03-constants
+section: kit-bot
+group: first-subsystem
+groupLabel: "Phase 2: First Subsystem"
+groupOrder: 2
+order: 3
+duration: 15 min
+description: "Top-level and per-subsystem constants as public static final, and why the numbers live in one place."
+---
+CAN IDs, controller ports, current limits, gear ratios. Anything you set once at design time and read in many places. This module is where these live and how to organize them.
+
+The Java pattern is from [static and final](/java/java-static-final#putting-them-together-constants): `public static final` constants accessed by class-qualified name (`DriveConstants.LEFT_LEADER_CAN_ID`, not a magic `40` scattered through your code).
+
+---
+
+### Two layers: top-level + per-subsystem
+
+The pattern we'll use across the Kit Bot:
+
+```
+src/main/java/frc/robot/
+├── Constants.java                          ← top-level, cross-subsystem
+└── subsystems/
+    ├── drive/
+    │   └── DriveConstants.java             ← drive only
+    └── launcher/
+        └── LauncherConstants.java          ← launcher only
+```
+
+**`Constants.java`** at the top level holds things multiple subsystems agree on: controller port numbers, alliance defaults, the loop period if you change it. It is small.
+
+**`XxxConstants.java`** lives in the same package as its subsystem and holds CAN IDs, PID gains, geometry, current limits, and any tuning numbers specific to that mechanism. It is where the bulk of your tuning lives.
+
+When a number is genuinely shared (a unit conversion, a controller port the driver uses across modes), it goes in the top-level `Constants`. When it's "drive's max acceleration", it goes in `DriveConstants`. Default to per-subsystem: it keeps tuning conflicts out of merges.
+
+---
+
+### What a constants class looks like
+
+```java
+package frc.robot.subsystems.drive;
+
+import edu.wpi.first.units.measure.Distance;
+import static edu.wpi.first.units.Units.Inches;
+
+public final class DriveConstants {
+
+    // ---- CAN IDs ----
+    public static final int LEFT_LEADER_CAN_ID    = 40;
+    public static final int LEFT_FOLLOWER_CAN_ID  = 41;
+    public static final int RIGHT_LEADER_CAN_ID   = 50;
+    public static final int RIGHT_FOLLOWER_CAN_ID = 51;
+
+    // ---- Motor protection ----
+    // Config-time hardware parameter handed straight to REVLib's int-typed
+    // API below; not a value your own code reads or computes with, so it
+    // stays a plain int rather than a typed Current. Compare to R07's
+    // LauncherInputs.current, a value your code actually consumes.
+    public static final int SMART_CURRENT_LIMIT_AMPS = 60;
+
+    // ---- Drivetrain geometry ----
+    public static final Distance WHEEL_DIAMETER = Inches.of(6);
+    public static final double   GEAR_RATIO     = 10.71;   // motor turns per wheel turn, dimensionless
+    public static final Distance TRACK_WIDTH    = Inches.of(22);
+
+    // ---- Behaviour caps ----
+    public static final double MAX_DRIVE_PERCENT = 0.85;   // dimensionless fraction, not a unit
+    public static final double TELEOP_DEADBAND   = 0.05;   // dimensionless fraction, not a unit
+
+    // Stops anyone from constructing one of these. Constants only.
+    private DriveConstants() {}
+}
+```
+
+Five things to notice:
+
+1. **`public final class` with a private constructor.** Nobody should ever do `new DriveConstants()`. The constants are accessed through the class name: `DriveConstants.SMART_CURRENT_LIMIT_AMPS`.
+2. **`public static final` on every field.** `public` because everyone reads them. `static` because they belong to the class, not an instance. `final` so they can't be reassigned at runtime.
+3. **`ALL_CAPS_WITH_UNDERSCORES`**: the standard convention for compile-time constants, the same as in [Variables](/java/java-variables#key-concepts).
+4. **`WHEEL_DIAMETER` and `TRACK_WIDTH` are `Distance`, not `double`.** The old shape (`double WHEEL_DIAMETER_METERS = 0.1524; // 6 inches`) forces you to hand-convert 6 inches to meters and leave a comment as the only proof you did it right. `Inches.of(6)` says exactly what was measured, in the unit it was measured in, and the type system carries the conversion for you from here on. See "WPILib's Units library" below.
+5. **Not every number is a unit.** `GEAR_RATIO`, `MAX_DRIVE_PERCENT`, and `TELEOP_DEADBAND` are dimensionless ratios (turns per turn, a fraction of full output), not physical quantities. They stay plain `double`. The rule of thumb for the rest of this curriculum: if it has a physical dimension (a length, a voltage, a speed, a current), give it a real `Unit` type; if it's a ratio or a percentage of something else, a plain `double` is the honest type.
+
+---
+
+### WPILib's Units library
+
+`Inches.of(6)` above is WPILib's **Units library** (`edu.wpi.first.units`), not a custom helper. It exists specifically to stop the class of bug where two `double` fields hold the same kind of number in different units and nothing in the code says so, `double leftVelocity` in meters per second added to `double rightVelocity` in feet per second compiles fine and produces a silently wrong answer.
+
+The shape you'll use everywhere in Kit Bot from here on:
+
+```java
+import static edu.wpi.first.units.Units.*;   // Volts, Meters, Inches, RPM, Amps, ...
+
+Distance wheelDiameter = Inches.of(6);        // create: Unit.of(magnitude)
+double meters = wheelDiameter.in(Meters);     // unwrap: measure.in(Unit)
+```
+
+- **Create** a measure with `Unit.of(magnitude)`: `Volts.of(12.0)`, `RPM.of(3000)`, `Meters.of(1.5)`.
+- **Unwrap** back to a bare `double` in a specific unit with `.in(Unit)`, only when something outside the Units library needs a raw number (REVLib calls, `printf`, NetworkTables).
+- **Static-import** `edu.wpi.first.units.Units.*` so you can write `Volts.of(...)` instead of `Units.Volts.of(...)`.
+- The measure *types* (`Distance`, `Voltage`, `AngularVelocity`, `Current`, ...) live in `edu.wpi.first.units.measure`; the *unit constants* (`Volts`, `Meters`, `RPM`, ...) live in `edu.wpi.first.units.Units`. Two different packages, easy to mix up at first.
+- Arithmetic is type-checked: `distance1.plus(distance2)` compiles regardless of what unit each was created in (the library converts for you); `voltage.plus(distance)` is a compile error, not a runtime bug.
+
+You'll see this on every physical quantity from R06 onward: voltages, RPMs, distances, currents. Dimensionless numbers (percentages, gear ratios, joystick axis values) stay plain `double`, there's no `Unit` for "a fraction of full output."
+
+---
+
+### Top-level `Constants.java`
+
+This one is small. For the Kit Bot it's mostly controller-related:
+
+```java
+package frc.robot;
+
+public final class Constants {
+
+    public static final class OperatorConstants {
+        public static final int DRIVER_CONTROLLER_PORT   = 0;
+        public static final int OPERATOR_CONTROLLER_PORT = 1;
+    }
+
+    private Constants() {}
+}
+```
+
+Nested `static` classes group related constants without scattering files. `OperatorConstants.DRIVER_CONTROLLER_PORT` reads naturally at the call site.
+
+You *could* put everything in one big `Constants` file. That works for tiny projects. By the time you have three subsystems and a vision pipeline, that one file becomes a merge-conflict magnet. Splitting per subsystem solves that.
+
+---
+
+### What does NOT belong in a constants file
+
+- **Anything that varies at runtime.** A flag like "are we connected to the field?" is not a constant, it's a state. Belongs on a class, not in `Constants`.
+- **Anything per-instance.** "The left motor's port" is constant; "the current angle of the arm" is not.
+- **Long string lookups, complex tables.** If your "constant" needs more than one line to set up, it probably belongs in a method or a small loader class.
+
+The rule of thumb: if you'd be willing to recompile the code to change it, it's a constant. If you'd want to tune it live during a match, it isn't.
+
+---
+
+### Why no `SmartDashboard.getNumber(...)` tunables
+
+In the past, teams sometimes used `SmartDashboard.getNumber("kP", defaultKP)` as "live tunable constants". We're not doing that in this curriculum. Two reasons:
+
+1. We're not using SmartDashboard as a dashboard or a live-tuning workflow (see R13: AdvantageScope). You will still see `SmartDashboard.putData(...)` once, in R14, to publish the autonomous chooser: that's the only supported way to feed WPILib's built-in Driver Station chooser widget, a required piece of competition software, not a telemetry choice. It's a one-line publish call, not the tunable-values pattern this section is warning against.
+2. Live tunable constants are a real tool for advanced workflows but a frequent source of subtle bugs (a forgotten dashboard value silently overrides your code). Reserve them for situations where you've measured a need, not as a default.
+
+When you do need a tunable, AdvantageScope's NetworkTables-backed approach gives you the same workflow with better visibility. We come back to it in R13.
+
+---
+
+### Try it
+
+Inside your project, create the folder `src/main/java/frc/robot/subsystems/drive/`. Add `DriveConstants.java` with the contents above. Edit `Constants.java` to match the top-level snippet above.
+
+Build (`Ctrl+Shift+P → WPILib: Build Robot Code`). Confirm `BUILD SUCCESSFUL`. Nothing uses the constants yet, that's fine; they'll show up in R04 when we write the first subsystem.
+
+Open a Java file (any file) and type `DriveConstants.`. IntelliSense should suggest the constants you defined. That's the payoff for organising them: every read site is auto-completed and class-qualified.
+
+---
+
+<RulesBox title="Evaluate in simulation">
+
+The project builds with `DriveConstants` in place and `Constants.currentMode` present, and typing `DriveConstants.` in any file offers your constants. Nothing else changes in simulation yet. This module is graded by the build and by the shape on disk.
+
+</RulesBox>
+
+### References
+
+- [static and final](/java/java-static-final#putting-them-together-constants): one copy per class, set once. These are the two keywords behind every constant.
+- [Variables](/java/java-variables#key-concepts): the `UPPER_CASE` naming convention
+- [Dependency Injection](/java/java-dp-dependency-injection#injecting-values-not-just-objects): why a value is better passed in than read from a global, which is the other half of the constants question.
+- [Packages and Project Layout](/java/java-packages#what-the-layout-looks-like): where `Constants.java` sits and why
+- WPILib: [Constants in Command-Based Code](https://docs.wpilib.org/en/stable/docs/software/commandbased/structuring-command-based-project.html#constants)
+- WPILib: [The Java Units Library](https://docs.wpilib.org/en/stable/docs/software/basic-programming/java-units.html)
+- WPILib JavaDoc: [`Units`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/units/Units.html) (all the predefined unit constants)
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/commandbased/structuring-command-based-project.html", "note": "The <code>Constants</code> class in the template."},
+  {"source": "wpilib", "path": "docs/software/basic-programming/java-units.html", "note": "The Units library."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/units/Units.html", "note": "<code>Units</code>: <code>Inches</code>, <code>Meters</code>, <code>RPM</code>."},
+  {"source": "wpilib", "path": "docs/software/dashboards/smartdashboard/index.html", "note": "SmartDashboard, where tunable values appear."}
+]} />

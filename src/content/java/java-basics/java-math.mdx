@@ -1,0 +1,301 @@
+---
+title: Math in Java
+lessonId: java-math
+section: java
+group: java-basics
+groupLabel: "Java Basics"
+groupOrder: 1
+order: 6
+difficulty: beginner
+duration: 35 min
+description: The Math class and the handful of operations robot code uses constantly, including absolute value, min and max, clamping, powers and roots, rounding, and the modulo operator.
+---
+
+### The Math class
+
+Java's arithmetic operators cover `+ - * / %`. Everything else (absolute value, square root, powers, rounding) lives in the `Math` class as static methods. You never create a `Math` object; you call `Math.something(...)` directly.
+
+```java
+System.out.println(Math.abs(-3.5));       // 3.5
+System.out.println(Math.max(4, 9));       // 9
+System.out.println(Math.min(4, 9));       // 4
+System.out.println(Math.sqrt(144));       // 12.0
+System.out.println(Math.pow(2, 10));      // 1024.0
+```
+
+<ContentTable
+  headers={["Method", "Returns", "Note"]}
+  rows={[
+    ["<code>Math.abs(x)</code>", "Distance from zero", "Keeps the type: <code>int</code> in, <code>int</code> out"],
+    ["<code>Math.max(a, b)</code> / <code>Math.min(a, b)</code>", "The larger / smaller", "Two arguments only; nest for more"],
+    ["<code>Math.pow(base, exp)</code>", "base<sup>exp</sup>", "Always returns <code>double</code>"],
+    ["<code>Math.sqrt(x)</code>", "Square root", "<code>double</code>; <code>NaN</code> for negative input"],
+    ["<code>Math.hypot(a, b)</code>", "√(a² + b²)", "The distance formula without writing it"],
+    ["<code>Math.round(x)</code>", "Nearest whole number", "Returns <code>long</code> for a <code>double</code>"],
+    ["<code>Math.floor(x)</code> / <code>Math.ceil(x)</code>", "Round down / up", "Both return <code>double</code>"],
+    ["<code>Math.signum(x)</code>", "-1.0, 0.0 or 1.0", "The sign, as a number"]
+  ]}
+/>
+
+### Clamping
+
+Robot code clamps constantly: motor output must stay within -1 to 1, a setpoint must stay inside the mechanism's travel, a joystick must not ask for more than full speed. There is no `Math.clamp` before Java 21, so the idiom is nested `min` and `max`:
+
+```java
+public class Main {
+    static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    public static void main(String[] args) {
+        System.out.println(clamp(0.4, -1.0, 1.0));    // 0.4: inside, unchanged
+        System.out.println(clamp(1.7, -1.0, 1.0));    // 1.0: over, clamped down
+        System.out.println(clamp(-3.0, -1.0, 1.0));   // -1.0: under, clamped up
+    }
+}
+```
+
+Read it inside out: `Math.min(max, value)` cuts off anything above the ceiling, then `Math.max(min, ...)` cuts off anything below the floor. Write this helper once and use it everywhere; it is one of the most-called methods in robot code.
+
+### Deadband and sign
+
+A joystick at rest does not read exactly zero; it reads `0.02` or `-0.03`. A **deadband** treats small inputs as zero so the robot does not creep. `Math.abs` does the comparison, `Math.signum` keeps the direction when you rescale what is left:
+
+```java
+public class Main {
+    static double deadband(double input, double threshold) {
+        if (Math.abs(input) < threshold) return 0.0;
+        // rescale so the output still reaches ±1 at full stick
+        return Math.signum(input) * (Math.abs(input) - threshold) / (1.0 - threshold);
+    }
+
+    public static void main(String[] args) {
+        System.out.println(deadband(0.03, 0.08));    // 0.0
+        System.out.println(deadband(0.54, 0.08));    // 0.5
+        System.out.println(deadband(-1.0, 0.08));    // -1.0
+    }
+}
+```
+
+Without the rescale, a stick pushed just past the threshold would jump from `0` to `0.08`. The rescale makes the output start from zero at the edge of the deadband and still reach full at the stop.
+
+### Powers and roots
+
+`Math.pow` raises to any power, including fractional ones. A common use is a **stick curve**: squaring the input keeps the sign lost and makes small movements gentler while full stick still gives full speed.
+
+```java
+public class Main {
+    static double squareKeepSign(double x) {
+        return Math.signum(x) * x * x;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(squareKeepSign(0.5));     // 0.25
+        System.out.println(squareKeepSign(-0.5));    // -0.25
+        System.out.println(squareKeepSign(1.0));     // 1.0
+        System.out.println(Math.pow(0.5, 3));        // 0.125: a cubic curve, gentler still
+    }
+}
+```
+
+`x * x` and `Math.pow(x, 2)` give the same value; the multiply is cheaper and reads fine for squares. Reach for `pow` at higher or non-integer exponents. `Math.hypot(dx, dy)` is the distance to a target, the same as `Math.sqrt(dx * dx + dy * dy)` without the overflow risk for large values.
+
+### Rounding, and the types it returns
+
+Three ways to turn a `double` into a whole number, and they differ in both direction and return type:
+
+```java
+double v = 2.7;
+double w = -2.7;
+
+System.out.println(Math.round(v));    // 3   (long)
+System.out.println(Math.floor(v));    // 2.0 (double)
+System.out.println(Math.ceil(v));     // 3.0 (double)
+System.out.println((int) v);          // 2: the cast truncates toward zero
+System.out.println((int) w);          // -2, not -3
+System.out.println(Math.floor(w));    // -3.0
+```
+
+The cast is the one people trip on: `(int)` does not round, it throws the fraction away, and for negative numbers that means it moves *toward zero* rather than down. To round to a fixed number of decimals, scale, round, and scale back:
+
+```java
+double reading = 12.34567;
+double twoPlaces = Math.round(reading * 100.0) / 100.0;
+System.out.println(twoPlaces);    // 12.35
+```
+
+### Modulo
+
+`%` gives the remainder of a division. It is how you wrap around: the index in a ring buffer, an angle back into 0–360, whether a number is even.
+
+```java
+System.out.println(17 % 5);         // 2
+System.out.println(12 % 4);         // 0: divisible
+System.out.println(370 % 360);      // 10: an angle wrapped into range
+System.out.println((7 + 1) % 8);    // 0: the next slot in a ring of 8
+```
+
+<RulesBox title="Modulo of a negative number is negative">
+
+```java
+System.out.println(-30 % 360);                  // -30, not 330
+System.out.println(((-30 % 360) + 360) % 360);  // 330
+```
+
+Java's `%` keeps the sign of the left operand. For wrapping an angle or an index that might go negative, the double-modulo idiom above always lands in `[0, n)`. `Math.floorMod(-30, 360)` does the same thing and says what it means.
+
+</RulesBox>
+
+### Integer ranges and overflow
+
+An `int` holds whole numbers from about −2.1 billion to +2.1 billion. Past either end it does not throw. It **wraps around** to the other end, silently.
+
+```java
+int big = Integer.MAX_VALUE;
+System.out.println(big);          // 2147483647
+System.out.println(big + 1);      // -2147483648: wrapped, no error
+System.out.println(Long.MAX_VALUE);   // 9223372036854775807
+```
+
+<ContentTable
+  headers={["Type", "Bits", "Range", "Use it for"]}
+  rows={[
+    ["<code>int</code>", "32", "about ±2.1 × 10<sup>9</sup>", "Counts, indices, CAN IDs; the default"],
+    ["<code>long</code>", "64", "about ±9.2 × 10<sup>18</sup>", "Timestamps, encoder tick totals, anything that accumulates"],
+    ["<code>double</code>", "64", "±1.8 × 10<sup>308</sup>, ~15 digits", "Every physical quantity: volts, metres, radians"]
+  ]}
+/>
+
+Two billion sounds like plenty until you count something small and fast. Milliseconds since boot pass 2.1 billion after 24 days. An encoder reporting 2048 ticks per revolution on a motor spinning at 5,000 rpm produces 2 billion ticks in about two hours. Anything that *accumulates* belongs in a `long`.
+
+<RulesBox title="The trap: the multiply happens before the assignment">
+
+```java
+int ticksPerRev = 2048;
+int revs = 1_500_000;
+
+long wrong = ticksPerRev * revs;            // 3072000000 does not fit; wraps to -1222967296
+long right = (long) ticksPerRev * revs;     // 3072000000
+
+System.out.println(wrong);
+System.out.println(right);
+```
+
+`ticksPerRev * revs` is evaluated in `int` arithmetic *first*; the `long` on the left only receives the already-wrapped result. Casting one operand to `long` promotes the whole expression before the multiply. This is the single most common overflow bug, and it is invisible at small values.
+
+</RulesBox>
+
+`Math.addExact` and `Math.multiplyExact` throw instead of wrapping, which is the right choice when a wrapped value would quietly command a motor.
+
+### Bits, for when the hardware speaks in them
+
+Some things arrive as raw bits: a status word from a motor controller, a byte from an I²C sensor, a set of digital inputs read together. Java's bitwise operators are how you take them apart.
+
+<ContentTable
+  headers={["Operator", "Does", "Typical use"]}
+  rows={[
+    ["<code>&amp;</code>", "1 where both bits are 1", "Test a flag: <code>(status &amp; FAULT) != 0</code>"],
+    ["<code>|</code>", "1 where either bit is 1", "Set a flag: <code>status | ENABLED</code>"],
+    ["<code>^</code>", "1 where the bits differ", "Toggle a flag"],
+    ["<code>~</code>", "flip every bit", "Clear a flag: <code>status &amp; ~FAULT</code>"],
+    ["<code>&lt;&lt;</code> / <code>&gt;&gt;&gt;</code>", "shift left / right (zero-fill)", "Build a mask: <code>1 &lt;&lt; 3</code> is bit 3; unpack packed fields"]
+  ]}
+/>
+
+```java
+public class Main {
+    static final int ENABLED   = 1 << 0;   // bit 0
+    static final int OVER_TEMP = 1 << 1;   // bit 1
+    static final int FAULT     = 1 << 2;   // bit 2
+
+    public static void main(String[] args) {
+        int status = ENABLED | OVER_TEMP;                       // two flags set
+        System.out.println(Integer.toBinaryString(status));    // 11
+        System.out.println((status & FAULT) != 0);             // false
+        System.out.println((status & OVER_TEMP) != 0);         // true
+
+        status = status & ~OVER_TEMP;                          // clear one flag
+        System.out.println(Integer.toBinaryString(status));    // 1
+
+        byte raw = (byte) 0xF0;                                // a sensor byte, sign bit set
+        System.out.println(raw);                               // -16: Java bytes are signed
+        System.out.println(raw & 0xFF);                        // 240: the value the sensor meant
+    }
+}
+```
+
+That last pair is the one to remember: a Java `byte` is signed, so a sensor value of 240 reads back as −16. `& 0xFF` recovers the unsigned value. You will meet it the first time you read anything over I²C or SPI.
+
+### Floating point is not exact
+
+`0.1 + 0.2` is not `0.3` in binary floating point, and never will be. Comparing doubles with `==` is therefore a bug waiting for the right inputs; compare against a tolerance instead.
+
+```java
+double sum = 0.1 + 0.2;
+System.out.println(sum);                         // 0.30000000000000004
+System.out.println(sum == 0.3);                  // false
+System.out.println(Math.abs(sum - 0.3) < 1e-9);  // true
+```
+
+The same rule is why an elevator "at the setpoint" is checked as `Math.abs(current - target) < tolerance`, never `current == target`. It would never get there.
+
+<RulesBox title="Common mistakes">
+
+- **`(int)` to round.** It truncates. Use `Math.round`, and remember it returns `long`.
+- **`Math.pow(x, 2)` for a square** where `x * x` reads better and costs less.
+- **`%` on a value that can go negative** and expecting a positive result. Use `Math.floorMod` or the double-modulo idiom.
+- **`==` between doubles.** Compare with a tolerance.
+- **Clamping with two `if`s that both fire.** `if (v > max) v = max; if (v < min) v = min;` is fine; the nested `min`/`max` is the same thing in one expression.
+- **`Math.sqrt` of a negative.** You get `NaN`, silently, and every calculation downstream becomes `NaN` too.
+- **`int * int` assigned to a `long`.** The multiply already wrapped. Cast one operand first.
+- **Reading a `byte` without `& 0xFF`** and getting a negative sensor value.
+
+</RulesBox>
+
+<JavaPlayground id="java-math" />
+
+<ExerciseBox title="Practice">
+
+1. Write `clamp` for `int` values and use it to keep a motor's CAN ID request between 1 and 62.
+2. Given a target at `(dx, dy)` metres from the robot, print the distance with `Math.hypot` and the heading in degrees with `Math.toDegrees(Math.atan2(dy, dx))`.
+3. Write a method that rounds a `double` to one decimal place and test it on `4.25`, `4.24` and `-4.25`.
+4. Wrap a heading of `-450` degrees into `[0, 360)` two ways: the double-modulo idiom and `Math.floorMod`.
+5. Apply a deadband of `0.1` and then a squared stick curve to the inputs `0.05`, `0.3`, `-0.7` and `1.0`, printing each result.
+6. Compute how many milliseconds fit in an `int` and convert it to days. Then work out how long a `long` lasts at the same rate.
+7. Given a status word `0b1011`, print whether bits 0, 2 and 3 are set, then clear bit 3 and print the result in binary.
+
+<details>
+<summary>Hints</summary>
+
+1. Same shape as the `double` version; `Math.max` and `Math.min` have `int` overloads.
+2. `atan2(y, x)` takes *y first*. That ordering has caught everyone once.
+3. Multiply by 10, `Math.round`, divide by 10.0. Note what `Math.round(-42.5)` gives.
+4. Both should print `270`.
+5. Deadband first, then the curve. The order matters, and the reason is worth a comment.
+6. `Integer.MAX_VALUE / 1000.0 / 60 / 60 / 24` is a little under 25 days. The `long` version is about 292 million years.
+7. Bit 1 is the one that is clear. `Integer.toBinaryString` shows what you did.
+
+</details>
+
+</ExerciseBox>
+
+<Sources items={[
+  {"source": "csce145", "note": "The course whose structure this lesson follows."},
+  {"source": "java-api", "path": "java.base/java/lang/Math.html", "note": "<code>abs</code>, <code>min</code>/<code>max</code>, <code>pow</code>, <code>sqrt</code>, <code>hypot</code>, rounding, <code>floorMod</code>."},
+  {"source": "jls", "path": "jls-4.html", "note": "Integer ranges and overflow (section 4.2)."},
+  {"source": "jls", "path": "jls-15.html", "note": "The remainder operator and integer arithmetic (chapter 15)."},
+  {"source": "java-tutorial", "path": "java/nutsandbolts/datatypes.html", "note": "Primitive data types and their ranges."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    {"label":"Arrays","id":"java-arrays"},
+    {"label":"Calculations","id":"java-calculations"},
+    {"label":"A08: Stick-Curve Calculator","url":"/assignments/a08-stick-curve-calculator"}
+  ]}
+/>

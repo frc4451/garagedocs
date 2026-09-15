@@ -33,7 +33,7 @@ static List<Integer> evenOnly(List<Integer> readings) {
 }
 ```
 
-These methods are identical except for one line. Everything else — creating the list, looping, adding, returning — is duplicated.
+These methods are identical except for one line. Everything else (creating the list, looping, adding, returning) is duplicated.
 
 You already know how to pass a *value* into a method to avoid repetition. What you need here is to pass the **test itself**.
 
@@ -63,7 +63,7 @@ static List<Integer> filter(List<Integer> readings, ReadingTest test) {
 
 Calling it means supplying an implementation:
 
-```java
+```java norun
 ReadingTest above100 = new ReadingTest() {
     @Override
     public boolean matches(int reading) {
@@ -74,11 +74,11 @@ ReadingTest above100 = new ReadingTest() {
 List<Integer> high = filter(readings, above100);
 ```
 
-That block is an **anonymous class** — a class with no name, defined and instantiated in one expression. It is verbose, and [Lambda Expressions](/java/java-fn-lambdas) exist precisely to shorten it. But this is what is really happening underneath, and seeing it once makes lambdas much less mysterious.
+That block is an **anonymous class**: a class with no name, defined and instantiated in one expression. It is verbose, and [Lambda Expressions](/java/java-fn-lambdas#the-same-thing-shorter) exist precisely to shorten it. But this is what is really happening underneath, and seeing it once makes lambdas much less mysterious.
 
 <RulesBox title="Why an interface is required">
 
-In some languages you can pass a function directly. In Java, the thing you pass is always an object. The interface gives that object a type, and [runtime polymorphism](/java/java-runtime-polymorphism) picks the right `matches` implementation when `filter` calls it.
+In some languages you can pass a function directly. In Java, the thing you pass is always an object. The interface gives that object a type, and [runtime polymorphism](/java/java-runtime-polymorphism#two-kinds-of-type) picks the right `matches` implementation when `filter` calls it.
 
 So "passing a function" in Java is really "passing an object with one interesting method". Every lambda you write is compiled into something along these lines.
 
@@ -88,7 +88,7 @@ So "passing a function" in Java is really "passing an object with one interestin
 
 The `filter` method now works with tests that did not exist when it was written:
 
-```java
+```java norun
 List<Integer> even = filter(readings, new ReadingTest() {
     @Override public boolean matches(int r) { return r % 2 == 0; }
 });
@@ -98,7 +98,7 @@ List<Integer> inRange = filter(readings, new ReadingTest() {
 });
 ```
 
-One loop, any number of behaviours. The pattern generalises beyond filtering — anywhere you find near-identical methods differing by a line or two, the difference can usually become a parameter.
+One loop, any number of behaviours. The pattern generalises beyond filtering. Anywhere you find near-identical methods differing by a line or two, the difference can usually become a parameter.
 
 ### Functional interfaces
 
@@ -111,9 +111,9 @@ interface ReadingTest {
 }
 ```
 
-The annotation is optional but worth adding. It makes the compiler reject the interface if someone later adds a second abstract method — which would silently break every lambda written against it.
+The annotation is optional but worth adding. It makes the compiler reject the interface if someone later adds a second abstract method, which would silently break every lambda written against it.
 
-Java already ships the common shapes, so you rarely define your own. Those are covered in [Supplier and the Functional Interfaces](/java/java-fn-supplier).
+Java already ships the common shapes, so you rarely define your own. Those are covered in [Supplier and the Functional Interfaces](/java/java-fn-supplier#stop-defining-your-own).
 
 ### Deferring work
 
@@ -139,12 +139,12 @@ class ActionQueue {
 }
 ```
 
-The action is created at one point in the program and executed at another. That separation is the foundation of event handlers, callbacks, and the [Command Pattern](/java/java-dp-command) — and it is how FRC's command-based framework schedules robot behaviour.
+The action is created at one point in the program and executed at another. That separation is the foundation of event handlers, callbacks, and the [Command Pattern](/java/java-dp-command#an-action-as-an-object), and it is how FRC's command-based framework schedules robot behaviour.
 
 <RulesBox title="Two distinct motivations">
 
-- **Removing duplication** — the surrounding code is fixed, one step varies. Pass the varying step in.
-- **Deferring execution** — you know what should happen but not yet when. Store the behaviour and run it later.
+- **Removing duplication.** The surrounding code is fixed, one step varies. Pass the varying step in.
+- **Deferring execution.** You know what should happen but not yet when. Store the behaviour and run it later.
 
 Both use the same mechanism. Recognising which one you need helps you name things sensibly.
 
@@ -154,7 +154,7 @@ Both use the same mechanism. Recognising which one you need helps you name thing
 
 A method can also hand back an implementation, which lets you build behaviour from parameters:
 
-```java
+```java norun
 static ReadingTest greaterThan(int threshold) {
     return new ReadingTest() {
         @Override
@@ -168,7 +168,7 @@ List<Integer> high = filter(readings, greaterThan(100));
 List<Integer> veryHigh = filter(readings, greaterThan(500));
 ```
 
-The returned object remembers `threshold` — a captured variable. Note the restriction: a captured local variable must be effectively final, meaning you cannot reassign it after capture. Java enforces this at compile time.
+The returned object remembers `threshold`, a captured variable. Note the restriction: a captured local variable must be effectively final, meaning you cannot reassign it after capture. Java enforces this at compile time.
 
 <RulesBox title="Common mistakes">
 
@@ -179,7 +179,9 @@ The returned object remembers `threshold` — a captured variable. Note the rest
 
 </RulesBox>
 
-<ExerciseBox title="Practice" description="Use anonymous classes throughout — lambdas come in the next lesson.">
+<JavaPlayground id="java-fn-functions-as-data" />
+
+<ExerciseBox title="Practice" description="Use anonymous classes throughout; lambdas come in the next lesson.">
 
 1. Define a `ReadingTest` interface and a `filter` method, then filter a list three different ways.
 2. Define a `Transformer` interface with `int apply(int value)` and write a `map` method that applies it to every element of a list.
@@ -199,6 +201,17 @@ The returned object remembers `threshold` — a captured variable. Note the rest
 </details>
 
 </ExerciseBox>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "java-tutorial", "path": "java/javaOO/anonymousclasses.html", "note": "Anonymous classes."},
+  {"source": "dev-java", "path": "lambdas/functional-interfaces/", "note": "Functional interfaces."},
+  {"source": "java-api", "path": "java.base/java/lang/FunctionalInterface.html", "note": "<code>@FunctionalInterface</code>."},
+  {"source": "jls", "path": "jls-15.html", "note": "Effectively final captured variables (section 15.27.2)."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code> API reference."}
+]} />
 
 <LinkGrid
   title="Next"

@@ -1,0 +1,144 @@
+---
+title: "VARC: Vision Assisted Rotation Correction"
+lessonId: varc
+section: frc
+group: frc-architecture
+groupLabel: "Cobra Architecture"
+groupOrder: 8.5
+order: 2.5
+difficulty: intermediate
+duration: 25 min
+description: "The one-object-per-target pattern FRC 4451 has aligned with since 2024: a VARC recomputes a target's distance and the heading to face it every loop, and every consumer (teleop aim, path-follower rotation override, shoot-on-the-move, readiness triggers) reads the same answer. How it grew from Ember's rotation override to Cobra's library class, and how to write one."
+---
+
+Every robot the team has built since 2024 has answered the same question the same way: *which way should the robot face right now, and how far away is the thing it is facing?* The answer is a **VARC**, one small object per field target, recomputed every loop inside [BobotState](/frc/bobot-state), and read by anything that needs to aim: the driver's rotation stick, the autonomous path follower, shoot-on-the-move, the trigger that says a shot is possible. The name is from 2024, **Vision Assisted Rotation Correction**, when the heading came straight from a seen AprilTag; today it comes from the fused pose, and the name stayed.
+
+This page is why the pattern exists, how it has changed over three robots, what a VARC computes, and how to add one.
+
+<RulesBox title="Before you start">
+
+[Pose Geometry](/frc/geometry-classes) for `relativeTo` and the arrow naming, [VirtualSubsystem](/frc/virtual-subsystem) and [BobotState](/frc/bobot-state) for where the objects live and when they update.
+
+</RulesBox>
+
+### The problem it solves
+
+Aiming looks like a command problem: a command reads the pose, works out the heading to the target, and turns the robot. Written that way, the geometry ends up copied into every command that aims (teleop aim, an auto that shoots at the end of a path, shoot-on-the-move, an auto-align to a loading station), each with its own alliance flip, its own `atan2`, and its own bugs. When the target changes, or a lookahead is added for shooting while moving, every copy has to change.
+
+A VARC moves the geometry out of the commands. One object per target owns the calculation, `BobotState` updates every VARC once per loop before any command runs, and the commands read a `Rotation2d` and a `Distance`. The consumers do not know how the answer was computed. That is what makes the team's alignment strategies fast to change: a new target is one class, a new consumer is one supplier.
+
+### Three robots, one idea
+
+<ContentTable
+  headers={["Robot", "Where it lived", "What a target object held", "Who read it"]}
+  rows={[
+    ["<strong>Ember 2024</strong>", "<code>bobot_state/TargetAngleTrackers</code>: <code>SpeakerAngleTracker</code>, <code>NoteAngleTracker</code>; <code>BobotState.VARC()</code> returned an <code>Optional&lt;Rotation2d&gt;</code> by aiming mode", "A rotation target only. The speaker tracker used the best-seen speaker tag (lowest ambiguity) to place the target, falling back to the known pose; the note tracker used object detection", "PathPlanner's <code>PPHolonomicDriveController.setRotationTargetOverride(BobotState::VARC)</code>, so the robot faced the speaker while following a path, and the teleop aim commands"],
+    ["<strong>Riptide 2025</strong>", "<code>bobot_state/varc</code>: <code>TargetAngleTracker</code> with <code>ReefTagTracker</code>, <code>HPSTagTracker</code>, <code>BargeTagTracker</code>", "Rotation target <strong>and</strong> distance in metres. The reef tracker took the closest reef face's tag pose and faced its normal", "<code>getCurrentAlignmentTracker()</code> picked the closest tracker by distance (or the barge in climb mode), and the auto-align commands read it"],
+    ["<strong>Cobra 2026</strong>", "<code>TargetVARC</code> in the ROBOTZ Garage library; <code>HubVARC</code>, <code>TrenchVARC</code>, <code>BumpVARC</code>, <code>OutpostDropoffVARC</code>, <code>DepotDropoffVARC</code>, <code>FuelClusterVARC</code> in <code>bobot_state/varc</code>", "Distance, rotation target, the target pose, and a separate rotation-target pose; Lombok getters", "Teleop <code>joystickDriveAtAngle</code>, <code>ShootOnTheMoveCommand</code>, BLine's <code>followPathWithRotationTarget</code>, <code>AutonomousManager</code>, and <code>Trigger</code>s such as <code>isTooCloseToHubToScore()</code>"]
+  ]}
+/>
+
+Two things changed across the years and one did not. The target object grew a distance (2025) and a pose (2026), because consumers started needing more than a heading: a shot table keyed by distance, a trigger that fires inside a range, a drive-to-pose. Selection moved from a mode enum (2024) to "closest by distance" (2025) to "by field zone, then closest" (2026). What did not change is the shape: an object per target with an `update()` that `BobotState` calls every loop, and consumers that take a `Supplier` of the result.
+
+### What a VARC holds
+
+```java
+// org.robotzgarage.frc2026.math.varc.TargetVARC
+public abstract class TargetVARC {
+  @Getter protected Distance distance = Meters.zero();          // robot to target, straight line, current pose
+  @Getter protected Rotation2d rotationTarget = Rotation2d.kZero; // the Field heading the robot should face
+  @Getter protected Pose2d targetPose;                          // FieldToTarget, alliance-flipped
+  @Getter protected Pose2d rotationTargetPose;                  // where the aim was computed from, when it differs
+  public abstract void update();
+}
+```
+
+In arrow terms: `targetPose` is `FieldToTarget`, `distance` is the length of `RobotToTarget`, and `rotationTarget` is the Field heading of `RobotToTarget`. All three are answers to "from where the robot is *now*", which is why they are recomputed every loop rather than cached.
+
+### HubVARC, read line by line
+
+```java
+public class HubVARC extends TargetVARC {
+  public void update() {
+    Pose2d fieldToRobot = BobotState.getGlobalPose();
+
+    // 1. FieldToHub, in this alliance's frame: the constant is drawn once in blue coordinates and flipped.
+    this.targetPose =
+        AllianceFlipUtil.apply(new Pose2d(Hub.innerCenterPoint.toTranslation2d(), Hub.nearFace.getRotation()));
+
+    // 2. Distance from the CURRENT robot pose. The shot table is keyed by this, and it must not use the lookahead.
+    this.distance = Meters.of(this.targetPose.getTranslation().getDistance(fieldToRobot.getTranslation()));
+
+    // 3. Aim from the lookahead pose when the hub interpolator has one (shooting on the move), else from the robot.
+    Translation2d lookahead = BobotState.getHubInterpolator().getLookaheadTranslation();
+    Pose2d aimPose = lookahead != null ? new Pose2d(lookahead, fieldToRobot.getRotation()) : fieldToRobot;
+
+    // 4. RobotToField + FieldToHub = RobotToHub; its angle plus the robot's heading is the Field heading to face.
+    this.rotationTarget =
+        this.targetPose.relativeTo(aimPose).getTranslation().getAngle().plus(aimPose.getRotation());
+  }
+}
+```
+
+Step 2 carries the comment that matters most in the file: distance is measured from where the robot is, and only the aim uses the lookahead. Shoot-on-the-move needs the heading for where the robot *will* be when the shot lands, but the flywheel speed is looked up for the distance it is at now; mixing the two puts the wrong speed on the right heading.
+
+`TrenchVARC` shows the other half of the pattern, a target that is chosen rather than fixed: it measures the distance to both trench openings, keeps the nearer one, snaps the rotation target to the closest of 0°, ±90° and 180° with `PoseUtils.getClosestAngle`, and offsets the target pose by the intake's length when the robot will approach sideways.
+
+### Who reads it
+
+- **Teleop aim.** `DriveCommands.joystickDriveAtAngle(drive, x, y, () -> BobotState.getFuelClusterVARC().getRotationTarget())`: the driver keeps translation on the stick, a `ProfiledPIDController` on heading tracks the supplier.
+- **Shoot on the move.** `ShootOnTheMoveCommand` takes a `Supplier<TargetVARC>` and reads the rotation target every loop; the lookahead is already inside it.
+- **Autonomous.** BLine's `followPathWithRotationTarget(path, () -> BobotState.getHubVARC().getRotationTarget())`: `Drive.applyRotationOverride` swaps the path's rotation for a PID toward the VARC once the remaining path distance is under a threshold. This is the 2024 idea (PathPlanner's rotation override) rebuilt on BLine.
+- **Selection.** `BobotState.getShooterAlignmentVARC()` returns the hub VARC in the near-alliance zone and the closest drop-off VARC elsewhere; `getClosestDropoff()` and `getClosestTraversal()` compare distances every loop.
+- **Triggers.** `isTooCloseToHubToScore()` is `hubVARC.getDistance().lt(Feet.of(7.4))` and the zone trigger, which is a `Trigger` any binding can compose.
+
+### Update order
+
+`BobotState.periodic()` updates every VARC before the hub interpolator, and the comment in the source says why: `HubVARC` reads the interpolator's lookahead from the previous loop, and the interpolator reads the VARC's distance from this one. One loop of staleness on the lookahead is acceptable; moving the interpolator above the VARCs is not. When you add a VARC that reads another VARC or an interpolator, decide which order is right and write the reason next to the call.
+
+### Writing one
+
+1. Extend `TargetVARC` in `frc.robot.bobot_state.varc`. Do not add fields to the library class for one target; put target-specific state in the subclass.
+2. In `update()`: read `BobotState.getGlobalPose()` once; build `targetPose` from a `FieldConstants` pose through `AllianceFlipUtil.apply`; set `distance` from the current pose; compute `rotationTarget` with `relativeTo … getAngle().plus(rotation)` from whichever pose the aim should use.
+3. Construct it as a `static final` field in `BobotState` with `@Getter`, and add its `update()` to `periodic()` in the right place relative to the interpolators.
+4. Log it. The existing VARCs are read on the 2D Field as `targetPose` and as a heading; a new one should appear the same way so a wrong flip is visible before a match.
+5. Consume it through a `Supplier`, never by copying its numbers into a command's fields.
+
+<RulesBox title="Common mistakes">
+
+- **Measuring distance from the lookahead.** The shot table wants the current distance; the aim wants the lookahead heading. `HubVARC` separates them on purpose.
+- **Flipping twice.** `FieldConstants` is blue-alliance; `AllianceFlipUtil.apply` once, in the VARC, and nowhere downstream.
+- **Reading a VARC before it updated.** A `VirtualSubsystem` that runs before `BobotState` sees last loop's values.
+- **Caching the rotation target in a command.** It is recomputed every loop for a reason; take the supplier.
+- **Adding a consumer-specific field to `TargetVARC`.** The library class is the shape every robot shares; per-robot needs go in the subclass.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/math/varc/TargetVARC.java", "note": "The library base class: distance, rotationTarget, targetPose, rotationTargetPose."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/varc/HubVARC.java", "note": "The worked example, including the current-distance-versus-lookahead comment."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/varc/TrenchVARC.java", "note": "A chosen target: nearest opening, snapped heading, intake offset."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "VARC construction, update order before the hub interpolator, <code>getShooterAlignmentVARC()</code>, closest drop-off and traversal, <code>isTooCloseToHubToScore()</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/commands/ShootOnTheMoveCommand.java", "note": "A consumer taking <code>Supplier&lt;TargetVARC&gt;</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/commands/DriveCommands.java", "note": "<code>joystickDriveAtAngle</code> with a rotation-target supplier."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "The bindings that hand VARC suppliers to commands."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "<code>followPathWithRotationTarget</code> and <code>applyRotationOverride</code> with the distance threshold."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/autonomous/AutonomousManager.java", "note": "Autos aiming with <code>getHubVARC().getRotationTarget()</code>."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/bobot_state/varc/TargetAngleTracker.java", "note": "The 2025 shape: rotation target plus distance."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/bobot_state/varc/ReefTagTracker.java", "note": "Closest reef face, heading from the tag's normal."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "<code>getCurrentAlignmentTracker()</code>: closest by distance, barge in climb mode."},
+  {"source": "ember", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "The original <code>VARC()</code>: Vision Assisted Rotation Correction by aiming mode."},
+  {"source": "ember", "path": "src/main/java/frc/robot/bobot_state/TargetAngleTrackers/SpeakerAngleTracker.java", "note": "Target placed from the best-seen speaker tag, with the fallback pose."},
+  {"source": "ember", "path": "src/main/java/frc/robot/subsystems/drive/DriveSubsystem.java", "note": "<code>PPHolonomicDriveController.setRotationTargetOverride(BobotState::VARC)</code>."},
+  {"source": "pathplanner", "path": "pplib-override-feedback.html", "note": "PathPlanner's rotation-target override, the 2024 consumer."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/geometry/transformations.html", "note": "<code>relativeTo</code> used by every VARC."}
+]} />
+
+<LinkGrid links={[
+  {"label":"BobotState: The One Global","id":"bobot-state"},
+  {"label":"Pose Geometry","id":"geometry-classes"},
+  {"label":"The Math Toolbox: Cobra's geometry helpers","id":"math-toolbox"},
+  {"label":"Shooter Example","id":"shooter-example"},
+  {"label":"BLine","id":"bline"},
+  {"label":"Ember2024 on GitHub","url":"https://github.com/frc4451/Ember2024"}
+]} title="Next" section="frc" />

@@ -5,7 +5,7 @@ section: java
 group: java-oop
 groupLabel: "Object-Oriented Programming"
 groupOrder: 4
-order: 5
+order: 6
 difficulty: intermediate
 duration: 30 min
 description: Building a class on top of another so shared behaviour is written once, plus constructors, super, and when inheritance is the wrong tool.
@@ -73,7 +73,7 @@ class Intake extends Subsystem {
     ["Superclass / parent", "The class being extended (<code>Subsystem</code>)"],
     ["Subclass / child", "The class doing the extending (<code>Intake</code>)"],
     ["<code>extends</code>", "Declares the relationship"],
-    ["<code>super</code>", "Refers to the parent &mdash; its constructor or its methods"],
+    ["<code>super</code>", "Refers to the parent: its constructor or its methods"],
     ["Override", "Replace an inherited method with your own version"],
     ["Inherit", "Receive a member from the parent without rewriting it"]
   ]}
@@ -98,7 +98,7 @@ class Intake extends Subsystem {
 
 **`super(...)` must be the first statement** in the constructor. Java has to finish building the parent part before the subclass touches anything.
 
-**If you omit it, Java inserts `super()`** — a call to the parent's no-argument constructor. If the parent has no no-argument constructor, that is a compile error, and the message ("constructor Subsystem in class Subsystem cannot be applied to given types") is confusing until you know this rule.
+**If you omit it, Java inserts `super()`**, a call to the parent's no-argument constructor. If the parent has no no-argument constructor, that is a compile error, and the message ("constructor Subsystem in class Subsystem cannot be applied to given types") is confusing until you know this rule.
 
 **A class with no `extends` implicitly extends `Object`**, which is where `toString`, `equals`, and `hashCode` come from.
 
@@ -108,7 +108,7 @@ class Intake extends Subsystem {
 
 A subclass can replace an inherited method:
 
-```java
+```java norun
 class Subsystem {
     void describe() {
         System.out.println("subsystem: " + name);
@@ -123,11 +123,11 @@ class Intake extends Subsystem {
 }
 ```
 
-Always write `@Override`. It is optional to the compiler but it verifies you really are overriding something — misspell the name and you have silently created a new method that nothing calls.
+Write `@Override` every time. It is optional to the compiler but it verifies you really are overriding something. Misspell the name without it and you have silently created a new method that nothing calls.
 
 To extend the parent's behaviour rather than replace it, call `super`:
 
-```java
+```java norun
 @Override
 void describe() {
     super.describe();                    // do the parent's version first
@@ -135,7 +135,7 @@ void describe() {
 }
 ```
 
-Which version actually runs is decided at runtime by the real object, not the declared type. That is [runtime polymorphism](/java/java-runtime-polymorphism), and it is the reason inheritance is useful rather than merely tidy.
+Which version actually runs is decided at runtime by the real object, not the declared type. That is [runtime polymorphism](/java/java-runtime-polymorphism#two-kinds-of-type), and it is the reason inheritance is useful rather than merely tidy.
 
 ### Access levels
 
@@ -151,7 +151,7 @@ What a subclass can see depends on the modifier:
   ]}
 />
 
-`protected` exists specifically for inheritance — visible to subclasses, hidden from unrelated code.
+`protected` exists specifically for inheritance: visible to subclasses, hidden from unrelated code.
 
 That said, `private` fields with `protected` or `public` accessor methods is usually the better design. A `protected` field becomes part of the contract with every subclass, and changing it later breaks all of them.
 
@@ -161,7 +161,7 @@ Three things behave differently from what you might expect:
 
 **Constructors** are not inherited, as above.
 
-**Fields are hidden, not overridden.** Declaring a field with the same name in a subclass does not replace the parent's — both exist, and which one you see depends on the *declared* type:
+**Fields are hidden, not overridden.** Declaring a field with the same name in a subclass does not replace the parent's. Both exist, and which one you see depends on the *declared* type:
 
 ```java
 class Parent { String label = "parent"; }
@@ -179,24 +179,24 @@ This is field hiding and it is almost always a mistake. Keep fields private and 
 
 A class may extend exactly one class:
 
-```java
+```java norun
 class Intake extends Subsystem, Loggable { }   // does not compile
 ```
 
-This avoids the ambiguity that arises when two parents define the same method differently. When you need a class to fill several roles, use [interfaces](/java/java-interfaces) — a class can implement any number of those.
+This avoids the ambiguity that arises when two parents define the same method differently. When you need a class to fill several roles, use [interfaces](/java/java-interfaces#implementing-several); a class can implement any number of those.
 
 ### When inheritance is the wrong tool
 
-Inheritance is often reached for too quickly. The test is whether the subclass genuinely **is a** kind of the parent, in every context where the parent is used.
+Inheritance is often reached for too quickly. The test is whether the subclass **is a** kind of the parent, in every context where the parent is used.
 
-```java
-class Drivetrain extends Subsystem { }     // a drivetrain IS a subsystem — fine
-class Robot extends Drivetrain { }         // a robot is not a drivetrain — wrong
+```java norun
+class Drivetrain extends Subsystem { }     // a drivetrain IS a subsystem: fine
+class Robot extends Drivetrain { }         // a robot is not a drivetrain: wrong
 ```
 
-The second should be composition — a `Robot` **has a** `Drivetrain`:
+The second should be composition, since a `Robot` **has a** `Drivetrain`:
 
-```java
+```java norun
 class Robot {
     private final Drivetrain drivetrain;   // has-a, not is-a
 
@@ -210,7 +210,7 @@ class Robot {
 
 Inheritance permanently couples the subclass to the parent's implementation. A change in the parent can break every subclass, sometimes subtly.
 
-Composition — holding an object as a field — is looser, easier to test, and easier to change. Reach for inheritance when there is a genuine is-a relationship *and* real behaviour to share. Reach for composition otherwise. See [Dependency Injection](/java/java-dp-dependency-injection).
+Composition (holding an object as a field) is looser, easier to test, and easier to change. Reach for inheritance when there is a genuine is-a relationship *and* real behaviour to share. Reach for composition otherwise. See [Dependency Injection](/java/java-dp-dependency-injection#passing-it-in-instead).
 
 </RulesBox>
 
@@ -240,6 +240,8 @@ Useful when a class's correctness depends on behaviour that a subclass must not 
 
 </RulesBox>
 
+<JavaPlayground id="java-inheritance" />
+
 <ExerciseBox title="Practice">
 
 1. Write a `Subsystem` base class with a name and enable/disable behaviour, then two subclasses that add their own methods.
@@ -255,7 +257,7 @@ Useful when a class's correctness depends on behaviour that a subclass must not 
 2. Put `super.describe()` first, then add the extra line.
 3. Same field name in both, assign a `Child` to a `Parent` variable.
 4. The error is worth seeing once so you recognise it later.
-5. Replace `extends X` with a private field of type `X`, and forward the calls you actually need.
+5. Replace `extends X` with a private field of type `X`, and forward the calls you need.
 
 </details>
 
@@ -270,6 +272,15 @@ Useful when a class's correctness depends on behaviour that a subclass must not 
     { "label": "Runtime Polymorphism", "id": "java-runtime-polymorphism" }
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "dev-java", "path": "inheritance/", "note": "Inheritance."},
+  {"source": "java-tutorial", "path": "java/IandI/index.html", "note": "Interfaces and inheritance tutorial."},
+  {"source": "jls", "path": "jls-8.html", "note": "Superclasses, <code>super</code>, overriding, field hiding (sections 8.1.4, 8.3.3, 8.4.8)."},
+  {"source": "java-api", "path": "java.base/java/lang/Override.html", "note": "<code>@Override</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."}
+]} />
 
 <LinkGrid
   title="Review"

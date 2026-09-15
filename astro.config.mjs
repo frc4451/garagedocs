@@ -6,7 +6,12 @@ import { fileURLToPath } from 'url';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { pagefindDevPlugin } from './scripts/pagefind-dev-plugin.mjs';
 import { normalizeWindowsDevPathsPlugin } from './scripts/normalize-windows-dev-paths.mjs';
+import { rehypeHeadingIds } from '@astrojs/markdown-remark';
 import { rehypeBasePath } from './scripts/rehype-base-path.mjs';
+import { rehypeHeadingLinks } from './scripts/rehype-heading-links.mjs';
+import { rehypeMarkdownTables } from './scripts/rehype-markdown-tables.mjs';
+import { rehypeRunnableJava } from './scripts/rehype-runnable-java.mjs';
+import { remarkJavaNorun } from './scripts/remark-java-norun.mjs';
 
 // Deployment target. Defaults to GitHub Pages for this fork
 // (https://frc4451.github.io/mantik-garage). Override with env vars to deploy
@@ -43,9 +48,24 @@ export default defineConfig({
     sitemap(),
   ],
   markdown: {
-    // Content links are authored site-root-relative (`/frc/...`); rewrite them
-    // for the deployed base path.
-    rehypePlugins: [[rehypeBasePath, { base: BASE }]],
+    // `java norun` on a fence opts an example out of the Run control. The remark
+    // plugin marks the code node, but Astro's Shiki step rebuilds every <pre> and
+    // drops that mark — so the Shiki transformer below re-reads the fence meta
+    // and stamps data-java-norun on the <pre> that actually reaches rehype.
+    remarkPlugins: [remarkJavaNorun],
+    // Astro normally assigns heading ids *after* user rehype plugins run, so
+    // rehypeHeadingIds is listed explicitly first and rehypeHeadingLinks turns
+    // each heading into a link to its own anchor. Content links are authored
+    // site-root-relative (`/frc/...`); rehypeBasePath rewrites them for the
+    // deployed base path. rehypeRunnableJava then wraps Java example fences in
+    // the Java lessons so the browser can hydrate a Run control.
+    rehypePlugins: [
+      rehypeHeadingIds,
+      rehypeHeadingLinks,
+      rehypeMarkdownTables,
+      [rehypeBasePath, { base: BASE }],
+      rehypeRunnableJava,
+    ],
     shikiConfig: {
       theme: 'github-light',
       themes: {
@@ -53,6 +73,15 @@ export default defineConfig({
         dark: 'github-dark',
       },
       wrap: true,
+      transformers: [
+        {
+          name: 'java-fence-meta',
+          pre(node) {
+            const meta = this.options?.meta?.__raw ?? '';
+            if (/(^|\s)norun(\s|$)/i.test(meta)) node.properties['data-java-norun'] = '';
+          },
+        },
+      ],
     },
   },
   vite: {
@@ -68,7 +97,17 @@ export default defineConfig({
       },
     },
     optimizeDeps: {
-      include: ['@monaco-editor/react', 'monaco-editor', 'uplot'],
+      include: [
+        '@codemirror/state',
+        '@codemirror/view',
+        '@codemirror/language',
+        '@codemirror/commands',
+        '@codemirror/lang-java',
+      ],
+    },
+    // The Java runner worker loads the CheerpJ script with importScripts().
+    worker: {
+      format: 'iife',
     },
     ssr: {
       noExternal: ['pagefind'],
@@ -88,20 +127,15 @@ export default defineConfig({
             if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) {
               return 'react-vendor';
             }
-            if (id.includes('node_modules/uplot')) {
-              return 'pid-uplot';
+            if (id.includes('node_modules/@codemirror') || id.includes('node_modules/@lezer')) {
+              return 'codemirror';
             }
-            if (id.includes('node_modules/monaco-editor') || id.includes('node_modules/@monaco-editor')) {
-              return 'pid-monaco';
+            // The worker is its own entry; leave it out of the shared chunk.
+            if (id.includes('/lib/java-playground/worker/')) {
+              return;
             }
-            if (
-              id.includes('/lib/pid-sim/physics/elevatorSim') ||
-              id.includes('/lib/pid-sim/physics/flywheelSim') ||
-              id.includes('/lib/pid-sim/physics/armSim') ||
-              id.includes('/lib/pid-sim/physics/plant/') ||
-              id.includes('/lib/pid-sim/physics/sim/')
-            ) {
-              return 'pid-physics';
+            if (id.includes('/lib/java-playground/')) {
+              return 'java-playground';
             }
           },
         },

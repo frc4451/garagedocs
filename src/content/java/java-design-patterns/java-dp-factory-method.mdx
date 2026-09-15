@@ -7,15 +7,15 @@ groupLabel: "Design Patterns"
 groupOrder: 8
 order: 1
 difficulty: intermediate
-duration: 25 min
-description: Using a named method instead of a constructor to create objects, why that reads better, and how it lets you hide which class you actually return.
+duration: 30 min
+description: Using a named method instead of a constructor to create objects, why that reads better, and how it lets you hide which class you return.
 ---
 
 ### What constructors cannot do
 
 A constructor has to be named after its class. That is fine until you need two ways of building the same thing:
 
-```java
+```java norun
 class Angle {
     private final double radians;
 
@@ -24,7 +24,7 @@ class Angle {
 }
 ```
 
-Both take a `double`, so they have the same signature. Java cannot distinguish them, and no amount of [overloading](/java/java-overloading) helps.
+Both take a `double`, so they have the same signature. Java cannot distinguish them, and no amount of [overloading](/java/java-overloading#constructor-overloading) helps.
 
 A factory method solves it by using a name instead:
 
@@ -57,7 +57,7 @@ Compare that with `new Angle(90)`, where a reader has to check the constructor t
 
 <RulesBox title="Making the constructor private">
 
-Marking the constructor `private` forces everyone through the factory methods. That is what gives you control — you can validate, cache, or change what you return without breaking any caller.
+Marking the constructor `private` forces everyone through the factory methods. That is what gives you control: you can validate, cache, or change what you return without breaking any caller.
 
 If you leave the constructor public, both routes exist and the guarantees weaken. Make it private unless you have a reason not to.
 
@@ -71,7 +71,7 @@ A **static factory** belongs to the class being created, as above. `Angle.ofDegr
 
 An **instance factory method** belongs to some other object, and that object's state influences what gets built:
 
-```java
+```java norun
 class MotorFactory {
     private final boolean inverted;
     private final double maxOutput;
@@ -90,7 +90,7 @@ class MotorFactory {
 }
 ```
 
-```java
+```java norun
 MotorFactory driveMotors = new MotorFactory(true, 0.8);
 
 Motor left  = driveMotors.create(1);
@@ -99,13 +99,13 @@ Motor right = driveMotors.create(2);
 
 The shared configuration lives in the factory, so you set it once rather than repeating it at every creation site. Add a third motor later and it is automatically configured the same way.
 
-This is the form that pairs with [dependency injection](/java/java-dp-dependency-injection) — you pass a factory to code that needs to create things without deciding how they are configured.
+This is the form that pairs with [dependency injection](/java/java-dp-dependency-injection#injecting-an-interface): you pass a factory to code that needs to create things without deciding how they are configured.
 
 ### Returning a subtype
 
-The most powerful consequence: a factory can return something more specific than it promises.
+The consequence that matters most: a factory can return something more specific than it promises.
 
-```java
+```java norun
 abstract class Drivetrain {
     abstract void drive(double speed, double rotation);
 }
@@ -125,18 +125,18 @@ class DrivetrainFactory {
 
 Callers get a `Drivetrain` and never learn which kind:
 
-```java
+```java norun
 Drivetrain drive = DrivetrainFactory.forRobot(config);
 drive.drive(0.5, 0.0);            // whichever implementation, same call
 ```
 
-[Runtime polymorphism](/java/java-runtime-polymorphism) does the dispatch. The decision about which class to build is made in exactly one place, and every user of `Drivetrain` is unaffected by it.
+[Runtime polymorphism](/java/java-runtime-polymorphism#a-worked-example) does the dispatch. The decision about which class to build is made in exactly one place, and every user of `Drivetrain` is unaffected by it.
 
 ### Other things factories can do
 
 **Validate before constructing.** A constructor that throws leaves callers with an awkward failure; a factory can return an `Optional` or a sensible fallback.
 
-```java
+```java norun
 static Optional<Angle> parse(String text) {
     try {
         return Optional.of(ofDegrees(Double.parseDouble(text)));
@@ -151,15 +151,21 @@ static Optional<Angle> parse(String text) {
 ```java
 class Angle {
     static final Angle ZERO = new Angle(0);
+    private final double radians;
+
+    private Angle(double radians) { this.radians = radians; }
 
     static Angle ofRadians(double radians) {
         if (radians == 0) return ZERO;         // no new object
         return new Angle(radians);
     }
 }
+
+System.out.println(Angle.ofRadians(0) == Angle.ZERO);      // true: the same object
+System.out.println(Angle.ofRadians(1.5) == Angle.ZERO);    // false
 ```
 
-This is why `Integer.valueOf(5)` is preferred over `new Integer(5)` — the factory caches small values, and the constructor cannot.
+This is why `Integer.valueOf(5)` is preferred over `new Integer(5)`: the factory caches small values, and the constructor cannot.
 
 **Hide generic clutter.**
 
@@ -200,9 +206,9 @@ The standard library is consistent, and following it makes your code predictable
 
 <RulesBox title="Do not overuse it">
 
-A factory for a class with one straightforward constructor is pure overhead. `new Point(3, 4)` is perfectly clear, and wrapping it in `Point.of(3, 4)` adds a layer for nothing.
+A factory for a class with one simple constructor is overhead with no benefit. `new Point(3, 4)` is perfectly clear, and wrapping it in `Point.of(3, 4)` adds a layer for nothing.
 
-Add a factory when you have a concrete reason from the table above — naming, subtype choice, validation, or reuse. "Factories are good practice" is not a reason.
+Add a factory when you have a concrete reason from the table above: naming, subtype choice, validation, or reuse. "Factories are good practice" is not a reason.
 
 </RulesBox>
 
@@ -215,6 +221,8 @@ Add a factory when you have a concrete reason from the table above — naming, s
 - **Mutable cached instances.** Only share objects that cannot be changed after creation, or callers will interfere with each other.
 
 </RulesBox>
+
+<JavaPlayground id="java-dp-factory-method" />
 
 <ExerciseBox title="Practice">
 
@@ -230,7 +238,7 @@ Add a factory when you have a concrete reason from the table above — naming, s
 1. Store radians internally; convert on the way in and out.
 2. A `static final` field, returned when the argument is 0.
 3. Same shape as `Angle`. Pick one internal unit and convert at the boundary.
-4. Return the abstract type from the factory. Try calling a subclass-only method on the result and note the compile error — that is the encapsulation working.
+4. Return the abstract type from the factory. Try calling a subclass-only method on the result and note the compile error; that is the encapsulation working.
 5. Constructor takes the configuration; `create(int port)` applies it.
 
 </details>
@@ -245,6 +253,14 @@ Add a factory when you have a concrete reason from the table above — naming, s
     {"label":"The Command Pattern","id":"java-dp-command"}
   ]}
 />
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"url": "https://en.wikipedia.org/wiki/Factory_method_pattern", "label": "Wikipedia: Factory method pattern", "note": "The pattern."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer.valueOf</code> caching."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List.of</code>."},
+  {"source": "java-api", "path": "java.base/java/util/Optional.html", "note": "<code>Optional</code> API reference."}
+]} />
 
 <LinkGrid
   title="Related"

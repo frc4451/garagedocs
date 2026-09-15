@@ -7,7 +7,7 @@ groupLabel: "Data Structures"
 groupOrder: 5
 order: 5
 difficulty: intermediate
-duration: 25 min
+duration: 30 min
 description: A structure where the first item added is the first one removed, plus priority queues for when order should depend on importance rather than arrival.
 ---
 
@@ -27,7 +27,7 @@ The everyday picture is a line of people waiting: you join at the back, and the 
   ]}
 />
 
-Java gives you two names for most operations. The `offer`/`poll`/`peek` family returns a signal value when something goes wrong; the `add`/`remove`/`element` family throws. Pick one style and stay with it — mixing them is how you end up with an unexpected exception.
+Java gives you two names for most operations. The `offer`/`poll`/`peek` family returns a signal value when something goes wrong; the `add`/`remove`/`element` family throws. Pick one style and stay with it; mixing them is how you end up with an unexpected exception.
 
 ### Using one
 
@@ -51,7 +51,7 @@ System.out.println(tasks.size());    // 1
 
 Draining a queue completely:
 
-```java
+```java norun
 while (!tasks.isEmpty()) {
     String task = tasks.poll();
     System.out.println("running: " + task);
@@ -60,9 +60,9 @@ while (!tasks.isEmpty()) {
 
 <RulesBox title="Do not use LinkedList as your queue by default">
 
-`LinkedList` also implements `Queue`, and older code often uses it. `ArrayDeque` is faster and uses less memory, for the cache reasons described in [Linked Lists](/java/java-ds-linked-lists).
+`LinkedList` also implements `Queue`, and older code often uses it. `ArrayDeque` is faster and uses less memory, for the cache reasons described in [Linked Lists](/java/java-ds-linked-lists#why-indexing-is-expensive).
 
-The exception is if you genuinely need `null` elements, which `ArrayDeque` rejects. That is rare and usually a sign the design should change instead.
+The exception is if you need `null` elements, which `ArrayDeque` rejects. That is rare and usually a sign the design should change instead.
 
 </RulesBox>
 
@@ -91,9 +91,9 @@ class ActionScheduler {
 
 **Buffering readings.** Collect sensor values as they arrive and process them in order.
 
-**Breadth-first search.** This is the big one. Exploring a grid or graph outward from a starting point, level by level, is a queue at its core — and it is what finds shortest paths in an unweighted graph. See [Graphs](/java/java-ds-graphs).
+**Breadth-first search.** Exploring a grid or graph outward from a starting point, level by level, is a queue at its core, and it is what finds shortest paths in an unweighted graph. See [Graphs](/java/java-ds-graphs#breadth-first-search).
 
-```java
+```java norun
 Queue<int[]> frontier = new ArrayDeque<>();
 frontier.offer(new int[]{startRow, startCol});
 
@@ -141,11 +141,11 @@ queue.offer(new Task("driveForward", 2));
 System.out.println(queue.poll().name);   // stopMotors
 ```
 
-Use `Integer.compare(a, b)` rather than `a - b`. Subtraction can overflow for large values and give the wrong sign — a bug that only appears on extreme inputs.
+Use `Integer.compare(a, b)` rather than `a - b`. Subtraction can overflow for large values and give the wrong sign, a bug that only appears on extreme inputs.
 
 For largest-first, reverse the comparison:
 
-```java
+```java norun
 new PriorityQueue<>((a, b) -> Integer.compare(b.priority, a.priority));
 ```
 
@@ -164,6 +164,37 @@ for (int v : pq) System.out.print(v); // NOT in sorted order
 Only `peek` and `poll` respect priority. Printing it or iterating over it gives the internal heap layout, which is not sorted. To get every element in order, `poll` until empty.
 
 </RulesBox>
+
+### Top K with a bounded heap
+
+"The five best of these" does not need a sort. Keep a priority queue of size K whose *smallest* element is at the front; offer every value, and whenever the queue grows past K, poll the front. What survives is the K largest, at a cost of O(n log K) instead of sorting everything at O(n log n).
+
+```java
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.PriorityQueue;
+
+public class Main {
+    static List<Double> topK(double[] values, int k) {
+        PriorityQueue<Double> keep = new PriorityQueue<>();    // smallest at the front
+        for (double v : values) {
+            keep.offer(v);
+            if (keep.size() > k) keep.poll();                // drop the smallest of K + 1
+        }
+        List<Double> out = new ArrayList<>(keep);
+        Collections.sort(out, Collections.reverseOrder());
+        return out;
+    }
+
+    public static void main(String[] args) {
+        double[] pickScores = { 65.5, 48.0, 113.0, 34.75, 107.5, 59.5, 88.5, 99.75 };
+        System.out.println(topK(pickScores, 3));   // [113.0, 107.5, 99.75]
+    }
+}
+```
+
+The front of the queue is always the weakest of the current K, which is exactly the one to evict when a K+1th arrives. For the K *smallest*, reverse the comparator. This is the "do not sort the whole list" version of the top-K query in [A26](/assignments/a26-stream-filter), and it is what you reach for when the list is large or arrives one value at a time.
 
 <ContentTable
   title="Costs"
@@ -185,6 +216,8 @@ Only `peek` and `poll` respect priority. Printing it or iterating over it gives 
 
 </RulesBox>
 
+<JavaPlayground id="java-ds-queues" />
+
 <ExerciseBox title="Practice">
 
 1. Offer the numbers 1 through 5 to a queue, then poll and print them. Confirm the order is preserved, unlike a stack.
@@ -200,11 +233,22 @@ Only `peek` and `poll` respect priority. Printing it or iterating over it gives 
 2. Offer each new reading; if `size()` exceeds 10, `poll` one off the front.
 3. Drain with a `while (!queue.isEmpty())` loop.
 4. A comparator on the priority field.
-5. Breadth-first search. Offer the start cell, then repeatedly poll and offer the unvisited open neighbours. Mark cells visited **when you offer them**, not when you poll — otherwise the same cell gets queued several times.
+5. Breadth-first search. Offer the start cell, then repeatedly poll and offer the unvisited open neighbours. Mark cells visited **when you offer them**, not when you poll; otherwise the same cell gets queued several times.
 
 </details>
 
 </ExerciseBox>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "dev-java", "path": "api/collections-framework/stacks-queues/", "note": "Queues."},
+  {"source": "java-api", "path": "java.base/java/util/Queue.html", "note": "<code>offer</code>/<code>poll</code>/<code>peek</code> versus <code>add</code>/<code>remove</code>/<code>element</code>."},
+  {"source": "java-api", "path": "java.base/java/util/PriorityQueue.html", "note": "<code>PriorityQueue</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer.compare</code>."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayDeque.html", "note": "<code>ArrayDeque</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/LinkedList.html", "note": "<code>LinkedList</code> API reference."}
+]} />
 
 <LinkGrid
   title="Next"

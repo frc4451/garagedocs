@@ -7,13 +7,19 @@ groupLabel: Command-Based Programming
 groupOrder: 3
 order: 2
 difficulty: beginner
-duration: 30 min
-description: Encapsulating hardware in a subsystem — configuration that cannot fail silently, logging that comes for free, and command factories.
+duration: 20 min
+description: "Encapsulating hardware in a subsystem: configuration that cannot fail silently, logging from a single annotation, and command factories."
 ---
 
-### Overview
+<RulesBox title="You have done this in Kit Bot">
 
-Subsystems encapsulate hardware (motors, sensors) and provide methods to control them. They extend `SubsystemBase` and should contain minimal logic—just the 'how' to control hardware.
+Kit Bot's [R04](/kit-bot/r04-subsystems) built a subsystem from scratch and [R07](/kit-bot/r07-launcher-io) put an IO behind it. This lesson is what changes at competition scale: configuration that can fail, setters that log what they set, command factories, and the thin-wrapper shape Cobra uses over the ROBOTZ Garage library.
+
+</RulesBox>
+
+### Keep hardware logic in one place
+
+Subsystems encapsulate hardware (motors, sensors) and provide methods to control them. They extend `SubsystemBase` and should contain minimal logic: only how to control the hardware.
 
 <RulesBox title="Subsystem Principles" subtitle="Best practices:">
 
@@ -29,9 +35,11 @@ Subsystems encapsulate hardware (motors, sensors) and provide methods to control
 
 <CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot.subsystems.intake;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.ctre.phoenix6.hardware.TalonFX;\nimport com.ctre.phoenix6.configs.TalonFXConfiguration;\nimport com.ctre.phoenix6.signals.NeutralModeValue;\nimport frc.robot.util.PhoenixUtil;\n\nimport static frc.robot.Constants.IntakeConstants.*;\n\npublic class Intake extends SubsystemBase {\n    TalonFX motor = new TalonFX(INTAKE_MOTOR_PORT);\n    TalonFXConfiguration config = new TalonFXConfiguration();\n\n    public Intake() {\n        config.MotorOutput.NeutralMode = NeutralModeValue.Coast;\n        config.CurrentLimits.StatorCurrentLimitEnable = true;\n        config.CurrentLimits.SupplyCurrentLimitEnable = true;\n        config.CurrentLimits.StatorCurrentLimit = 60;\n        config.CurrentLimits.SupplyCurrentLimit = 40;\n\n        PhoenixUtil.tryUntilOk(5, () -> motor.getConfigurator().apply(config));\n    }\n\n    public double setIntakeDutyCycle(double dc) {\n        motor.set(dc);\n        return dc;\n    }\n\n    public double getIntakeVelocity() {\n        return motor.getVelocity().getValueAsDouble();\n    }\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot.subsystems.intake;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\nimport com.revrobotics.spark.config.SparkMaxConfig;\nimport com.revrobotics.spark.config.SparkBaseConfig.IdleMode;\nimport com.revrobotics.spark.SparkBase.ResetMode;\nimport com.revrobotics.spark.SparkBase.PersistMode;\n\nimport static frc.robot.Constants.IntakeConstants.*;\n\npublic class Intake extends SubsystemBase {\n    SparkMax motor = new SparkMax(INTAKE_MOTOR_PORT, MotorType.kBrushless);\n\n    public Intake() {\n        SparkMaxConfig config = new SparkMaxConfig();\n        config.idleMode(IdleMode.kCoast);\n        config.smartCurrentLimit(40);\n        config.secondaryCurrentLimit(60);\n\n        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n    }\n\n    public double setIntakeDutyCycle(double dc) {\n        motor.set(dc);\n        return dc;\n    }\n\n    public double getIntakeVelocity() {\n        return motor.getEncoder().getVelocity();\n    }\n}","language":"java"}]} />
 
+The `Slot0` gains in that configuration (`kP`, `kS`, `kV`…) are the closed-loop and feedforward constants. What they mean and how they are found is [Control Theory](/frc/frc-pid-control), two groups on. For now they are numbers the config carries; the subsystem's job is to apply them, not to understand them.
+
 ### Configuration Can Fail Silently
 
-On the CTRE side, `getConfigurator().apply(config)` returns a `StatusCode`, and on a busy CAN bus at startup — twenty-odd devices powering up at once — it does not always succeed.
+On the CTRE side, `getConfigurator().apply(config)` returns a `StatusCode`, and on a busy CAN bus at startup, with twenty or more devices powering up at once, it does not always succeed.
 
 A failed apply reports nothing. The motor keeps whatever configuration it already had, which might be last season's inversion or no current limit at all. You find out when a mechanism runs backwards or a breaker trips.
 
@@ -41,7 +49,7 @@ Retry it:
 PhoenixUtil.tryUntilOk(5, () -> motor.getConfigurator().apply(config));
 ```
 
-Five attempts cost nothing and remove the failure mode. The helper itself is about ten lines — see [Motor Configuration](/frc/motor-controller-configuration).
+Five attempts cost nothing and remove the failure mode. The helper itself is about ten lines; see [Motor Configuration](/frc/motor-controller-configuration#applying-configuration-can-fail).
 
 ### Keep the Config as a Field
 
@@ -56,7 +64,7 @@ public void coast() {
 
 Useful in the pit, where you want to push a mechanism by hand.
 
-It also makes configuring two mirrored motors trivial — set the shared values once, apply, flip the inversion, apply again:
+It also makes configuring two mirrored motors short: set the shared values once, apply, flip the inversion, apply again:
 
 ```java
 config.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
@@ -70,7 +78,7 @@ That one flipped line is the entire difference between the two sides.
 
 ### Setters That Return What They Set
 
-The setters above return their argument instead of being `void`. That is not decorative — it is what makes commanded values loggable with a single annotation:
+The setters above return their argument instead of being `void`. That is not decorative. It is what makes commanded values loggable with a single annotation:
 
 ```java
 @AutoLogOutput(key = "Intake/targetDutyCycle")
@@ -85,14 +93,14 @@ public double getIntakeVelocity() {
 }
 ```
 
-`@AutoLogOutput` records **the return value of the method**. A `void` setter has nothing to record, so the value you commanded never reaches the log — and then tuning means guessing at half the picture.
+`@AutoLogOutput` records **the return value of the method**. A `void` setter has nothing to record, so the value you commanded never reaches the log, and tuning then means guessing at half the picture.
 
-With both sides logged, the commanded value and the measured result can be dragged onto the same graph. See [AdvantageKit](/frc/advantagekit) for the annotation and [AdvantageScope](/frc/advantagescope) for reading the result.
+With both sides logged, the commanded value and the measured result can be dragged onto the same graph. See [AdvantageKit](/frc/advantagekit#autologoutput) for the annotation and [AdvantageScope](/frc/advantagescope#where-the-record-comes-from) for reading the result.
 
 <RulesBox title="What to log on a new subsystem" subtitle="At minimum:">
 
 - **Every commanded value**, via a setter that returns it.
-- **Every measured value** a command depends on — position, velocity.
+- **Every measured value** a command depends on: position, velocity.
 - **A key path starting with the subsystem name**, so it groups correctly in the log viewer.
 
 If you would want it on a graph while tuning, log it now. Adding it after the match where you needed it is too late.
@@ -104,20 +112,20 @@ If you would want it on a graph while tuning, log it now. Adding it after the ma
 A subsystem exposes its actions as methods returning `Command`. `SubsystemBase` provides `run()` and `runOnce()`, which build a command that already requires this subsystem:
 
 ```java
-// Duty cycle — must be re-commanded every loop
+// Duty cycle: must be re-commanded every loop
 public Command setIntakeCommand(double speed) {
     return run(() -> setIntakeDutyCycle(speed));
 }
 
-// Closed-loop setpoint — the controller holds it
+// Closed-loop setpoint: the controller holds it
 public Command setIntakePosCommand(double pos) {
     return runOnce(() -> setIntakePosition(pos));
 }
 ```
 
-Because these are instance methods, the requirement is automatic — there is no `addRequirements()` to forget. And because they are methods, they take parameters, so one factory replaces several near-identical command classes.
+Because these are instance methods, the requirement is automatic; there is no `addRequirements()` to forget. And because they are methods, they take parameters, so one factory replaces several near-identical command classes.
 
-Full treatment in [Commands](/frc/commands).
+Full treatment in [Commands](/frc/commands#subsystem-command-factories).
 
 ### Default Commands
 
@@ -131,19 +139,30 @@ intake.setDefaultCommand(intake.setIntakeCommand(0));
 
 Release the trigger and the intake command is unscheduled. The scheduler immediately restarts the default command, which commands zero.
 
-Without a default command, the last value stays applied and the roller keeps spinning until something else claims the subsystem. Every mechanism that can be left running needs one — and the drivetrain's default command is the joystick drive, for the same reason.
+Without a default command, the last value stays applied and the roller keeps spinning until something else claims the subsystem. Every mechanism that can be left running needs one. The drivetrain's default command is the joystick drive, for the same reason.
 
 </RulesBox>
 
 <RulesBox title="Common mistakes">
 
 - **Applying configuration without a retry**, so a failure is silent.
-- **Setting only one current limit.** Stator protects the motor; supply protects the battery. See [Current Limiting](/frc/motor-current-limiting).
+- **Setting only one current limit.** Stator protects the motor; supply protects the battery. See [Current Limiting](/frc/motor-current-limiting#types-of-limits).
 - **`void` setters**, so commanded values never reach the log.
 - **Logic in `periodic()`** that belongs in a command.
-- **Blocking loops in a subsystem.** A `while` loop waiting on a mechanism stalls the entire scheduler — every other subsystem stops updating, including the sensor the loop is waiting on. Use `Commands.waitUntil` instead.
+- **Blocking loops in a subsystem.** A `while` loop waiting on a mechanism stalls the entire scheduler. Every other subsystem stops updating, including the sensor the loop is waiting on. Use `Commands.waitUntil` instead.
 - **No default command,** so a mechanism never stops.
 
 </RulesBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "<code>SubsystemBase</code>, <code>periodic()</code>, default commands, command factories."},
+  {"source": "wpilib", "path": "docs/software/commandbased/organizing-command-based.html", "note": "Where logic belongs: subsystem methods versus commands."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "The thin-wrapper subsystem over a <code>SingleRoller</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/IntakeConstants.java", "note": "The constants the subsystem is built from."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "What the wrapper delegates to."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/util/PhoenixUtil.java", "note": "Configuration applied at construction."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "Where subsystems are constructed once."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "Mode-dependent IO choice."}
+]} />
 
 <LinkGrid links={[{"label":"Commands","id":"commands"},{"label":"Hardware Abstraction with IO Layers","id":"io-layer"},{"label":"Intake Example","id":"intake-command-based"},{"label":"WPILib Subsystems Documentation","url":"https://docs.wpilib.org/en/stable/docs/software/commandbased/subsystems.html"}]} title="Resources" section="frc" />

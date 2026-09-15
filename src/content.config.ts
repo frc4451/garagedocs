@@ -1,15 +1,19 @@
-import { defineCollection, z } from 'astro:content';
+import { defineCollection } from 'astro:content';
+import { z } from 'astro/zod';
 import { glob } from 'astro/loaders';
 
 const lessonSchema = z.object({
   title: z.string(),
   lessonId: z.string(),
-  section: z.enum(['java', 'ftc', 'frc', 'comp']),
+  section: z.enum(['tools', 'java', 'assignments', 'kit-bot', 'frc']),
   group: z.string().optional(),
   groupLabel: z.string().optional(),
   groupOrder: z.number().optional(),
   difficulty: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
   duration: z.string().optional(),
+  // Hands-on pages (installs, repo tours, tuning sessions) carry a wall-clock
+  // estimate that scripts/estimate-durations.mjs must not overwrite.
+  durationFixed: z.boolean().optional().default(false),
   order: z.number().default(0),
   description: z.string().optional(),
   draft: z.boolean().optional().default(false),
@@ -19,17 +23,20 @@ const lessonSchema = z.object({
   unlisted: z.boolean().optional().default(false),
 });
  
-const createLessonCollection = (section: 'java' | 'ftc' | 'frc' | 'comp') =>
+const createLessonCollection = (
+  section: 'tools' | 'java' | 'assignments' | 'kit-bot' | 'frc',
+) =>
   defineCollection({
     loader: glob({ pattern: '**/*.{md,mdx}', base: `./src/content/${section}` }),
     schema: lessonSchema.extend({ section: z.literal(section) }),
   });
 
 export const collections = {
+  tools: createLessonCollection('tools'),
   java: createLessonCollection('java'),
-  ftc: createLessonCollection('ftc'),
+  assignments: createLessonCollection('assignments'),
+  'kit-bot': createLessonCollection('kit-bot'),
   frc: createLessonCollection('frc'),
-  comp: createLessonCollection('comp'),
   homepage: defineCollection({
     loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/homepage' }),
     schema: z.object({

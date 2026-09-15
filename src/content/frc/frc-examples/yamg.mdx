@@ -1,0 +1,78 @@
+---
+title: "YAMG: Generating a Mechanism"
+lessonId: yamg
+section: frc
+group: frc-examples
+groupLabel: "Mechanism Examples"
+groupOrder: 7
+order: 1
+difficulty: beginner
+duration: 10 min
+description: "A web form that turns one motor, a gear ratio and a set of limits into a working subsystem: what it is good for, what it is not, and how it fits beside the ROBOTZ Garage library."
+---
+
+### What it is
+
+[YAMG](https://yamg.yassrobotics.com/), Yet Another Mechanism Generator, is a browser form. You describe a mechanism and it hands back Java: a command-based subsystem for an **elevator**, an **arm**, or a **pivot**, already wired to the motor controller you named, with limits, ramp rates, current limits and a closed-loop position controller filled in from what you typed.
+
+The generated code is plain WPILib plus the vendor library: Phoenix 6 for a TalonFX or TalonFXS, REVLib for a SparkMax or SparkFlex, ThriftyLib for a Nova. It depends on nothing else. In particular it does **not** depend on YAMS or any other part of the suite it was born in, which is why it is on this list and they are not.
+
+### What you give it
+
+<ContentTable
+  headers={["Field", "What it decides"]}
+  rows={[
+    ["Mechanism type", "Elevator, arm or pivot, which decides the feedforward shape and the units the generated code uses"],
+    ["Controller and motor", "TalonFX / TalonFXS / SparkMax / SparkFlex / Nova, and the motor behind it"],
+    ["CAN ID", "The one number that has to match the hardware"],
+    ["Gear ratio", "<em>Motor rotations per mechanism rotation</em>: the conversion between what the encoder counts and what the mechanism does"],
+    ["Brake mode", "Whether the mechanism holds when unpowered"],
+    ["Ramp rates", "Open- and closed-loop, in seconds from zero to full; larger values are gentler"],
+    ["Stator current limit", "The amps that protect the motor and the breaker"]
+  ]}
+/>
+
+Every one of those is a number you should have measured or decided before writing any code, and that is the first thing the tool is good for: it is a checklist. If you cannot fill in the gear ratio, you are not ready to write the subsystem, generator or no generator.
+
+### What you get, and what to do with it
+
+The output is a subsystem class you can paste into `subsystems/` and run. Read it before you run it. A generated elevator is the clearest example on offer of a correctly configured motor (soft limits set, current limited, brake mode chosen, ramp rates present, a `Slot0` PID), and the configuration block alone is worth studying against [Motor Controller Configuration](/frc/motor-controller-configuration#configuration-code).
+
+Two things to know about where it stops:
+
+- **It is vendor-direct.** The generated class talks to the TalonFX (or Spark) itself. There is no IO interface between the subsystem and the hardware, so there is no simulation implementation to swap in and nothing for AdvantageKit to replay. That is fine for a test rig or an off-season prototype; it is not how the competition robot is built.
+- **The ROBOTZ Garage library already covers these mechanisms.** Cobra's `org.robotzgarage.frc2026` package has `Elevator`, `Pivot` and `SingleRoller` classes built on the IO pattern, with TalonFX, TalonFXS, Nova and simulation implementations of each. For anything that will ride on the robot, start there; see [Reading Our Robot Code](/frc/team-robot-code#one-mechanism-end-to-end). YAMG is the quick answer for a mechanism on a bench, a rookie's first subsystem, or a reference for what a complete motor config looks like.
+
+### A sensible workflow
+
+1. Fill in the form for the mechanism in front of you. Measure the gear ratio; do not estimate it.
+2. Paste the generated subsystem into a scratch project and drive it from a test command. Confirm direction, soft limits and brake mode on the real hardware.
+3. Read the configuration block and the position-control call until every line makes sense.
+4. If the mechanism is going on the competition robot, rebuild it on the ROBOTZ Garage library's `Elevator` or `Pivot` with an IO implementation, carrying over the numbers you just proved: the gear ratio, the limits, the current limit, the gains.
+
+The generator saves an hour of typing. The reading is where the learning is.
+
+<RulesBox title="Common mistakes">
+
+- **Gear ratio the wrong way round.** The tool asks for motor rotations per mechanism rotation; a 12:1 reduction is `12`, not `0.083`.
+- **Skipping the soft-limit test.** Generated limits are only as good as the numbers you typed. Jog the mechanism to each end slowly before trusting them.
+- **Shipping the generated class as-is on the robot.** No IO layer means no sim, no replay, and a second copy of hardware-configuration logic that the ROBOTZ Garage library already owns.
+- **Treating the default gains as tuned.** They are placeholders. [PID Tuning Practice](/frc/pid-tuning-practice-setup) is the next step, not an optional one.
+
+</RulesBox>
+
+<Sources items={[
+  {"url": "https://yamg.yassrobotics.com/", "label": "YAMG: Yet Another Mechanism Generator", "note": "The generator, its inputs and the WPILib + vendor code it emits."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "What a generated elevator or pivot is rebuilt on before it reaches the competition robot."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "The library elevator."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/pivot/Pivot.java", "note": "The library pivot."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "Why generated code cannot plug into the logging and replay setup unchanged."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/introduction.html", "note": "The simulation the generated project runs in."}
+]} />
+
+<LinkGrid title="Next" section="frc" links={[
+  {"label":"YAMG","url":"https://yamg.yassrobotics.com/"},
+  {"label":"Motor Controller Configuration","id":"motor-controller-configuration"},
+  {"label":"Reading Our Robot Code","id":"team-robot-code"},
+  {"label":"PID Tuning Practice","id":"pid-tuning-practice-setup"}
+]} />

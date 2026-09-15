@@ -1,0 +1,138 @@
+---
+title: "A24: Scouting Database"
+lessonId: a24-scouting-database
+section: assignments
+group: collections
+groupLabel: "Track 3 — Collections"
+groupOrder: 3
+order: 24
+difficulty: intermediate
+duration: 90 min
+description: Move scouting data off arrays and onto an ArrayList — add, remove, filter, sort, and hand callers a view they cannot break.
+---
+
+**Topic:** `ArrayList<T>`, the `List<T>` interface, `removeIf`, `Optional`, unmodifiable views.
+**Cites:** [ArrayLists](/java/java-ds-arraylists), [Lambdas](/java/java-fn-lambdas), [Arrays](/java/java-arrays).
+**Difficulty:** medium. **Estimated time:** 90 minutes.
+
+### Scenario
+
+In [A21](/assignments/a21-scouting-csv) you moved scouting rows around in arrays. Arrays
+are the right tool when you know the size up front. They are the wrong one the moment
+entries arrive over the course of a weekend, get filtered, get ranked, and get deleted
+because someone typed the wrong team number.
+
+`ArrayList<T>` is the everyday list. This assignment is the small database you will
+actually reach for at a competition — and one design decision that separates a class
+you can trust from one you cannot.
+
+### What to build
+
+**`TeamEntry`** — a record holding `teamNumber`, `teamName`, `drivetrain`, `avgPoints`
+and `climbsHigh`, with a compact constructor that validates: team number 1 to 99999,
+name not blank, `drivetrain` one of `TANK` / `MECANUM` / `SWERVE` / `OTHER`, `avgPoints`
+not negative. `pickScore()` is `avgPoints`, plus 25 when the team climbs high.
+
+**`ScoutingDatabase`** — one `ArrayList<TeamEntry>` field and nothing else:
+
+<ContentTable
+  headers={["Method", "What it does"]}
+  rows={[
+    ["<code>add(TeamEntry)</code>", "Append. Validation already happened in the record."],
+    ["<code>removeByTeamNumber(int)</code>", "Returns whether anything was removed."],
+    ["<code>findByTeamNumber(int)</code>", "<code>Optional&lt;TeamEntry&gt;</code> — empty, never <code>null</code>."],
+    ["<code>filter(Predicate&lt;TeamEntry&gt;)</code>", "The matching entries, in insertion order. This is the bridge from the list to lambdas."],
+    ["<code>filterByDrivetrain(String)</code>", "Should be one line, expressed in terms of <code>filter</code>."],
+    ["<code>sortedByPickScore()</code>", "A sorted <em>copy</em>, highest first. The database itself must come back unchanged."],
+    ["<code>all()</code>", "An <strong>unmodifiable view</strong> of the entries."]
+  ]}
+/>
+
+### The one that matters
+
+`all()` is the decision worth arguing about. Returning the internal list directly lets
+any caller add to your database — or clear it — without going through a single line of
+your validation. `Collections.unmodifiableList(entries)` returns a wrapper that reads
+straight through to your data and throws on any attempt to write.
+
+It is a *view*, not a copy: later additions through `add` show up in a view somebody
+already holds. That is usually what you want, and it is worth knowing that it is what
+you are getting.
+
+<RulesBox title="How the browser version differs" items={[
+  "Two files locally, one here, with only <code>ScoutingCLI</code> declared <code>public</code>.",
+  "The full assignment prompts field by field when you add a team. Here each command is <strong>one line</strong>: the letter, then its argument — so a session can be pasted into the input box. <code>a 5000,New Team,TANK,30.0,false</code> adds a row.",
+  "<code>main</code> seeds six teams so every command has something to work on. It and its helpers are written for you."
+]} />
+
+<ContentTable
+  headers={["Command", "Does"]}
+  rows={[
+    ["<code>l</code>", "List everything, in insertion order"],
+    ["<code>s</code>", "List sorted by pick score, descending"],
+    ["<code>f 1339</code>", "Find one team by number"],
+    ["<code>r 2468</code>", "Remove one team by number"],
+    ["<code>d SWERVE</code>", "Filter by drivetrain"],
+    ["<code>h</code>", "The teams that climb high — via a lambda"],
+    ["<code>u</code>", "Check that <code>all()</code> really is unmodifiable"],
+    ["<code>a 5000,New Team,TANK,30.0,false</code>", "Add one entry"],
+    ["<code>q</code>", "Quit"]
+  ]}
+/>
+
+
+<RulesBox title="Plan it as sessions" items={[
+  "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>The list keeps insertion order</em>, <em>Sorting ranks by pick score and leaves the database alone</em>, <em>Find answers with an Optional either way</em>, <em>Remove reports whether it removed anything</em>.",
+  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Filtering by drivetrain finds all of them, or none</em>, <em>A lambda predicate reaches the same list</em>, <em>Adding goes through the compact constructor</em>, <em>all() hands back a view callers cannot write to</em>."
+]} />
+
+<JavaPlayground id="a24-scouting-database" />
+
+<RulesBox title="Hints" items={[
+  "<strong>Do not remove inside a for-each.</strong> Mutating a list while iterating it throws <code>ConcurrentModificationException</code>. <code>removeIf</code> takes a predicate, does it safely, and returns a <code>boolean</code> — which is exactly the value <code>removeByTeamNumber</code> owes its caller. The whole method is one line.",
+  "<strong><code>Optional</code> is not a null with extra steps.</strong> It changes who is responsible for the missing case. <code>findByTeamNumber(n).map(...).orElse(...)</code> forces the caller to say what happens when the team is not there, at compile time rather than at the competition.",
+  "<strong>Sort a copy.</strong> <code>new ArrayList&lt;&gt;(entries)</code> then <code>.sort(...)</code> gives you a sorted list without reordering the database. A check compares the list immediately after a sort for exactly this reason.",
+  "<strong>Descending is <code>reversed()</code>, not a negated comparison.</strong> <code>Comparator.comparingDouble(TeamEntry::pickScore).reversed()</code> says what it means; swapping the operands inside a hand-written comparator says it too, but quietly.",
+  "<strong>Write <code>filterByDrivetrain</code> last.</strong> Once <code>filter</code> takes a predicate, the drivetrain version is that method called with one lambda. If you find yourself writing a second loop, you have written the same method twice."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Functionality", "60", "Every command works. <code>add</code> validates through the compact constructor. <code>remove</code> reports whether it removed. <code>find</code> returns <code>Optional</code>. <code>filter</code> works with any lambda. <code>sortedByPickScore</code> does not reorder the database."],
+    ["Edge cases", "15", "Removing a number that is not there returns <code>false</code> rather than crashing. Finding in an empty database gives an empty <code>Optional</code>. Filtering for a drivetrain nobody runs gives an empty list, not <code>null</code>."],
+    ["Code quality", "20", "<code>removeIf</code> rather than a hand-rolled loop. <code>all()</code> returns an unmodifiable view. One list field. <code>filterByDrivetrain</code> delegates to <code>filter</code>. No indexed <code>for</code> where a for-each would read better."],
+    ["Comments", "5", "Author header, and a note on why <code>all()</code> is unmodifiable."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Add `top(int k)` returning the k best by pick score. Write it once with `sorted` +
+  `limit` and once by sorting and taking a sublist, then decide which you would rather
+  read at 11pm in a pit.
+- Wire this to `CsvIO` from [A21](/assignments/a21-scouting-csv): `load(String)` and
+  `save(String)` commands that round-trip the whole database to disk.
+- Give `filter` a sibling that takes two predicates and ands them. Then notice that
+  `Predicate` already has `and`, and delete it again.
+
+### References
+
+- JavaDoc: [`java.util.List<E>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/List.html)
+- JavaDoc: [`java.util.ArrayList<E>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html)
+- JavaDoc: [`Collection.removeIf`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Collection.html#removeIf(java.util.function.Predicate))
+- JavaDoc: [`Collections.unmodifiableList`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Collections.html#unmodifiableList(java.util.List))
+- JavaDoc: [`java.util.Optional<T>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Optional.html)
+- Wikipedia: [Dynamic array](https://en.wikipedia.org/wiki/Dynamic_array)
+
+<Sources items={[
+  {"source": "csce146", "note": "Collections and Optional."},
+  {"source": "dev-java", "path": "api/collections-framework/lists/", "note": "Lists."},
+  {"source": "java-api", "path": "java.base/java/util/Optional.html", "note": "<code>Optional</code>: <code>map</code>, <code>orElse</code>, <code>ifPresent</code>."},
+  {"source": "java-api", "path": "java.base/java/util/function/Predicate.html", "note": "<code>Predicate</code>."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/Collections.html", "note": "<code>Collections</code> API reference."}
+]} />

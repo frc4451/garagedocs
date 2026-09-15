@@ -3,143 +3,194 @@ title: Elevator Example
 lessonId: elevator-example
 section: frc
 group: frc-examples
-groupLabel: Mechanism Examples
+groupLabel: "Mechanism Examples"
 groupOrder: 7
-order: 1
+order: 2
 difficulty: intermediate
-duration: 95 min
-description: ""
+duration: 30 min
+description: "An elevator the way the ROBOTZ Garage library builds one: Elevator extends SingleRoller, an ElevatorConfig with gravity and travel limits, TalonFX and sim configs side by side, height in inches at the API and rotor rotations underneath, the drawn mechanism, and what to watch in AdvantageScope before it ever touches hardware."
 ---
 
-### Template Project
+You built a launcher and a drivetrain on the IO pattern in [Kit Bot R07](/kit-bot/r07-launcher-io) and [R08](/kit-bot/r08-drive-io), writing every IO class yourself. On the competition robot FRC 4451 does not write those from scratch each time: `org.robotzgarage.frc2026`, the ROBOTZ Garage library toured in [Reading Our Robot Code](/frc/team-robot-code#the-two-packages), already has a `SingleRoller` with real, sim and vendor-sim IO implementations, and an `Elevator` that specialises it. This lesson builds an elevator on that library, in simulation, the way a new mechanism gets added to Cobra.
 
-Start with the **Command Robot** template project. Elevators are implemented as subsystems, so the command-based structure is ideal. Create a new subsystem class in the `subsystems` package.
+### The shape
 
-### Overview
+```
+Elevator (ROBOTZ Garage library)          extends   SingleRoller (ROBOTZ Garage library)
+  ├─ ElevatorConfig                          ├─ SingleRollerIO io      ← TalonFX / SimTalonFX / Sim / empty
+  ├─ height ↔ rotations conversion           ├─ inputs (AutoLogged)
+  ├─ clamped goal                            ├─ LoggedTunableNumbers for kP…kA
+  └─ ElevatorSim for logging/limits          └─ steadyStateCharacterization()
+```
 
-Elevators require **Position Control**. Unlike intakes (speed), elevators must move to precise heights and hold them against gravity. We'll build an elevator subsystem using PID control with Feedforward and Motion Profiling to achieve smooth, accurate movement.
+Everything you wrote by hand for the Kit Bot launcher (the interface, the inputs struct, the real and sim implementations, the tunable gains) is the `SingleRoller` half. `Elevator` adds what makes a roller an elevator: a drum radius that turns rotations into a height, travel limits, gravity, and a mechanism drawing.
 
-<RulesBox title="Goals" subtitle="The elevator subsystem must:">
+### Step 1: the constants
 
-- Move to setpoints (Low, Mid, High).
-- Hold position (Brake Mode + PID).
-- Use Motion Profiling (Smooth acceleration).
-- Compensate for gravity (Feedforward).
-
-</RulesBox>
-
-### Step 1: Create Subsystem Structure
-
-Start by creating the `Elevator` class that extends `SubsystemBase`. This class will manage the elevator motor and all configuration.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot.subsystems;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.ctre.phoenix6.hardware.TalonFX;\nimport com.ctre.phoenix6.configs.TalonFXConfiguration;\nimport com.ctre.phoenix6.signals.NeutralModeValue;\nimport com.ctre.phoenix6.controls.MotionMagicVoltage;\n\npublic class Elevator extends SubsystemBase {\n    // We'll add fields here\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot.subsystems;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\nimport com.revrobotics.spark.config.SparkMaxConfig;\nimport com.revrobotics.spark.config.SparkBaseConfig.IdleMode;\nimport com.revrobotics.spark.SparkBase.ResetMode;\nimport com.revrobotics.spark.SparkBase.PersistMode;\nimport com.revrobotics.spark.ClosedLoopController.ControlType;\n\npublic class Elevator extends SubsystemBase {\n    // We'll add fields here\n}","language":"java"}]} />
-
-### Step 2: Declare Motor and Control Objects
-
-Add fields for the motor and control request. The motor is on CAN ID 6. For Talon FX, we create a `MotionMagicVoltage` control request that we'll reuse. For SPARK MAX, we get the closed-loop controller.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"public class Elevator extends SubsystemBase {\n    // Elevator motor on CAN ID 6\n    private final TalonFX m_motor = new TalonFX(6);\n    \n    // Motion Magic® control request (trapezoidal motion profile)\n    private final MotionMagicVoltage m_request = new MotionMagicVoltage(0);\n}","language":"java"},{"label":"SPARK MAX","code":"public class Elevator extends SubsystemBase {\n    // Elevator motor on CAN ID 6, brushless type\n    private final SparkMax m_motor = new SparkMax(6, MotorType.kBrushless);\n    // Get closed-loop controller for PID control\n    private final SparkClosedLoopController m_pid = m_motor.getClosedLoopController();\n}","language":"java"}]} />
-
-### Step 3: Configure Motor - Basic Settings
-
-In the constructor, configure the motor. Start with basic settings: Brake mode to hold position against gravity. This prevents the elevator from falling when power is removed.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"public Elevator() {\n    TalonFXConfiguration config = new TalonFXConfiguration();\n    // Brake mode to hold position against gravity\n    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;\n    m_motor.getConfigurator().apply(config);\n}","language":"java"},{"label":"SPARK MAX","code":"public Elevator() {\n    SparkMaxConfig config = new SparkMaxConfig();\n    // Brake mode to hold position against gravity\n    config.idleMode(IdleMode.kBrake);\n    m_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n}","language":"java"}]} />
-
-### Step 4: Configure PID Gains
-
-Add PID gains for position control. **kP** (Proportional) corrects position errors. **kD** (Derivative) dampens oscillations. **kI** (Integral) is usually set to 0 for elevators. These values work with the motion profile to follow the trajectory accurately.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"public Elevator() {\n    TalonFXConfiguration config = new TalonFXConfiguration();\n    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;\n    \n    // PID gains for position control (Slot 0)\n    config.Slot0.kP = 0.5;  // Proportional gain\n    config.Slot0.kI = 0.0;  // Integral gain\n    config.Slot0.kD = 0.05; // Derivative gain\n    \n    m_motor.getConfigurator().apply(config);\n}","language":"java"},{"label":"SPARK MAX","code":"public Elevator() {\n    SparkMaxConfig config = new SparkMaxConfig();\n    config.idleMode(IdleMode.kBrake);\n    \n    // PID gains for position control\n    config.closedLoop.p(0.5).i(0.0).d(0.05);\n    \n    m_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n}","language":"java"}]} />
-
-### Step 5: Add Feedforward Constants
-
-Feedforward compensates for known forces. **kG** (Gravity) compensates for the elevator's weight pulling downward. **kS** (Static friction) overcomes initial friction to start moving. These values help the motor work less hard and move more smoothly.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"public Elevator() {\n    TalonFXConfiguration config = new TalonFXConfiguration();\n    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;\n    config.Slot0.kP = 0.5;\n    config.Slot0.kI = 0.0;\n    config.Slot0.kD = 0.05;\n    \n    // Feedforward constants\n    config.Slot0.kG = 0.12; // Gravity feedforward (compensates for weight)\n    config.Slot0.kS = 0.05; // Static friction feedforward\n    \n    m_motor.getConfigurator().apply(config);\n}","language":"java"},{"label":"SPARK MAX","code":"public Elevator() {\n    SparkMaxConfig config = new SparkMaxConfig();\n    config.idleMode(IdleMode.kBrake);\n    config.closedLoop.p(0.5).i(0.0).d(0.05);\n    \n    // Note: Feedforward is typically handled separately with WPILib feedforward classes\n    // This example focuses on motion profiling with PID\n}","language":"java"}]} />
-
-### Step 6: Configure Motion Profile Constraints
-
-Motion profiling smooths the movement. Set **Max Velocity** to the desired top speed and **Max Acceleration** to control how quickly it speeds up and slows down. Higher values mean faster movement but more stress on the mechanism.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"public Elevator() {\n    TalonFXConfiguration config = new TalonFXConfiguration();\n    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;\n    config.Slot0.kP = 0.5;\n    config.Slot0.kI = 0.0;\n    config.Slot0.kD = 0.05;\n    config.Slot0.kG = 0.12;\n    config.Slot0.kS = 0.05;\n    \n    // Motion profile constraints\n    config.MotionMagic.MotionMagicCruiseVelocity = 10; // Max velocity (rotations/sec)\n    config.MotionMagic.MotionMagicAcceleration = 20;   // Max acceleration (rotations/sec²)\n    \n    m_motor.getConfigurator().apply(config);\n}","language":"java"},{"label":"SPARK MAX","code":"public Elevator() {\n    SparkMaxConfig config = new SparkMaxConfig();\n    config.idleMode(IdleMode.kBrake);\n    config.closedLoop.p(0.5).i(0.0).d(0.05);\n    \n    // Motion profile constraints (MAXMotion = trapezoidal profile)\n    config.closedLoop.maxMotion.maxVelocity(3000).maxAcceleration(2000);\n    \n    m_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n}","language":"java"}]} />
-
-### Step 7: Add Method to Set Target Height
-
-Create a public method that commands the elevator to move to a specific position. The motion profile and PID controller handle the smooth movement automatically.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"/**\n * Set elevator to target height\n * @param rotations Target position in rotations\n */\npublic void setHeight(double rotations) {\n    m_motor.setControl(m_request.withPosition(rotations));\n}","language":"java"},{"label":"SPARK MAX","code":"/**\n * Set elevator to target height\n * @param rotations Target position in rotations\n */\npublic void setHeight(double rotations) {\n    m_pid.setReference(rotations, ControlType.kMAXMotionPositionControl);\n}","language":"java"}]} />
-
-### Step 8: Create Commands in RobotContainer
-
-In `RobotContainer`, bind buttons to commands that set the elevator to different heights. Use simple `runOnce` commands that call `setHeight()` with the desired position.
-
-Add button bindings in RobotContainer:
-
-
+Two configs, kept together so they cannot drift: the **real** TalonFX config and the **sim** config that carries the physics the model needs. The `ElevatorConfig` describes the mechanism itself and is shared by both.
 
 ```java
-// In RobotContainer class - update the configureBindings() method
+public class ElevatorConstants {
+  public static final double reduction = 9.0;                 // motor rotations per drum rotation
+  public static final Distance drumRadius = Inches.of(0.75);
+  public static final Distance minHeight = Inches.of(0.0);
+  public static final Distance maxHeight = Inches.of(56.0);
+  public static final Mass carriageMass = Pounds.of(16.0);
 
-import edu.wpi.first.wpilibj2.command.InstantCommand;
-import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import frc.robot.subsystems.Elevator;
+  public static final Elevator.ElevatorConfig elevatorConfig =
+      Elevator.ElevatorConfig.builder()
+          .gearbox(DCMotor.getKrakenX60Foc(2))
+          .minHeight(minHeight)
+          .maxHeight(maxHeight)
+          .drumRadius(drumRadius)
+          .initialHeight(Inches.zero())
+          .tolerance(Inches.of(0.5))
+          .carriageMass(carriageMass)
+          .simulateGravity(true)                              // never false for an elevator
+          .moi(0.004)
+          .reduction(reduction)
+          .build();
 
-// The template provides RobotContainer with configureBindings()
-private void configureBindings() {
-    // ... other button bindings
-    
-    // Button A: Move to low position (0 rotations)
-    m_controller.a().onTrue(new InstantCommand(() -> m_elevator.setHeight(0.0), m_elevator));
-    // Button B: Move to high position (10 rotations)
-    m_controller.b().onTrue(new InstantCommand(() -> m_elevator.setHeight(10.0), m_elevator));
+  public static final TalonFXConfig elevatorTalonConfig =
+      TalonFXConfig.builder()
+          .canId(30)
+          .canBus(Constants.rioBus)
+          .reduction(reduction)
+          .currentLimitAmps(60.0)
+          .invert(false)
+          .isBrakeMode(true)                                  // an elevator coasts down otherwise
+          .foc(Constants.focEnabled)
+          .slot0Config(new Slot0Configs()
+              .withKS(0.15).withKG(0.35).withKV(0.12).withKA(0.0)   // feedforward; kG holds it up
+              .withKP(4.0).withKI(0.0).withKD(0.1)
+              .withGravityType(GravityTypeValue.Elevator_Static))
+          .mmConfig(new MotionMagicConfigs()
+              .withMotionMagicCruiseVelocity(RotationsPerSecond.of(40))
+              .withMotionMagicAcceleration(RotationsPerSecondPerSecond.of(120)))
+          .build();
+
+  public static final TalonFXConfigSim elevatorTalonConfigSim =
+      TalonFXConfigSim.builder()
+          .config(elevatorTalonConfig)                        // the SAME real config…
+          .dcMotor(DCMotor.getKrakenX60Foc(2))               // …plus what the physics model needs
+          .moi(0.004)
+          .build();
 }
 ```
 
-### Understanding the Complete System
+Three things to notice against the Kit Bot version. The gains are **on the motor controller** (`Slot0Configs`, Motion Magic), not in a WPILib `ProfiledPIDController`; [Motor Configuration](/frc/motor-controller-configuration#control-request-types) covers why. `withGravityType(Elevator_Static)` tells the TalonFX that kG is a constant lift, which is what an elevator needs (an arm would use `Arm_Cosine`). And the sim config wraps the real one rather than copying it, so a gain changed in `elevatorTalonConfig` is the gain the simulation runs.
 
-When you call `setHeight()`, the motion profile generates a smooth trajectory from the current position to the target. The PID controller follows this trajectory, using feedforward to compensate for gravity and friction. The result is smooth, accurate movement that holds position at the target.
+### Step 2: the subsystem
 
-### Full Code - Elevator Subsystem
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot.subsystems;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.ctre.phoenix6.hardware.TalonFX;\nimport com.ctre.phoenix6.configs.TalonFXConfiguration;\nimport com.ctre.phoenix6.signals.NeutralModeValue;\nimport com.ctre.phoenix6.controls.MotionMagicVoltage;\n\npublic class Elevator extends SubsystemBase {\n    // Elevator motor on CAN ID 6\n    private final TalonFX m_motor = new TalonFX(6);\n    \n    // Motion Magic® control request (trapezoidal motion profile)\n    private final MotionMagicVoltage m_request = new MotionMagicVoltage(0);\n\n    public Elevator() {\n        TalonFXConfiguration config = new TalonFXConfiguration();\n        // Brake mode to hold position against gravity\n        config.MotorOutput.NeutralMode = NeutralModeValue.Brake;\n        \n        // PID gains for position control (Slot 0)\n        config.Slot0.kP = 0.5;  // Proportional gain\n        config.Slot0.kI = 0.0;  // Integral gain\n        config.Slot0.kD = 0.05; // Derivative gain\n        config.Slot0.kG = 0.12; // Gravity feedforward (compensates for weight)\n        config.Slot0.kS = 0.05; // Static friction feedforward\n        \n        // Motion profile constraints\n        config.MotionMagic.MotionMagicCruiseVelocity = 10; // Max velocity (rotations/sec)\n        config.MotionMagic.MotionMagicAcceleration = 20;   // Max acceleration (rotations/sec²)\n        \n        m_motor.getConfigurator().apply(config);\n    }\n    \n    /**\n     * Set elevator to target height\n     * @param rotations Target position in rotations\n     */\n    public void setHeight(double rotations) {\n        m_motor.setControl(m_request.withPosition(rotations));\n    }\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot.subsystems;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\nimport com.revrobotics.spark.config.SparkMaxConfig;\nimport com.revrobotics.spark.config.SparkBaseConfig.IdleMode;\nimport com.revrobotics.spark.SparkBase.ResetMode;\nimport com.revrobotics.spark.SparkBase.PersistMode;\nimport com.revrobotics.spark.ClosedLoopController.ControlType;\n\npublic class Elevator extends SubsystemBase {\n    // Elevator motor on CAN ID 6, brushless type\n    private final SparkMax m_motor = new SparkMax(6, MotorType.kBrushless);\n    // Get closed-loop controller for PID control\n    private final SparkClosedLoopController m_pid = m_motor.getClosedLoopController();\n    \n    public Elevator() {\n        SparkMaxConfig config = new SparkMaxConfig();\n        // Brake mode to hold position against gravity\n        config.idleMode(IdleMode.kBrake);\n        \n        // PID gains for position control\n        config.closedLoop.p(0.5).i(0.0).d(0.05);\n        // Motion profile constraints (MAXMotion = trapezoidal profile)\n        config.closedLoop.maxMotion.maxVelocity(3000).maxAcceleration(2000);\n        \n        m_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n    }\n    \n    /**\n     * Set elevator to target height\n     * @param rotations Target position in rotations\n     */\n    public void setHeight(double rotations) {\n        m_pid.setReference(rotations, ControlType.kMAXMotionPositionControl);\n    }\n}","language":"java"}]} />
-
-### Full Code - RobotContainer
-
-The Command Robot template provides RobotContainer. Update configureBindings() with your elevator button bindings:
-
-
+FRC 4451's convention is a thin `SubsystemBase` that *owns* a library mechanism, exposes command factories, and nothing else, the same shape as Cobra's `Shooter` wrapping a `FlywheelFollower`:
 
 ```java
-// In RobotContainer class - update the configureBindings() method
+public class ElevatorSubsystem extends SubsystemBase {
+  private static final String name = "Elevator";
 
-import edu.wpi.first.wpilibj2.command.InstantCommand;
-import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import frc.robot.subsystems.Elevator;
+  private static final LoggedTunableNumber stowHeight = new LoggedTunableNumber(name + "/StowInches", 0.0);
+  private static final LoggedTunableNumber scoreHeight = new LoggedTunableNumber(name + "/ScoreInches", 48.0);
 
-// The template provides RobotContainer structure
-private void configureBindings() {
-    // ... other button bindings
-    
-    // Button A: Move to low position (0 rotations)
-    m_controller.a().onTrue(new InstantCommand(() -> m_elevator.setHeight(0.0), m_elevator));
-    // Button B: Move to high position (10 rotations)
-    m_controller.b().onTrue(new InstantCommand(() -> m_elevator.setHeight(10.0), m_elevator));
+  private final Elevator elevator;
+  private final ElevatorMechanism mechanism;
+
+  public ElevatorSubsystem(SingleRollerIO io) {
+    elevator = new Elevator(name, io, ElevatorConstants.elevatorConfig);
+    mechanism = new ElevatorMechanism(ElevatorMechanism.ElevatorMechanismConfig.builder()
+        .name(name).length(0.1).width(6).color(new Color8Bit(Color.kOrange)).build());
+  }
+
+  @Override
+  public void periodic() {
+    elevator.periodic();                                       // inputs, logging, tunables, sim
+    mechanism.update(elevator.getHeight());                    // the drawing follows the measured height
+  }
+
+  public Command goTo(Distance height) {
+    return run(() -> elevator.setGoalHeight(height)).until(elevator::atGoal);
+  }
+  public Command stow()  { return goTo(Inches.of(stowHeight.get())); }
+  public Command score() { return goTo(Inches.of(scoreHeight.get())); }
+  public Command hold()  { return run(() -> elevator.setGoalHeight(elevator.getHeight())); }
+
+  public Trigger atGoal() { return new Trigger(elevator::atGoal); }
 }
 ```
 
-<RulesBox title="Tuning Tips" subtitle="Order of operations:">
+`elevator.setGoalHeight` takes a `Distance` and clamps it to the travel limits before converting to rotor rotations, so a command asking for 80 inches on a 56-inch elevator gets 56 rather than a carriage into the crossbar. `atGoal` uses the config's tolerance. Both come from the library, and both were things you had to write yourself in [Kit Bot R07 Part 2](/kit-bot/r07-launcher-io-part-2).
 
-- **Gravity (kG):** Increase until elevator holds position or falls very slowly (open loop).
-- **Proportional (kP):** Increase until it reaches target reasonably well.
-- **Derivative (kD):** Add to stop oscillation/overshoot.
-- **Profile:** Adjust Max Velocity/Acceleration for speed vs smoothness.
+### Step 3: choose the IO
+
+The one place the environment is decided ([Simulation First](/frc/simulation-first#the-three-modes)):
+
+```java
+SingleRollerIO elevatorIO = switch (Constants.currentMode) {
+  case REAL -> new SingleRollerIOTalonFX(ElevatorConstants.elevatorTalonConfig);
+  case SIM  -> new SingleRollerIOSimTalonFX(ElevatorConstants.elevatorTalonConfigSim);
+  default   -> new SingleRollerIO() {};
+};
+elevator = new ElevatorSubsystem(elevatorIO);
+```
+
+In `SIM` the `SingleRollerIOSimTalonFX` runs the real TalonFX code path against a `DCMotorSim` (the [vendor-sim-state pattern](/frc/physics-sim-io#the-vendor-sim-state-pattern)), so Motion Magic, kG and the current limit all behave as they will on the robot.
+
+### Step 4: bindings
+
+```java
+operator.a().onTrue(elevator.stow());
+operator.y().onTrue(elevator.score());
+elevator.setDefaultCommand(elevator.hold());
+```
+
+A default `hold()` means the elevator is always closed-loop on *something*; with kG in the controller that is what keeps it from sagging between commands.
+
+### Step 5: watch it in simulation
+
+Launch the simulator, connect AdvantageScope ([Watching Simulation in AdvantageScope](/frc/advantagescope-sim#connecting)), and build this layout:
+
+<ContentTable
+  headers={["Tab", "Keys", "What you are checking"]}
+  rows={[
+    ["Line Graph", "<code>RealOutputs/Elevator/GoalHeightInches</code>, <code>…/CurrentHeightInches</code>; <code>Elevator/AppliedVoltage</code> on the right axis", "Press Y: the measured line should follow a Motion Magic ramp to 48 in with no overshoot, and the voltage should settle at kG, a non-zero hold"],
+    ["Line Graph", "<code>Elevator/FeedForward/kG</code> (tunable)", "Set kG to 0 from AdvantageScope's tunable editor and watch the held elevator sink. Put it back. That is the whole reason for kG, seen once"],
+    ["Mechanism", "<code>RealOutputs/Mechanisms/Elevator</code>", "The drawn carriage rises and falls with the measured height. Wrong direction = inversion; wrong distance = reduction or drum radius"],
+    ["Line Graph", "<code>RealOutputs/Elevator/PhysicalSim/HasHitUpperLimit</code>, <code>…/HasHitLowerLimit</code>", "Command <code>goTo(Inches.of(80))</code> from a test binding: the goal clamps to 56 and neither limit flag trips"],
+    ["Line Graph", "<code>Elevator/SupplyCurrentAmps</code>", "Peaks during acceleration, small during hold. A hold current near the limit means kG is doing what kP should not have to"]
+  ]}
+/>
+
+`Elevator/PhysicalSim/*` is a second, independent `ElevatorSim` the library runs alongside the TalonFX simulation, fed with the applied voltage. It exists to log what the physics thinks (position, current draw, limit contact) without touching the controller loop. When its `PositionInches` and the measured `CurrentHeightInches` disagree, one of the two models has a wrong constant, and that is worth finding before the carriage is real.
+
+<RulesBox title="Common mistakes">
+
+- **<code>simulateGravity(false)</code>.** The sim elevator holds at zero volts, kG tunes to nothing, the real one drops.
+- **Gains in the subsystem.** They belong in the TalonFX config. A <code>ProfiledPIDController</code> in <code>periodic</code> is the Kit Bot way and does not transfer to the controller.
+- **Heights in rotations at the API.** The library's boundary is <code>Distance</code>. Convert at the edge (<code>drumCircumference</code>), never in a command.
+- **Reduction off by the drum.** <code>reduction</code> is motor rotations per <em>drum</em> rotation; the drum radius does the rest. Do not fold the circumference into the reduction.
+- **Trusting <code>atGoal</code> with a zero tolerance.** The default is zero inches; set <code>tolerance</code> or the command never ends.
 
 </RulesBox>
 
-### Practice with WPILib Documentation
+<Sources items={[
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "<code>Elevator extends SingleRoller</code>; <code>ElevatorConfig</code> with compact-constructor defaults; height-to-rotations conversion."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/ElevatorMechanism.java", "note": "The <code>LoggedMechanism2d</code> drawn in AdvantageScope."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "Tunables, <code>setGoal</code>, control requests, <code>periodic()</code> disable behaviour."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIO.java", "note": "The inputs class and IO methods."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFX.java", "note": "Slot0 with <code>Elevator_Static</code> gravity, Motion Magic configuration."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFX.java", "note": "The simulated TalonFX behind the elevator in SIM mode."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java", "note": "The record the slot gains and limits are built in."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "Mode selection."},
+  {"source": "cobra", "path": "src/main/java/org/littletonrobotics/LoggedTunableNumber.java", "note": "How the gains are exposed for tuning."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/closed-loop-requests.html", "note": "<code>MotionMagicVoltage</code> and the gravity feedforward types."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/motion-magic.html", "note": "Cruise velocity, acceleration and jerk."},
+  {"source": "ctre", "path": "docs/api-reference/api-usage/configuration.html", "note": "Applying a <code>TalonFXConfiguration</code>."}
+]} />
 
-WPILib provides a complete tuning tutorial for elevators with motion profiling. This interactive guide walks through the entire tuning process with examples and simulations. Use it to practice the concepts covered in this lesson.
-
-<LinkGrid links={[{"label":"PID Control","id":"frc-pid-control"},{"label":"Trapezoidal Motion Profiling","id":"trapezoidal-motion-profiling"},{"label":"WPILib: Tuning a Vertical Elevator (Practice)","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/introduction/tuning-elevator.html"}]} title="Resources" section="frc" />
-
+<LinkGrid links={[
+  {"label":"Shooter Example","id":"shooter-example"},
+  {"label":"Reading Our Robot Code","id":"team-robot-code"},
+  {"label":"Physics in the IO Layer","id":"physics-sim-io"},
+  {"label":"Tunable Constants and Characterization","id":"tunable-constants"},
+  {"label":"Kit Bot R07: Launcher IO","url":"/kit-bot/r07-launcher-io"},
+  {"label":"CTRE: Slot0 gravity types","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/closed-loop-requests.html"}
+]} title="Resources" section="frc" />

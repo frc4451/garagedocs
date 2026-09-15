@@ -1,0 +1,186 @@
+---
+title: "R02: Robot Lifecycle"
+lessonId: r02-robot-lifecycle
+section: kit-bot
+group: bootstrap
+groupLabel: "Phase 1: Bootstrap"
+groupOrder: 1
+order: 2
+duration: 10 min
+description: "TimedRobot, the 20 ms tick, the state matrix of init and periodic methods, and the scheduler that runs inside it."
+---
+Your robot is not running one program. It's running one program **fifty times a second**, every second, with state transitions when the driver hits Enable, Disable, or switches modes on the driver station. This module is how that machinery works.
+
+[While Loops](/java/java-while-loops#while-loops-with-conditions) covered loops that run until something tells them to stop. A robot program is one of those, running fifty times a second for the whole match. This module is that loop, made concrete.
+
+---
+
+### `TimedRobot` and the 20 ms tick
+
+`Robot.java extends TimedRobot`. WPILib's `TimedRobot` does one thing forever: every **20 ms** (50 Hz), it calls a set of `Periodic` methods on your class. Your code goes in those methods.
+
+You do not write the loop. WPILib writes the loop. You write the *body* of one iteration.
+
+```
+boot → robotInit() runs once →
+
+  every 20 ms:
+    robotPeriodic()
+    + one of {disabledPeriodic, autonomousPeriodic, teleopPeriodic, testPeriodic}
+      depending on current mode
+
+  on a mode change:
+    {old mode}Exit()  → {new mode}Init()
+```
+
+The `*Init` methods run on a transition. The `*Periodic` methods run every tick while in that mode. `robotPeriodic` runs every tick *regardless* of mode.
+
+---
+
+### The state matrix
+
+| Mode | When it's active | Init runs when | Exit runs when |
+|---|---|---|---|
+| **Disabled** | Driver station says "Disabled" or robot just booted | Disabled mode begins | Enable, or mode change |
+| **Autonomous** | Driver station says "Autonomous" + Enable | Autonomous begins | Disable, or mode change |
+| **Teleop** | Driver station says "Teleop" + Enable | Teleop begins | Disable, or mode change |
+| **Test** | Driver station says "Test" + Enable | Test begins | Disable, or mode change |
+
+The robot only enters one mode at a time. If you're in autonomous, `teleopPeriodic` is not running.
+
+`robotInit` runs **once** at boot, before the robot is enabled or anything happens. That's where you construct your `RobotContainer`.
+
+---
+
+### What goes in each method
+
+| Method | Use it for | Don't use it for |
+|---|---|---|
+| `robotInit` | Constructing `RobotContainer`, starting telemetry (`DataLogManager.start()`) | Hardware-specific setup (do that in subsystem constructors, see [R04](/kit-bot/r04-subsystems)) |
+| `robotPeriodic` | `CommandScheduler.getInstance().run()`, and nothing else by default | Subsystem-specific work (use the subsystem's `periodic()` instead) |
+| `disabledInit` | Nothing, usually | Anything that depends on the robot being enabled |
+| `disabledPeriodic` | Nothing, usually | Active control: motors are stopped while disabled |
+| `autonomousInit` | Grabbing the chosen auto command and scheduling it | Reading joysticks (the driver isn't supposed to be driving) |
+| `autonomousPeriodic` | Almost nothing: the scheduler does the work | Manual `if/else` state machines (use commands instead) |
+| `teleopInit` | Cancelling the auto command if it's still running | |
+| `teleopPeriodic` | Almost nothing: the scheduler does the work | |
+
+The pattern across all of these: **the scheduler does the work; your job is to make sure it ticks**. We'll see what that means in [R05](/kit-bot/r05-commands-and-triggers).
+
+---
+
+### `CommandScheduler.getInstance().run()`
+
+The single most important line in `Robot.java`. It lives in `robotPeriodic`:
+
+```java
+@Override
+public void robotPeriodic() {
+    CommandScheduler.getInstance().run();
+}
+```
+
+Every 20 ms, this:
+
+1. Runs `periodic()` on every registered subsystem.
+2. Polls every registered `Trigger` (button presses, conditions). New `Trigger` events fire their bound commands.
+3. Runs `execute()` on every currently-running command.
+4. Calls `end()` on commands that just finished (their `isFinished()` returned `true`).
+5. Schedules default commands on idle subsystems.
+
+If this line is missing or mis-spelled, *nothing in the command framework works*. No buttons. No subsystems. No autonomous. Triple-check it exists.
+
+---
+
+### A typical `Robot.java`
+
+This is roughly what the template gives you. Your edits will be small.
+
+```java
+package frc.robot;
+
+import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.CommandScheduler;
+
+public class Robot extends TimedRobot {
+    private Command m_autonomousCommand;
+    private RobotContainer m_robotContainer;
+
+    @Override
+    public void robotInit() {
+        m_robotContainer = new RobotContainer();
+    }
+
+    @Override
+    public void robotPeriodic() {
+        CommandScheduler.getInstance().run();
+    }
+
+    @Override
+    public void autonomousInit() {
+        m_autonomousCommand = m_robotContainer.getAutonomousCommand();
+        if (m_autonomousCommand != null) {
+            m_autonomousCommand.schedule();
+        }
+    }
+
+    @Override
+    public void teleopInit() {
+        if (m_autonomousCommand != null) {
+            m_autonomousCommand.cancel();
+        }
+    }
+
+    // disabledInit/Periodic, autonomousPeriodic, teleopPeriodic, test* left empty
+}
+```
+
+Read the file in your project. Trace what runs when you click Enable in autonomous, then switch to teleop. Confirm: `autonomousInit` fires once, `autonomousPeriodic` fires repeatedly, then on the switch `teleopInit` runs (cancelling the auto command), and `teleopPeriodic` takes over the tick column.
+
+---
+
+### What 20 ms actually feels like
+
+50 Hz means you have **20 milliseconds** of compute budget per tick. That's a lot of time for "set a motor voltage," but it is not infinite. A few things to watch:
+
+- **No `Thread.sleep`** in periodic code. Sleeping freezes the whole robot.
+- **No while-loops that wait for hardware**. Same problem.
+- **One iteration per tick**. If you want to count from 1 to 100, you don't do `for (i = 0; i < 100; i++)` in `periodic`. You increment a counter once per tick: 100 ticks = 2 seconds.
+
+This is the *single* mental shift required for periodic-loop programming. Everything is state machines, not procedures.
+
+---
+
+### Try it
+
+Open `Robot.java`. Add a `System.out.println("teleop tick")` inside `teleopPeriodic`. Run the sim (`F5`), enable in teleop, and watch the console.
+
+Count the lines that appear in two seconds. You should see about 100. (Actually closer to 50 lines per second × 2 = 100, but the sim slows down a touch when you have lots of `println`, which is one of several reasons you don't want to leave debug prints in periodic code.)
+
+Remove the print before moving on.
+
+---
+
+<RulesBox title="Evaluate in simulation">
+
+With the `teleop tick` print in place, enable in teleop for two seconds and read the console: about 100 lines. Disable: the lines stop. Switch to Autonomous: `autonomousPeriodic` runs instead. Remove the print afterwards. The evidence is that you observed the rate; the print itself does not stay in the project.
+
+</RulesBox>
+
+### References
+
+- [For Loops](/java/java-for-loops#for-loop-structure) and [While Loops](/java/java-while-loops#infinite-loops): the plain-Java version of a loop that runs until told to stop
+- WPILib: [What is the Command-Based Framework?](https://docs.wpilib.org/en/stable/docs/software/commandbased/what-is-command-based.html)
+- WPILib: [The Command Scheduler](https://docs.wpilib.org/en/stable/docs/software/commandbased/command-scheduler.html)
+- WPILib JavaDoc: [`TimedRobot`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/TimedRobot.html)
+- WPILib JavaDoc: [`CommandScheduler`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/CommandScheduler.html)
+- WPILib: [Robot Program Lifecycle](https://docs.wpilib.org/en/stable/docs/software/vscode-overview/creating-robot-program.html#understanding-the-program-flow)
+
+<Sources items={[
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/TimedRobot.html", "note": "The lifecycle methods and their order."},
+  {"source": "wpilib", "path": "docs/software/vscode-overview/creating-robot-program.html", "note": "Program flow in the generated template."},
+  {"source": "wpilib", "path": "docs/software/commandbased/what-is-command-based.html", "note": "Why the scheduler runs every loop."},
+  {"source": "wpilib", "path": "docs/software/commandbased/command-scheduler.html", "note": "What one <code>run()</code> does."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/CommandScheduler.html", "note": "<code>CommandScheduler</code>."}
+]} />

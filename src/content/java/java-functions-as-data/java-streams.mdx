@@ -1,0 +1,244 @@
+---
+title: Streams
+lessonId: java-streams
+section: java
+group: java-functions-as-data
+groupLabel: "Functions as Data"
+groupOrder: 7
+order: 5
+difficulty: intermediate
+duration: 30 min
+description: Describing what you want from a collection instead of looping for it (filter, map, sorted, collect), and Optional for the result that might not be there.
+---
+
+### Pipelines, not loops
+
+Most loops over a collection do one of a few things: keep the elements that match, turn each element into something else, add them up, find one. A **stream** lets you say which of those you mean, and chain them, instead of writing the loop each time.
+
+```java
+import java.util.List;
+
+List<Integer> scores = List.of(45, 88, 61, 29, 73);
+
+List<Integer> passing = scores.stream()
+    .filter(s -> s >= 60)
+    .toList();
+
+System.out.println(passing);   // [88, 61, 73]
+```
+
+Read it top to bottom: *take the scores, keep the ones at or above 60, give me a list.* The loop version says the same thing in twice the lines and buries the intent in bookkeeping.
+
+A stream is not a data structure. It is a description of a computation over one. Nothing runs until the last step asks for a result.
+
+<ContentTable
+  headers={["Step", "Kind", "What it does"]}
+  rows={[
+    ["<code>list.stream()</code>", "Source", "Start a pipeline over a collection"],
+    ["<code>filter(pred)</code>", "Intermediate", "Keep elements the predicate accepts"],
+    ["<code>map(fn)</code>", "Intermediate", "Replace each element with <code>fn(element)</code>"],
+    ["<code>sorted(cmp)</code>", "Intermediate", "Order the elements"],
+    ["<code>limit(n)</code>", "Intermediate", "Keep only the first <code>n</code>"],
+    ["<code>toList()</code>", "Terminal", "Collect into an unmodifiable list"],
+    ["<code>anyMatch</code> / <code>findFirst</code> / <code>count</code>", "Terminal", "Answer a question about the elements"]
+  ]}
+/>
+
+Intermediate steps return another stream, so they chain. A **terminal** step ends the pipeline and produces a value. A pipeline with no terminal step does nothing at all, a common way to write code that runs and has no effect.
+
+### map: one thing becomes another
+
+```java
+import java.util.List;
+
+List<String> teams = List.of("Robonauts", "Cheesy Poofs", "Citrus Circuits");
+
+List<Integer> lengths = teams.stream()
+    .map(String::length)
+    .toList();
+
+List<String> shouted = teams.stream()
+    .map(t -> t.toUpperCase() + "!")
+    .toList();
+
+System.out.println(lengths);   // [9, 12, 15]
+System.out.println(shouted);   // [ROBONAUTS!, CHEESY POOFS!, CITRUS CIRCUITS!]
+```
+
+`map` takes the function from [Method References](/java/java-fn-method-references#the-four-forms) or a lambda; either way it is applied to every element and the results flow on. The element type can change: strings in, integers out.
+
+### sorted and limit: top-K
+
+Sorting a stream needs a comparator unless the elements have a natural order. The idiom for *the five best* is `sorted` then `limit`:
+
+```java
+import java.util.Comparator;
+import java.util.List;
+
+class Team {
+    String name; double score;
+    Team(String name, double score) { this.name = name; this.score = score; }
+    double score() { return score; }
+}
+
+List<Team> teams = List.of(
+    new Team("Robonauts", 71.0), new Team("Cheesy Poofs", 88.0),
+    new Team("Citrus", 78.5), new Team("Gear Grinders", 38.0));
+
+List<String> top2 = teams.stream()
+    .sorted(Comparator.comparingDouble(Team::score).reversed())
+    .limit(2)
+    .map(t -> t.name)
+    .toList();
+
+System.out.println(top2);   // [Cheesy Poofs, Citrus]
+```
+
+`Comparator.comparingDouble(Team::score)` builds an ascending comparator from a getter; `.reversed()` flips it. This is the same comparator you would hand to `Collections.sort`; streams reuse the sorting you already know.
+
+### Questions with short answers
+
+Not every pipeline ends in a list. Three terminals answer a question directly:
+
+```java
+import java.util.List;
+import java.util.Optional;
+
+List<Integer> scores = List.of(45, 88, 61, 29, 73);
+
+boolean anyoneOver80 = scores.stream().anyMatch(s -> s > 80);
+long passing = scores.stream().filter(s -> s >= 60).count();
+Optional<Integer> firstLow = scores.stream().filter(s -> s < 30).findFirst();
+
+System.out.println(anyoneOver80);            // true
+System.out.println(passing);                 // 3
+System.out.println(firstLow.orElse(-1));     // 29
+```
+
+`anyMatch` stops at the first hit; it does not walk the rest of the list. `findFirst` returns an **`Optional`**, because there might be no such element, and the type makes you say what happens then.
+
+<RulesBox title="Optional is a return type, not a field type">
+
+`Optional<T>` exists so that "maybe there is no answer" is visible in a method's signature instead of hiding as a `null` that surfaces three calls later.
+
+```java
+import java.util.Optional;
+
+Optional<String> found = Optional.of("Drive");
+Optional<String> missing = Optional.empty();
+
+System.out.println(found.orElse("none"));                 // Drive
+System.out.println(missing.orElse("none"));               // none
+System.out.println(found.map(String::length).orElse(0));  // 5
+found.ifPresent(name -> System.out.println("got " + name));
+```
+
+Use `orElse`, `map` and `ifPresent`. Calling `get()` without checking `isPresent()` first is the same bug as dereferencing a null, with a longer name. Do not store `Optional` in fields or pass it as a parameter; it is for results.
+
+</RulesBox>
+
+### Grouping and averaging
+
+`collect` with a `Collector` turns a stream into a map, a count, an average. `groupingBy` is the one you will reach for: it buckets elements by a key you name.
+
+```java
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+
+class Entry {
+    String drivetrain; double climbRate;
+    Entry(String d, double c) { drivetrain = d; climbRate = c; }
+    String drivetrain() { return drivetrain; }
+    double climbRate() { return climbRate; }
+}
+
+List<Entry> entries = List.of(
+    new Entry("SWERVE", 0.9), new Entry("TANK", 0.4),
+    new Entry("SWERVE", 0.7), new Entry("TANK", 0.6));
+
+Map<String, Double> avgClimb = entries.stream()
+    .collect(Collectors.groupingBy(Entry::drivetrain,
+                                   Collectors.averagingDouble(Entry::climbRate)));
+
+Map<String, Long> counts = entries.stream()
+    .collect(Collectors.groupingBy(Entry::drivetrain, Collectors.counting()));
+
+System.out.println(new TreeMap<>(avgClimb));   // {SWERVE=0.8, TANK=0.5}
+System.out.println(new TreeMap<>(counts));     // {SWERVE=2, TANK=2}
+```
+
+`groupingBy(key, downstream)`: the first argument says how to bucket, the second says what to do with each bucket. `averagingDouble`, `counting`, `summingInt` and `joining` are the usual downstreams.
+
+The `TreeMap` wrapper in the print is not decoration. `groupingBy` gives you a `HashMap`, whose iteration order is unspecified, so printing it directly gives output you cannot rely on.
+
+### When a loop is better
+
+Streams are for read-only queries. Reach for a loop when:
+
+- **You need an index.** Streams do not have one.
+- **You are modifying things as you go.** A stream that mutates the list it reads is undefined behaviour.
+- **The body is long.** A twelve-line lambda inside `map` reads worse than a twelve-line loop body.
+- **You are in a tight loop on the robot.** Every stream allocates. At 50 Hz on a `periodic()` that is a cost; measure before assuming, but it is real.
+
+Neither is "modern" and the other "old". [A26](/assignments/a26-stream-filter) has you write five queries both ways for exactly that reason.
+
+<RulesBox title="Common mistakes">
+
+- **No terminal operation.** `list.stream().filter(...)` with nothing after it does nothing.
+- **Reusing a stream.** A stream is consumed by its terminal step; call `stream()` again for a second pipeline.
+- **Printing a `HashMap` from `groupingBy`** and treating the order as meaningful.
+- **`Optional.get()` without a check.** Use `orElse` or `ifPresent`.
+- **`collect(Collectors.toList())`** where `.toList()` reads better.
+- **Comparing two correct averages with `==`.** `averagingDouble` uses compensated summation; a `+=` loop does not. They can differ in the last bit while both being right.
+
+</RulesBox>
+
+<JavaPlayground id="java-streams" />
+
+<ExerciseBox title="Practice">
+
+1. From a list of integers, produce the list of even ones, squared.
+2. Given a list of team names, find the first one starting with `"C"`, or print `"none"`.
+3. Count how many strings in a list are longer than five characters, once with `filter().count()` and once with a loop.
+4. Group a list of words by their length and print the groups in ascending key order.
+5. Take a list of doubles and print the top three, largest first, using `sorted` and `limit`.
+
+<details>
+<summary>Hints</summary>
+
+1. `filter(n -> n % 2 == 0).map(n -> n * n).toList()`.
+2. `filter(s -> s.startsWith("C")).findFirst().orElse("none")`.
+3. The loop needs a counter and an `if`; the stream needs neither. Notice which you read faster.
+4. `groupingBy(String::length)` gives `Map<Integer, List<String>>`; wrap in `TreeMap` to print.
+5. `Comparator.reverseOrder()` is the comparator for descending natural order.
+
+</details>
+
+</ExerciseBox>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "dev-java", "path": "api/streams/", "note": "Streams."},
+  {"source": "java-tutorial", "path": "collections/streams/index.html", "note": "Streams tutorial."},
+  {"source": "java-api", "path": "java.base/java/util/stream/Stream.html", "note": "<code>Stream</code>."},
+  {"source": "java-api", "path": "java.base/java/util/stream/Collectors.html", "note": "<code>groupingBy</code>, <code>averagingDouble</code>, <code>joining</code>."},
+  {"source": "java-api", "path": "java.base/java/util/Optional.html", "note": "<code>Optional</code>."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/TreeMap.html", "note": "<code>TreeMap</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/Comparator.html", "note": "<code>Comparator</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    {"label":"Method References","id":"java-fn-method-references"},
+    {"label":"Sets and Maps","id":"java-ds-sets-maps"},
+    {"label":"A26: Stream Filter","url":"/assignments/a26-stream-filter"}
+  ]}
+/>

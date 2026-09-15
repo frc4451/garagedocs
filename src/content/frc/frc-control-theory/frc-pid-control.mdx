@@ -3,162 +3,181 @@ title: PID Control
 lessonId: frc-pid-control
 section: frc
 group: frc-control-theory
-groupLabel: Control Theory
-groupOrder: 5
+groupLabel: "Control Theory"
+groupOrder: 4
 order: 1
 difficulty: intermediate
-duration: 55 min
-description: ""
+duration: 30 min
+durationFixed: true
+description: "The feedback loop every mechanism runs: error, output and units; what P, I and D each do with a worked elevator example; where the loop runs (RIO at 50 Hz versus the motor controller at 1 kHz) and how the same gains appear in WPILib's PIDController and in a Phoenix Slot0; the tuning process FRC 4451 uses; what PID cannot do and where feedforward, profiles and state-space pick up."
 ---
 
-### Overview
+Every mechanism on the robot that is told to be somewhere (an elevator at a height, a flywheel at a speed, a swerve module at an angle) is running a **feedback loop**: measure where it is, compare with where it should be, push in proportion to the difference, repeat fifty times a second. **PID** is the most common way to turn that difference into a push. It is worth understanding once, properly, because the same three numbers appear in WPILib, in Phoenix, in REVLib, in the tuning-practice sessions and in every mechanism example that follows.
 
-PID (Proportional-Integral-Derivative) is a feedback loop that corrects errors. It drives a mechanism to a target setpoint (like an elevator height or shooter speed) by adjusting motor output.
+Kit Bot deliberately stopped short of this: [R09](/kit-bot/r09-characterization) measured the launcher's `kS` and `kV` and ran it on feedforward alone, drawing a scope line around PID. This lesson is the part it left out.
 
-### The Terms
+### The loop
 
-**P (Proportional):** Reacts to current error. "I'm far away, go fast." Main driver of motion.
-
-**I (Integral):** Reacts to accumulated error. "I've been close for a while, push harder." Fixes steady-state error (e.g., gravity).
-
-**D (Derivative):** Reacts to rate of change. "I'm closing in fast, slow down." Dampens oscillation.
-
-<RulesBox title="Implementation Methods" subtitle="Where to run PID:">
-
-- **On-RIO (WPILib PIDController):** Runs in user code (20ms loop). Flexible, easy to debug.
-- **On-Controller (Spark/Talon):** Runs on motor controller (1ms loop). Faster, frees up RIO CPU.
-
-</RulesBox>
-
-### WPILib PIDController
-
-Best for learning and complex logic.
-
-### RIO PID Example
-
-```java
-package frc.robot.subsystems;
-
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.math.controller.PIDController;
-
-public class Elevator extends SubsystemBase {
-    // Create PID controller: kP, kI, kD
-    private PIDController pid = new PIDController(0.5, 0.0, 0.0);
-    
-    // Example: encoder and motor would be defined elsewhere
-    // private Encoder encoder;
-    // private Motor motor;
-    private double targetHeight = 0.0;
-    
-    // ... (other methods and fields)
-    
-    @Override
-    public void periodic() {
-        // Calculate PID output: current position vs target
-        double currentPosition = encoder.getPosition();
-        double output = pid.calculate(currentPosition, targetHeight);
-        
-        // Apply output to motor
-        motor.set(output);
-    }
-    
-    // ... (rest of class)
+```text
+setpoint ──►( − )──► error ──► [ controller ] ──► output ──► [ mechanism ] ──► measurement
+              ▲                                                                  │
+              └──────────────────────────────────────────────────────────────────┘
 ```
 
-### On-Controller PID
+Three words that every later page uses precisely:
 
-Best for performance.
+- **Setpoint:** where the mechanism should be right now. With a motion profile this changes every loop; without one it is the goal.
+- **Error:** `setpoint − measurement`, in the mechanism's units (inches, rotations, rotations per second).
+- **Output:** what the controller sends to the motor: a voltage, a duty cycle (−1 to 1), or a torque current in amps. The units of the output decide the units of the gains, which is why a `kP` from one robot means nothing on another.
 
-### Hardware PID
+### The three terms
+
+The controller's output is a sum of three contributions, each computed from the error in a different way:
+
+<ContentTable
+  headers={["Term", "Computes", "Answers", "Too little", "Too much"]}
+  rows={[
+    ["<strong>P</strong>, proportional", "<code>kP × error</code>", "How far away am I?", "Slow, never quite arrives", "Overshoots, then oscillates around the setpoint"],
+    ["<strong>I</strong>, integral", "<code>kI × Σ(error × dt)</code>", "How long have I been short?", "A small, permanent offset remains", "Winds up during a long move and overshoots badly at the end"],
+    ["<strong>D</strong>, derivative", "<code>kD × d(error)/dt</code>", "How fast is the error changing?", "P overshoots with nothing to damp it", "Twitchy, amplifies sensor noise, can buzz the motor"]
+  ]}
+/>
+
+A worked example makes the sizes concrete. An elevator in **inches**, output in **volts**, `kP = 0.5 V/in`, `kD = 0`, `kI = 0`:
+
+<ContentTable
+  headers={["Error", "P output", "What happens"]}
+  rows={[
+    ["10 in below", "+5.0 V", "Drives up hard"],
+    ["2 in below", "+1.0 V", "Slowing as it approaches. This is why P alone does not overshoot much on a slow mechanism"],
+    ["0.5 in below", "+0.25 V", "Not enough to overcome friction, and not enough to hold the carriage against gravity: the elevator <em>stops short</em>"],
+    ["0 in", "0 V", "Being an elevator, it then falls until the error is big enough to hold it: a steady sag of a few inches"]
+  ]}
+/>
+
+That last row is the whole reason the next lesson exists. The integral term would eventually accumulate enough to lift it, but slowly and with overshoot; the right answer is a **gravity feedforward** that supplies the holding voltage without any error at all, leaving P to handle only the transient ([Feedforward](/frc/feedforward)). At FRC 4451 `kI` is rarely used. A mechanism that seems to need it is usually missing a feedforward term.
+
+`kD` is the damper. When the mechanism is racing toward the setpoint the error is shrinking fast, `d(error)/dt` is large and negative, and the D term subtracts from the push, braking before the overshoot rather than after. It is the term to add when a well-fed-forward mechanism still oscillates, and the term to reduce when the output looks jagged on a graph.
+
+### Where the loop runs
+
+The loop can execute in your code on the roboRIO, or on the motor controller itself. Both are PID; they differ in rate, in visibility, and in how you write them.
+
+<ContentTable
+  headers={["", "On the RIO: WPILib <code>PIDController</code>", "On the controller: Phoenix Slot0 / REV closed loop"]}
+  rows={[
+    ["Rate", "Once per robot loop, 50 Hz (20 ms)", "1 kHz on a TalonFX; the measurement never goes over CAN"],
+    ["Output", "You get a number back and decide what to do with it", "The controller drives the motor directly"],
+    ["Debugging", "Every intermediate value is a Java variable you can log", "You read back the closed-loop reference, error and output as status signals"],
+    ["Flexible logic", "Anything: gain scheduling, custom clamps, mixing two sensors", "What the firmware offers (which is a lot: profiles, gravity, FOC)"],
+    ["Team usage", "Software-loop sim IOs, the drivetrain's heading controller, path followers", "Every mechanism through the ROBOTZ Garage library's <code>…IOTalonFX</code>"]
+  ]}
+/>
 
 <CodeTabs>
-<CodeTab label="Talon FX">
+<CodeTab label="On the RIO (WPILib)">
 
 ```java
-package frc.robot.subsystems;
+import edu.wpi.first.math.controller.PIDController;
 
-import com.ctre.phoenix6.configs.Slot0Configs;
-import com.ctre.phoenix6.controls.PositionVoltage;
-import com.ctre.phoenix6.hardware.TalonFX;
+private final PIDController pid = new PIDController(0.5, 0.0, 0.02);   // kP, kI, kD, in volts per inch here
 
-public class Example {
-    private TalonFX motor = new TalonFX(1);
-    
-    public void configurePID() {
-        // Configure PID gains for Slot 0
-        Slot0Configs config = new Slot0Configs();
-        config.kP = 0.1;  // Proportional gain
-        config.kI = 0.0;  // Integral gain
-        config.kD = 0.01; // Derivative gain
-        motor.getConfigurator().apply(config);
-    }
-    
-    public void setPosition(double targetRotations) {
-        // Use position control with configured PID
-        motor.setControl(new PositionVoltage(targetRotations));
-    }
+@Override
+public void periodic() {
+  double volts = pid.calculate(getHeightInches(), goalInches);        // measurement, setpoint
+  io.runVolts(MathUtil.clamp(volts, -12, 12));
 }
 ```
+
+`calculate(measurement, setpoint)` returns the output in whatever units your gains are in; nothing is applied until you apply it. Useful extras: `setTolerance` and `atSetpoint()` for a readiness `Trigger`; `enableContinuousInput(-Math.PI, Math.PI)` for anything that wraps, like a heading or a turret; `setIntegratorRange` to stop wind-up if you do use `kI`.
 
 </CodeTab>
-<CodeTab label="SPARK MAX">
+<CodeTab label="On the controller (Phoenix 6)">
 
 ```java
-package frc.robot.subsystems;
+import com.ctre.phoenix6.configs.Slot0Configs;
+import com.ctre.phoenix6.controls.PositionVoltage;
 
-import com.revrobotics.spark.SparkMax;
-import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.spark.config.SparkMaxConfig;
-import com.revrobotics.spark.SparkBase.ResetMode;
-import com.revrobotics.spark.SparkBase.PersistMode;
-import com.revrobotics.spark.ClosedLoopController.ControlType;
+// once, in the config the IO applies
+new Slot0Configs().withKP(4.0).withKI(0.0).withKD(0.1);   // volts per mechanism rotation, because the request below is a Voltage one
 
-public class Example {
-    private SparkMax motor = new SparkMax(1, MotorType.kBrushless);
-    private SparkClosedLoopController controller = motor.getClosedLoopController();
-    
-    public void configurePID() {
-        // Configure PID gains
-        SparkMaxConfig config = new SparkMaxConfig();
-        config.closedLoop.p(0.1).i(0.0).d(0.01);
-        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-    }
-    
-    public void setPosition(double target) {
-        // Use position control with configured PID
-        controller.setReference(target, ControlType.kPosition);
-    }
-}
+// every time the goal changes
+talon.setControl(new PositionVoltage(goalRotations));
 ```
+
+The gains live in a **slot** on the device and the control request says which slot and which output unit to use. `PositionVoltage` makes them volts per rotation; `PositionTorqueCurrentFOC` would make the same fields amps per rotation ([Control Requests](/frc/control-requests) is the full catalogue). In the ROBOTZ Garage library the slot is a `Slot0Configs` inside a `MotorConfigs` record and the request is chosen by the IO, so you never write these lines in a subsystem ([Motor Configuration](/frc/motor-controller-configuration)).
+
+</CodeTab>
+<CodeTab label="On the controller (REVLib)">
+
+```java
+import com.revrobotics.spark.config.SparkMaxConfig;
+import com.revrobotics.spark.SparkBase.ControlType;
+
+SparkMaxConfig config = new SparkMaxConfig();
+config.closedLoop.p(0.1).i(0.0).d(0.01);                 // duty cycle per rotation by default
+motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+
+motor.getClosedLoopController().setReference(goalRotations, ControlType.kPosition);
+```
+
+Same idea, different names. Note the output unit: SPARK closed loops produce a **duty cycle** unless configured otherwise, so a `kP` here is roughly a twelfth of the equivalent voltage-mode gain.
 
 </CodeTab>
 </CodeTabs>
 
-### Tuning Process
+### Tuning
 
-Tune feedforward first, then PID. Use Phoenix Tuner or similar tools for quick constant changes. Log desired vs actual position using a vendor-specific tool (Phoenix Tuner, REV Hardware Client) or an external tool (AdvantageScope, Elastic) to see system behavior. (Credits to [SuperNURDS FRC 3255](https://www.chiefdelphi.com/t/frc-3255-supernurds-2025-build-thread/477499/116) for the original method)
+Tune **feedforward first**, then PID. Every PID gain found before the feedforward is in place is compensating for a missing physical term and will be wrong afterwards. The full measurement procedure is in [Feedforward](/frc/feedforward#measuring-instead-of-guessing); with that done, the feedback part is short. Log the setpoint and the measurement on one graph ([commanded versus measured](/frc/advantagescope-sim#the-line-graph-commanded-versus-measured)) and:
 
-<RulesBox title="Feedforward Tuning" subtitle="Steps:">
+<StepsBox title="Tuning the feedback gains">
 
-- Set all PID constants to 0.
-- Command the mechanism to a non-zero position.
-- Manually raise to that position and release.
-- Observe if it holds, raises, or falls.
-- Adjust kG (gravity feedforward) and repeat until it holds position.
+1. **Start with `kP` small and `kI = kD = 0`.** Command a step. Double `kP` until the response overshoots, then back off to between the last two values. On a mechanism whose feedforward is right this converges in a handful of tries.
+2. **If it oscillates at the setpoint**, add a little `kD` (a tenth of `kP` is a starting ratio) and re-check the step. Raise until the oscillation is damped; if the output line turns fuzzy, you have gone too far.
+3. **If a steady offset remains**, do not reach for `kI`. Check `kS` and `kG` first. `kI` is the last resort, with `setIntegratorRange` so it cannot wind up.
+4. **Use tunables.** Redeploying to change one number is the slowest possible loop; [Tunable Constants](/frc/tunable-constants) lets you edit gains from AdvantageScope while the mechanism runs, in simulation or on the robot.
+5. **Then add the profile.** A step is the harshest test; the mechanism will actually be driven by a [motion profile](/frc/trapezoidal-motion-profiling), and the gains that survive the step will be comfortable under it.
+
+</StepsBox>
+
+(The step-doubling method is Team 3255's; their [write-up](https://www.chiefdelphi.com/t/frc-3255-supernurds-2025-build-thread/477499/116) is worth reading.) The full by-hand recipe FRC 4451 follows, per mechanism and with the reasons for each step, is the [Manual Tuning](/frc/manual-pid-tuning) group that follows this one: one page of shared ground, then a recipe per mechanism.
+
+### What PID cannot do
+
+- **Hold against gravity without error.** That is feedforward `kG` ([Feedforward](/frc/feedforward)).
+- **Reach a far setpoint smoothly.** A step saturates the output and PID has no plan for the journey; a [motion profile](/frc/trapezoidal-motion-profiling) supplies one, and [Why Motion Magic](/frc/motion-magic-why) shows the difference on a graph.
+- **Control two coupled things at once**, such as a two-joint arm, or a swerve chassis where every module affects every other. For those, WPILib's [state-space controllers](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/state-space/index.html) model the system as matrices (`ẋ = Ax + Bu`) and an **LQR** picks gains that trade error against effort. It is real and it is in the library; it is also not something FRC 4451's mechanisms have needed. PID with feedforward and a profile covers the elevator, the shooter, the hood, the intake and the drivetrain. Know that the next tool exists; do not reach for it until a mechanism proves it needs it.
+
+<RulesBox title="Common mistakes">
+
+- **Copying a <code>kP</code> from another robot.** Different units, different mechanism, meaningless.
+- **Tuning PID before feedforward.** You will tune twice.
+- **<code>kI</code> to fix sag.** That is <code>kG</code>'s job. The integral winds up during every long move and overshoots at the end.
+- **A heading loop without continuous input.** The robot spins the long way round from 179° to −179°.
+- **Tuning on a step and calling it done.** Check the response under the profile you will actually use.
+- **Reading only the measurement.** Without the setpoint on the same axis, a graph cannot say whether the number is right.
 
 </RulesBox>
 
-<RulesBox title="PID Tuning" subtitle="Steps:">
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/advanced-controls/introduction/introduction-to-pid.html", "note": "What each term does and the response shapes."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/pidcontroller.html", "note": "<code>PIDController</code>: setpoint, tolerance, continuous input, integrator range."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/state-space/index.html", "note": "Where feedback control goes beyond PID."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/closed-loop-requests.html", "note": "<code>Slot0Configs</code> gains on the controller and the units they are in."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/manual-pid-tuning.html", "note": "The tuning recipe this page summarises and the Manual Tuning group reconstructs."},
+  {"url": "https://www.chiefdelphi.com/t/frc-3255-supernurds-2025-build-thread/477499/116", "label": "FRC 3255 2025 build thread, post 116", "note": "The kG-then-kP method the practice sessions were built from."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java", "note": "Where the slot gains live in Cobra."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFX.java", "note": "The <code>Slot0Configs</code> applied from a <code>MotorConfigs</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "Tuning mode flag."}
+]} />
 
-- Log desired position and actual position.
-- Slowly increase kP until you see overshoot, then set kP slightly below that value.
-- (For a riskier strategy, double kP until you see overshoot, then set kP to the midpoint between the old and current kP values until oscillation mostly disappears)
-- If steady-state error appears (doesn't reach target), increase kS (static feedforward) slightly.
-- This makes kP temporarily too large (overshoot), but your final kP will be close.
-- Repeat adjusting kS and kP until properly tuned.
-
-</RulesBox>
-
-<LinkGrid links={[{"label":"Trapezoidal Motion Profiling","id":"trapezoidal-motion-profiling"},{"label":"WPILib PID","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/pidcontroller.html"},{"label":"Mechanism PID Tuning Practice","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/introduction/tutorial-intro.html"}]} title="Resources" section="frc" />
-
+<LinkGrid links={[
+  {"label":"Feedforward: Predict, Then Correct","id":"feedforward"},
+  {"label":"Motion Profiling: Trapezoidal","id":"trapezoidal-motion-profiling"},
+  {"label":"Tunable Constants and Characterization","id":"tunable-constants"},
+  {"label":"PID Tuning Practice - Setup","id":"pid-tuning-practice-setup"},
+  {"label":"Kit Bot R09: Characterization","url":"/kit-bot/r09-characterization"},
+  {"label":"WPILib: Introduction to PID","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/introduction/introduction-to-pid.html"},
+  {"label":"WPILib: PIDController","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/pidcontroller.html"},
+  {"label":"WPILib: State-Space Control","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/state-space/index.html"}
+]} title="Next" section="frc" />
