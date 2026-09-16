@@ -17,6 +17,16 @@ export interface SourceDefinition {
 }
 
 export const sourceRegistry = {
+  mantik: {
+    name: 'itkan-robotics/mantik',
+    base: 'https://github.com/itkan-robotics/mantik/blob/main/',
+    version: 'upstream',
+  },
+  'mantik-orange': {
+    name: 'FRC3476/mantik-orange',
+    base: 'https://github.com/FRC3476/mantik-orange/blob/main/',
+    version: 'upstream',
+  },
   cobra: {
     name: 'FRC 4451 Cobra2026',
     base: 'https://github.com/frc4451/Cobra2026Private/blob/main/',

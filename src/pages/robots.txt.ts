@@ -8,7 +8,7 @@ import { withBase } from '@/lib/url';
 export const GET: APIRoute = ({ site }) => {
   const sitemap = new URL(withBase('/sitemap-index.xml'), site);
 
-  const body = `# robots.txt for Mantik - FIRST Programming Made Easy
+  const body = `# robots.txt for GarageDocs, FRC 4451's programming training site
 User-agent: *
 Allow: /
 

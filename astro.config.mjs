@@ -13,11 +13,11 @@ import { rehypeMarkdownTables } from './scripts/rehype-markdown-tables.mjs';
 import { rehypeRunnableJava } from './scripts/rehype-runnable-java.mjs';
 import { remarkJavaNorun } from './scripts/remark-java-norun.mjs';
 
-// Deployment target. Defaults to GitHub Pages for this fork
-// (https://frc4451.github.io/mantik-garage). Override with env vars to deploy
-// elsewhere, e.g. `SITE_URL=https://example.com BASE_PATH=/ npm run build`.
+// Deployment target. The site is served from the domain root (`/`). Override with
+// env vars to deploy under a subdirectory, e.g. `BASE_PATH=/garagedocs npm run build`;
+// the Pages workflow passes whatever configure-pages reports.
 const SITE = process.env.SITE_URL || 'https://frc4451.github.io';
-const BASE = normalizeBase(process.env.BASE_PATH || '/mantik-garage');
+const BASE = normalizeBase(process.env.BASE_PATH || '/');
 const analyze = process.env.ANALYZE === '1';
 
 /** Leading slash, no trailing slash (except for the root base '/'). */

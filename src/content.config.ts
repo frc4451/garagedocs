@@ -44,4 +44,11 @@ export const collections = {
       description: z.string().optional(),
     }),
   }),
+  references: defineCollection({
+    loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/references' }),
+    schema: z.object({
+      title: z.string(),
+      description: z.string().optional(),
+    }),
+  }),
 };

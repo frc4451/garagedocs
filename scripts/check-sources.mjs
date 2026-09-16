@@ -73,7 +73,7 @@ for (const file of walk(CONTENT)) {
 }
 
 async function check(url) {
-  const headers = { 'User-Agent': 'Mozilla/5.0 (mantik-garage source check)' };
+  const headers = { 'User-Agent': 'Mozilla/5.0 (garagedocs source check)' };
   try {
     let res = await fetch(url, { method: 'HEAD', redirect: 'follow', headers });
     if (res.status >= 400) {

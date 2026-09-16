@@ -3,7 +3,7 @@
  *
  * Content is authored with absolute paths (`[Subsystems](/frc/subsystems)`,
  * `![](/media/foo.png)`). When the site is served from a subdirectory — e.g.
- * GitHub Pages at `/mantik-garage` — those links must be prefixed. Protocol,
+ * a subdirectory (`BASE_PATH`) — those links must be prefixed; at the root this is a no-op. Protocol,
  * protocol-relative, hash and query-only URLs are left alone.
  */
 

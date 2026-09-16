@@ -53,7 +53,7 @@ DESCRIPTIONS = {
     "RC": "The complete project: drive and launcher, real or sim, with teleop, autonomous and telemetry. The rubric for done.",
 }
 
-# FSC java-fundamentals module -> nearest mantik-garage lesson (None = unlink).
+# FSC java-fundamentals module -> nearest GarageDocs lesson (None = unlink).
 FUNDAMENTALS = {
     "index": "/java",
     "01-hello-world": "/java/java-intro",

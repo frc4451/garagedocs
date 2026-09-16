@@ -2,9 +2,9 @@
  * Base-path helpers.
  *
  * Internal paths are written site-root-relative everywhere in this codebase
- * (`/frc/subsystems`). When the site is deployed under a subdirectory — GitHub
- * Pages serves this fork from `/mantik-garage` — every emitted URL needs the
- * base prefix. `import.meta.env.BASE_URL` is set by Astro from `base` in
+ * (`/frc/subsystems`). The site deploys at the domain root, so the prefix is
+ * normally empty; when it is built under a subdirectory (`BASE_PATH=/x`) every
+ * emitted URL needs the base prefix. `import.meta.env.BASE_URL` is set by Astro from `base` in
  * astro.config.mjs and is inlined at build time in both server and client code.
  */
 

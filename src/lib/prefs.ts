@@ -8,8 +8,9 @@
  * header toggle, the preferences panel — goes through here.
  */
 
-export const PREFS_KEY = 'mantik-prefs';
-/** Pre-preferences key; read once for migration so nobody's theme choice is lost. */
+export const PREFS_KEY = 'garagedocs-prefs';
+/** Keys from before the rename and from before preferences existed; read once for migration. */
+const LEGACY_PREFS_KEY = 'mantik-prefs';
 const LEGACY_THEME_KEY = 'mantik-theme';
 
 export type Theme = 'system' | 'light' | 'dark';
@@ -57,7 +58,7 @@ function sanitize(raw: unknown): Prefs {
 
 export function loadPrefs(): Prefs {
   try {
-    const stored = localStorage.getItem(PREFS_KEY);
+    const stored = (localStorage.getItem(PREFS_KEY) ?? localStorage.getItem(LEGACY_PREFS_KEY));
     if (stored) return sanitize(JSON.parse(stored));
     const legacy = localStorage.getItem(LEGACY_THEME_KEY);
     if (legacy === 'light' || legacy === 'dark') return { ...DEFAULT_PREFS, theme: legacy };
@@ -94,7 +95,7 @@ export function applyPrefs(prefs: Prefs): void {
   html.setAttribute('data-motion', prefs.motion);
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', theme === 'dark' ? '#161314' : '#fafaf9');
-  document.dispatchEvent(new CustomEvent('mantik:prefs', { detail: prefs }));
+  document.dispatchEvent(new CustomEvent('garagedocs:prefs', { detail: prefs }));
 }
 
 export function updatePrefs(patch: Partial<Prefs>): Prefs {

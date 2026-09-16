@@ -1,6 +1,6 @@
 export type SectionId = 'tools' | 'java' | 'assignments' | 'kit-bot' | 'frc';
 
-export type AppRouteId = 'resources';
+export type AppRouteId = 'resources' | 'references';
 
 export interface NavSection {
   id: SectionId;
@@ -41,22 +41,25 @@ export const sections: NavSection[] = [
 
 export const appRoutes: AppRoute[] = [
   { id: 'resources', label: 'Resources', path: '/resources' },
+  { id: 'references', label: 'References', path: '/references' },
 ];
 
 export const siteConfig = {
-  title: 'Mantik Garage | FIRST Robotics Programming',
+  title: 'GarageDocs | FRC 4451 Programming Training',
   description:
     'Programming lessons, reference material, and interactive tools for FIRST Robotics students and mentors.',
   /** Deployment origin; set from `site` in astro.config.mjs. */
   url: import.meta.env.SITE ?? 'https://frc4451.github.io',
-  author: 'Abdullah Khaled',
-  github: 'https://github.com/itkan-robotics/mantik',
+  author: 'FRC 4451 ROBOTZ Garage',
+  github: 'https://github.com/frc4451/garagedocs',
+  /** The project this site was forked from; credited on the References page and in NOTICE. */
+  upstream: 'https://github.com/itkan-robotics/mantik',
   brand: {
-    iconLight: '/media/mantik-icon.svg',
-    iconDark: '/media/mantik-icon-dark.svg',
-    lockupLight: '/media/logos/mantik-lockup-horizontal.svg',
-    lockupDark: '/media/logos/mantik-lockup-horizontal-dark.svg',
-    ogImage: '/media/mantik-icon.svg',
+    iconLight: '/media/garagedocs-icon.svg',
+    iconDark: '/media/garagedocs-icon-dark.svg',
+    lockupLight: '/media/logos/garagedocs-lockup-horizontal.svg',
+    lockupDark: '/media/logos/garagedocs-lockup-horizontal-dark.svg',
+    ogImage: '/media/garagedocs-icon.svg',
   },
 };
 

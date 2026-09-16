@@ -19,7 +19,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const DIST = process.argv[2] ?? 'dist';
-const BASE = '/mantik-garage';
+/** Base path the build was made with; must match BASE_PATH in astro.config.mjs ('' at the root). */
+const BASE = (process.env.BASE_PATH || '/').trim().replace(/\/+$/, '');
 
 const ATTR = /<(a|link|script|img)\b[^>]*?\s(?:href|src)="([^"]*)"/gi;
 const ID = /\sid="([^"]+)"/g;
@@ -44,7 +45,7 @@ function idsOf(file) {
 
 function targetFile(href) {
   let p = href.split('#')[0].split('?')[0];
-  if (p.startsWith(BASE)) p = p.slice(BASE.length);
+  if (BASE && p.startsWith(BASE)) p = p.slice(BASE.length);
   const full = path.join(DIST, p.replace(/^\/+/, ''));
   if (fs.existsSync(full) && fs.statSync(full).isFile()) return full;
   const index = path.join(full, 'index.html');

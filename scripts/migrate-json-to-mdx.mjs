@@ -403,7 +403,7 @@ function migrateHomepage() {
   const body = convertSections(homepage.sections, null);
 
   writeMdx(path.join(CONTENT, 'homepage', 'index.mdx'), {
-    title: homepage.title ?? 'Welcome to Mantik',
+    title: homepage.title ?? 'Welcome to GarageDocs',
     description: homepage.description ?? '',
   }, body);
 }

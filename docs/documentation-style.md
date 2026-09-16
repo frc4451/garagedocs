@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Use this guide when writing or editing Mantik Garage. The compendium preserves programming knowledge collected across seasons so students and mentors can understand it, use it, and pass it on.
+Use this guide when writing or editing GarageDocs. The compendium preserves programming knowledge collected across seasons so students and mentors can understand it, use it, and pass it on.
 
 The audience is primarily high-school students programming robots for the FIRST Robotics Competition (FRC). Some have years of experience; others have never written a program. State each lesson's prerequisites and explain new concepts without assuming prior knowledge beyond them.
 

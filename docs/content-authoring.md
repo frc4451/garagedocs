@@ -1,6 +1,6 @@
 # Content Authoring Guide
 
-How to add and edit Mantik Garage pages. Follow [Documentation style](documentation-style.md) for prose, terminology, examples, and attribution.
+How to add and edit GarageDocs pages. Follow [Documentation style](documentation-style.md) for prose, terminology, examples, and attribution.
 
 ## Where content lives
 
@@ -12,6 +12,7 @@ How to add and edit Mantik Garage pages. Follow [Documentation style](documentat
 | `src/content/kit-bot/` | Kit Bot curriculum |
 | `src/content/frc/` | FRC robotics lessons |
 | `src/content/homepage/` | Homepage copy |
+| `src/content/references/` | Project sources, authorship and credits |
 
 Each lesson is one `.mdx` file. Sidebar navigation is built from frontmatter — no separate nav config file per lesson.
 
@@ -34,12 +35,12 @@ isOverview: false                     # true for section overview pages only
 ---
 ```
 
-Homepage entries use a simpler schema (the homepage also carries the site's **References**
-section — when a lesson cites a new documentation site, library or repository, add it there):
+Homepage and References entries use a simpler schema. When a lesson starts using a new
+documentation site, library, or repository, add it to `src/content/references/index.mdx`:
 
 ```yaml
 ---
-title: Mantik
+title: GarageDocs
 description: Programming and robotics learning for FIRST teams
 ---
 ```
@@ -154,7 +155,7 @@ or file, never a docs home page.
 ]} />
 ```
 
-`source` is an id from `src/data/sources.ts` (`cobra`, `riptide`, `ember`, `mech-adv` for the Team 6328 classes Cobra reuses, `wpilib`, `wpilib-javadoc`,
+`source` is an id from `src/data/sources.ts` (`mantik`, `mantik-orange`, `cobra`, `riptide`, `ember`, `mech-adv` for the Team 6328 classes Cobra reuses, `wpilib`, `wpilib-javadoc`,
 `ctre`, `ctre-javadoc`, `rev`, `revlib`, `photonvision`, `photonlib-javadoc`, `questnav`,
 `thrifty`, `advantagekit`, `advantagescope`, `pathplanner`, `choreo`, `bline`, `maple-sim`,
 `first-manual`, `java-api`, `jls`, `dev-java`, `java-tutorial`, `csce145`, `csce146`, `git`,
@@ -228,7 +229,7 @@ npm run migrate
 
 ```bash
 npm install
-npm run dev       # dev server at 127.0.0.1:5173/mantik-garage
+npm run dev       # dev server at 127.0.0.1:5173/
 npm run build     # production build + Pagefind index
 npm run preview   # serve dist/ (search works here)
 npm run links     # after a build: every internal link and #fragment resolves
@@ -243,7 +244,7 @@ Curated external and internal links live in `src/data/resources.json` (validated
 |------|-----|
 | Bulk import from MDX LinkGrids | `npm run seed:resources` (reads FRC hub pages) |
 | Add one approved link | Edit `src/data/resources.json` |
-| Rich descriptions on regen | Edit `scripts/resource-description-overlays.json` (official URLs) — seed also pulls Mantik lesson intros |
+| Rich descriptions on regen | Edit `scripts/resource-description-overlays.json` (official URLs) — seed also pulls lesson intros |
 | Browse UI | `/resources` — React island in `src/components/resources/` |
 
 ### Adding a resource
@@ -252,29 +253,6 @@ The public submission form and its Netlify function were removed with the move
 to GitHub Pages, which hosts static files only. Add approved links by editing
 `src/data/resources.json` directly: give each entry a unique `id` slug, then run
 `npm run build` to validate against the Zod schema.
-
-Pushing catalog changes to `main` syncs the file to
-[akhaled247/frc-aides](https://github.com/akhaled247/frc-aides) via GitHub
-Actions (see below).
-
-### FRC Aides catalog sync
-
-[FRC Aides](https://github.com/akhaled247/frc-aides) mirrors the prog-collection UI and reads its own copy of `src/data/resources.json`. **Edit the catalog only in this repo** — do not edit the JSON directly in frc-aides (CI overwrites it).
-
-Workflow: [`.github/workflows/sync-frc-aides-catalog.yml`](../.github/workflows/sync-frc-aides-catalog.yml)
-
-| Trigger | Action |
-|---------|--------|
-| Push to `main` changing `src/data/resources.json` | Copy JSON to frc-aides and push |
-| Manual `workflow_dispatch` | Same (use for initial backfill) |
-
-**One-time setup on `itkan-robotics/mantik`:**
-
-1. Create a fine-grained PAT on the `akhaled247` account with **Contents: Read and write** on `akhaled247/frc-aides` (branch: `main` only).
-2. Add repo secret `FRC_AIDES_SYNC_TOKEN` with that PAT.
-3. Run **Sync resources catalog to frc-aides** once from the Actions tab to align frc-aides with mantik.
-
-frc-aides deploys to GitHub Pages on every push to `main`, so synced catalog changes go live after that workflow finishes.
 
 ## Durations and sessions
 
@@ -293,4 +271,3 @@ The default lesson target is **45 minutes or less**. Tools pages are references 
   Any assignment longer than one sitting carries a *Plan it as sessions* box that
   turns its hidden checks into per-session targets; `npm run sessions:write`
   regenerates those from the catalog.
-
