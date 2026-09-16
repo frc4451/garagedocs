@@ -55,11 +55,9 @@ export const siteConfig = {
   /** The project this site was forked from; credited on the References page and in NOTICE. */
   upstream: 'https://github.com/itkan-robotics/mantik',
   brand: {
-    iconLight: '/media/garagedocs-icon.svg',
-    iconDark: '/media/garagedocs-icon-dark.svg',
-    lockupLight: '/media/logos/garagedocs-lockup-horizontal.svg',
-    lockupDark: '/media/logos/garagedocs-lockup-horizontal-dark.svg',
-    ogImage: '/media/garagedocs-icon.svg',
+    favicon: '/media/robotz-garage-favicon.png',
+    teamLogo: '/media/robotz-garage-team-logo.png',
+    ogImage: '/media/robotz-garage-team-logo.png',
   },
 };
 
