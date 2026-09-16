@@ -8,6 +8,9 @@ Built with **Astro 5 + MDX + TypeScript**, deployed as a static site on GitHub P
 
 ## Quick Start
 
+Node 24 with npm 11 (`engines` enforces `npm >=11`; CI runs the same). An older npm is
+refused rather than allowed to rewrite the lockfile into a shape `npm ci` fails on.
+
 ```bash
 npm install
 npm run dev
@@ -139,6 +142,21 @@ reject the whole directory.
 the compiler per request paid that every time. `JpServer` is started once and left
 running, taking requests through a file in `/str` and answering in `/files`. Measured:
 first compile ~35 s, subsequent ones ~150 ms.
+
+**Starting early.** The runtime starts from an inline script in the page head
+(`src/lib/java-playground/pageStartup.ts`) as soon as a page with runnable markup is parsed,
+not when the React islands hydrate, and reports progress in a centred bottom toast
+(`[data-jp-runtime-status]` in `BaseLayout`) that dismisses itself a few seconds after the
+runtime is ready. `cheerpjPreload.json` lists the runtime chunks CheerpJ fetched in a
+warm session so `cheerpjInit` pulls them in parallel; regenerate it after a runtime or JDK
+change by running an example, then `await window.__jpDumpResources()` in the console and
+saving the JSON. Measured on a warm cache: runtime and staged JDK ready about 6 s after
+navigation, compiler server ready about 24 s after (it was 29 s with the idle-time start),
+then run-to-output under a second. The start is shared: `preloadJavaRuntime()` returns one
+promise for every caller and `isRuntimeReady()` turns true when the compiler server is warm.
+A Run or Check clicked before that point does not start; the example shows
+"Queued until Java is ready…", holds its Run button, and runs as soon as the runtime
+resolves, in click order.
 
 The compiler and the runtime move together. ECJ 3.36 and later are Java 17 bytecode
 and will not load on a Java 8 runtime; ECJ 3.16 is Java 8 bytecode and stops at source

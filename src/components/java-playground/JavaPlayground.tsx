@@ -22,7 +22,7 @@ export default function JavaPlayground({ id }: Props) {
   const [check, setCheck] = useState<CheckResult | null>(null);
 
   useEffect(() => {
-    preloadJavaRuntimeSoon();
+    void preloadJavaRuntimeSoon().catch(() => {});
   }, []);
 
   const busy = phase === 'working';
@@ -38,7 +38,13 @@ export default function JavaPlayground({ id }: Props) {
     setCheck(null);
     setStatus('Starting…');
     try {
-      const { compileAndRun } = await import('@/lib/java-playground/cheerpjRunner');
+      const { compileAndRun, isRuntimeReady, preloadJavaRuntime } = await import(
+        '@/lib/java-playground/cheerpjRunner'
+      );
+      if (!isRuntimeReady()) {
+        setStatus('Queued until Java is ready…');
+        await preloadJavaRuntime();
+      }
       const result = await compileAndRun(
         code,
         exercise.showStdin ? stdin : '',
@@ -70,6 +76,12 @@ export default function JavaPlayground({ id }: Props) {
     setCheck(null);
     setStatus('Checking…');
     try {
+      const { isRuntimeReady, preloadJavaRuntime } = await import('@/lib/java-playground/cheerpjRunner');
+      if (!isRuntimeReady()) {
+        setStatus('Queued until Java is ready…');
+        await preloadJavaRuntime();
+        setStatus('Checking…');
+      }
       const { runHiddenTests } = await import('@/lib/java-playground/runChecks');
       const result = await runHiddenTests(code, exercise.tests, setStatus, exercise.entryClass);
       setCheck(result);

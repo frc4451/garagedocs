@@ -195,9 +195,23 @@ async function compileThenRunOnBackend(options: {
   }
 }
 
-/** Start CheerpJ without compiling student code. Safe to call from page load. */
+let runtimeReady = false;
+let readyPromise: Promise<void> | null = null;
+
+/** True once the runtime and compiler server are warm, so a run starts immediately. */
+export function isRuntimeReady(): boolean {
+  return runtimeReady;
+}
+
+/**
+ * Start CheerpJ without compiling student code. Safe to call from page load.
+ * One start is shared: every caller gets the same promise, which resolves when the
+ * compiler server is warm. Only the first caller's status callback receives progress.
+ */
 export function preloadJavaRuntime(onStatus?: StatusFn): Promise<void> {
-  return enqueue(async () => {
+  if (runtimeReady) return Promise.resolve();
+  if (readyPromise) return readyPromise;
+  readyPromise = enqueue(async () => {
     if (workerFailed) {
       const runtime = await import('./cheerpjRuntime');
       await runtime.ensureRuntime(onStatus);
@@ -213,7 +227,16 @@ export function preloadJavaRuntime(onStatus?: StatusFn): Promise<void> {
       const runtime = await import('./cheerpjRuntime');
       await runtime.ensureRuntime(onStatus);
     }
-  });
+  }).then(
+    () => {
+      runtimeReady = true;
+    },
+    (err) => {
+      readyPromise = null;
+      throw err;
+    },
+  );
+  return readyPromise;
 }
 
 export function cancel(message = 'Stopped.'): void {
@@ -224,8 +247,10 @@ export function cancel(message = 'Stopped.'): void {
     worker = null;
   }
   runChain = Promise.resolve();
+  runtimeReady = false;
+  readyPromise = null;
   if (!workerFailed) {
-    void preloadJavaRuntime();
+    void preloadJavaRuntime().catch(() => {});
   }
 }
 

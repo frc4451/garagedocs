@@ -87,7 +87,15 @@ export default function RunnableJavaExample({
     setStatus('Starting…');
     setConsoleOpen(true);
     try {
-      const { compileAndRunExample } = await import('@/lib/java-playground/cheerpjRunner');
+      const { compileAndRunExample, isRuntimeReady, preloadJavaRuntime } = await import(
+        '@/lib/java-playground/cheerpjRunner'
+      );
+      if (!isRuntimeReady()) {
+        // The compiler is still warming up; hold this run until it is ready rather than
+        // letting it sit in the runner's queue with no explanation.
+        setStatus('Queued until Java is ready…');
+        await preloadJavaRuntime();
+      }
       const result = await compileAndRunExample(code, needsStdin ? stdin : '', setStatus, context);
       const shown = resultToConsole(result);
       setConsoleKind(shown.kind);

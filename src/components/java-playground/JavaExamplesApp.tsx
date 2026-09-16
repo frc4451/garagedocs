@@ -108,7 +108,7 @@ export default function JavaExamplesApp() {
   const [editing, setEditing] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    preloadJavaRuntimeSoon();
+    void preloadJavaRuntimeSoon().catch(() => {});
   }, []);
 
   useEffect(() => {
