@@ -8,8 +8,9 @@ Built with **Astro 5 + MDX + TypeScript**, deployed as a static site on GitHub P
 
 ## Quick Start
 
-Node 24 with npm 11 (`engines` enforces `npm >=11`; CI runs the same). An older npm is
-refused rather than allowed to rewrite the lockfile into a shape `npm ci` fails on.
+Node 24 with npm 11.19 or newer (`engines` enforces `npm >=11.19.0`; CI runs the same;
+`npm install -g npm@latest` updates yours). An older npm is refused rather than allowed to
+rewrite the lockfile into a shape `npm ci` fails on.
 
 ```bash
 npm install
