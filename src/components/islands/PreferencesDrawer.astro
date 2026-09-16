@@ -90,6 +90,8 @@ const groups = [
 <script>
   import { loadPrefs, updatePrefs, savePrefs, applyPrefs, DEFAULT_PREFS, type Prefs } from '@/lib/prefs';
 
+  const COMPACT_MQ = '(max-width: 74.99em)';
+
   function reflect(drawer: Element) {
     const prefs = loadPrefs();
     drawer.querySelectorAll<HTMLInputElement>('input[type=radio]').forEach((input) => {
@@ -106,20 +108,34 @@ const groups = [
 
     const toggles = () => document.querySelectorAll<HTMLButtonElement>('[data-prefs-toggle]');
     const isOpen = () => drawer.classList.contains('open');
+    const isCompact = () => matchMedia(COMPACT_MQ).matches;
+    const page = document.querySelector<HTMLElement>('.page');
+
+    const reflectPanelMode = () => {
+      const modal = isOpen() && isCompact();
+      drawer.setAttribute('aria-modal', modal ? 'true' : 'false');
+      overlay.hidden = !modal;
+      document.documentElement.classList.toggle('prefs-panel-modal', modal);
+      if (page && 'inert' in page) page.inert = modal;
+    };
 
     const open = () => {
+      if (isCompact()) {
+        const nav = document.getElementById('__navigation') as HTMLInputElement | null;
+        if (nav?.checked) document.querySelector<HTMLButtonElement>('[data-nav-close]')?.click();
+      }
       reflect(drawer);
       drawer.classList.add('open');
       drawer.setAttribute('aria-hidden', 'false');
-      overlay.hidden = false;
       toggles().forEach((b) => b.setAttribute('aria-expanded', 'true'));
+      reflectPanelMode();
       drawer.querySelector<HTMLInputElement>('input:checked')?.focus({ preventScroll: true });
     };
     const close = (refocus = true) => {
       drawer.classList.remove('open');
       drawer.setAttribute('aria-hidden', 'true');
-      overlay.hidden = true;
       toggles().forEach((b) => b.setAttribute('aria-expanded', 'false'));
+      reflectPanelMode();
       if (refocus) toggles()[0]?.focus();
     };
 
@@ -128,7 +144,7 @@ const groups = [
       if (t) (isOpen() ? close() : open());
     });
     drawer.querySelector('[data-prefs-close]')?.addEventListener('click', () => close());
-    overlay.addEventListener('click', () => close(false));
+    overlay.addEventListener('click', () => close());
 
     drawer.addEventListener('change', (e) => {
       const input = e.target as HTMLInputElement;
@@ -145,7 +161,22 @@ const groups = [
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && isOpen()) close();
+      if (e.key !== 'Tab' || !isOpen() || !isCompact()) return;
+      const focusable = [...drawer.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+      )].filter((element) => !element.hasAttribute('hidden') && element.getClientRects().length > 0);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     });
+    matchMedia(COMPACT_MQ).addEventListener('change', reflectPanelMode);
     // Another control (the header theme toggle) changed a preference while open.
     document.addEventListener('garagedocs:prefs', () => isOpen() && reflect(drawer));
   }

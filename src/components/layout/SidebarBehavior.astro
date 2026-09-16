@@ -2,77 +2,123 @@
 ---
 
 <script>
-  const STORAGE_KEY = 'garagedocs-sidebar-open';
-  const MOBILE_MQ = '(max-width: 63em)';
+  const WIDE_STORAGE_KEY = 'garagedocs-sidebar-open-wide';
+  const COMPACT_MQ = '(max-width: 74.99em)';
 
   function getNavCheckbox(): HTMLInputElement | null {
     return document.getElementById('__navigation') as HTMLInputElement | null;
   }
 
-  function isMobileNav(): boolean {
-    return window.matchMedia(MOBILE_MQ).matches;
+  function isCompactNav(): boolean {
+    return window.matchMedia(COMPACT_MQ).matches;
   }
 
-  function saveSidebarState(open: boolean) {
-    try {
-      localStorage.setItem(STORAGE_KEY, open ? '1' : '0');
-    } catch {
-      /* ignore storage errors */
-    }
+  function hasCurriculum(): boolean {
+    return document.body.classList.contains('has-curriculum-sidebar');
   }
 
-  function closeSidebar() {
+  function canOpenNavigation(): boolean {
+    return isCompactNav() || hasCurriculum();
+  }
+
+  function updateNavState(open: boolean, options: { save?: boolean; focusToggle?: boolean } = {}) {
     const cb = getNavCheckbox();
-    if (cb && cb.checked) {
-      cb.checked = false;
-      saveSidebarState(false);
+    const drawer = document.querySelector<HTMLElement>('[data-has-curriculum]');
+    if (!cb || !drawer) return;
+
+    const nextOpen = canOpenNavigation() && open;
+    if (nextOpen && isCompactNav() && document.querySelector('[data-prefs-drawer].open')) {
+      document.querySelector<HTMLButtonElement>('[data-prefs-close]')?.click();
+    }
+    cb.checked = nextOpen;
+    drawer.setAttribute('aria-hidden', nextOpen ? 'false' : 'true');
+    document.querySelectorAll<HTMLButtonElement>('[data-nav-toggle]').forEach((button) => {
+      button.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+      button.setAttribute('aria-label', nextOpen ? 'Close navigation' : 'Open navigation');
+    });
+
+    if (isCompactNav()) {
+      document.documentElement.classList.toggle('nav-panel-open', nextOpen);
+      const main = document.querySelector<HTMLElement>('.main');
+      if (main && 'inert' in main) main.inert = nextOpen;
+    } else {
+      document.documentElement.classList.remove('nav-panel-open');
+      const main = document.querySelector<HTMLElement>('.main');
+      if (main && 'inert' in main) main.inert = false;
+    }
+
+    if (options.save && !isCompactNav()) {
+      try {
+        localStorage.setItem(WIDE_STORAGE_KEY, nextOpen ? '1' : '0');
+      } catch {
+        /* ignore storage errors */
+      }
+    }
+
+    if (nextOpen && isCompactNav()) {
+      drawer.querySelector<HTMLButtonElement>('[data-nav-close]')?.focus({ preventScroll: true });
+    } else if (options.focusToggle) {
+      document.querySelector<HTMLButtonElement>('[data-nav-toggle]')?.focus({ preventScroll: true });
     }
   }
 
   function restoreSidebarState() {
-    const cb = getNavCheckbox();
-    if (!cb) return;
-    const hasCurriculum = document.body.classList.contains('has-curriculum-sidebar');
+    if (!canOpenNavigation()) {
+      updateNavState(false);
+      return;
+    }
 
-    if (!hasCurriculum) {
-      cb.checked = false;
+    if (isCompactNav()) {
+      updateNavState(false);
       return;
     }
 
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved === '1') cb.checked = true;
-      else if (saved === '0') cb.checked = false;
-      else cb.checked = true;
+      const saved = localStorage.getItem(WIDE_STORAGE_KEY);
+      updateNavState(saved !== '0');
     } catch {
-      cb.checked = true;
+      updateNavState(true);
     }
   }
 
   function initSidebarBehavior() {
     const cb = getNavCheckbox();
-    if (!cb) return;
+    const drawer = document.querySelector<HTMLElement>('[data-has-curriculum]');
+    if (!cb || !drawer || document.documentElement.dataset.sidebarBehaviorInit) return;
+    document.documentElement.dataset.sidebarBehaviorInit = 'true';
 
-    if (!cb.getAttribute('data-behavior-init')) {
-      cb.setAttribute('data-behavior-init', 'true');
-      cb.addEventListener('change', () => saveSidebarState(cb.checked));
-    }
+    document.addEventListener('click', (event) => {
+      const target = event.target as Element;
+      if (target.closest('[data-nav-toggle]')) {
+        updateNavState(!cb.checked, { save: true });
+      } else if (target.closest('[data-nav-close], [data-nav-overlay]')) {
+        updateNavState(false, { save: true, focusToggle: true });
+      }
+    });
 
-    const main = document.querySelector('.main');
-    if (main && !main.getAttribute('data-sidebar-close')) {
-      main.setAttribute('data-sidebar-close', 'true');
-      main.addEventListener('mousedown', (e) => {
-        if (!isMobileNav() || !cb.checked) return;
-        const drawer = document.querySelector('.sidebar-drawer');
-        if (drawer && !drawer.contains(e.target as Node)) closeSidebar();
-      });
-      main.addEventListener('touchstart', (e) => {
-        if (!isMobileNav() || !cb.checked) return;
-        const drawer = document.querySelector('.sidebar-drawer');
-        const target = e.target as Node;
-        if (drawer && !drawer.contains(target)) closeSidebar();
-      });
-    }
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && isCompactNav() && cb.checked) {
+        event.preventDefault();
+        updateNavState(false, { focusToggle: true });
+      }
+
+      if (event.key !== 'Tab' || !isCompactNav() || !cb.checked) return;
+      const focusable = [...drawer.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )].filter((element) => !element.hasAttribute('hidden') && element.getClientRects().length > 0);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+
+    window.matchMedia(COMPACT_MQ).addEventListener('change', restoreSidebarState);
   }
 
   restoreSidebarState();

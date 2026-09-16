@@ -2,6 +2,7 @@
 import BrandIcon from '@/components/layout/BrandIcon.astro';
 import type { SidebarGroup } from '@/lib/content';
 import { withBase } from '@/lib/url';
+import { sections, appRoutes } from '@/config/navigation';
 
 interface Props {
   currentPath: string;
@@ -18,38 +19,73 @@ function isLessonActive(href: string): boolean {
 function groupHasActiveLesson(group: SidebarGroup): boolean {
   return group.items.some((item) => isLessonActive(item.href));
 }
+
+function isRouteActive(path: string): boolean {
+  if (path === '/') return currentPath === '/';
+  return currentPath.startsWith(path);
+}
+
+const currentSection = sections.find((section) => isRouteActive(section.path));
 ---
 
 <aside
   class="sidebar-drawer"
+  id="curriculum-sidebar"
+  aria-label="Site and curriculum navigation"
+  aria-hidden="true"
   data-has-curriculum={showSidebar && sidebarGroups.length > 0 ? 'true' : 'false'}
 >
   <div class="sidebar-container">
     <div class="sidebar-sticky">
-      <a class="sidebar-brand" href={withBase('/')}>
-        <BrandIcon class="sidebar-brand-logo" width={28} height={28} />
-        <span class="sidebar-brand-text">GarageDocs</span>
-      </a>
+      <div class="sidebar-panel-head">
+        <a class="sidebar-brand" href={withBase('/')}>
+          <BrandIcon class="sidebar-brand-logo" width={28} height={28} />
+          <span class="sidebar-brand-text">GarageDocs</span>
+        </a>
+        <button class="sidebar-close" type="button" data-nav-close aria-label="Close navigation">×</button>
+      </div>
+
+      <div class="sidebar-search">
+        <label class="visually-hidden" for="sidebar-search">Search GarageDocs</label>
+        <span class="sidebar-search-icon" aria-hidden="true">⌕</span>
+        <input
+          type="search"
+          id="sidebar-search"
+          class="sidebar-search-input"
+          placeholder="Search (Ctrl+K)"
+          autocomplete="off"
+          autocorrect="off"
+          aria-haspopup="dialog"
+          data-pagefind-search
+        />
+      </div>
 
       <div class="sidebar-scroll">
-        <div class="mobile-sidebar-nav">
-          <div class="mobile-sidebar-search-container">
-            <input
-              type="text"
-              class="mobile-sidebar-search-input"
-              placeholder="Search..."
-              id="mobile-sidebar-search"
-              autocomplete="off"
-              autocorrect="off"
-              data-pagefind-search
-            />
-          </div>
-        </div>
+        <nav class="sidebar-site-nav" aria-label="Site sections">
+          <p class="sidebar-site-nav-label">Explore GarageDocs</p>
+          <ul>
+            <li><a href={withBase('/')} class:list={{ active: isRouteActive('/') }}>Home</a></li>
+            {sections.map((section) => (
+              <li>
+                <a href={withBase(section.path)} class:list={{ active: isRouteActive(section.path) }}>
+                  {section.label}
+                </a>
+              </li>
+            ))}
+            {appRoutes.map((route) => (
+              <li>
+                <a href={withBase(route.path)} class:list={{ active: isRouteActive(route.path) }}>
+                  {route.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
         {showSidebar && sidebarGroups.length > 0 && (
           <div class="sidebar-tree">
             <p class="caption" role="heading">
-              <span class="caption-text">Contents:</span>
+              <span class="caption-text">{currentSection?.label ?? 'Course'} curriculum</span>
             </p>
             <ul id="sidebar-navigation">
               {sidebarGroups.map((group) => {

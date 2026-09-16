@@ -6,7 +6,11 @@ import { withBase } from '@/lib/url';
 <script src={withBase('/pagefind/pagefind-ui.js')} is:inline></script>
 
 <div id="garagedocs-search-overlay" class="search-results-overlay" data-search-overlay aria-hidden="true" hidden>
-  <div class="search-results-modal" data-search-modal>
+  <div class="search-results-modal" data-search-modal role="dialog" aria-modal="true" aria-label="Search GarageDocs">
+    <div class="search-results-head">
+      <span>Search GarageDocs</span>
+      <button type="button" class="search-results-close" data-search-close aria-label="Close search">×</button>
+    </div>
     <div id="pagefind-search"></div>
     <p id="search-unavailable" class="search-unavailable-message" hidden>
       Search needs an index, which <code>npm run build</code> creates. Run it once; the dev server then serves the index without a restart.
@@ -21,6 +25,9 @@ import { withBase } from '@/lib/url';
     url?: string;
     sub_results?: { url?: string }[];
   }
+
+  let lastSearchTrigger: HTMLElement | null = null;
+  let suppressTriggerOpen = false;
 
   /**
    * Pagefind indexes dist/, so its result URLs are site-root-relative and miss
@@ -45,8 +52,13 @@ import { withBase } from '@/lib/url';
     }
   }
 
-  function closeSearchOverlay() {
+  function closeSearchOverlay(refocus = true) {
     setSearchOverlayOpen(false);
+    if (refocus && lastSearchTrigger) {
+      suppressTriggerOpen = true;
+      lastSearchTrigger.focus({ preventScroll: true });
+      queueMicrotask(() => { suppressTriggerOpen = false; });
+    }
   }
 
   function openSearchOverlay(query = '') {
@@ -74,13 +86,17 @@ import { withBase } from '@/lib/url';
       input.setAttribute('data-search-wired', 'true');
 
       const sync = () => {
-        if (input instanceof HTMLInputElement) openSearchOverlay(input.value);
+        if (suppressTriggerOpen) return;
+        if (input instanceof HTMLInputElement) {
+          lastSearchTrigger = input;
+          openSearchOverlay(input.value);
+        }
       };
 
       input.addEventListener('focus', sync);
       input.addEventListener('input', sync);
       // Enter with results open follows the first result, so a query typed in the
-      // header can be completed from the keyboard without reaching for the mouse.
+      // sidebar can be completed from the keyboard without reaching for the mouse.
       input.addEventListener('keydown', (e) => {
         if ((e as KeyboardEvent).key !== 'Enter') return;
         const first = document.querySelector<HTMLAnchorElement>('#pagefind-search .pagefind-ui__result-link');
@@ -92,6 +108,23 @@ import { withBase } from '@/lib/url';
     });
   }
 
+  function wireSearchButtons() {
+    document.querySelectorAll<HTMLButtonElement>('[data-search-toggle]').forEach((button) => {
+      if (button.dataset.searchWired) return;
+      button.dataset.searchWired = 'true';
+      button.addEventListener('click', () => {
+        lastSearchTrigger = button;
+        openSearchOverlay();
+      });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('[data-search-close]').forEach((button) => {
+      if (button.dataset.searchWired) return;
+      button.dataset.searchWired = 'true';
+      button.addEventListener('click', () => closeSearchOverlay());
+    });
+  }
+
   function initPagefind() {
     // @ts-expect-error pagefind UI loaded via script tag
     if (typeof PagefindUI === 'undefined') {
@@ -100,6 +133,7 @@ import { withBase } from '@/lib/url';
       // doing nothing at all.
       showUnavailable();
       wireSearchInputs();
+      wireSearchButtons();
       // @ts-expect-error expose for keyboard shortcuts
       window.garagedocsOpenSearch = openSearchOverlay;
       return;
@@ -108,6 +142,7 @@ import { withBase } from '@/lib/url';
     const container = document.getElementById('pagefind-search');
     if (!container || container.getAttribute('data-initialized')) {
       wireSearchInputs();
+      wireSearchButtons();
       return;
     }
     container.setAttribute('data-initialized', 'true');
@@ -126,6 +161,7 @@ import { withBase } from '@/lib/url';
     }
 
     wireSearchInputs();
+    wireSearchButtons();
 
     // @ts-expect-error expose for keyboard shortcuts
     window.garagedocsOpenSearch = openSearchOverlay;
@@ -134,7 +170,7 @@ import { withBase } from '@/lib/url';
     if (overlay && !overlay.getAttribute('data-overlay-init')) {
       overlay.setAttribute('data-overlay-init', 'true');
       overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) closeSearchOverlay();
+        if (e.target === overlay) closeSearchOverlay(false);
       });
     }
 
@@ -147,8 +183,12 @@ import { withBase } from '@/lib/url';
     if (!document.body.getAttribute('data-search-key-init')) {
       document.body.setAttribute('data-search-key-init', 'true');
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeSearchOverlay();
-      });
+        if (e.key === 'Escape' && !document.querySelector<HTMLElement>('[data-search-overlay]')?.hidden) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          closeSearchOverlay();
+        }
+      }, { capture: true });
     }
   }
 
