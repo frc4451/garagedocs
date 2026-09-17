@@ -5,7 +5,7 @@
  * after it — see astro.config.mjs). This wraps the heading's content in
  * `<a class="heading-link" href="#id">`, so clicking a section title puts its
  * anchor in the address bar and the URL can be shared or linked from another
- * lesson (`/tools/vscode-hotkeys#debugging`). Headings without an id, and the
+ * lesson (`/tools/vscode-keyboard-shortcuts#debugging`). Headings without an id, and the
  * page title (h1, rendered by the layout, not by MDX), are left alone.
  */
 

@@ -1,0 +1,360 @@
+---
+title: "Pose Geometry"
+lessonId: pose-geometry
+section: frc
+group: frc-pose-foundations
+groupLabel: "Pose and Odometry"
+groupOrder: 14
+order: 2
+difficulty: intermediate
+duration: 40 min
+description: "The WPILib geometry types every pose lesson is written in, sorted into state (Translation2d, Rotation2d, Pose2d) and change (Transform2d, Twist2d, ChassisSpeeds), named as arrows between frames (FieldToRobot, RobotToAprilTag, AprilTagToField) so that chains add like vectors and the inner names cancel; then the 3D versions cameras and AprilTags need."
+---
+
+Odometry, vision and pose fusion are written in a handful of types from `edu.wpi.first.math.geometry` and `edu.wpi.first.math.kinematics`, and most pose bugs are one of those types used where another was meant: a translation added in Field axes when Robot axes were intended, a pose subtracted from a pose and the result treated as a position, a camera mounted with the pitch sign backwards, a joystick speed handed to the kinematics in the wrong frame. WPILib's types hold numbers, not frame names, so they cannot catch those mistakes for you. The naming convention on this page can. It sorts the types the way they sort themselves (the ones that describe a **state** and the ones that describe a **change**) and names every value as an arrow from one frame to another, so that chains of them add like vectors. Read it before [Wheel Odometry](/frc/wheel-odometry) starts using all of them at once.
+
+### Frames, and arrows between them
+
+A **frame** is an origin plus an X direction and a Y direction. Every value on this page is measured in one, and the frames have names:
+
+- **Field.** Origin at the blue-alliance corner, +X toward the red alliance wall, +Y to the left when you stand at the blue wall and face red. Headings are conventionally reported from +X, counterclockwise positive, in (−180°, 180°]. Drawn in [AdvantageScope: Poses on the Field](/tools/advantagescope-poses-on-the-field#what-a-pose-is-and-which-way-is-which).
+- **Robot.** Origin at the robot's centre, +X forward, +Y to the robot's left. Same angle convention.
+- **Anything with a pose is a frame too**: Camera, Shooter, AprilTag, Hub. Each has an origin (where it is) and an X direction (which way it faces).
+
+Every geometric value is then an **arrow from one frame to another**, and it is named for both ends: `FieldToRobot` is the arrow from the Field origin to the Robot, `RobotToShooter` from the Robot to its Shooter, `CameraToAprilTag` from a Camera to the tag it sees. The name says what the arrow connects. For a `Pose2d` or a `Transform2d` it also says which axes the numbers use: the first frame's. For a raw `Translation2d` or a `ChassisSpeeds` the axes are whatever the calculation produced, so when they are not the first name's, say so in the name (`fieldRelativeRobotToHub`, `robotRelativeSpeeds`).
+
+<RulesBox title="The rule everything else follows">
+
+Arrows add head to tail, and when they do the **inner names cancel**:
+
+`RobotToAprilTag + AprilTagToField = RobotToField`
+
+You can only add two arrows whose inner names match. Flipping an arrow swaps its names: `FieldToRobot` is the inverse of `RobotToField`. That is the whole of pose geometry; every operation below is one of those two moves, and every bug on this page is an addition whose inner names did not match.
+
+</RulesBox>
+
+### State and change
+
+Six types cover 2D robot geometry. Three describe a state and three describe a change:
+
+<ContentTable
+  headers={["Type", "Describes", "Holds", "Named"]}
+  rows={[
+    ["<code>Translation2d</code>", "<strong>State</strong> (a point), or a change (an arrow between two points)", "<code>x</code>, <code>y</code> in metres", "<code>FieldToHub</code> as a point; <code>fieldRelativeRobotToHub</code> as an arrow whose numbers are still in Field axes"],
+    ["<code>Rotation2d</code>", "<strong>State</strong> (a heading), or a change (a turn)", "An angle, with its cosine and sine", "The rotation part of any arrow"],
+    ["<code>Pose2d</code>", "<strong>State</strong>: where something is and which way it faces", "A <code>Translation2d</code> and a <code>Rotation2d</code>", "<code>FieldToRobot</code>: always <em>from</em> a fixed frame, in that frame's axes"],
+    ["<code>Transform2d</code>", "<strong>Change</strong> between two poses, as a straight move then a turn", "A <code>Translation2d</code> and a <code>Rotation2d</code>", "<code>RobotToShooter</code>: from a thing to a thing, in the first thing's axes"],
+    ["<code>Twist2d</code>", "<strong>Change</strong> between two poses along an arc: moving and turning at once", "<code>dx</code>, <code>dy</code>, <code>dtheta</code>", "<code>RobotThenToRobotNow</code>, over one loop"],
+    ["<code>ChassisSpeeds</code>", "<strong>Rate of change</strong>: how fast, not how far", "<code>vx</code>, <code>vy</code>, <code>omega</code>, per second", "<code>robotRelativeSpeeds</code> or <code>fieldRelativeSpeeds</code>; you must say which"]
+  ]}
+/>
+
+`Pose2d` and `Transform2d` hold identical fields, and that is the confusion the names exist to prevent. A **pose** is an arrow from a fixed frame: `FieldToRobot` says the robot is at `(3, 5)` facing 90° on the Field. A **transform** is an arrow between two things: `RobotToShooter` says the shooter is 0.13 m forward and 0.16 m right of the Robot, wherever the Robot is. Add a change to a state and you get a state (`FieldToRobot + RobotToShooter = FieldToShooter`); subtract a state from a state and you get a change.
+
+<RulesBox title="What the compiler checks, and what it cannot">
+
+Java rejects the type-level mistakes: a `Pose2d` cannot be added to a `Pose2d`, and a `Transform2d` cannot be handed to a method that wants a pose. It cannot see axes. A `Transform2d` built from Field-axis numbers and added as if it were `RobotToX` compiles, runs, and drives the mechanism the wrong way. The names are the check for that: write the sum out and make sure the inner names cancel.
+
+</RulesBox>
+
+### State: where something is
+
+The three state types build on each other: a translation is a position, a rotation is a heading, and a pose is both.
+
+#### Translation2d: a point or an arrow
+
+```java
+Translation2d fieldToHub = new Translation2d(4.6, 4.0);      // a point: the Hub, from the Field origin
+Translation2d fieldToRobot = new Translation2d(2.0, 3.0);    // a point: the Robot, from the Field origin
+
+Translation2d fieldRelativeRobotToHub = fieldToHub.minus(fieldToRobot);   // an arrow from the Robot to the Hub; Field axes
+double distance = fieldRelativeRobotToHub.getNorm();                       // its length, 2.79 m
+double sameThing = fieldToRobot.getDistance(fieldToHub);                   // 2.79 m
+Rotation2d fieldRelativeBearing = fieldRelativeRobotToHub.getAngle();      // its direction in Field axes: 21°
+
+Translation2d rotated = fieldRelativeRobotToHub.rotateBy(Rotation2d.fromDegrees(90));   // the same arrow, turned
+Translation2d scaled = fieldRelativeRobotToHub.times(0.5);                              // half as long
+```
+
+A `Translation2d` is both a point and a displacement, and it does not know which; `fieldToHub` is a point and `fieldRelativeRobotToHub` is an arrow, and they are the same type. `minus` is the subtraction that produces an arrow: `FieldToHub − FieldToRobot = RobotToHub`, the same rule as adding `RobotToField + FieldToHub`. The name carries the small print: the arrow runs from the Robot, but nothing rotated it, so its x and y are still along the **Field** axes. `getAngle()` on that arrow is the Field heading of the Hub from the Robot, which is what aiming needs; `getAngle()` on a point is its bearing from the origin, which is rarely useful; `getAngle()` on a zero-length translation returns 0° with no warning, so check the length first when the direction matters.
+
+Two constructors worth knowing: `new Translation2d(distance, rotation)` builds an arrow of a given length in a given direction, and `new Translation2d(Meters.of(1), Inches.of(6))` takes typed measures so the units are checked ([Numbers, Units and Interpolation](/frc/math-toolbox-units-and-interpolation)).
+
+#### Rotation2d: an angle whose arithmetic wraps for you
+
+```java
+Rotation2d a = Rotation2d.fromDegrees(170);
+Rotation2d b = Rotation2d.fromDegrees(-170);
+
+Rotation2d diff = a.minus(b);            // 340° as a raw subtraction; -20° here, the short way round
+Rotation2d sum = a.plus(b);              // 0°
+Rotation2d back = a.unaryMinus();        // -170°
+Rotation2d turned = a.rotateBy(Rotation2d.fromDegrees(20));   // -170°, wrapped
+
+double deg = diff.getDegrees();          // -20.0
+Rotation2d fromVector = new Rotation2d(0.0, 1.0);   // the direction of the vector (0, 1): 90°
+
+Rotation2d turns = Rotation2d.fromDegrees(190);
+turns.getDegrees();                      // 190.0: what you constructed it from is kept
+```
+
+A `Rotation2d` stores the angle you gave it together with its cosine and sine. Construction and `times` keep the raw value, so a heading built from a continuous gyro reading reads back as the multi-turn number you put in. The arithmetic methods do not: `plus`, `minus` and `rotateBy` compute the result from the cosine and sine and return an angle in (−180°, 180°]. That is why `a.minus(b)` above is −20° and not 340°, and why `target.minus(current)` is the heading error a controller wants without any wrap-around code. Use `Rotation2d` for every heading, heading error and heading target; when you need a continuous multi-turn value (a turret with a cable, a log of total rotation), keep the raw number outside the arithmetic. The rotation part of an arrow follows the arrow rule too: `FieldToRobot`'s rotation is the Robot's heading in the Field, and `RobotToHub`'s rotation is how far to turn from the Robot's heading to face the Hub.
+
+The constants `Rotation2d.kZero`, `kCCW_90deg`, `kCW_90deg` and `k180deg` avoid a `fromDegrees` call for the common cases. Convert a sensor reading to a `Rotation2d` once, at the IO boundary, and do the maths in `Rotation2d` from there ([IO Layer](/frc/io-layers)).
+
+#### Pose2d: an arrow from a fixed frame, and therefore a frame of its own
+
+```java
+Pose2d fieldToRobot = new Pose2d(2.0, 3.0, Rotation2d.fromDegrees(90));   // the Robot, from the Field
+Pose2d fieldToHub = new Pose2d(4.6, 4.0, Rotation2d.kZero);              // the Hub, from the Field
+
+double x = fieldToRobot.getX();                          // 2.0
+Rotation2d heading = fieldToRobot.getRotation();         // 90°
+Translation2d where = fieldToRobot.getTranslation();     // (2.0, 3.0)
+```
+
+A pose is an arrow from a fixed frame (almost always the Field) to a thing, carrying both where the thing is and which way it faces, in the fixed frame's axes. Because it has a position and a direction, the thing at the end of the arrow **is itself a frame**: the Robot frame is the one whose origin is `fieldToRobot`'s translation and whose +X is its heading. That is what lets the next arrow start where this one ends.
+
+### Change: how one state differs from another
+
+Three types describe change. They differ in the shape of the path and in whether they measure a distance or a rate. `Transform2d` is the one you will write by hand; `Twist2d` is what odometry produces; `ChassisSpeeds` is what drive commands consume.
+
+#### Transform2d: an arrow between two things
+
+```java
+// The Shooter, from the Robot. Cobra builds this from CAD measurements through RobotRelativeTransform,
+// which names the axes (forwardPositive, leftPositive, upPositive) so the signs cannot be guessed.
+Transform2d robotToShooter = new Transform2d(0.127, -0.160, Rotation2d.kZero);
+Transform2d robotToOneAhead = new Transform2d(1.0, 0.0, Rotation2d.kZero);   // one metre ahead of the Robot, no turn
+
+Pose2d fieldToShooter = fieldToRobot.plus(robotToShooter);          // FieldToRobot + RobotToShooter: "Robot" cancels
+Transform2d shooterToRobot = robotToShooter.inverse();               // flip the arrow, swap the names
+Transform2d robotToTwoAhead = robotToOneAhead.plus(robotToOneAhead); // chain two changes
+Transform2d robotToHub = new Transform2d(fieldToRobot, fieldToHub);  // the arrow between two poses; equals fieldToHub.minus(fieldToRobot)
+```
+
+A transform's translation is applied in the axes of the pose it is added to. `RobotToShooter` is "forward 0.127, left −0.160" *in the Robot's axes*, and it stays true as the Robot drives around the Field, which is why a mount is stored as a transform and not a pose. Cobra's names already follow the rule: `ShooterConstants.robotToShooter`, the `robotToCamera` of every camera in `VisionConstants`, and `ROBOT_TO_QUEST` in the [QuestNav](/frc/questnav) lesson are all arrows from the Robot to the thing.
+
+Because the translation is always applied in the starting pose's axes, a `Transform2d` cannot express "a metre along Field +X regardless of heading". For that, operate on the Field-axis translation explicitly and say so:
+
+```java
+// Move a metre along Field +X, whatever the Robot is facing. Not RobotToX: the numbers are Field axes.
+Pose2d movedAlongFieldX = new Pose2d(
+    fieldToRobot.getTranslation().plus(new Translation2d(1.0, 0.0)),
+    fieldToRobot.getRotation());
+```
+
+#### Combining a state and a change: the three operations
+
+A change is added to a state, or recovered from two states, by one of three operations. Almost every pose bug is one of these used where another was meant; they look alike, and the arrow names tell them apart.
+
+<ContentTable
+  headers={["Operation", "In arrow names", "Returns", "Cobra example"]}
+  rows={[
+    ["<code>fieldToA.plus(aToB)</code>, also written <code>transformBy</code>", "<code>FieldToA + AToB = FieldToB</code>", "<code>Pose2d</code>, from the Field", "<code>globalPose.transformBy(ShooterConstants.robotToShooter)</code>: <code>FieldToRobot + RobotToShooter = FieldToShooter</code>"],
+    ["<code>fieldToB.relativeTo(fieldToA)</code>", "<code>AToField + FieldToB = AToB</code>", "<code>Pose2d</code>, from A, in A's axes", "<code>targetPose.relativeTo(aimPose)</code> in <code>HubVARC</code>: <code>RobotToField + FieldToHub = RobotToHub</code>"],
+    ["<code>fieldToB.minus(fieldToA)</code>", "<code>AToField + FieldToB = AToB</code>", "<code>Transform2d</code>, from A, in A's axes", "<code>origin.minus(target)</code> in <code>PoseUtils.getParallelError</code>"]
+  ]}
+/>
+
+`relativeTo` and `minus` compute the same arrow; one returns it typed as a state seen from A and the other as a change starting at A. Worked through with `fieldToRobot` at `(2, 3)` facing 90° (toward Field +Y) and `fieldToHub` at `(4.6, 4.0)`:
+
+```java
+Pose2d fieldToOneAhead = fieldToRobot.plus(robotToOneAhead);
+// FieldToRobot + RobotToOneAhead = FieldToOneAhead: (2, 4) facing 90°.
+// "Ahead" meant Field +Y, because the Robot faces +Y.
+// fieldToRobot.getTranslation().plus(new Translation2d(1, 0)) would give (3, 3): a metre along Field +X,
+// which is to the Robot's right. Same numbers, different axes, different answer.
+
+Pose2d robotToHubPose = fieldToHub.relativeTo(fieldToRobot);
+// RobotToField + FieldToHub = RobotToHub: (1.0, -2.6) facing -90°, in the Robot's axes.
+// The Hub is 1 m ahead of the Robot and 2.6 m to its right.
+Rotation2d robotRelativeBearing = robotToHubPose.getTranslation().getAngle();   // -69°, Robot axes
+Rotation2d faceHub = robotRelativeBearing.plus(fieldToRobot.getRotation());    // 21°, back in Field axes
+
+Transform2d robotToHub = fieldToHub.minus(fieldToRobot);
+// The same arrow typed as a change. fieldToRobot.plus(robotToHub) equals fieldToHub.
+```
+
+The `relativeTo` block is the last line of `HubVARC.update()` in Cobra, with `aimPose` playing `fieldToRobot` and `targetPose` playing `fieldToHub`:
+
+```java
+this.rotationTarget =
+    this.targetPose.relativeTo(aimPose).getTranslation().getAngle().plus(aimPose.getRotation());
+```
+
+Written with `atan2` on raw coordinates, that line would have to subtract the Robot's position, wrap the angle and add the heading back, in the right order. `relativeTo` does all three and cannot get the order wrong.
+
+One more that appears in Cobra: `pose.rotateBy(rotation)` rotates a pose about the **Field origin**, which is what the alliance flip needs and almost nothing else. To turn a pose in place, build a new one from the same translation and a new rotation.
+
+#### Twist2d: a change along an arc
+
+A `Twist2d` is `RobotThenToRobotNow`: the arrow from where the Robot was at the last update to where it is now, in the axes it had then. It is a displacement, not a velocity; despite the name, its fields are distances and an angle. What separates it from a `Transform2d` is the shape of the path. A transform says "end up 1 m ahead and 90° turned"; a twist says "drive 1 m *while* turning 90°", which traces an arc and ends somewhere else. Over one 20 ms loop the difference is small; integrated over a match with the robot spinning while it drives, it is the difference between odometry that holds and odometry that drifts. `Pose2d.exp(twist)` adds a twist along its arc (`FieldToRobotThen + RobotThenToRobotNow = FieldToRobotNow`) and `pose.log(other)` recovers the twist between two poses; `SwerveDriveKinematics.toTwist2d(moduleDeltas)` produces one from how far each module moved.
+
+```java
+// Drive.java, when the gyro is disconnected: the module deltas alone give the heading change.
+Twist2d robotMotion = kinematics.toTwist2d(moduleDeltas);
+rawGyroRotation = rawGyroRotation.plus(new Rotation2d(robotMotion.dtheta));
+```
+
+`SwerveDrivePoseEstimator` does the `exp` for you inside `updateWithTime`, which is why the rest of Cobra never calls it directly; [Wheel Odometry](/frc/wheel-odometry) shows the loop.
+
+#### ChassisSpeeds: a rate, in a frame you must name
+
+`new ChassisSpeeds(vx, vy, omega)` is meaningless until you say whether `vx` is along the Robot's +X or the Field's +X. There is no endpoint name to carry that, so the basis goes in the variable name (`fieldRelativeSpeeds`, `robotRelativeSpeeds`) and the conversion is one call, which needs `FieldToRobot`'s rotation:
+
+```java
+// DriveCommands.java: joystick speeds are field-relative (forward on the stick is toward the far wall),
+// so convert them into Robot axes before kinematics. Red flips the heading by 180° so "forward"
+// still means away from the driver.
+drive.runVelocity(
+    ChassisSpeeds.fromFieldRelativeSpeeds(
+        speeds,
+        isFlipped
+            ? BobotState.getGlobalPose().getRotation().plus(new Rotation2d(Math.PI))
+            : BobotState.getGlobalPose().getRotation()));
+
+// Drive.java, the other direction: measured robot-relative speeds, published field-relative for BobotState.
+BobotState.setRobotVelocity(
+    ChassisSpeeds.fromRobotRelativeSpeeds(getChassisSpeeds(), getGlobalPose().getRotation()));
+```
+
+The last step before the modules is the one that ties the twist and the speeds together. A module holds one speed for the whole loop, so a robot commanded to translate *and* rotate follows a slightly curved path, which shows up as sideways drift when spinning while driving. `ChassisSpeeds.discretize(speeds, 0.02)` corrects the commanded speeds so that holding them for 20 ms lands on the pose the continuous speeds would have reached; it is the `Twist2d` idea applied to the setpoint instead of the measurement.
+
+```java
+// Drive.runVelocity
+ChassisSpeeds discreteSpeeds = ChassisSpeeds.discretize(robotRelativeSpeeds, 0.02);
+SwerveModuleState[] setpointStates = kinematics.toSwerveModuleStates(discreteSpeeds);
+```
+
+A `ChassisSpeeds` multiplied by a time is a `Twist2d` (`speeds.toTwist2d(dt)`), and a twist divided by a time is an average `ChassisSpeeds`. Keep them apart by their units: metres for a twist, metres per second for speeds.
+
+### The 3D versions
+
+Cameras are mounted above the floor and tilted; AprilTags are on walls at a height and an angle. Neither fits in 2D, so vision uses the 3D types, and the estimate comes back down to 2D at the end. The arrow rule does not change.
+
+<ContentTable
+  headers={["3D type", "Adds", "Where you meet it"]}
+  rows={[
+    ["<code>Translation3d</code>", "<code>z</code>, metres, up positive", "Tag positions in the field layout; the fuel's centre height in <code>ObjectDetectionIOPhoton</code>"],
+    ["<code>Rotation3d</code>", "Roll, pitch and yaw, stored as a quaternion", "Camera tilt; a tag's facing; <code>AllianceFlipUtil</code> rotates one by 180° yaw"],
+    ["<code>Pose3d</code>", "A <code>Translation3d</code> and a <code>Rotation3d</code>", "<code>FieldToAprilTag</code> for every tag in <code>AprilTagFieldLayout</code>; the <code>FieldToRobot</code> PhotonVision estimates; the fuel poses Cobra logs"],
+    ["<code>Transform3d</code>", "A 3D arrow between two things", "<code>RobotToCamera</code>: how each camera is mounted; <code>CameraToAprilTag</code>: what the camera measured"],
+    ["<code>Twist3d</code>", "<code>dx</code>, <code>dy</code>, <code>dz</code> and <code>rx</code>, <code>ry</code>, <code>rz</code>", "<code>Pose3d.exp</code>/<code>log</code>; rarely written by hand on a ground robot"]
+  ]}
+/>
+
+The frame gains a third axis and two more rotations, all by WPILib's **right-hand rule** ([Coordinate System](https://docs.wpilib.org/en/stable/docs/software/basic-programming/coordinate-system.html)): +Z is up; roll is about +X, pitch about +Y, yaw about +Z; counterclockwise looking down each positive axis is positive. Two consequences catch people:
+
+- **Yaw is the 2D heading.** `rotation3d.toRotation2d()` and `pose3d.toPose2d()` keep the yaw and drop the rest.
+- **Positive pitch tips the front down.** Rotating +X toward −Z is the right-hand-rule direction about +Y, so a camera with `pitch = +15°` looks 15° below level. The aviation habit of "nose up is positive" is the opposite, and it is the usual reason a camera's estimate lands on the wrong side of the tag.
+
+```java
+// RobotToCamera for a rear-facing camera, mounted 0.30 m above the floor, tilted 15° toward the floor.
+// Order is roll, pitch, yaw, each about the fixed Robot axes in that order.
+Transform3d robotToCamera = new Transform3d(
+    new Translation3d(-0.63, 0.02, 0.30),
+    new Rotation3d(0.0, Math.toRadians(15.0), Math.toRadians(180.0)));
+
+Pose3d fieldToRobot3d = new Pose3d(fieldToRobot);                     // z = 0, roll = pitch = 0, yaw from the Pose2d
+Pose3d fieldToCamera = fieldToRobot3d.plus(robotToCamera);            // FieldToRobot + RobotToCamera = FieldToCamera
+Pose2d flat = fieldToCamera.toPose2d();                               // back to 2D: drops z, roll and pitch
+```
+
+`new Rotation3d(roll, pitch, yaw)` applies the three rotations about the fixed axes in that order (extrinsic), which is what makes "pitch then yaw" above mean "tilt the camera down, then spin the whole mount to face backward". A `Rotation3d` can also be built from an axis and an angle, or from a quaternion, which is how PhotonVision sends it over the network.
+
+#### The vision chain
+
+This is where the arrow rule earns its keep. A camera sees a tag and measures `CameraToAprilTag`. The field layout knows `FieldToAprilTag`. The mount is `RobotToCamera`. The robot wants `FieldToRobot`. Write the chain from the Robot outward and cancel:
+
+`RobotToCamera + CameraToAprilTag + AprilTagToField = RobotToField`
+
+Two of those arrows are the wrong way round for the chain, so flip them: `AprilTagToField` is `FieldToAprilTag.inverse()`, and the answer we log is `FieldToRobot`, which is `RobotToField.inverse()`. In WPILib the same chain is usually written from the Field end, where the flips land on the measured and mounted arrows instead:
+
+```java
+// FieldToAprilTag + AprilTagToCamera + CameraToRobot = FieldToRobot
+Pose3d fieldToCamera = fieldToAprilTag.plus(cameraToAprilTag.inverse());
+Pose3d fieldToRobot3d = fieldToCamera.plus(robotToCamera.inverse());
+```
+
+Read it left to right and watch the inner names cancel: Field→AprilTag, AprilTag→Camera, Camera→Robot. Every `inverse()` is an arrow that was measured or mounted pointing the other way. [PhotonVision](/frc/photonvision) does this inside `PhotonPoseEstimator`; the lesson shows where each arrow enters, and [QuestNav](/frc/questnav) is the same chain with `RobotToQuest` in place of `RobotToCamera`.
+
+### Which one do I have?
+
+<ContentTable
+  headers={["You are holding", "It is a", "Its name"]}
+  rows={[
+    ["The robot's position on the field", "<code>Pose2d</code>", "<code>fieldToRobot</code>"],
+    ["The direction and distance to a target", "<code>Translation2d</code> (an arrow) or a <code>Pose2d</code> from <code>relativeTo</code>", "<code>fieldRelativeRobotToHub</code> or <code>robotToHub</code>, by which axes it is in"],
+    ["A heading, a heading error, a turn", "<code>Rotation2d</code>", "The rotation part of an arrow"],
+    ["Where a camera or shooter is <em>on the robot</em>", "<code>Transform2d</code> / <code>Transform3d</code>", "<code>robotToCamera</code>, <code>robotToShooter</code>"],
+    ["What the camera measured", "<code>Transform3d</code>", "<code>cameraToAprilTag</code>"],
+    ["A tag's location", "<code>Pose3d</code>", "<code>fieldToAprilTag</code>"],
+    ["The camera's estimate of the robot", "<code>Pose3d</code>, then <code>toPose2d()</code>", "<code>fieldToRobot</code>; the estimator only wants x, y and yaw"],
+    ["How far the robot moved since the last loop", "<code>Twist2d</code>", "<code>RobotThenToRobotNow</code>; apply with <code>Pose2d.exp</code>"],
+    ["How fast the robot is moving, or should move", "<code>ChassisSpeeds</code>", "<code>robotRelativeSpeeds</code> or <code>fieldRelativeSpeeds</code>"]
+  ]}
+/>
+
+<RulesBox title="Common mistakes">
+
+- **Adding arrows whose inner names do not match.** `fieldToRobot.getTranslation().plus(someFieldArrow)` is `FieldToRobot + FieldToX`. If you meant Robot-relative motion, the arrow you need is `RobotToX`, applied with `plus`/`transformBy`.
+- **Treating the result of `a.minus(b)` as a position.** It is `BToA`, a change starting at B. If you wanted "where is A from B", `a.relativeTo(b)` says so and returns the same arrow typed as a state.
+- **An arrow named backwards.** `cameraToRobot` stored where `robotToCamera` was expected is the whole estimate mirrored through the camera. When in doubt, write the chain out and check the names cancel.
+- **A raw translation with unstated axes.** `fieldToHub.minus(fieldToRobot)` runs from the Robot but is in Field axes. Name the basis (`fieldRelativeRobotToHub`) or rotate it into Robot axes before treating it as `RobotToHub`.
+- **Expecting the compiler to catch a frame mistake.** It catches pose-plus-pose and nothing about axes. Two sign errors that cancel produce a correct final pose from wrong intermediates; log the intermediates.
+- **Pitch sign.** Positive tips the front down. Check a mount by logging `fieldToRobot3d.plus(robotToCamera)` to AdvantageScope's 3D field and looking at which way it points.
+- **`getAngle()` on a point.** It is the bearing from the Field origin. Subtract the observer first (`FieldToHub − FieldToRobot`), or use `relativeTo`.
+- **Degrees into a radians constructor.** `new Rotation2d(90)` is 90 radians. Use `fromDegrees`, or the typed `Degrees.of(90)` overload.
+- **A `ChassisSpeeds` in the wrong frame.** Joystick speeds are field-relative; kinematics want robot-relative. `fromFieldRelativeSpeeds` with the current heading is the conversion, and a red-alliance driver needs the heading flipped by 180°.
+- **Reading `Twist2d` as a velocity.** It is the distance moved this loop. Divide by the loop time if you want a rate.
+- **Rotating a pose about the origin when you meant to turn it in place.** `pose.rotateBy(r)` moves the position too; `new Pose2d(pose.getTranslation(), pose.getRotation().plus(r))` turns in place.
+
+</RulesBox>
+
+### Practice
+
+1. With `fieldToRobot` at `(2, 3)` facing 90° and `fieldToHub` at `(4.6, 4.0)`, compute the Field heading to face the Hub two ways: with `relativeTo` as above, and with `fieldToHub.getTranslation().minus(fieldToRobot.getTranslation()).getAngle()`. They should agree. Write each as an arrow sum and say why the second one does not need `plus(fieldToRobot.getRotation())`.
+2. Compute `fieldToRobot.plus(new Transform2d(1, 0, Rotation2d.kZero))` and `fieldToRobot.plus(new Transform2d(0, 1, Rotation2d.kZero))` by hand, then check in code. Which one moved the robot along Field +X?
+3. Write `robotToCamera` for a camera on the front-left corner of the robot, 0.2 m forward, 0.25 m left, 0.5 m up, facing 30° to the left and tilted 10° up. Watch the pitch sign.
+4. The driver pushes the stick straight forward, which is Field +X at 1 m/s, with the robot facing 90°. Write the `ChassisSpeeds` the driver means and the robot-relative `ChassisSpeeds` the kinematics receive. Which component is nonzero in each?
+5. Write the vision chain for a camera that measured `cameraToAprilTag` of tag 7 as a sum of arrows starting at `Field`, mark which arrows need `inverse()`, then write it in code. Log `fieldToAprilTag.toPose2d()` and the tag's own `Pose3d` to AdvantageScope and compare them on the 2D and 3D fields.
+
+<RulesBox title="Answers">
+
+1. Both give about 21°. The second is `FieldToHub − FieldToRobot = RobotToHub` with x and y still in Field axes, so its angle is already a Field heading. `relativeTo` produced `RobotToHub` in Robot axes, which needs the Robot's heading added back to become a Field heading.
+2. `(2, 4)` facing 90° and `(1, 3)` facing 90°. Neither moved along Field +X; the Robot faces +Y, so its forward is +Y and its left is −X.
+3. `new Transform3d(new Translation3d(0.2, 0.25, 0.5), new Rotation3d(0, Math.toRadians(-10), Math.toRadians(30)))`. Tilted up is negative pitch.
+4. Field-relative: `vx = 1`, `vy = 0`. Robot-relative, after `fromFieldRelativeSpeeds` with a 90° heading: `vx = 0`, `vy = -1`. Field +X is to the right of a robot facing +Y, so the robot strafes right.
+5. `FieldToAprilTag + AprilTagToCamera + CameraToRobot = FieldToRobot`; the middle two are `cameraToAprilTag.inverse()` and `robotToCamera.inverse()`. In code: `fieldToAprilTag.plus(cameraToAprilTag.inverse()).plus(robotToCamera.inverse())`. The 2D pose has the tag's x, y and yaw; the height and tilt are gone, which is why `addVisionMeasurement` takes a `Pose2d` and the layout keeps `Pose3d`.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/basic-programming/coordinate-system.html", "note": "Field and Robot frames, right-hand rule, the (−180°, 180°] heading convention."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/geometry/transformations.html", "note": "<code>plus</code>, <code>relativeTo</code>, <code>minus</code>, <code>Transform2d</code> composition and <code>Twist2d</code>/<code>exp</code>/<code>log</code>."},
+  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/intro-and-chassis-speeds.html", "note": "<code>ChassisSpeeds</code>, field-relative to robot-relative conversion."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/geometry/Rotation2d.html", "note": "Stored value plus cos/sin; which methods wrap and which keep the constructed angle."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/geometry/Rotation3d.html", "note": "Quaternion storage; the <code>(roll, pitch, yaw)</code> constructor is extrinsic about the fixed axes."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/kinematics/ChassisSpeeds.html", "note": "<code>fromFieldRelativeSpeeds</code>, <code>fromRobotRelativeSpeeds</code>, <code>discretize</code>, <code>toTwist2d</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/varc/HubVARC.java", "note": "The <code>relativeTo … getAngle().plus(rotation)</code> aim line."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/commands/DriveCommands.java", "note": "Field-relative joystick speeds converted with the alliance-flipped heading."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "Gyro-fallback <code>toTwist2d</code>, <code>discretize(speeds, 0.02)</code>, <code>fromRobotRelativeSpeeds</code> for <code>BobotState</code>."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/VisionTypes.java", "note": "<code>RobotRelativeTransform</code>: the axis-named builder every mount is typed with."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/vision/VisionConstants.java", "note": "The DangerCam mount the <code>robotToCamera</code> example is taken from."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/ShooterConstants.java", "note": "<code>robotToShooter</code>."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/math/distance_calc/PoseUtils.java", "note": "<code>getParallelError</code> and the other pose helpers named here."},
+  {"source": "photonvision", "path": "docs/apriltag-pipelines/coordinate-systems.html", "note": "The camera and tag frames the vision chain is written in."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Wheel Odometry","id":"wheel-odometry"},
+  {"label":"PhotonVision","id":"photonvision"},
+  {"label":"AdvantageScope: Poses on the Field","url":"/tools/advantagescope-poses-on-the-field#what-a-pose-is-and-which-way-is-which"},
+  {"label":"The Math Toolbox: Cobra's geometry helpers","id":"math-toolbox-geometry"},
+  {"label":"Numbers, Units and Interpolation","id":"math-toolbox-units-and-interpolation"},
+  {"label":"WPILib: Coordinate System","url":"https://docs.wpilib.org/en/stable/docs/software/basic-programming/coordinate-system.html"},
+  {"label":"WPILib: Geometry classes","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/geometry/index.html"},
+  {"label":"WPILib: Kinematics and ChassisSpeeds","url":"https://docs.wpilib.org/en/stable/docs/software/kinematics-and-odometry/intro-and-chassis-speeds.html"},
+  {"label":"WPILib: Rotation2d Javadoc","url":"https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/geometry/Rotation2d.html"}
+]} title="Next" section="frc" />

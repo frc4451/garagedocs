@@ -3,7 +3,7 @@ import type { JavaPlaygroundExercise } from '../types';
 
 export const FUNCTIONS: JavaPlaygroundExercise[] = [
   pg(
-    'java-fn-functions-as-data',
+    'java-functions-as-data',
     'Practice: functions as data',
     `Print numbers from the list that pass a Test (value greater than 5). Use an anonymous class that implements Test. Do not use a lambda.
 
@@ -33,7 +33,7 @@ public class Main {
     [{ name: 'Filter through Test', stdout: '12\n8' }],
   ),
   pg(
-    'java-fn-lambdas',
+    'java-lambdas',
     'Practice: lambdas',
     `Assign a lambda that doubles its argument. Print apply(5).
 
@@ -54,7 +54,7 @@ public class Main {
     [{ name: 'Double 5', stdout: '10' }],
   ),
   pg(
-    'java-fn-method-references',
+    'java-method-references',
     'Practice: method references',
     `Point a Fn at Main.hello using a method reference. Call run().
 
@@ -79,7 +79,7 @@ public class Main {
     [{ name: 'Method reference', stdout: 'hi' }],
   ),
   pg(
-    'java-fn-supplier',
+    'java-functional-interfaces',
     'Practice: Supplier',
     `Make a Supplier that reads box.n each time get() is called. Set box.n to 2, then print s.get().
 

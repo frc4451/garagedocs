@@ -1,202 +1,129 @@
 ---
-title: "R14: Time-based autonomous"
+title: "R14: Time-based Autonomous"
 lessonId: r14-time-based-autonomous
 section: kit-bot
 group: auto-and-capstone
 groupLabel: "Phase 5: Autonomous and Capstone"
 groupOrder: 5
 order: 14
-duration: 15 min
-description: "A drive-forward autonomous routine and the SendableChooser pattern for picking one at the driver station."
----
-Your robot drives in teleop. The last thing it needs to be a working Kit Bot is a way to do something useful during the 15-second autonomous period without a driver. This module covers the simplest possible auto (drive forward, optionally launch, end on a timeout) and the chooser pattern that lets you pick between routines on the driver station.
-
-We do **time-based** auto, not trajectory-following, deliberately. Time-based is honest about its limits: it's not precise, doesn't react to obstacles, doesn't compensate for battery sag. But it works without a gyro, without odometry tuning, and without any extra libraries. Once you have a working Kit Bot you can upgrade to trajectory-following; [R15](/kit-bot/r15-where-to-next) points at the libraries.
-
+duration: 20 min
+description: Build a short time-based autonomous routine and select it with a dashboard chooser.
 ---
 
-### Composing a small auto routine
 
-You already have the building blocks. `Commands.run`, `Commands.runOnce`, `.withTimeout`, `.andThen` are all you need.
+During autonomous, the robot runs without joystick input. This lesson composes subsystem commands into a short sequence: drive forward, stop, then run the launcher.
+
+The routine uses time instead of a measured distance. This keeps the lesson focused on command sequences and simulation testing. A real time-based routine can drift as the battery and floor change.
+
+### Step 1: create the routines
+
+Create `src/main/java/frc/robot/commands/AutoRoutines.java`. This is a **complete file**.
 
 ```java
 package frc.robot.commands;
 
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.launcher.Launcher;
-import frc.robot.subsystems.launcher.LauncherConstants;
 import static edu.wpi.first.units.Units.Seconds;
 
 public final class AutoRoutines {
-
-    /** Drive forward at a fixed speed for a given duration, then stop. */
-    public static Command driveForward(Drive drive, double speed, Time duration) {
-        return Commands.run(() -> drive.arcadeDrive(speed, 0.0), drive)
-                       .withTimeout(duration)
-                       .andThen(Commands.runOnce(drive::stop, drive));
+    public static Command driveForward(
+            Drive drive, double speed, Time duration) {
+        return drive.driveAt(speed, 0.0).withTimeout(duration);
     }
 
-    /** Spin the launcher up for a given duration, then stop. */
     public static Command shoot(Launcher launcher, Time duration) {
-        return Commands.startEnd(
-                   () -> launcher.runAt(LauncherConstants.SHOOT_VOLTAGE),
-                   () -> launcher.stop(),
-                   launcher)
-               .withTimeout(duration);
+        return launcher.launchFuel().withTimeout(duration);
     }
 
-    /** Drive forward, then shoot: two-step autonomous. */
-    public static Command driveThenShoot(Drive drive, Launcher launcher) {
+    public static Command driveThenShoot(
+            Drive drive, Launcher launcher) {
         return driveForward(drive, 0.4, Seconds.of(1.5))
-               .andThen(shoot(launcher, Seconds.of(2.0)));
+            .andThen(shoot(launcher, Seconds.of(2.0)));
     }
 
     private AutoRoutines() {}
 }
 ```
 
-Three commands, each one short. The shape of every line worth noting:
+`driveForward` and `shoot` compose commands already defined by `Drive` and `Launcher`; they do not repeat either subsystem's output or stop logic. `withTimeout` interrupts each command after the given time, so the subsystem's end action stops the mechanism. `andThen` starts the next command after the first finishes.
 
-- **`Commands.run(...).withTimeout(duration)`**: runs the lambda every tick until the timer expires. `withTimeout` returns a *new* command that decorates the original. It's overloaded, `withTimeout(double seconds)` still exists, but `withTimeout(Time time)` is the typed version and there's no reason to prefer the raw one now.
-- **`.andThen(otherCommand)`**: sequence. The decorated command finishes; `otherCommand` runs next. Returns yet another new command.
-- **`Commands.startEnd(start, end, requirement)`**: runs `start` on schedule, sits idle (with the requirement held), runs `end` on cancel or timeout. Perfect for "hold while running."
-- **The methods dropped the `Seconds` suffix.** `driveForwardSeconds`/`shootSeconds` existed because the parameter was a bare `double` and the name was the only place the unit was written down. Once the parameter is `Time`, the name repeating it is redundant, the same reasoning R03 gave for `WHEEL_DIAMETER` over `WHEEL_DIAMETER_METERS`.
+Build before continuing.
 
-These three factories (`run`, `runOnce`, `startEnd`) plus the four decorators (`withTimeout`, `andThen`, `alongWith`, `raceWith`) are about 90% of the command composition you'll do. The other 10% is a `SequentialCommandGroup` or `ParallelCommandGroup` subclass when a routine grows large enough to deserve its own file.
+### Step 2: create the chooser
 
----
-
-### The chooser pattern
-
-You'll write more than one auto. The driver station needs a way to pick which one runs. WPILib's [`SendableChooser`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/smartdashboard/SendableChooser.html) handles that: a dropdown widget the FRC Driver Station renders automatically.
-
-In `RobotContainer`:
+In `RobotContainer`, import `edu.wpi.first.wpilibj2.command.Commands` for the do-nothing option. Add this field:
 
 ```java
-import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import frc.robot.commands.AutoRoutines;
-import static edu.wpi.first.units.Units.Seconds;
-// ... other imports ...
+private final SendableChooser<Command> autoChooser =
+    new SendableChooser<>();
+```
 
-public class RobotContainer {
+Add these lines in the constructor after the subsystems are created and before `configureBindings()`:
 
-    private final Drive drive;
-    private final Launcher launcher;
-    private final CommandXboxController driver = /* ... */;
-    private final SendableChooser<Command> autoChooser = new SendableChooser<>();
+```java
+autoChooser.setDefaultOption("Do nothing", Commands.none());
+autoChooser.addOption(
+    "Drive forward",
+    AutoRoutines.driveForward(drive, 0.4, Seconds.of(1.5)));
+autoChooser.addOption(
+    "Drive then shoot",
+    AutoRoutines.driveThenShoot(drive, launcher));
 
-    public RobotContainer() {
-        // ... IO selection from R12 ...
+SmartDashboard.putData("Auto Chooser", autoChooser);
+```
 
-        autoChooser.setDefaultOption("Do nothing", Commands.none());
-        autoChooser.addOption("Drive forward 1.5s",   AutoRoutines.driveForward(drive, 0.4, Seconds.of(1.5)));
-        autoChooser.addOption("Shoot only 2s",        AutoRoutines.shoot(launcher, Seconds.of(2.0)));
-        autoChooser.addOption("Drive then shoot",     AutoRoutines.driveThenShoot(drive, launcher));
+`SmartDashboard.putData` publishes the chooser through NetworkTables. You do not need to open the SmartDashboard application. Glass displays the published chooser widget.
 
-        SmartDashboard.putData("Auto Chooser", autoChooser);
+Return the selection from `getAutonomousCommand()`:
 
-        configureBindings();
-    }
-
-    public Command getAutonomousCommand() {
-        return autoChooser.getSelected();
-    }
+```java
+public Command getAutonomousCommand() {
+    return autoChooser.getSelected();
 }
 ```
 
-A few notes on the imports:
+### Step 3: select and run an autonomous routine
 
-- **`SmartDashboard.putData(...)` is a one-line publish helper**, despite the name. It writes the chooser's state to NetworkTables under `SmartDashboard/Auto Chooser`. The FRC Driver Station's autonomous-chooser dropdown reads from exactly that NT path. We are not using SmartDashboard the application; we're using the same NetworkTables backend AdvantageScope reads from.
-- **`Commands.none()`** is the empty command: does nothing, finishes immediately. The right default when "no auto selected" should mean "stand still."
+1. Start robot simulation.
+2. Open Glass with `WPILib: Start Tool`.
+3. In Glass, open the NetworkTables menu and find the chooser under the `SmartDashboard` table.
+4. Select **Drive forward**.
+5. Set the simulated robot to Autonomous and enable it.
 
-In `Robot.autonomousInit` you already had the right shape from the template:
+The drivetrain should move, then stop after 1.5 seconds.
 
-```java
-@Override
-public void autonomousInit() {
-    m_autonomousCommand = m_robotContainer.getAutonomousCommand();
-    if (m_autonomousCommand != null) {
-        m_autonomousCommand.schedule();
-    }
-}
-```
+Disable the robot. Select **Drive then shoot** and enable autonomous again. The drivetrain should move and stop before the launcher starts.
 
-The teleop transition cancels it:
+### How `Robot` starts and stops the selection
 
-```java
-@Override
-public void teleopInit() {
-    if (m_autonomousCommand != null) {
-        m_autonomousCommand.cancel();
-    }
-}
-```
+The command-based template schedules the selected command in `autonomousInit()`. It cancels the command in `teleopInit()` so joystick control can take over. Confirm both methods still exist in `Robot.java`.
 
-Both come straight from the template. You don't have to touch them.
+### Troubleshooting
 
----
+- **The chooser is missing:** confirm `SmartDashboard.putData` runs once from the `RobotContainer` constructor and Glass is connected to simulation.
+- **The wrong routine runs:** select the option before enabling autonomous, then confirm `getAutonomousCommand()` returns `autoChooser.getSelected()`.
+- **The drivetrain never stops:** confirm `driveForward` calls `drive.driveAt(...)` with `withTimeout`. The timeout interrupts `driveAt`, which runs its stop action.
+- **Teleop does not take control:** confirm `teleopInit()` cancels the autonomous command.
 
-### Try it
+<RulesBox title="On the real robot">
 
-In the sim:
-
-1. Build, sim, look at the simulator GUI. The driver station window has an **Auto Mode** dropdown; you should see all four options ("Do nothing" plus the three you added).
-2. Select **"Drive forward 1.5s"**, switch the robot to Autonomous, click Enable. Watch the field viewer in AdvantageScope: the robot moves forward, stops after 1.5 seconds.
-3. Disable. Select **"Drive then shoot"**. Enable in Autonomous. Robot drives, stops, the launcher spins up for 2 seconds.
-4. While the auto is running, switch to Teleop. The auto command is interrupted; you can drive normally.
-
-If the dropdown doesn't appear, check that `SmartDashboard.putData("Auto Chooser", autoChooser)` runs once; it goes in the constructor, not in `getAutonomousCommand()`.
-
-If the right routine runs in sim but not on a real robot, the `null` check in `autonomousInit` is the culprit. Confirm `autoChooser.getSelected()` is returning something non-null. The default of `Commands.none()` is intentionally non-null so the `null` check is mostly defensive.
-
----
-
-### Limits of time-based autonomous
-
-Three things this approach won't do:
-
-- **Drive in a straight line precisely.** Each side's motors will have slightly different friction and battery contribution. After a few seconds of "drive forward," the robot will have drifted left or right. The Kit Bot stock has no way to correct this; that's what a gyro is for.
-- **Stop at a target distance.** "Drive 1.5 seconds" depends on the battery's state of charge. A fresh battery overshoots; a depleted one undershoots. Encoders + odometry + PID give you "drive 2.0 meters" precision. That's R15 territory.
-- **React to anything.** If a defender bumps you mid-auto, you'll keep driving into the obstacle. Real autos use the camera, the gyro, and pre-computed paths to handle this.
-
-For a build-season-1 Kit Bot, none of this matters. A time-based "drive forward and shoot" scores the same auto-period points as a fancy trajectory. Get the fancy version when you have time after the rest of the robot works.
-
----
-
-### What you have now
-
-Open AdvantageScope's field viewer. Select an auto. Hit enable. The Kit Bot moves, runs the launcher, stops on time, and you can see all of it. That's a working autonomous routine: end-to-end through the IO pattern, with telemetry, picked from a dropdown.
-
-[R15](/kit-bot/r15-where-to-next) points at the next dozen things you could build on top. The [capstone](/kit-bot/rc-capstone) is the rubric for "done" on this curriculum.
-
----
-
-<RulesBox title="Evaluate in simulation">
-
-The auto chooser lists every routine; each selected routine runs to completion on AdvantageScope's field view when enabled in Autonomous; switching to Teleop mid-routine interrupts it and the sticks take over. If a routine runs in simulation but not on hardware, check whether the chooser returned `null` on the robot, and explain where that can happen.
+Run autonomous only after [R12 Part 2: First Deploy](/kit-bot/r12-first-deploy) and the teleop direction checks pass. Start with the robot on blocks, then move to an open practice area with a mentor at Disable. Battery voltage, carpet, and wheel slip change the distance traveled during a timed command, so measure the real stopping point and adjust the timeout from evidence. Recheck that teleop cancels an autonomous command that is still running.
 
 </RulesBox>
 
-### References
+<RulesBox title="Done when">
 
-- WPILib: [The Command Scheduler: Default Commands and Composition](https://docs.wpilib.org/en/stable/docs/software/commandbased/command-compositions.html)
-- WPILib: [Choosing an Autonomous Program](https://docs.wpilib.org/en/stable/docs/software/dashboards/smartdashboard/choosing-an-autonomous-program-from-smartdashboard.html), the chooser pattern in detail
-- WPILib JavaDoc: [`SendableChooser`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/smartdashboard/SendableChooser.html)
-- WPILib JavaDoc: [`Commands`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/Commands.html) (every factory used here)
-- WPILib JavaDoc: [`Command.withTimeout`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/Command.html#withTimeout(edu.wpi.first.units.measure.Time))
-- WPILib JavaDoc: [`Command.andThen`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/Command.html#andThen(edu.wpi.first.wpilibj2.command.Command...))
-- WPILib: [The Java Units Library](https://docs.wpilib.org/en/stable/docs/software/basic-programming/java-units.html)
+Glass shows the chooser. Each option runs the behavior named by the option in simulation. The drivetrain stops when its timeout ends, and switching to teleop interrupts an autonomous routine that is still running.
+
+</RulesBox>
 
 <Sources items={[
-  {"source": "wpilib", "path": "docs/software/commandbased/command-compositions.html", "note": "Sequences and timeouts."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Command.html", "note": "<code>andThen</code>, <code>withTimeout</code>."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Commands.html", "note": "<code>Commands.waitSeconds</code> and friends."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/smartdashboard/SendableChooser.html", "note": "<code>SendableChooser</code>."},
-  {"source": "wpilib", "path": "docs/software/dashboards/smartdashboard/choosing-an-autonomous-program-from-smartdashboard.html", "note": "Choosing an auto from the dashboard."},
-  {"source": "wpilib", "path": "docs/software/basic-programming/java-units.html", "note": "Typed time."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/autonomous/AutonomousManager.java", "note": "How FRC 4451 selects autos."}
+  {"source": "wpilib", "path": "docs/software/commandbased/command-compositions.html", "note": "Command sequences and timeouts."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/smartdashboard/SendableChooser.html", "note": "The autonomous chooser."},
+  {"source": "wpilib", "path": "docs/software/dashboards/glass/widgets.html", "note": "The SendableChooser widget in Glass."},
+  {"source": "wpilib", "path": "docs/software/basic-programming/java-units.html", "note": "Typed time values."},
+  {"source": "advantagescope", "path": "overview/live-sources/tuning-mode/", "note": "AdvantageScope does not support chooser controls."}
 ]} />

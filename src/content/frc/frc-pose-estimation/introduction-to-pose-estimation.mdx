@@ -1,0 +1,95 @@
+---
+title: "Introduction to Pose Estimation"
+lessonId: introduction-to-pose-estimation
+section: frc
+group: frc-pose-foundations
+groupLabel: "Pose and Odometry"
+groupOrder: 14
+order: 1
+difficulty: intermediate
+duration: 15 min
+description: "How an FRC robot tracks its field position by combining wheel, gyro, camera, and visual-inertial measurements."
+---
+
+A robot pose describes where the robot is on the field and which way it faces. WPILib represents this state with `Pose2d`: an x-coordinate, a y-coordinate, and a heading.
+
+Pose estimation keeps that value current while the robot moves. Autonomous paths, distance-based shots, and field-relative mechanism commands depend on the estimate using the same field coordinates as their targets.
+
+<RulesBox title="Before you start">
+
+This introduction uses `Pose2d` only as the robot's position and heading. The next lesson, [Pose Geometry](/frc/pose-geometry), teaches `Transform2d`, coordinate frames, and the operations required by Wheel Odometry and the vision lessons.
+
+</RulesBox>
+
+### The field coordinate system
+
+WPILib uses north-west-up (NWU) coordinates for the robot and field:
+
+- +X points forward.
+- +Y points left.
+- +Z points up.
+- Positive rotation is counterclockwise when viewed from above.
+
+WPILib field layouts normally keep the origin on the blue-alliance end, with Field +X pointing away from the blue wall. Code can represent both alliances in this fixed frame and transform alliance-specific paths or targets separately.
+
+```java
+Pose2d fieldToRobot =
+    new Pose2d(2.0, 3.0, Rotation2d.fromDegrees(90.0));
+```
+
+This pose places the robot at (2 m, 3 m), facing Field +Y.
+
+### What each measurement contributes
+
+<ContentTable
+  headers={["Source", "What it measures", "Main limitation"]}
+  rows={[
+    ["Wheel encoders and module sensors", "How the drivetrain moved", "Wheel slip and calibration error accumulate"],
+    ["Gyroscope", "Robot heading or change in heading", "Bias, reset behavior, and mounting conventions must be handled"],
+    ["AprilTag vision", "A field-relative pose from known markers", "Noise, ambiguity, occlusion, latency, calibration, and incorrect transforms can produce bad observations"],
+    ["Visual-inertial odometry, such as QuestNav", "Motion estimated from cameras and an inertial measurement unit", "Tracking can drift or be lost, and the device must be aligned to the field"]
+  ]}
+/>
+
+**Odometry** integrates wheel and gyro measurements from a known starting pose. It updates quickly, but it cannot detect wheel slip from the encoders alone.
+
+A **pose estimator** maintains odometry and accepts timestamped field-relative observations. WPILib uses each observation's timestamp to account for delivery delay. Standard deviations tell the estimator how much influence to give that observation.
+
+### One failure example
+
+Suppose the wheels report 1.0 m of travel while a collision makes them slip. The physical robot might move only 0.8 m. Odometry cannot observe that difference, so its pose becomes wrong by about 0.2 m.
+
+A camera can later observe AprilTags and produce a field-relative pose. Robot code must reject unusable observations and assign uncertainty based on the measurement conditions before passing accepted observations to the estimator.
+
+Keep the stages distinct:
+
+- A sensor reports an observation.
+- Filtering decides whether the observation is usable.
+- The estimator combines accepted observations with odometry.
+- The resulting pose remains an estimate that must be logged and checked.
+
+### The sequence in this group
+
+1. [Pose Geometry](/frc/pose-geometry) defines the coordinate and transformation types.
+2. [Wheel Odometry](/frc/wheel-odometry) tracks motion from drivetrain sensors.
+3. [PhotonVision](/frc/photonvision) turns AprilTag detections into timestamped pose observations.
+4. [Vision Subsystem](/frc/vision-subsystem) validates and publishes those observations.
+5. [Fused Pose Estimation](/frc/fused-pose-estimation) adds accepted observations to WPILib's estimator.
+6. [QuestNav](/frc/questnav) adds a visual-inertial source.
+7. [Pose Estimation Calibration](/frc/pose-estimation-calibration) tests measurements and tuning.
+8. [Vision Simulation](/frc/vision-simulation) checks the pipeline before hardware testing.
+
+<Sources items={[
+  {"source": "mantik", "path": "src/content/frc/frc-pose-estimation/pose-estimation-intro.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
+  {"source": "wpilib", "path": "docs/software/basic-programming/coordinate-system.html", "note": "NWU axes, the field origin and the counterclockwise-positive rotation convention."},
+  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/index.html", "note": "What odometry integrates and what a pose estimator adds to it."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/state-space/state-space-pose-estimators.html", "note": "Timestamped measurements and standard deviations as the estimator's inputs."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "The three estimators Cobra runs and the queues they drain; the sequence this group follows."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Pose Geometry","id":"pose-geometry"},
+  {"label":"WPILib Coordinate Systems","url":"https://docs.wpilib.org/en/stable/docs/software/basic-programming/coordinate-system.html"},
+  {"label":"WPILib Kinematics and Odometry","url":"https://docs.wpilib.org/en/stable/docs/software/kinematics-and-odometry/index.html"},
+  {"label":"WPILib Pose Estimators","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/state-space/state-space-pose-estimators.html"}
+]} title="Next" section="frc" />

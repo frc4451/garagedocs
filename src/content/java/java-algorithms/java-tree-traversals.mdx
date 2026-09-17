@@ -1,0 +1,258 @@
+---
+title: "Tree Traversals"
+lessonId: java-tree-traversals
+section: java
+group: java-algorithms
+groupLabel: "Common Algorithms"
+groupOrder: 7
+order: 4
+difficulty: intermediate
+duration: 30 min
+description: The four orders you can visit a tree in, what each one is good for, and how to write them recursively and iteratively.
+---
+
+### Four orders
+
+Visiting every node in a tree is four algorithms, differing only in *when* you handle a node relative to its children.
+
+Assume the node type from [Trees](/java/fundamentals/java-trees#branching-instead-of-chaining):
+
+```java
+class TreeNode {
+    int value;
+    TreeNode left;
+    TreeNode right;
+}
+```
+
+Three of the four are the same recursion with one line moved:
+
+```java
+static void preOrder(TreeNode node) {
+    if (node == null) return;
+    System.out.println(node.value);    // handle first
+    preOrder(node.left);
+    preOrder(node.right);
+}
+
+static void inOrder(TreeNode node) {
+    if (node == null) return;
+    inOrder(node.left);
+    System.out.println(node.value);    // handle in the middle
+    inOrder(node.right);
+}
+
+static void postOrder(TreeNode node) {
+    if (node == null) return;
+    postOrder(node.left);
+    postOrder(node.right);
+    System.out.println(node.value);    // handle last
+}
+```
+
+That is the whole difference. Where the visit sits decides the order.
+
+### What each is for
+
+<ContentTable
+  title="Choosing a traversal"
+  headers={["Order", "Sequence", "Use when"]}
+  rows={[
+    ["Pre-order", "node, left, right", "Copying a tree; printing structure; anything a parent must do before its children"],
+    ["In-order", "left, node, right", "Reading a binary search tree in sorted order"],
+    ["Post-order", "left, right, node", "Deleting; computing a value from children's results"],
+    ["Level-order", "top row, then next row", "Finding the shallowest match; printing by depth"]
+  ]}
+/>
+
+Two of these are worth dwelling on.
+
+**In-order on a search tree gives sorted output.** Because everything left is smaller and everything right is larger, visiting left-then-node-then-right produces ascending order. That is a good way to verify a search tree is correctly built.
+
+**Post-order is what you need when a node's answer depends on its children.** Computing a subtree's size or height requires the children's answers first:
+
+```java
+static int height(TreeNode node) {
+    if (node == null) return 0;
+    int left = height(node.left);       // children first
+    int right = height(node.right);
+    return 1 + Math.max(left, right);   // then this node
+}
+```
+
+Deleting a tree is the same reason in reverse: free the children before the parent, or you lose the references to them.
+
+### Level-order
+
+The odd one out. It cannot be done with plain recursion because it moves across the tree rather than down it. Use a [queue](/java/fundamentals/java-queues#using-one):
+
+```java
+static void levelOrder(TreeNode root) {
+    if (root == null) return;
+
+    Queue<TreeNode> queue = new ArrayDeque<>();
+    queue.offer(root);
+
+    while (!queue.isEmpty()) {
+        TreeNode node = queue.poll();
+        System.out.println(node.value);
+
+        if (node.left != null)  queue.offer(node.left);
+        if (node.right != null) queue.offer(node.right);
+    }
+}
+```
+
+This is [breadth-first search](/java/fundamentals/java-breadth-first-search#spreading-outward) applied to a tree.
+
+To process one level at a time (printing each row on its own line, say), capture the queue size before draining that level:
+
+```java norun
+while (!queue.isEmpty()) {
+    int levelSize = queue.size();       // fixed before we add the next level
+
+    for (int i = 0; i < levelSize; i++) {
+        TreeNode node = queue.poll();
+        System.out.print(node.value + " ");
+        if (node.left != null)  queue.offer(node.left);
+        if (node.right != null) queue.offer(node.right);
+    }
+    System.out.println();               // end of this level
+}
+```
+
+Reading `queue.size()` into a variable first is essential. Using `queue.size()` directly in the loop condition would include nodes added during the loop, and the levels would run together.
+
+### Iterative versions
+
+Recursion is clearer, but a very deep tree can overflow the call stack. An explicit [stack](/java/fundamentals/java-stacks#which-class-to-use) removes that limit.
+
+Pre-order needs the least change:
+
+```java
+static void preOrderIterative(TreeNode root) {
+    if (root == null) return;
+
+    Deque<TreeNode> stack = new ArrayDeque<>();
+    stack.push(root);
+
+    while (!stack.isEmpty()) {
+        TreeNode node = stack.pop();
+        System.out.println(node.value);
+
+        if (node.right != null) stack.push(node.right);   // right first...
+        if (node.left != null)  stack.push(node.left);    // ...so left pops first
+    }
+}
+```
+
+Pushing right before left is deliberate. A stack reverses order, so the last pushed is processed first; pushing left last means left is handled first, matching pre-order.
+
+In-order iteratively is trickier, because you must descend fully left before handling anything:
+
+```java
+static void inOrderIterative(TreeNode root) {
+    Deque<TreeNode> stack = new ArrayDeque<>();
+    TreeNode current = root;
+
+    while (current != null || !stack.isEmpty()) {
+        while (current != null) {       // go as far left as possible
+            stack.push(current);
+            current = current.left;
+        }
+        current = stack.pop();          // handle the deepest unvisited
+        System.out.println(current.value);
+        current = current.right;        // then move right
+    }
+}
+```
+
+The loop condition needs both parts. `current != null` covers descending; `!stack.isEmpty()` covers coming back up.
+
+<RulesBox title="Which version to write">
+
+Use **recursion** by default. It is shorter, and the correspondence to the tree's structure makes it quick to check against the tree.
+
+Switch to **iterative** when the tree could be deep enough to overflow the stack, roughly tens of thousands of levels. A balanced tree of a million nodes is only about 20 deep, so this is rarely a concern. A degenerate tree shaped like a linked list is exactly when it bites.
+
+</RulesBox>
+
+### Traversal for non-binary trees
+
+Not every tree has exactly two children. With a list of children, the same shapes apply:
+
+```java
+class Node {
+    int value;
+    List<Node> children = new ArrayList<>();
+}
+
+static void preOrder(Node node) {
+    System.out.println(node.value);
+    for (Node child : node.children) {
+        preOrder(child);
+    }
+}
+```
+
+There is no meaningful in-order for more than two children, because "the middle" is undefined. Pre-order, post-order, and level-order all still work.
+
+<RulesBox title="Common mistakes">
+
+- **Missing the `null` base case**, giving a `NullPointerException` at the first leaf.
+- **Reading `queue.size()` inside the level loop** instead of capturing it first.
+- **Pushing left before right** in iterative pre-order, reversing the output.
+- **Using in-order on a tree that is not a search tree** and expecting sorted output.
+- **Computing a parent's value before its children's.** That needs post-order.
+- **Recursing on a deep tree** and overflowing the stack.
+
+</RulesBox>
+
+<JavaPlayground id="java-tree-traversals" />
+
+<ExerciseBox title="Practice" description="Build a small tree by hand first so you can check the expected output.">
+
+1. Print a tree in all three recursive orders and confirm the sequences differ as expected.
+2. Build a binary search tree, print it in-order, and verify the output is sorted.
+3. Print a tree level by level, one line per level.
+4. Write a method returning the height of a tree, and explain why it must be post-order.
+5. Write pre-order iteratively with an explicit stack, and confirm it matches the recursive version.
+
+<details>
+<summary>Hints</summary>
+
+1. Same recursion, `println` moved.
+2. Insert values in a scrambled order so the sorted output is a real check.
+3. The level-size capture.
+4. Both children's heights are needed before this node's can be computed.
+5. Push right before left.
+
+</details>
+
+</ExerciseBox>
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    {"label":"Depth-First Search","id":"java-depth-first-search"},
+    {"label":"Breadth-First Search","id":"java-breadth-first-search"}
+  ]}
+/>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"url": "https://en.wikipedia.org/wiki/Tree_traversal", "label": "Wikipedia: Tree traversal", "note": "Pre-, in-, post- and level-order."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayDeque.html", "note": "The level-order queue and the iterative stack."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Related"
+  section="java"
+  links={[
+    {"label":"Trees","id":"java-trees"},
+    {"label":"Recursion","id":"java-recursion"},
+    {"label":"Queues","id":"java-queues"}
+  ]}
+/>

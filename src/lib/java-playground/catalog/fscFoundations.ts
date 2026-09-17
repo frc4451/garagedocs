@@ -208,7 +208,7 @@ public class HelloTeam {
   },
 
   {
-    id: 'a02-battery-sanity',
+    id: 'a02-battery-sanity-check',
     title: 'A02: Battery Sanity Check',
     entryClass: 'BatterySanity',
     showStdin: true,
@@ -640,7 +640,7 @@ public class SmoothOne {
   },
 
   {
-    id: 'a10-shooter-lookup',
+    id: 'a10-shooter-lookup-table',
     title: 'A10: Shooter Lookup Table',
     entryClass: 'ShooterLookup',
     showStdin: true,

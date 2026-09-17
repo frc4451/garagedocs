@@ -1,0 +1,268 @@
+---
+title: "Dependency Injection"
+lessonId: java-dependency-injection
+section: java
+group: java-design-patterns
+groupLabel: "Design Patterns"
+groupOrder: 9
+order: 2
+difficulty: intermediate
+duration: 30 min
+description: Passing a class the things it needs instead of letting it build them, which makes code testable and swappable without changing it.
+---
+
+### The problem with building your own
+
+Here is a class that creates what it depends on:
+
+```java norun
+class Shooter {
+    private final Motor motor;
+
+    Shooter() {
+        this.motor = new Motor(5);      // decides for itself
+    }
+
+    void spinUp() {
+        motor.set(0.9);
+    }
+}
+```
+
+This works, and it is what most people write first. But three things are now impossible.
+
+You cannot **test** it without real hardware, because constructing a `Shooter` constructs a `Motor` on port 5. You cannot **reuse** it on a robot where the shooter is on a different port. And you cannot **substitute** a different kind of motor without editing the class.
+
+The class made a decision that was not really its business.
+
+### Passing it in instead
+
+```java norun
+class Shooter {
+    private final Motor motor;
+
+    Shooter(Motor motor) {              // told, not decided
+        this.motor = motor;
+    }
+
+    void spinUp() {
+        motor.set(0.9);
+    }
+}
+```
+
+The change is small. The consequences are not.
+
+```java norun
+Motor shooterMotor = new Motor(5);
+Shooter shooter = new Shooter(shooterMotor);
+```
+
+The decision about *which* motor moved outward, to the code assembling the robot. `Shooter` now describes behaviour, and something else decides configuration.
+
+That is dependency injection: a class receives what it needs rather than constructing it. The name is grander than the idea.
+
+<RulesBox title="Prefer constructor injection">
+
+Passing dependencies through the constructor is the best of the three options:
+
+```java norun
+// constructor injection: preferred
+Shooter(Motor motor) { this.motor = motor; }
+
+// setter injection: object exists in an incomplete state first
+void setMotor(Motor motor) { this.motor = motor; }
+
+// field injection via a framework: hidden, hard to follow
+```
+
+Constructor injection lets you mark the field `final`, and it makes the object valid the moment it exists. With a setter, there is a window where `motor` is `null` and any method call fails.
+
+Use a setter only for optional dependencies.
+
+</RulesBox>
+
+### Injecting an interface
+
+The full benefit arrives when the parameter is an interface rather than a concrete class.
+
+```java
+interface MotorController {
+    void set(double output);
+    void stop();
+}
+
+class Shooter {
+    private final MotorController motor;
+
+    Shooter(MotorController motor) {
+        this.motor = motor;
+    }
+
+    void spinUp() { motor.set(0.9); }
+    void stop()   { motor.stop(); }
+}
+```
+
+`Shooter` now works with anything satisfying that interface: a vendor's motor class, a simulated one, or a recording one used for diagnostics. It does not know or care, thanks to [runtime polymorphism](/java/fundamentals/java-runtime-polymorphism#two-kinds-of-type).
+
+### Testing becomes possible
+
+This is the payoff that convinces most people.
+
+```java
+class FakeMotor implements MotorController {
+    double lastOutput = 0;
+    boolean stopped = false;
+
+    @Override public void set(double output) { lastOutput = output; }
+    @Override public void stop() { stopped = true; }
+}
+```
+
+```java
+FakeMotor fake = new FakeMotor();
+Shooter shooter = new Shooter(fake);
+
+shooter.spinUp();
+System.out.println(fake.lastOutput);     // 0.9: verified with no hardware
+
+shooter.stop();
+System.out.println(fake.stopped);        // true
+```
+
+This test runs the shooter logic on a laptop. The original version cannot run this test because its constructor tries to communicate with a motor controller that is not connected.
+
+### Injecting values and objects
+
+The same reasoning applies to plain values and to [suppliers](/java/fundamentals/java-functional-interfaces#lazy-and-expensive-work).
+
+```java norun
+class DriveCommand {
+    private final Drivetrain drive;
+    private final DoubleSupplier forward;
+    private final DoubleSupplier rotation;
+
+    DriveCommand(Drivetrain drive, DoubleSupplier forward, DoubleSupplier rotation) {
+        this.drive = drive;
+        this.forward = forward;
+        this.rotation = rotation;
+    }
+
+    void execute() {
+        drive.arcadeDrive(forward.getAsDouble(), rotation.getAsDouble());
+    }
+}
+```
+
+```java norun
+new DriveCommand(drivetrain,
+                 () -> -joystick.getLeftY(),
+                 () -> joystick.getRightX());
+```
+
+Injecting suppliers rather than numbers is what keeps the command reading live inputs. Passing `joystick.getLeftY()` directly would freeze one reading forever, the mistake described in the `Supplier` lesson.
+
+For a test, inject constants:
+
+```java norun
+new DriveCommand(fakeDrive, () -> 0.5, () -> 0.0);
+```
+
+### Where the wiring goes
+
+If every class receives its dependencies, something must eventually create the real objects. That job collects in one place, often called the composition root.
+
+```java norun
+class RobotContainer {
+    private final MotorController shooterMotor = new Motor(5);
+    private final MotorController intakeMotor  = new Motor(6);
+
+    private final Shooter shooter = new Shooter(shooterMotor);
+    private final Intake intake   = new Intake(intakeMotor);
+    // ... bind commands here
+}
+```
+
+All hardware decisions live in this file. Every other class is portable, testable, and free of port numbers. If you have written FRC command-based code, this is exactly what `RobotContainer` is for, and now the reason is visible.
+
+<RulesBox title="You do not need a framework">
+
+Dependency injection is often confused with the frameworks that automate it. Those solve a real problem in very large applications, and they are unnecessary here.
+
+Passing arguments to constructors *is* dependency injection. Nothing more is required.
+
+</RulesBox>
+
+<ContentTable
+  title="What changes"
+  headers={["", "Building its own", "Injected"]}
+  rows={[
+    ["Testable without hardware", "No", "Yes"],
+    ["Reusable on other robots", "No", "Yes"],
+    ["Swap implementations", "Edit the class", "Change one wiring line"],
+    ["Where configuration lives", "Scattered", "One place"],
+    ["Constructor complexity", "Simpler", "More parameters"]
+  ]}
+/>
+
+The last row is the honest cost. Constructors get longer, and wiring code appears. For a small program that trade is not always worth it; for anything you intend to test or reuse, it is.
+
+<RulesBox title="Common mistakes">
+
+- **Injecting a concrete class** instead of an interface, keeping you locked in.
+- **Setter injection by default**, leaving a window where fields are `null`.
+- **A constructor with eight parameters.** That is a sign the class does too much; split it.
+- **Injecting a value where a `Supplier` is needed**, freezing a changing reading.
+- **Reaching for a framework** to solve a problem that constructor parameters already solve.
+- **Keeping a hidden dependency** on a static or global, which defeats the whole exercise.
+
+</RulesBox>
+
+<JavaPlayground id="java-dependency-injection" />
+
+<ExerciseBox title="Practice">
+
+1. Rewrite a class that constructs its own dependency so the dependency is passed in.
+2. Define a `MotorController` interface, a real implementation, and a fake one that records calls.
+3. Write a `Shooter` taking a `MotorController` and test it with the fake, with no hardware.
+4. Write a class taking a `DoubleSupplier` and show that it sees updated values when the source changes.
+5. Write a small composition root creating two subsystems and their dependencies in one place.
+
+<details>
+<summary>Hints</summary>
+
+1. Move the `new` out of the constructor and into a parameter.
+2. The fake stores whatever it is told so the test can inspect it afterwards.
+3. Call a method, then assert against the fake's recorded field.
+4. Back the supplier with a mutable field; change it between calls.
+5. A class whose fields are the real objects, constructed in declaration order. Note that order matters: a dependency must exist before whatever needs it.
+
+</details>
+
+</ExerciseBox>
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    {"label":"Command Pattern","id":"java-command-pattern"}
+  ]}
+/>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"url": "https://en.wikipedia.org/wiki/Dependency_injection", "label": "Wikipedia: Dependency injection", "note": "The pattern."},
+  {"url": "/frc/io-layers", "label": "The IO layer on the robot", "note": "Injection of hardware interfaces in FRC 4451's code."},
+  {"source": "java-api", "path": "java.base/java/util/function/Supplier.html", "note": "<code>Supplier</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Related"
+  section="java"
+  links={[
+    {"label":"Factory Methods","id":"java-factory-methods"},
+    {"label":"Functional Interfaces","id":"java-functional-interfaces"},
+    {"label":"Runtime Polymorphism","id":"java-runtime-polymorphism"}
+  ]}
+/>

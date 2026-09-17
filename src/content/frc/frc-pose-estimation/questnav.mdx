@@ -1,17 +1,17 @@
 ---
-title: "QuestNav: A Headset as the Pose Source"
+title: "QuestNav"
 lessonId: questnav
 section: frc
-group: frc-pose-estimation
-groupLabel: "Pose Estimation"
-groupOrder: 8
-order: 6
+group: frc-vision-fusion
+groupLabel: "Vision and Sensor Fusion"
+groupOrder: 15
+order: 4
 difficulty: advanced
 duration: 35 min
 description: "A Meta Quest 3S bolted to the robot as a visual-inertial pose source: what it measures and why it drifts less than tags alone, the hardware and network setup, the 2026 QuestNavLib API (PoseFrame, commandPeriodic, setPose, the robot-to-quest transform), fitting it into FRC 4451's IO / VirtualSubsystem / BobotState architecture as Riptide did in 2025, calibrating the offset by spinning in place, seeding the pose at match start, and the checklists."
 ---
 
-FRC 4451's pose estimate is built from wheel odometry corrected by AprilTag observations ([Fusing Vision and Odometry](/frc/vision-pose-estimation-fusion)). It works, and it has a weakness everyone who has driven with it knows: when no tag is in view (mid-field, facing a wall, behind another robot) the estimate is odometry alone, and odometry drifts with every wheel slip and every bump. **QuestNav** adds a third source that does not have that weakness: a Meta Quest headset, mounted on the robot, tracking its own motion with cameras and an IMU the way it tracks a player's head, at up to 120 Hz, whether or not a tag is anywhere in sight.
+FRC 4451's pose estimate is built from wheel odometry corrected by AprilTag observations ([Fusing Vision and Odometry](/frc/fused-pose-estimation)). It works, and it has a weakness everyone who has driven with it knows: when no tag is in view (mid-field, facing a wall, behind another robot) the estimate is odometry alone, and odometry drifts with every wheel slip and every bump. **QuestNav** adds a third source that does not have that weakness: a Meta Quest headset, mounted on the robot, tracking its own motion with cameras and an IMU the way it tracks a player's head, at up to 120 Hz, whether or not a tag is anywhere in sight.
 
 Riptide ran one in 2025. The hardware idea is unchanged; the software has been rewritten since, so this lesson teaches the **2026 library** and uses the 2025 code for the architectural decisions, which still hold.
 
@@ -134,8 +134,8 @@ None of the above lives in `RobotContainer`. Riptide's 2025 design is the one to
 <ContentTable
   headers={["Piece", "Pattern", "What it does"]}
   rows={[
-    ["<code>QuestIO</code> + <code>QuestIOInputs</code>", "<a href=\"/frc/io-layer\">IO layer</a>", "<code>connected</code>, <code>tracking</code>, <code>batteryPercent</code>, <code>latency</code>, the frames since last loop. <code>QuestIOReal</code> wraps the vendordep; <code>new QuestIO() {}</code> is the sim/replay stand-in"],
-    ["<code>Quest extends VirtualSubsystem</code>", "<a href=\"/frc/virtual-subsystem\">VirtualSubsystem</a> (Cobra Architecture, the next group)", "No command should ever <em>require</em> a headset. Runs before the drivetrain every loop, so this loop's frames reach the estimator this loop"],
+    ["<code>QuestIO</code> + <code>QuestIOInputs</code>", "<a href=\"/frc/io-layers\">IO layer</a>", "<code>connected</code>, <code>tracking</code>, <code>batteryPercent</code>, <code>latency</code>, the frames since last loop. <code>QuestIOReal</code> wraps the vendordep; <code>new QuestIO() {}</code> is the sim/replay stand-in"],
+    ["<code>Quest extends VirtualSubsystem</code>", "<a href=\"/frc/virtual-subsystem\">VirtualSubsystem</a> (Robot Runtime and IO)", "No command should ever <em>require</em> a headset. Runs before the drivetrain every loop, so this loop's frames reach the estimator this loop"],
     ["<code>BobotState.offerQuestMeasurement(TimestampedPose)</code>", "<a href=\"/frc/bobot-state#the-flow-through-one-loop\">BobotState</a> queue", "<code>Quest</code> offers; <code>Drive.periodic()</code> drains into the estimator, same as the AprilTag queue"]
   ]}
 />
@@ -165,7 +165,7 @@ averaged over the spin and logged as `QuestCalibration/CalculatedOffset`. It ran
 
 ### Seeding the pose
 
-The headset starts at its own origin. Before it is useful you tell it where the robot is, once, and you have the same two options as [vision](/frc/vision-pose-estimation-fusion):
+The headset starts at its own origin. Before it is useful you tell it where the robot is, once, and you have the same two options as [vision](/frc/fused-pose-estimation):
 
 - **From the autonomous start pose.** The selected auto knows where the robot begins: Choreo's `trajectory.resetOdometry()`, or PathPlanner's starting pose. Wherever the code resets the drivetrain's pose, also call `questNav.setPose(robotPose.transformBy(ROBOT_TO_QUEST))`. Riptide did this inside `Quest.resetRobotPose`, which `Drive.setPose` called.
 - **From AprilTags.** Once the estimator has a confident tag-based pose, seed the headset from it. Do this at the start of the match (in disabled, with a tag in view) rather than continuously; reseeding every loop throws away the headset's own tracking.
@@ -215,11 +215,11 @@ There is no physics model for a headset; in `SIM` and `REPLAY` modes `Quest` get
 ]} />
 
 <LinkGrid links={[
-  {"label":"Fusing Vision and Odometry","id":"vision-pose-estimation-fusion"},
-  {"label":"PhotonVision: AprilTags and Robot Pose","id":"photonvision"},
-  {"label":"BobotState: The One Global","id":"bobot-state"},
+  {"label":"Fusing Vision and Odometry","id":"fused-pose-estimation"},
+  {"label":"PhotonVision","id":"photonvision"},
+  {"label":"BobotState","id":"bobot-state"},
   {"label":"VirtualSubsystem","id":"virtual-subsystem"},
-  {"label":"Poses on the Field (Tools)","url":"/tools/advantagescope-field"},
+  {"label":"Poses on the Field (Tools)","url":"/tools/advantagescope-poses-on-the-field"},
   {"label":"QuestNav documentation","url":"https://questnav.gg/docs/getting-started/about"},
   {"label":"QuestNav: Robot Code Setup","url":"https://questnav.gg/docs/getting-started/robot-code"},
   {"label":"QuestNav Java API","url":"https://questnav.gg/static/api/java/"},

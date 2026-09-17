@@ -1,0 +1,140 @@
+---
+title: "Rollers"
+lessonId: roller-example
+section: frc
+group: frc-examples
+groupLabel: "Mechanism Components"
+groupOrder: 11
+order: 2
+difficulty: intermediate
+duration: 10 min
+description: "Build an effort-controlled roller and calculate gearing, surface speed, output torque, and contact force."
+---
+
+A roller moves or holds a game piece by pushing on it. Intakes, feeders, conveyors, and indexers usually care about effort and direction more than a fixed shaft speed. Their component API should therefore request voltage or torque current.
+
+Measured speed still belongs in the log. It can show that a belt broke or a piece jammed, even though speed is not the goal.
+
+### Calculate roller speed
+
+Use `G` for motor rotations per roller rotation:
+
+```text
+roller RPS = motor RPS / G
+surface speed = roller RPS × 2 × π × roller radius
+```
+
+For a 2-inch-diameter roller, the radius is 1 inch. At 20 RPS, the unloaded surface speed is about 126 inches per second. The game piece may move more slowly because compliant wheels deform and slip.
+
+### Calculate torque and contact force
+
+```text
+motor torque = motor torque constant × torque current
+roller torque ≈ motor torque × gear reduction × efficiency
+contact force ≈ roller torque / roller radius
+```
+
+In SI units, newton-meters divided by meters gives newtons. More reduction increases roller torque and lowers speed. A smaller radius increases contact force for the same shaft torque and lowers surface speed for the same shaft speed.
+
+The force at the game piece also depends on wheel compression and friction. Treat the calculation as a design estimate, then verify current and behavior with the assembled mechanism.
+
+### Choose voltage or torque current
+
+Voltage works across common FRC motor controllers and is a good default for a roller that runs while a button or sensor condition is active.
+
+Torque-current control asks a supported controller for current that produces motor torque. It is useful when the roller should keep roughly consistent pushing torque as battery voltage changes. Current limits still protect the motor and controller.
+
+Do not silently convert an amp request into duty cycle for hardware that lacks torque-current control. Keep the unsupported behavior explicit in that IO implementation.
+
+### Define the roller IO
+
+```java
+public interface RollerIO {
+  @AutoLog
+  class RollerIOInputs {
+    public AngularVelocity velocity = RotationsPerSecond.zero();
+    public Voltage appliedVoltage = Volts.zero();
+    public Current torqueCurrent = Amps.zero();
+  }
+
+  default void updateInputs(RollerIOInputs inputs) {}
+  default void setVoltage(Voltage output) {}
+  default void setTorqueCurrent(Current output) {}
+  default void stop() {}
+}
+```
+
+### Build the component
+
+```java
+public final class Roller {
+  private enum Mode { STOPPED, VOLTAGE, TORQUE_CURRENT }
+
+  private final RollerIO io;
+  private final RollerIOInputsAutoLogged inputs = new RollerIOInputsAutoLogged();
+  private final String logKey;
+  private Mode mode = Mode.STOPPED;
+  private Voltage voltageGoal = Volts.zero();
+  private Current currentGoal = Amps.zero();
+
+  public Roller(RollerIO io, String logKey) {
+    this.io = io;
+    this.logKey = logKey;
+  }
+
+  public void periodic() {
+    io.updateInputs(inputs);
+    Logger.processInputs(logKey, inputs);
+    switch (mode) {
+      case VOLTAGE -> io.setVoltage(voltageGoal);
+      case TORQUE_CURRENT -> io.setTorqueCurrent(currentGoal);
+      case STOPPED -> io.stop();
+    }
+  }
+
+  public void runVoltage(Voltage output) {
+    voltageGoal = output;
+    mode = Mode.VOLTAGE;
+  }
+
+  public void runTorqueCurrent(Current output) {
+    currentGoal = output;
+    mode = Mode.TORQUE_CURRENT;
+  }
+
+  public void stop() {
+    mode = Mode.STOPPED;
+  }
+}
+```
+
+The parent subsystem decides when to run the roller. A beam break, current threshold, timer, or driver command can end that behavior without changing the component.
+
+### Simulate the roller
+
+Use `DCMotorSim` for a roller whose position is available but is not the control goal. Supply the motor model, moment of inertia, and gear reduction. The model represents rotating hardware, but it does not model a game piece touching the roller. A simulated jam or piece sensor needs a deliberate test condition outside the motor model.
+
+<RulesBox title="Check your work">
+
+- Use voltage or torque current as the roller's requested behavior.
+- Log measured speed as evidence, not as a goal.
+- Stop the roller in the parent command's end action.
+- Keep current limits separate from the current request.
+- Confirm direction with low voltage before running at full effort.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/generic/roller/GenericRoller.java", "note": "The small effort-controlled component pattern."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/generic/roller/GenericRollerIO.java", "note": "Roller measurements and voltage request."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIO.java", "note": "FRC 4451 voltage and torque-current roller requests."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSim.java", "note": "FRC 4451's WPILib motor simulation for a roller."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/open-loop-requests.html", "note": "Phoenix 6 voltage and torque-current requests."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/DCMotorSim.html", "note": "The general rotating-mechanism simulation API."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Flywheels","id":"shooter-example"},
+  {"label":"Control Request Types","url":"/frc/motor-controller-configuration#control-request-types"},
+  {"label":"Composing Mechanism Subsystems","id":"composing-mechanism-subsystems"}
+]} />

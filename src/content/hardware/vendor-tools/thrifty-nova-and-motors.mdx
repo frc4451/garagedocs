@@ -1,0 +1,95 @@
+---
+title: "Thrifty Nova, Motor Runner, and Motor Choices"
+lessonId: thrifty-nova-and-motors
+section: hardware
+group: thrifty-bot
+groupLabel: Thrifty Bot
+groupOrder: 6
+order: 2
+difficulty: beginner
+description: "Configure a Thrifty Nova for a supported brushless motor, use the Motor Runner for a controlled no-code test, and verify the final setup in robot code."
+---
+
+### Match the controller to the motor
+
+The Thrifty Nova is a separate brushless motor controller. It can be used with supported brushless motors such as the NEO 1.1, NEO 550, WCP Minion, and Thrifty Pulsar 775. Read the current compatibility list before connecting a motor that is not named in the documentation.
+
+| Motor | What must match |
+|---|---|
+| NEO 1.1 or NEO 550 | Brushless motor selection, hall sensor cable, current limit, and mechanism model |
+| WCP Minion | Minion motor-type setting, phase convention, sensor cable, and current limit |
+| Thrifty Pulsar 775 | Brushless controller, three phase wires, Hall sensor cable, current limit, and cooling needs |
+
+The Pulsar 775 is a brushless motor despite its 775-class shape and mounting pattern. The manufacturer warns that it requires a compatible brushless controller. Do not connect it as a two-wire brushed motor.
+
+### What the Motor Runner adds
+
+The **Thrifty Motor Runner Board**, part number `TTB-0235`, gives a Thrifty Nova a physical throttle and direction control without a roboRIO or robot program. It is a test accessory, not a separate motor controller.
+
+| Part | Job |
+|---|---|
+| Thrifty Nova | Powers and controls the compatible brushless motor |
+| Motor Runner potentiometer | Requests motor output from stopped to faster operation |
+| Motor Runner two-position switch | Selects the requested direction |
+| Included ribbon cable | Carries the Runner controls to the Nova; unplugging it stops the motor |
+
+The Motor Runner works only with the Thrifty Nova. Do not connect it to another brand of motor controller just because a connector appears to fit.
+
+The Runner is useful when the electrical team needs to answer basic questions before robot code is ready:
+
+- Does the Nova power up?
+- Is the brushless motor connected correctly?
+- Does the motor turn smoothly in both directions?
+- Which direction should the software call positive?
+- Does current or temperature rise unexpectedly during a light test?
+
+It does not test the CAN ID, Java configuration, command bindings, subsystem limits, or robot interlocks. Those checks still require Thrifty Config and robot code.
+
+### Configure one Nova safely
+
+1. Identify the motor and write down its model.
+2. Use Thrifty Config to set a unique CAN ID.
+3. Select the exact motor type or documented compatible mode.
+4. Set a current limit before the first powered test.
+5. Verify the sensor connection required for that motor.
+6. Save the settings and power-cycle the controller.
+7. Confirm `ThriftyNovaConfig` in code uses the same ID, inversion, current limit, and sensor assumptions.
+8. Test at low output and watch direction, current, velocity, and temperature.
+
+### Run a controlled no-code bench test
+
+Use the Motor Runner only after the Nova has the correct motor selection and a conservative current limit.
+
+1. Disconnect power and secure the motor or mechanism so it cannot jump, roll, pull in a cable, or strike anyone.
+2. Inspect the three motor phase wires and the Hall sensor connection.
+3. Turn the Runner potentiometer to its stopped position.
+4. Connect the Runner to the Nova with the included ribbon cable.
+5. Keep hands, hair, tools, and loose clothing outside the mechanism's motion.
+6. Apply protected power to the Nova.
+7. Increase the throttle slightly and confirm smooth motion, expected direction, and normal sound.
+8. Return the throttle to stopped before changing the direction switch.
+9. Test the other direction at low output.
+10. Return to stopped, remove power, and record the positive direction, current behavior, and any fault or heat observed.
+
+Unplugging the Runner cable stops the motor according to the manufacturer, but do not use that feature as the normal emergency stop. Keep the power disconnect accessible and de-energize the system before changing wiring.
+
+After the bench test, remove the Runner and repeat the direction and current checks through the final CAN configuration and robot code. A successful Runner test proves the local motor path can turn. It does not prove the complete robot control path.
+
+Cobra contains a reusable `SingleRollerIONova` implementation and motor models for the NEO family, Minion, and Pulsar 775. That proves the team library can describe these options. Use the robot hardware record to state which option was installed on a specific mechanism.
+
+<RulesBox title="Done when">
+
+Thrifty Config, the motor label, the wiring, and `ThriftyNovaConfig` name the same motor behavior. The motor spins in the expected direction at low output with plausible current and sensor readings.
+
+</RulesBox>
+
+<Sources items={[
+  {"url":"https://docs.thethriftybot.com/thrifty-nova/software-resources/configure-controller-settings/motor-type-minion-setting","label":"Thrifty Nova: Minion Motor Type","note":"The motor-type setting required for the Minion phase convention."},
+  {"url":"https://docs.thethriftybot.com/thrifty-nova/software-resources/getting-started-with-code","label":"Thrifty Nova: Getting Started with Code","note":"ThriftyLib installation and basic device use."},
+  {"url":"https://www.thethriftybot.com/products/pulsar-775","label":"Thrifty Bot: Pulsar 775","note":"Brushless motor classification, Nova compatibility, phase wires, Hall sensor cable, current range, and published specifications."},
+  {"url":"https://www.thethriftybot.com/products/thrifty-motor-runner","label":"Thrifty Bot: Motor Runner Board","note":"Nova-only compatibility, no-code throttle and direction controls, included cable, and stop-on-disconnect behavior."},
+  {"url":"https://www.thethriftybot.com/products/thrifty-nova","label":"Thrifty Bot: Thrifty Nova","note":"Brushless controller purpose, USB and CAN control, supported feedback, current limits, operating range, and Motor Runner compatibility."},
+  {"source":"cobra","path":"src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIONova.java","note":"The team's reusable Thrifty Nova IO implementation."},
+  {"source":"cobra","path":"src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java","note":"The team's <code>ThriftyNovaConfig</code>."},
+  {"source":"cobra","path":"src/main/java/org/robotzgarage/frc2026/util/MotorClasses.java","note":"The team's NEO, Minion, and Pulsar 775 motor models."}
+]} />

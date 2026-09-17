@@ -1,0 +1,212 @@
+---
+title: "Arrays and Their Trade-offs"
+lessonId: java-arrays-and-their-trade-offs
+section: java
+group: java-data-structures
+groupLabel: "Data Structures"
+groupOrder: 5
+order: 1
+difficulty: beginner
+duration: 25 min
+description: Why arrays are fast, what they cannot do, and how to decide when a fixed-size block of memory is the right choice.
+---
+
+### Starting from arrays
+
+You have already used arrays to store values. This lesson looks at them as one option among several, with specific strengths and specific limits.
+
+Every other structure in this module exists because arrays fall short in some particular way. Understanding exactly where they fall short is what makes the rest make sense.
+
+If you need a refresher on the syntax first, see [Arrays](/java/fundamentals/java-arrays#creating-arrays---basic-types) in Java Basics.
+
+### What an array is
+
+An array is a single block of memory holding elements of the same type, laid out end to end.
+
+```java
+int[] readings = new int[5];
+readings[0] = 120;
+readings[1] = 118;
+```
+
+Because the elements sit next to each other and every element is the same size, the computer can jump straight to any position with arithmetic. To find `readings[3]`, it starts at the beginning of the block and skips forward three elements' worth of space.
+
+That is why reading or writing any element takes the same amount of time regardless of position. Element 0 and element 999 cost the same.
+
+<RulesBox title="What arrays are good at">
+
+- **Reading any element by index:** instant, no searching
+- **Writing to any element by index:** instant
+- **Memory efficiency:** no overhead beyond the values themselves
+- **Predictable performance:** no hidden resizing or reallocation
+
+</RulesBox>
+
+### The limitation that matters
+
+An array's length is fixed when you create it. You cannot grow it.
+
+```java
+int[] readings = new int[5];
+// readings can hold exactly 5 values. Not 6.
+```
+
+If you need a sixth value, you have to create a bigger array and copy everything across:
+
+```java norun
+int[] bigger = new int[10];
+System.arraycopy(readings, 0, bigger, 0, readings.length);
+readings = bigger;
+```
+
+That copy touches every element, so it costs time proportional to the size. Doing it once is fine. Doing it every time you add a value is slow, and it is the reason [ArrayLists](/java/fundamentals/java-arraylists#how-it-grows) exist.
+
+### Inserting and removing
+
+Arrays have a second limitation. Suppose you want to remove the element at index 1 and close the gap:
+
+```java
+int[] values = {10, 20, 30, 40, 50};
+
+// remove index 1 by shifting everything after it left
+for (int i = 1; i < values.length - 1; i++) {
+    values[i] = values[i + 1];
+}
+// values is now {10, 30, 40, 50, 50}; the last slot is stale
+```
+
+Every element after the removal point has to move. Inserting in the middle is the same problem in reverse. For a large array this is expensive, and there is no way around it: the elements are packed together, so making room means moving things.
+
+<ContentTable
+  title="Array operation costs"
+  headers={["Operation", "Cost", "Why"]}
+  rows={[
+    ["Read <code>a[i]</code>", "Instant", "Direct jump by arithmetic"],
+    ["Write <code>a[i]</code>", "Instant", "Direct jump by arithmetic"],
+    ["Find a value", "Proportional to length", "Must check each element"],
+    ["Insert in the middle", "Proportional to length", "Must shift elements right"],
+    ["Remove from the middle", "Proportional to length", "Must shift elements left"],
+    ["Add beyond capacity", "Proportional to length", "Must allocate and copy"]
+  ]}
+/>
+
+### Working with a partly-filled array
+
+A common pattern when you know the maximum size but not the actual count: allocate for the maximum and track how many slots are in use.
+
+```java
+int[] readings = new int[100];
+int count = 0;
+
+void addReading(int value) {
+    if (count < readings.length) {
+        readings[count] = value;
+        count++;
+    }
+}
+
+int average() {
+    if (count == 0) return 0;
+    int total = 0;
+    for (int i = 0; i < count; i++) {   // loop to count, not readings.length
+        total += readings[i];
+    }
+    return total / count;
+}
+```
+
+The important detail is looping to `count` rather than `readings.length`. The unused slots still hold zeros, and including them would drag the average down.
+
+This pattern appears constantly in robot code, where you might buffer a fixed number of sensor readings.
+
+<RulesBox title="Common array mistakes">
+
+- **Off-by-one at the end.** Valid indices run from `0` to `length - 1`. Using `<=` in a loop condition throws `ArrayIndexOutOfBoundsException`.
+- **Confusing `length` with `count`.** A partly-filled array's `length` is its capacity, not how much you have stored.
+- **Assuming a copy is a copy.** `int[] b = a;` makes both names refer to the *same* array. Changing `b[0]` changes `a[0]`. Use `a.clone()` or `Arrays.copyOf(a, a.length)` for a real copy. See [Objects and References](/java/fundamentals/java-objects-and-references#reference-assignment-copies-the-reference).
+- **Forgetting arrays of objects start as `null`.** `new String[5]` holds five nulls, not five empty strings.
+
+</RulesBox>
+
+### Two-dimensional arrays
+
+An array whose elements are themselves arrays. Useful for grids, matrices, and tables.
+
+```java
+int[][] grid = new int[3][4];      // 3 rows, 4 columns
+grid[1][2] = 7;                     // row 1, column 2
+
+for (int r = 0; r < grid.length; r++) {
+    for (int c = 0; c < grid[r].length; c++) {
+        System.out.print(grid[r][c] + " ");
+    }
+    System.out.println();
+}
+```
+
+`grid.length` is the number of rows; `grid[r].length` is the length of that row. Reading them in the wrong order is a frequent bug on non-square grids.
+
+### Choosing an array
+
+Use an array when all of the following hold:
+
+<RulesBox title="Arrays are the right choice when">
+
+- You know the size in advance, or a safe maximum
+- You mostly read and write by index
+- You rarely insert or remove from the middle
+- You care about memory or predictable speed
+
+If the size changes as the program runs, use an [ArrayList](/java/fundamentals/java-arraylists#the-problem-it-solves). If you insert and remove at the ends constantly, look at [Deques](/java/fundamentals/java-deques#both-ends).
+
+</RulesBox>
+
+<JavaPlayground id="java-arrays-and-their-trade-offs" />
+
+<ExerciseBox title="Practice" description="Write each of these using plain arrays only.">
+
+1. Create an array of 10 integers, fill it with the numbers 1 through 10, and print the total.
+2. Write a method that takes an `int[]` and returns the largest value. Handle an empty array sensibly.
+3. Write a method that reverses an `int[]` in place, without creating a second array.
+4. Write a method that takes an `int[]` and a value, and returns a new array with that value appended.
+5. Create a 3 × 3 grid of integers and print the sum of each row and each column.
+
+<details>
+<summary>Hints</summary>
+
+1. One loop to fill, one to total. Or do both in the same loop.
+2. Start your running maximum at `arr[0]`, not `0`; otherwise negative-only arrays give the wrong answer. Decide what to return when the array has no elements.
+3. Swap the first with the last, second with second-to-last, and stop at the middle. Two index variables moving toward each other.
+4. `Arrays.copyOf(arr, arr.length + 1)` gives you a longer copy; put the new value in the last slot.
+5. Two passes, or one pass accumulating both sets of totals into two arrays.
+
+</details>
+
+</ExerciseBox>
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    {"label":"ArrayLists","id":"java-arraylists"},
+    {"label":"Linked Lists","id":"java-linked-lists"}
+  ]}
+/>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "dev-java", "path": "language-basics/arrays/", "note": "Arrays."},
+  {"source": "jls", "path": "jls-10.html", "note": "Arrays (chapter 10)."},
+  {"source": "java-api", "path": "java.base/java/util/Arrays.html", "note": "<code>Arrays</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/ArrayIndexOutOfBoundsException.html", "note": "<code>ArrayIndexOutOfBoundsException</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Review"
+  section="java"
+  links={[
+    {"label":"Arrays (Java Basics)","id":"java-arrays"},
+    {"label":"For Loops","id":"java-for-loops"},
+    {"label":"Objects and References","id":"java-objects-and-references"}
+  ]}
+/>

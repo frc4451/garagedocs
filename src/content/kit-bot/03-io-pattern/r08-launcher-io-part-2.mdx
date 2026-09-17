@@ -1,0 +1,211 @@
+---
+title: "R08: LauncherIO, Part 2: Intake and Launch"
+lessonId: r08-launcher-io-part-2
+section: kit-bot
+group: io-pattern
+groupLabel: "Phase 3: Hardware via IO"
+groupOrder: 3
+order: 8.5
+duration: 30 min
+description: Build the Launcher subsystem and coordinate its separate feeder and intake and launcher motors.
+durationFixed: true
+---
+
+
+Part 1 gave the feeder and intake and launcher roller separate outputs. This lesson coordinates them. Intake and eject run both rollers immediately. Launch first spins up the intake and launcher roller, then changes the feeder voltage to send fuel into it.
+
+### Step 1: create the subsystem
+
+Create `src/main/java/frc/robot/subsystems/launcher/Launcher.java`.
+
+```java
+package frc.robot.subsystems.launcher;
+
+import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.SubsystemBase;
+
+public class Launcher extends SubsystemBase {
+    private final LauncherIO io;
+    private final LauncherIO.LauncherInputs inputs =
+        new LauncherIO.LauncherInputs();
+
+    private Voltage targetFeederVoltage =
+        LauncherConstants.IDLE_VOLTAGE;
+    private Voltage targetIntakeLauncherVoltage =
+        LauncherConstants.IDLE_VOLTAGE;
+
+    public Launcher(LauncherIO io) {
+        this.io = io;
+    }
+
+    @Override
+    public void periodic() {
+        io.setFeederVoltage(targetFeederVoltage);
+        io.setIntakeLauncherVoltage(targetIntakeLauncherVoltage);
+        io.updateInputs(inputs);
+    }
+
+    public void runAt(
+            Voltage feederVoltage,
+            Voltage intakeLauncherVoltage) {
+        targetFeederVoltage = feederVoltage;
+        targetIntakeLauncherVoltage = intakeLauncherVoltage;
+    }
+
+    public void stop() {
+        runAt(
+            LauncherConstants.IDLE_VOLTAGE,
+            LauncherConstants.IDLE_VOLTAGE);
+    }
+
+    public Command intakeFuel() {
+        return runAtVoltages(
+            LauncherConstants.INTAKE_FEEDER_VOLTAGE,
+            LauncherConstants.INTAKE_ROLLER_VOLTAGE);
+    }
+
+    public Command ejectFuel() {
+        return runAtVoltages(
+            LauncherConstants.EJECT_FEEDER_VOLTAGE,
+            LauncherConstants.EJECT_ROLLER_VOLTAGE);
+    }
+
+    public Command launchFuel() {
+        return launchAtVoltage(LauncherConstants.LAUNCH_ROLLER_VOLTAGE);
+    }
+
+    private Command runAtVoltages(
+            Voltage feederVoltage,
+            Voltage intakeLauncherVoltage) {
+        return startEnd(
+            () -> runAt(feederVoltage, intakeLauncherVoltage),
+            this::stop);
+    }
+
+    private Command launchAtVoltage(Voltage intakeLauncherVoltage) {
+        return run(() -> runAt(
+                LauncherConstants.LAUNCH_SPINUP_FEEDER_VOLTAGE,
+                intakeLauncherVoltage))
+            .withTimeout(LauncherConstants.LAUNCH_SPINUP_SECONDS)
+            .andThen(run(() -> runAt(
+                LauncherConstants.LAUNCH_FEEDER_VOLTAGE,
+                intakeLauncherVoltage)))
+            .finallyDo(this::stop);
+    }
+
+    public AngularVelocity feederVelocity() {
+        return inputs.feederVelocity;
+    }
+
+    public Current feederCurrent() {
+        return inputs.feederCurrent;
+    }
+
+    public Voltage feederAppliedVoltage() {
+        return inputs.feederAppliedVoltage;
+    }
+
+    public AngularVelocity launcherVelocity() {
+        return inputs.intakeLauncherVelocity;
+    }
+
+    public Current launcherCurrent() {
+        return inputs.intakeLauncherCurrent;
+    }
+
+    public Voltage launcherAppliedVoltage() {
+        return inputs.intakeLauncherAppliedVoltage;
+    }
+}
+```
+
+The two target fields remain separate all the way to the IO layer. `periodic()` sends both commands every robot loop and then refreshes both sets of readings.
+
+The launch command has two phases:
+
+1. Spin the intake and launcher roller while applying only the feeder's small spin-up voltage.
+2. Keep the roller running and apply the feeder's full launch voltage.
+
+Releasing the button interrupts whichever phase is active. `finallyDo(this::stop)` then sets both targets to zero.
+
+### Step 2: construct the simulated launcher
+
+Add this field to `RobotContainer`:
+
+```java
+private final Launcher launcher = new Launcher(new LauncherIOSim());
+```
+
+[R12](/kit-bot/r12-real-vs-sim) later replaces this hard-coded simulation choice with the real-versus-simulation check.
+
+### Step 3: bind the actions
+
+Add these bindings inside `configureBindings()`:
+
+```java
+driver.rightBumper().whileTrue(launcher.launchFuel());
+driver.leftBumper().whileTrue(launcher.intakeFuel());
+driver.a().whileTrue(launcher.ejectFuel());
+```
+
+- Hold the **left bumper** to intake fuel.
+- Hold the **right bumper** to launch fuel.
+- Hold **A** to eject fuel back through the intake.
+
+These commands belong to `Launcher` because it owns both motors. `RobotContainer` chooses buttons; it does not repeat feeder voltages, roller voltages, delays, or stop behavior.
+
+### Step 4: inspect both motors
+
+Add a temporary X-button binding:
+
+```java
+driver.x().onTrue(
+    Commands.runOnce(() -> System.out.printf(
+        "feeder=%.1f RPM, launcher=%.1f RPM, "
+            + "feederCurrent=%.2f A, launcherCurrent=%.2f A%n",
+        launcher.feederVelocity().in(RPM),
+        launcher.launcherVelocity().in(RPM),
+        launcher.feederCurrent().in(Amps),
+        launcher.launcherCurrent().in(Amps))));
+```
+
+Import `Commands` and statically import `RPM` and `Amps`.
+
+### Run it
+
+1. Build and start simulation.
+2. Put a controller or keyboard on Joystick 0.
+3. Enable teleop.
+4. Hold the left bumper and press X, then release and press X again.
+5. Hold the right bumper. Press X once during spin-up and once after the feeder changes to its launch voltage.
+6. Repeat with A.
+
+During every action, both RPM values should move away from zero. Intake and eject should reverse both fuel-path directions. During launch, the intake and launcher roller starts immediately; the feeder changes behavior after the spin-up time. Both motors should return toward zero when the button is released.
+
+### Inspect the fuel path before changing code
+
+When fuel enters or exits in an unexpected direction, record a slow-motion side view. Follow one piece of fuel from first contact until it leaves the mechanism. Then check these items in order:
+
+1. Compare the intake-guide orientations with pages 35 through 37 of the official assembly guide.
+2. Confirm the intake and launcher roller turns in the intended direction.
+3. Confirm the feeder carries fuel toward that roller during launch.
+4. Look for the exact point where fuel stalls, slips, or changes direction.
+5. Change one mechanical or software value, then record the same view again.
+
+<RulesBox title="Done when">
+
+All three controls move both simulated motors, launch visibly changes the feeder after spin-up, and releasing any control stops both motors. You can explain why neither motor follows the other.
+
+</RulesBox>
+
+[Part 3](/kit-bot/r08-launcher-calibration) adds distance-based launcher settings while keeping the feeder sequence inside the subsystem.
+
+<Sources items={[
+  {"url": "https://github.com/Mechanical-Advantage/AdvantageKit/blob/main/template_projects/sources/kitbot_2026/src/main/java/frc/robot/subsystems/superstructure/Superstructure.java", "label": "Mechanical Advantage 2026 Kit Bot Superstructure", "note": "The two-phase launch command and independently commanded feeder and intake-launcher outputs."},
+  {"source": "scorpion", "path": "src/main/java/frc/robot/subsystems/superstructure/Superstructure.java", "note": "Scorpion's intake, eject, and launch command structure. The curriculum omits its extra agitator."},
+  {"url": "https://github.com/Mechanical-Advantage/AdvantageKit/blob/main/template_projects/sources/kitbot_2026/src/main/java/frc/robot/RobotContainer.java", "label": "Mechanical Advantage 2026 Kit Bot controls", "note": "Left-bumper intake, right-bumper launch, and A-button eject bindings."},
+  {"source": "wpilib", "path": "docs/software/commandbased/commands.html", "note": "Command sequences, timeouts, interruption, and final actions."}
+]} />

@@ -1,0 +1,307 @@
+---
+title: "Command Pattern"
+lessonId: java-command-pattern
+section: java
+group: java-design-patterns
+groupLabel: "Design Patterns"
+groupOrder: 9
+order: 3
+difficulty: advanced
+duration: 35 min
+description: "Wrapping an action in an object so it can be stored, scheduled, undone, and combined: the pattern behind FRC command-based programming."
+---
+
+### An action as an object
+
+Everything in this module has been building toward this. A command is an object whose purpose is to represent *something to be done*, rather than doing it immediately.
+
+```java
+interface Command {
+    void execute();
+}
+```
+
+That is the minimal form. Because the action is an object, you can put it in a list, hand it to another method, keep it for later, or store enough information to reverse it.
+
+```java norun
+Command spinUp = () -> shooter.set(0.9);
+Command stop   = () -> shooter.set(0.0);
+```
+
+Neither has run. They are values describing work, created with [lambdas](/java/fundamentals/java-lambdas#the-same-thing-shorter).
+
+### When the pattern is worth it
+
+If you only ever want the action to happen right now, call it; the pattern is unnecessary overhead.
+
+It earns its place when you need one of these:
+
+<ContentTable
+  headers={["Requirement", "Why a plain method call fails"]}
+  rows={[
+    ["Run it later", "A call happens immediately"],
+    ["Undo it", "A call leaves nothing to reverse"],
+    ["Queue several in order", "Calls cannot be stored"],
+    ["Let a user bind it to a button", "The binding needs a value, not a call"],
+    ["Combine actions into sequences", "There is nothing to combine"],
+    ["Decide at runtime which action to run", "Requires branching at every site"]
+  ]}
+/>
+
+### Adding lifecycle
+
+A single `execute()` is enough for instant actions, but most real work takes several cycles: driving to a position, spinning a flywheel up to speed. That needs a richer shape:
+
+```java
+interface Command {
+    default void initialize() {}          // once, at the start
+    void execute();                        // repeatedly, each cycle
+    default boolean isFinished() {         // when should it stop?
+        return false;
+    }
+    default void end(boolean interrupted) {}  // once, at the end
+}
+```
+
+`default` methods let an implementation override only what it cares about. A command that needs no lifecycle hooks supplies `execute` and nothing else.
+
+```java norun
+class SpinUpShooter implements Command {
+    private final Shooter shooter;
+    private final double targetRpm;
+
+    SpinUpShooter(Shooter shooter, double targetRpm) {
+        this.shooter = shooter;
+        this.targetRpm = targetRpm;
+    }
+
+    @Override public void initialize() {
+        shooter.setTarget(targetRpm);
+    }
+
+    @Override public void execute() {
+        shooter.update();
+    }
+
+    @Override public boolean isFinished() {
+        return shooter.atTargetSpeed();
+    }
+
+    @Override public void end(boolean interrupted) {
+        if (interrupted) shooter.stop();
+    }
+}
+```
+
+The dependencies arrive through the constructor ([dependency injection](/java/fundamentals/java-dependency-injection#testing-becomes-possible)), so this class is testable with a fake shooter.
+
+<RulesBox title="end() takes a boolean for a reason">
+
+A command can finish two ways: it completed, or something cut it short. Those often need different cleanup: a completed shooter might hold its speed, while an interrupted one should stop.
+
+Passing `interrupted` lets one method handle both without the caller needing two.
+
+</RulesBox>
+
+### A scheduler
+
+Something has to run these. The loop is short:
+
+```java
+class Scheduler {
+    private final List<Command> running = new ArrayList<>();
+
+    void schedule(Command command) {
+        command.initialize();
+        running.add(command);
+    }
+
+    void run() {
+        Iterator<Command> it = running.iterator();
+        while (it.hasNext()) {
+            Command c = it.next();
+            c.execute();
+            if (c.isFinished()) {
+                c.end(false);
+                it.remove();          // safe removal during iteration
+            }
+        }
+    }
+
+    void cancelAll() {
+        for (Command c : running) {
+            c.end(true);              // interrupted
+        }
+        running.clear();
+    }
+}
+```
+
+Using an `Iterator` with `it.remove()` is what allows removal mid-loop. A for-each with `running.remove(c)` would throw `ConcurrentModificationException`, the trap from the [ArrayLists](/java/fundamentals/java-arraylists#iterating) lesson.
+
+Call `run()` once per cycle and every scheduled command advances one step.
+
+### Composing commands
+
+Because commands are objects, you can build commands out of other commands. This is where the pattern pays for itself: a whole routine becomes one object.
+
+```java
+class SequentialCommand implements Command {
+    private final List<Command> steps;
+    private int index = 0;
+
+    SequentialCommand(Command... steps) {
+        this.steps = List.of(steps);
+    }
+
+    @Override public void initialize() {
+        index = 0;
+        if (!steps.isEmpty()) steps.get(0).initialize();
+    }
+
+    @Override public void execute() {
+        if (index >= steps.size()) return;
+
+        Command current = steps.get(index);
+        current.execute();
+
+        if (current.isFinished()) {
+            current.end(false);
+            index++;
+            if (index < steps.size()) {
+                steps.get(index).initialize();
+            }
+        }
+    }
+
+    @Override public boolean isFinished() {
+        return index >= steps.size();
+    }
+}
+```
+
+`SequentialCommand` *is* a `Command`, so it can be scheduled like any other, or nested inside another sequence.
+
+```java norun
+Command autonomous = new SequentialCommand(
+    new DriveDistance(drivetrain, 2.0),
+    new SpinUpShooter(shooter, 4000),
+    new Shoot(shooter, feeder),
+    new DriveDistance(drivetrain, -2.0)
+);
+
+scheduler.schedule(autonomous);
+```
+
+An entire autonomous routine is one object. A parallel version (running several at once and finishing when all are done) follows the same shape.
+
+<RulesBox title="This is what FRC command-based programming is">
+
+If you write FRC code, you have used this pattern already. WPILib's `Command`, `CommandScheduler`, `SequentialCommandGroup`, and `ParallelCommandGroup` are exactly the structures above, with more features and careful edge-case handling.
+
+Two additions worth knowing about in the real framework:
+
+- **Requirements.** A command declares which subsystems it uses, and the scheduler refuses to run two commands needing the same subsystem, which prevents two commands fighting over one motor.
+- **Decorators.** Methods like `andThen`, `alongWith`, and `withTimeout` build composite commands without you writing the group classes.
+
+The pattern here is the foundation; the framework is this plus safety.
+
+</RulesBox>
+
+### Undo
+
+Where the pattern is used for editing rather than scheduling, add a reverse operation:
+
+```java norun
+interface UndoableCommand {
+    void execute();
+    void undo();
+}
+
+class SetPosition implements UndoableCommand {
+    private final Arm arm;
+    private final double target;
+    private double previous;
+
+    SetPosition(Arm arm, double target) {
+        this.arm = arm;
+        this.target = target;
+    }
+
+    @Override public void execute() {
+        previous = arm.getPosition();     // remember, so undo is possible
+        arm.moveTo(target);
+    }
+
+    @Override public void undo() {
+        arm.moveTo(previous);
+    }
+}
+```
+
+Push executed commands onto a [stack](/java/fundamentals/java-stacks#where-stacks-show-up); undo pops and reverses. That is how every editor's undo works.
+
+<RulesBox title="Common mistakes">
+
+- **Modifying the running list during a for-each.** Use an `Iterator`, or collect finished commands and remove them afterwards.
+- **A command that never finishes.** If `isFinished()` always returns `false`, it runs forever. Give long-running commands a timeout.
+- **Doing setup in the constructor** instead of `initialize()`. A command may be scheduled more than once, and the constructor runs only the first time, so state from a previous run leaks in. Reset in `initialize()`.
+- **Forgetting to reset state**, which breaks the second run of a reused command.
+- **Sharing a mutable command between two schedulers**, so both mutate the same `index`.
+- **Capturing a value instead of a `Supplier`** for inputs that change.
+- **Using the pattern for a single immediate call**, adding indirection for nothing.
+
+</RulesBox>
+
+<JavaPlayground id="java-command-pattern" />
+
+<ExerciseBox title="Practice">
+
+1. Define a one-method `Command` interface and create three commands with lambdas that print different messages. Store them in a list and run them in order.
+2. Add `initialize`, `isFinished`, and `end` as `default` methods, then write a command that counts to five before finishing.
+3. Write a `Scheduler` that runs commands each cycle and removes finished ones. Test it with the counting command.
+4. Write a `SequentialCommand` running several commands one after another, and confirm a sequence can contain another sequence.
+5. Write an `UndoableCommand` for setting a value, and an undo stack supporting repeated undo.
+
+<details>
+<summary>Hints</summary>
+
+1. `List<Command>` and a for-each calling `execute()`.
+2. A counter field incremented in `execute`; `isFinished` returns true at five. Reset the counter in `initialize`, not the constructor; exercise 3 will show you why.
+3. The `Iterator` loop above. Schedule the counting command and call `run()` six times.
+4. Track an index of the current step. Nesting works automatically because the group implements the same interface.
+5. Store the previous value during `execute`. Push each command onto an `ArrayDeque`; undo pops and calls `undo()`.
+
+</details>
+
+</ExerciseBox>
+
+<LinkGrid
+  title="Related"
+  section="java"
+  links={[
+    {"label":"Dependency Injection","id":"java-dependency-injection"},
+    {"label":"Functional Interfaces","id":"java-functional-interfaces"},
+    {"label":"Stacks","id":"java-stacks"},
+    {"label":"Runtime Polymorphism","id":"java-runtime-polymorphism"}
+  ]}
+/>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"url": "https://en.wikipedia.org/wiki/Command_pattern", "label": "Wikipedia: Command pattern", "note": "The pattern."},
+  {"source": "wpilib", "path": "docs/software/commandbased/commands.html", "note": "WPILib's command lifecycle, the real version."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Command.html", "note": "<code>Command</code>."},
+  {"source": "java-api", "path": "java.base/java/util/Iterator.html", "note": "Removing mid-loop with <code>Iterator.remove</code>."},
+  {"source": "java-api", "path": "java.base/java/util/ConcurrentModificationException.html", "note": "<code>ConcurrentModificationException</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Apply it on a robot"
+  section="frc"
+  links={[
+    {"label":"Introduction to Command-Based","id":"introduction-to-command-based"},
+    {"label":"Commands","id":"commands"},
+    {"label":"Command Groups","id":"command-groups"}
+  ]}
+/>

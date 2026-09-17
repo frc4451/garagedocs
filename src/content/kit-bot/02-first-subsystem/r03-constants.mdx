@@ -9,9 +9,11 @@ order: 3
 duration: 15 min
 description: "Top-level and per-subsystem constants as public static final, and why the numbers live in one place."
 ---
+
+
 CAN IDs, controller ports, current limits, gear ratios. Anything you set once at design time and read in many places. This module is where these live and how to organize them.
 
-The Java pattern is from [static and final](/java/java-static-final#putting-them-together-constants): `public static final` constants accessed by class-qualified name (`DriveConstants.LEFT_LEADER_CAN_ID`, not a magic `40` scattered through your code).
+The Java pattern is from [Static and Final](/java/fundamentals/java-static-and-final#putting-them-together-constants): `public static final` constants accessed by class-qualified name (`DriveConstants.LEFT_LEADER_CAN_ID`, not a magic `40` scattered through your code).
 
 ---
 
@@ -56,14 +58,16 @@ public final class DriveConstants {
     // ---- Motor protection ----
     // Config-time hardware parameter handed straight to REVLib's int-typed
     // API below; not a value your own code reads or computes with, so it
-    // stays a plain int rather than a typed Current. Compare to R07's
-    // LauncherInputs.current, a value your code actually consumes.
+    // stays a plain int rather than a typed Current. Compare to R08's
+    // LauncherInputs.intakeLauncherCurrent, a value your code consumes.
     public static final int SMART_CURRENT_LIMIT_AMPS = 60;
 
     // ---- Drivetrain geometry ----
     public static final Distance WHEEL_DIAMETER = Inches.of(6);
-    public static final double   GEAR_RATIO     = 10.71;   // motor turns per wheel turn, dimensionless
-    public static final Distance TRACK_WIDTH    = Inches.of(22);
+    public static final double GEAR_RATIO =
+        (50.0 / 14.0)  // first stage: driven gear / driver gear
+        * (48.0 / 16.0); // second stage: driven gear / driver gear
+    public static final Distance TRACK_WIDTH = Inches.of(22);
 
     // ---- Behaviour caps ----
     public static final double MAX_DRIVE_PERCENT = 0.85;   // dimensionless fraction, not a unit
@@ -78,34 +82,38 @@ Five things to notice:
 
 1. **`public final class` with a private constructor.** Nobody should ever do `new DriveConstants()`. The constants are accessed through the class name: `DriveConstants.SMART_CURRENT_LIMIT_AMPS`.
 2. **`public static final` on every field.** `public` because everyone reads them. `static` because they belong to the class, not an instance. `final` so they can't be reassigned at runtime.
-3. **`ALL_CAPS_WITH_UNDERSCORES`**: the standard convention for compile-time constants, the same as in [Variables](/java/java-variables#key-concepts).
+3. **`ALL_CAPS_WITH_UNDERSCORES`**: the standard convention for compile-time constants, the same as in [Variables](/java/fundamentals/java-variables#key-concepts).
 4. **`WHEEL_DIAMETER` and `TRACK_WIDTH` are `Distance`, not `double`.** The old shape (`double WHEEL_DIAMETER_METERS = 0.1524; // 6 inches`) forces you to hand-convert 6 inches to meters and leave a comment as the only proof you did it right. `Inches.of(6)` says exactly what was measured, in the unit it was measured in, and the type system carries the conversion for you from here on. See "WPILib's Units library" below.
-5. **Not every number is a unit.** `GEAR_RATIO`, `MAX_DRIVE_PERCENT`, and `TELEOP_DEADBAND` are dimensionless ratios (turns per turn, a fraction of full output), not physical quantities. They stay plain `double`. The rule of thumb for the rest of this curriculum: if it has a physical dimension (a length, a voltage, a speed, a current), give it a real `Unit` type; if it's a ratio or a percentage of something else, a plain `double` is the honest type.
+5. **Not every number is a unit.** `GEAR_RATIO`, `MAX_DRIVE_PERCENT`, and `TELEOP_DEADBAND` are dimensionless ratios (turns per turn, a fraction of full output), not physical quantities. They stay plain `double`. The gear ratio shows both stages instead of hiding them inside `10.71`: each stage divides the number of teeth on the driven gear by the number on the driver gear. `(50 / 14) × (48 / 16)` is about `10.71`, so the motor turns about 10.71 times for one wheel turn. The rule of thumb for the rest of this curriculum: if it has a physical dimension (a length, a voltage, a speed, a current), give it a real `Unit` type; if it's a ratio or a percentage of something else, a plain `double` is the honest type.
 
 ---
 
 ### WPILib's Units library
 
-`Inches.of(6)` above is WPILib's **Units library** (`edu.wpi.first.units`), not a custom helper. It exists specifically to stop the class of bug where two `double` fields hold the same kind of number in different units and nothing in the code says so, `double leftVelocity` in meters per second added to `double rightVelocity` in feet per second compiles fine and produces a silently wrong answer.
-
-The shape you'll use everywhere in Kit Bot from here on:
+Physical measurements need a number and a unit. A bare `double` does not tell Java whether `6.0` means inches, meters, volts, or amps. WPILib's Units library keeps that information with the value.
 
 ```java
-import static edu.wpi.first.units.Units.*;   // Volts, Meters, Inches, RPM, Amps, ...
+import edu.wpi.first.units.measure.Distance;
+import static edu.wpi.first.units.Units.Inches;
+import static edu.wpi.first.units.Units.Meters;
 
-Distance wheelDiameter = Inches.of(6);        // create: Unit.of(magnitude)
-double meters = wheelDiameter.in(Meters);     // unwrap: measure.in(Unit)
+Distance wheelDiameter = Inches.of(6);
+double diameterMeters = wheelDiameter.in(Meters);
 ```
 
-- **Create** a measure with `Unit.of(magnitude)`: `Volts.of(12.0)`, `RPM.of(3000)`, `Meters.of(1.5)`.
-- **Unwrap** back to a bare `double` in a specific unit with `.in(Unit)`, only when something outside the Units library needs a raw number (REVLib calls, `printf`, NetworkTables).
-- **Static-import** `edu.wpi.first.units.Units.*` so you can write `Volts.of(...)` instead of `Units.Volts.of(...)`.
-- The measure *types* (`Distance`, `Voltage`, `AngularVelocity`, `Current`, ...) live in `edu.wpi.first.units.measure`; the *unit constants* (`Volts`, `Meters`, `RPM`, ...) live in `edu.wpi.first.units.Units`. Two different packages, easy to mix up at first.
-- Arithmetic is type-checked: `distance1.plus(distance2)` compiles regardless of what unit each was created in (the library converts for you); `voltage.plus(distance)` is a compile error, not a runtime bug.
+Read the two important operations aloud:
 
-You'll see this on every physical quantity from R06 onward: voltages, RPMs, distances, currents. Dimensionless numbers (percentages, gear ratios, joystick axis values) stay plain `double`, there's no `Unit` for "a fraction of full output."
+- `Inches.of(6)` creates a distance measured as six inches.
+- `wheelDiameter.in(Meters)` asks for the same distance expressed in meters.
 
----
+Use a typed measure for physical quantities such as distance, voltage, velocity, and current. Keep dimensionless ratios as `double`. A gear ratio and a joystick fraction have no physical unit.
+
+The type name and unit name come from different imports:
+
+- Types such as `Distance` and `Voltage` are in `edu.wpi.first.units.measure`.
+- Unit constants such as `Meters` and `Volts` are in `edu.wpi.first.units.Units`.
+
+R07 and R08 show these values crossing into REVLib and simulation APIs. Convert to a bare number with `.in(...)` only where an API requires one.
 
 ### Top-level `Constants.java`
 
@@ -127,7 +135,7 @@ public final class Constants {
 
 Nested `static` classes group related constants without scattering files. `OperatorConstants.DRIVER_CONTROLLER_PORT` reads naturally at the call site.
 
-You *could* put everything in one big `Constants` file. That works for tiny projects. By the time you have three subsystems and a vision pipeline, that one file becomes a merge-conflict magnet. Splitting per subsystem solves that.
+You *could* put everything in one big `Constants` file. That works for tiny projects. By the time you have several subsystems and their hardware settings, that one file becomes a merge-conflict magnet. Splitting per subsystem solves that.
 
 ---
 
@@ -137,18 +145,7 @@ You *could* put everything in one big `Constants` file. That works for tiny proj
 - **Anything per-instance.** "The left motor's port" is constant; "the current angle of the arm" is not.
 - **Long string lookups, complex tables.** If your "constant" needs more than one line to set up, it probably belongs in a method or a small loader class.
 
-The rule of thumb: if you'd be willing to recompile the code to change it, it's a constant. If you'd want to tune it live during a match, it isn't.
-
----
-
-### Why no `SmartDashboard.getNumber(...)` tunables
-
-In the past, teams sometimes used `SmartDashboard.getNumber("kP", defaultKP)` as "live tunable constants". We're not doing that in this curriculum. Two reasons:
-
-1. We're not using SmartDashboard as a dashboard or a live-tuning workflow (see R13: AdvantageScope). You will still see `SmartDashboard.putData(...)` once, in R14, to publish the autonomous chooser: that's the only supported way to feed WPILib's built-in Driver Station chooser widget, a required piece of competition software, not a telemetry choice. It's a one-line publish call, not the tunable-values pattern this section is warning against.
-2. Live tunable constants are a real tool for advanced workflows but a frequent source of subtle bugs (a forgotten dashboard value silently overrides your code). Reserve them for situations where you've measured a need, not as a default.
-
-When you do need a tunable, AdvantageScope's NetworkTables-backed approach gives you the same workflow with better visibility. We come back to it in R13.
+The rule of thumb: a constant describes a value fixed by the robot design or chosen before the program starts. A sensor reading, driver input, or other value that changes while the robot runs belongs on the class that owns it.
 
 ---
 
@@ -162,25 +159,26 @@ Open a Java file (any file) and type `DriveConstants.`. IntelliSense should sugg
 
 ---
 
-<RulesBox title="Evaluate in simulation">
+<RulesBox title="Done when">
 
-The project builds with `DriveConstants` in place and `Constants.currentMode` present, and typing `DriveConstants.` in any file offers your constants. Nothing else changes in simulation yet. This module is graded by the build and by the shape on disk.
+The project builds with `DriveConstants` and `OperatorConstants` in place. Typing `DriveConstants.` in another Java file offers the constants through IntelliSense. Nothing changes in simulation yet; the build and the file organization are the checks.
 
 </RulesBox>
 
 ### References
 
-- [static and final](/java/java-static-final#putting-them-together-constants): one copy per class, set once. These are the two keywords behind every constant.
-- [Variables](/java/java-variables#key-concepts): the `UPPER_CASE` naming convention
-- [Dependency Injection](/java/java-dp-dependency-injection#injecting-values-not-just-objects): why a value is better passed in than read from a global, which is the other half of the constants question.
-- [Packages and Project Layout](/java/java-packages#what-the-layout-looks-like): where `Constants.java` sits and why
+- [Static and Final](/java/fundamentals/java-static-and-final#putting-them-together-constants): one copy per class, set once. These are the two keywords behind every constant.
+- [Variables](/java/fundamentals/java-variables#key-concepts): the `UPPER_CASE` naming convention
+- [Dependency Injection](/java/fundamentals/java-dependency-injection#injecting-values-and-objects): why passing a value is better than reading it from a global, which is the other half of the constants question.
+- [Packages and Project Layout](/java/fundamentals/java-packages-and-project-layout#what-the-layout-looks-like): where `Constants.java` sits and why
 - WPILib: [Constants in Command-Based Code](https://docs.wpilib.org/en/stable/docs/software/commandbased/structuring-command-based-project.html#constants)
 - WPILib: [The Java Units Library](https://docs.wpilib.org/en/stable/docs/software/basic-programming/java-units.html)
 - WPILib JavaDoc: [`Units`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/units/Units.html) (all the predefined unit constants)
+- AndyMark: [Toughbox Mini, 10.71:1 ratio](https://www.andymark.com/products/toughbox-mini-10-71-1-ratio-flat-plate) (gear tooth counts used in the ratio equation)
 
 <Sources items={[
   {"source": "wpilib", "path": "docs/software/commandbased/structuring-command-based-project.html", "note": "The <code>Constants</code> class in the template."},
   {"source": "wpilib", "path": "docs/software/basic-programming/java-units.html", "note": "The Units library."},
   {"source": "wpilib-javadoc", "path": "edu/wpi/first/units/Units.html", "note": "<code>Units</code>: <code>Inches</code>, <code>Meters</code>, <code>RPM</code>."},
-  {"source": "wpilib", "path": "docs/software/dashboards/smartdashboard/index.html", "note": "SmartDashboard, where tunable values appear."}
+  {"url": "https://www.andymark.com/products/toughbox-mini-10-71-1-ratio-flat-plate", "label": "AndyMark Toughbox Mini 10.71:1", "note": "The 14-tooth, 50-tooth, 16-tooth, and 48-tooth gears used in the two-stage ratio."}
 ]} />

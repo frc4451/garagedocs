@@ -1,187 +1,277 @@
 ---
-title: "R09: Characterization, Part 1: The Launcher"
+title: "R09: Characterization, Part 1: Collect Steady-State Samples"
 lessonId: r09-characterization
 section: kit-bot
 group: io-pattern
 groupLabel: "Phase 3: Hardware via IO"
 groupOrder: 3
 order: 9
-duration: 35 min
-description: "Measure real kS and kV for the launcher with a queued quasistatic ramp instead of guessing a shot voltage."
+duration: mentor-led
+description: Apply fixed voltage steps, wait for each mechanism to settle, and record its velocity.
 durationFixed: true
 ---
-`SHOOT_VOLTAGE` in R07 is a guess: one number that happened to spin the launcher up to something reasonable. R08's `arcadeDrive` has the same guess baked in, `(speed + rotation) * 12.0 * MAX_DRIVE_PERCENT`, full battery voltage, ignoring that the mechanism has friction to overcome before it moves at all and that its speed doesn't scale linearly with voltage once it's moving. Both work well enough to demo, which is why neither module stopped to fix it.
 
-This module measures two real numbers, **kS** and **kV**, that describe how a spinning mechanism, flywheel or drivetrain, actually responds to voltage. Every competitive team runs a routine like this before trusting any velocity-based control (closed-loop driving, `SysId`-tuned autos, a shooter that hits a real RPM target). This is the manual, do-it-yourself version, the same kind of routine you'll find in a `Drive.java` characterization command on a real team's codebase, just built from parts you already have.
+<RulesBox title="Before you start">
 
-We build the routine once, in full, against the **launcher**: one motor, one velocity reading, no left/right to keep in sync. The exact reason R07 taught the launcher before R08 taught the drivetrain applies again here. Once the technique is solid, applying it to the **drivetrain** is a short list of differences, not a second module's worth of new ideas.
-
----
-
-### The model
-
-A DC motor mechanism's voltage-to-speed relationship is well approximated by:
-
-```
-voltage = kS · sign(velocity) + kV · velocity
-```
-
-- **kS** (volts): the voltage it takes to overcome static friction and just barely start moving. Below this, you command a voltage and nothing happens.
-- **kV** (volts per unit of velocity): how much *more* voltage each additional unit of speed costs, once the mechanism is already moving.
-
-A third term, **kA** (volts per unit of acceleration, how much extra voltage it takes to *accelerate*), exists in the full model. Measuring it needs a second kind of test (a step-voltage "dynamic" test, reading acceleration instead of steady-state velocity), and this curriculum doesn't cover it, the same scope line R07 drew around PID: kS and kV alone get you a meaningfully better feedforward than a bare guess, without a second test rig or a control-theory detour.
-
----
-
-### The routine: a quasistatic ramp
-
-The standard technique (this is what WPILib's own `SysId` tool automates, and what hand-rolled characterization commands do too) is a **quasistatic ramp**: apply voltage so slowly that acceleration stays near zero throughout. At every instant the mechanism is close enough to steady-state that `voltage ≈ kS·sign(v) + kV·v` holds, with the (ignored) kA·acceleration term staying small because acceleration itself stays small.
-
-Concretely: start at 0 V, ramp up at a slow constant rate, and record `(voltage, velocity)` pairs the whole way. After the ramp, throw out the earliest samples, the ones from before the mechanism broke static friction and started moving, and fit a line through the rest.
-
----
-
-### Collecting samples: why a `Queue`
-
-The ramp command **produces** samples once per tick, live, while the mechanism is moving. The fit **consumes** all of them at once, after it has stopped. Those are two different points in time with two different jobs, exactly the shape a `Queue` is for: `offer` during the ramp, `poll` in order during the fit. [Queues](/java/java-ds-queues#using-one) covers this interface; `ArrayDeque` is the implementation.
-
----
-
-### Characterizing the launcher
-
-```java
-package frc.robot.commands;
-
-import edu.wpi.first.units.measure.AngularVelocity;
-import edu.wpi.first.units.measure.Voltage;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import frc.robot.subsystems.launcher.Launcher;
-
-import java.util.ArrayDeque;
-import java.util.Queue;
-
-import static edu.wpi.first.units.Units.RPM;
-import static edu.wpi.first.units.Units.Seconds;
-import static edu.wpi.first.units.Units.Volts;
-
-public final class LauncherCharacterization {
-
-    private static final double RAMP_VOLTS_PER_SECOND = 0.25;
-    private static final double MAX_VOLTS = 6.0;
-    private static final double MIN_VELOCITY_RPM = 50.0;   // below this, static friction hasn't broken yet
-
-    private record Sample(Voltage voltage, AngularVelocity velocity) {}
-
-    public static Command run(Launcher launcher) {
-        Queue<Sample> samples = new ArrayDeque<>();
-        Timer timer = new Timer();
-
-        Command ramp = Commands.run(() -> {
-            Voltage voltage = Volts.of(RAMP_VOLTS_PER_SECOND * timer.get());
-            launcher.runAt(voltage);
-            samples.offer(new Sample(voltage, launcher.velocity()));
-        }, launcher).withTimeout(Seconds.of(MAX_VOLTS / RAMP_VOLTS_PER_SECOND));
-
-        return Commands.runOnce(() -> { samples.clear(); timer.restart(); })
-            .andThen(ramp)
-            .andThen(Commands.runOnce(launcher::stop, launcher))
-            .andThen(Commands.runOnce(() -> fitAndReport(samples)));
-    }
-
-    private static void fitAndReport(Queue<Sample> samples) {
-        int n = 0;
-        double sumV = 0, sumU = 0, sumVV = 0, sumVU = 0;
-
-        Sample sample;
-        while ((sample = samples.poll()) != null) {
-            double velocity = sample.velocity().in(RPM);
-            if (velocity < MIN_VELOCITY_RPM) {
-                continue;   // still overcoming static friction; would corrupt the fit
-            }
-            double voltage = sample.voltage().in(Volts);
-            n++;
-            sumV  += velocity;
-            sumU  += voltage;
-            sumVV += velocity * velocity;
-            sumVU += velocity * voltage;
-        }
-
-        if (n < 2) {
-            System.out.println("Not enough moving samples to fit a line. "
-                + "Raise MAX_VOLTS, or check the launcher isn't jammed.");
-            return;
-        }
-
-        double kV = (n * sumVU - sumV * sumU) / (n * sumVV - sumV * sumV);
-        double kS = (sumU - kV * sumV) / n;
-
-        System.out.printf("kS = %.4f volts%n", kS);
-        System.out.printf("kV = %.6f volts per RPM%n", kV);
-    }
-
-    private LauncherCharacterization() {}
-}
-```
-
-Walk through it in order:
-
-1. **`samples.clear(); timer.restart();`** runs once, before the ramp starts. Wipe any samples left over from a previous run, zero the clock.
-2. **The ramp** is `Commands.run` with a `withTimeout`: exactly the shape from R05 and R14. Each tick, the commanded voltage is `0.25 × secondsElapsed`, so it climbs from 0 V to `MAX_VOLTS` (6 V here) over 24 seconds, slow enough to stay quasistatic. Every tick, `launcher.runAt(voltage)` commands it and `samples.offer(...)` records what was commanded alongside what the launcher actually reported for velocity. Neither method is new: `runAt(Voltage)` and `velocity()` are exactly what R07 already built.
-3. **After the timeout**, `launcher::stop` kills the motor, then `fitAndReport` runs the regression and prints the result.
-4. **`fitAndReport` drains the queue with `poll()`** in FIFO order, oldest sample first, exactly the order they were recorded. Samples below `MIN_VELOCITY_RPM` are skipped: for the first fraction of a second, the launcher is commanded a nonzero voltage but genuinely isn't spinning yet (static friction), and including those points would pull the fit toward a wrong answer.
-5. **The regression** is ordinary least-squares, fitting `voltage = kS + kV·velocity` to the (velocity, voltage) points. `kV` is the slope, `kS` the intercept. If you want to see why those particular sums produce a slope and an intercept, this is the same line-of-best-fit formula from any intro statistics course, nothing FRC-specific about the math itself.
-6. **`kV` comes out in volts per RPM.** `SimpleMotorFeedforward` (used below) doesn't care which unit you characterize in, kS and kV just have to agree with whatever unit you pass to `calculate` later. The launcher's native reading is RPM, R07 never converts it to anything else, so RPM is what gets characterized.
-
----
-
-### Try it: launcher
-
-Add `LauncherCharacterization.java`. Bind it to a spare button for testing, for example:
-
-```java
-driver.back().onTrue(LauncherCharacterization.run(launcher));
-```
-
-Run the sim (`F5`), enable in teleop, press the bound button, and leave the launcher alone until it stops on its own (24 seconds at the defaults above). Watch the console. You should see something like:
-
-```
-kS = 0.2100 volts
-kV = 0.002050 volts per RPM
-```
-
-The exact numbers depend on `LauncherConstants` and the sim's physics model; don't expect to match this example. Sanity-check instead: `kS` should be a small positive number (well under a volt), and `kS + kV × topSpeedRpm` should land somewhere near 12 V, since that's roughly what it takes to hold the launcher at its actual top speed.
-
-If `kS` comes out negative or `kV` comes out negative, something fed the fit bad data, check that `MIN_VELOCITY_RPM` is actually filtering out the static region, and that the launcher was spinning freely during the test.
-
----
-
-### What this bought the launcher
-
-This is the piece R07 left open. Its shot-calibration table originally stored `distance -> target voltage`, measured by trial and error. With `kS`/`kV` in hand, [R07's `Launcher`](/kit-bot/r07-launcher-io) stores `distance -> target RPM` instead, a number that means the same thing regardless of battery state, and converts it to voltage with a [`SimpleMotorFeedforward`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/controller/SimpleMotorFeedforward.html) built from the constants this routine just printed:
-
-```java
-SimpleMotorFeedforward feedforward = new SimpleMotorFeedforward(kS, kV);
-double volts = feedforward.calculate(targetRpm);
-```
-
-`SimpleMotorFeedforward` itself is untyped, plain `double` in the constructor and in `calculate`, the same "not every WPILib class has caught up to the Units library" story from R07 and R08. Go update `LauncherConstants.KS`/`KV` with your own measured values if you haven't already.
-
-<RulesBox title="Evaluate in simulation">
-
-Pressing the bound button runs the launcher routine to completion on its own, and the console prints a small positive `kS` and a `kV` such that `kS + kV × topRPM` lands near 12 V. A negative constant usually means bad data went into the fit. Explain why before moving on.
+Complete [R07 Part 2](/kit-bot/r07-drive-io-part-2) and [R08 Part 3](/kit-bot/r08-launcher-calibration). Review [methods](/java/fundamentals/java-methods), [arrays](/java/fundamentals/java-arrays), and [commands](/kit-bot/r05-commands-and-triggers). Run real-hardware tests only with a mentor.
 
 </RulesBox>
 
----
+Characterization measures how much voltage a mechanism needs to move at a steady speed. The Kit Bot drivetrain and launcher are both rotating mechanisms. For this lesson, both use the same model:
 
-The launcher now has measured feedforward gains instead of a guessed voltage. [Part 2](/kit-bot/r09-characterization-part-2) runs the same routine on the drivetrain, where the only new problem is that there are two sides.
+```text
+voltage = kS + kV × velocity
+```
+
+- `kS` is the voltage needed to overcome static friction and begin moving.
+- `kV` is the additional voltage needed for each unit of velocity.
+
+This Kit Bot exercise does not use the SysId application. You will collect the samples and write the calculation in Java so you can see where both gains come from.
+
+### Why this test uses fixed steps
+
+The test applies a fixed voltage, waits for the mechanism to settle, and then records velocity. At a settled speed, acceleration is approximately zero. That removes the `kA × acceleration` term from the model and leaves the two values this exercise needs.
+
+A continuous ramp is faster, but every sample is taken while the mechanism is accelerating. The Cobra and Scorpion roller library includes both approaches. This lesson uses its stepped steady-state approach because the data matches the two-term equation more directly.
+
+### Safety before a real test
+
+<RulesBox title="Hardware safety">
+
+- Run the complete workflow in simulation first.
+- Ask a mentor to choose the voltage range, test area, and robot support for each real mechanism.
+- Remove fuel before testing the launcher and intake roller.
+- Keep hands, hair, clothing, and tools away from moving parts.
+- Assign one person to the Driver Station Disable control.
+- Hold the test button throughout the run. Releasing it must stop the mechanism.
+- Stop immediately if motion, current, sound, or temperature is unexpected.
+
+</RulesBox>
+
+The six voltage steps below are starter values for simulation. They are not automatically safe or useful for every real robot. A mentor should change the list before a hardware test when the mechanism or available test space requires it.
+
+### Add the shared characterization utility
+
+Create `src/main/java/frc/robot/util/SteadyStateCharacterization.java`. This is a **complete file**.
+
+```java
+package frc.robot.util;
+
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj2.command.Subsystem;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.DoubleConsumer;
+import java.util.function.DoubleSupplier;
+
+public final class SteadyStateCharacterization {
+    private static final double[] VOLTAGE_STEPS =
+        {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+    private static final double SETTLE_SECONDS = 1.5;
+
+    private SteadyStateCharacterization() {}
+
+    public static Command run(
+            String name,
+            Subsystem subsystem,
+            DoubleConsumer outputVolts,
+            DoubleSupplier velocity,
+            String velocityUnit,
+            double minimumVelocity) {
+
+        List<Double> velocitySamples = new ArrayList<>();
+        List<Double> voltageSamples = new ArrayList<>();
+        Command[] steps = new Command[VOLTAGE_STEPS.length];
+
+        for (int i = 0; i < VOLTAGE_STEPS.length; i++) {
+            double volts = VOLTAGE_STEPS[i];
+
+            steps[i] = Commands.sequence(
+                Commands.runOnce(
+                    () -> outputVolts.accept(volts), subsystem),
+                Commands.waitSeconds(SETTLE_SECONDS),
+                Commands.runOnce(() -> {
+                    double measuredVelocity = velocity.getAsDouble();
+
+                    if (measuredVelocity > minimumVelocity) {
+                        velocitySamples.add(measuredVelocity);
+                        voltageSamples.add(volts);
+                        System.out.printf(
+                            "%s sample: %.2f V, %.4f %s%n",
+                            name, volts, measuredVelocity, velocityUnit);
+                    } else {
+                        System.out.printf(
+                            "%s skipped: %.2f V, %.4f %s%n",
+                            name, volts, measuredVelocity, velocityUnit);
+                    }
+                }, subsystem)
+            );
+        }
+
+        return Commands.sequence(
+            Commands.runOnce(() -> {
+                velocitySamples.clear();
+                voltageSamples.clear();
+                System.out.println("Starting " + name + " characterization");
+            }, subsystem),
+            Commands.sequence(steps),
+            Commands.runOnce(
+                () -> printResults(
+                    name, velocitySamples, voltageSamples, velocityUnit),
+                subsystem)
+        ).finallyDo(() -> outputVolts.accept(0.0));
+    }
+
+    private static void printResults(
+            String name,
+            List<Double> velocity,
+            List<Double> voltage,
+            String velocityUnit) {
+
+        int n = velocity.size();
+        if (n < 2) {
+            System.out.println("Not enough moving samples for " + name);
+            return;
+        }
+
+        double sumX = 0.0;
+        double sumY = 0.0;
+        double sumXY = 0.0;
+        double sumX2 = 0.0;
+
+        for (int i = 0; i < n; i++) {
+            double x = velocity.get(i);
+            double y = voltage.get(i);
+            sumX += x;
+            sumY += y;
+            sumXY += x * y;
+            sumX2 += x * x;
+        }
+
+        double denominator = n * sumX2 - sumX * sumX;
+        if (Math.abs(denominator) < 1e-9) {
+            System.out.println("Samples do not cover enough different speeds");
+            return;
+        }
+
+        double kS =
+            (sumY * sumX2 - sumX * sumXY) / denominator;
+        double kV =
+            (n * sumXY - sumX * sumY) / denominator;
+
+        System.out.printf("%s results:%n", name);
+        System.out.printf("  samples = %d%n", n);
+        System.out.printf("  kS = %.6f volts%n", kS);
+        System.out.printf(
+            "  kV = %.6f volts per %s%n", kV, velocityUnit);
+    }
+}
+```
+
+The utility accepts two functions from a subsystem:
+
+- `outputVolts` applies a requested voltage.
+- `velocity` returns the current measured speed as a `double` in a named unit.
+
+The command requires the supplied subsystem. Its `finallyDo` action sends zero volts after normal completion or interruption.
+
+The first steps may be skipped because the mechanism has not overcome static friction. The regression uses only samples above the supplied minimum velocity. If a forward test reports negative velocity, stop and correct the sensor or motor direction before collecting data.
+
+### Connect the drivetrain
+
+Add these methods to `Drive`:
+
+```java
+public void runCharacterizationVolts(double volts) {
+    leftVoltage = Volts.of(volts);
+    rightVoltage = Volts.of(volts);
+}
+
+public double characterizationVelocity() {
+    return (leftVelocity().in(MetersPerSecond)
+        + rightVelocity().in(MetersPerSecond)) / 2.0;
+}
+
+public Command characterizeFeedforward() {
+    return SteadyStateCharacterization.run(
+        "Drive",
+        this,
+        this::runCharacterizationVolts,
+        this::characterizationVelocity,
+        "m/s",
+        0.1);
+}
+```
+
+Import `SteadyStateCharacterization` and statically import `MetersPerSecond`. Both sides receive the same voltage, and the recorded speed is their average.
+
+### Connect the launcher
+
+Add these methods to `Launcher`:
+
+```java
+public void runCharacterizationVolts(double volts) {
+    runAt(LauncherConstants.IDLE_VOLTAGE, Volts.of(volts));
+}
+
+public double characterizationVelocity() {
+    return launcherVelocity().in(RotationsPerSecond);
+}
+
+public Command characterizeFeedforward() {
+    return SteadyStateCharacterization.run(
+        "Launcher",
+        this,
+        this::runCharacterizationVolts,
+        this::characterizationVelocity,
+        "rot/s",
+        0.1);
+}
+```
+
+Import `SteadyStateCharacterization` and statically import `RotationsPerSecond`. This test characterizes only the intake and launcher roller, so the feeder stays at zero. The two motors are independent and must not be combined into one sample. Intake runs in the opposite direction, but it does not need its own precise velocity target in this Kit Bot project.
+
+### Add hold-to-run bindings
+
+Remove the temporary X-button print binding from R08, then add:
+
+```java
+driver.y().whileTrue(drive.characterizeFeedforward());
+driver.x().whileTrue(launcher.characterizeFeedforward());
+```
+
+Hold Y for the full drivetrain test or X for the full launcher test. Releasing the button interrupts the sequence and sends zero volts. Run one test at a time.
+
+### Run the simulation tests
+
+1. Build and start simulation.
+2. Enable teleop.
+3. Hold Y until the drivetrain result prints.
+4. Disable, then enable again.
+5. Hold X until the launcher result prints.
+6. Save both sample lists and result lines.
+
+Simulation results describe the WPILib physics models. They are useful for checking the code and the math. They are not measurements of the real Kit Bot.
+
+### Troubleshooting
+
+- **The test stops early:** keep the assigned button held for the entire sequence.
+- **Every step is skipped:** confirm the IO applies the requested voltage and reports velocity in the expected direction.
+- **The mechanism keeps running after release:** confirm the command ends with `finallyDo(() -> outputVolts.accept(0.0))` and is bound with `whileTrue`.
+- **The two drivetrain sides disagree:** inspect left and right velocity separately before using their average.
+- **The result says the speeds are too similar:** increase the useful voltage range only after a mentor checks the mechanism and test setup.
+
+<RulesBox title="Done when">
+
+The drivetrain and launcher tests each print at least two moving samples, stop when their buttons are released, and report a `kS` and `kV` with the correct velocity unit. Save the console output for Part 2.
+
+</RulesBox>
 
 <Sources items={[
-  {"source": "wpilib", "path": "docs/software/advanced-controls/introduction/introduction-to-feedforward.html", "note": "kS and kV."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/controller/SimpleMotorFeedforward.html", "note": "<code>SimpleMotorFeedforward</code>."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/Timer.html", "note": "<code>Timer</code> for the ramp."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Commands.html", "note": "Building the characterization command."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "The same routine in FRC 4451's library: steady-state characterization."}
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "The stepped steady-state routine used on Cobra and Scorpion, including settled samples and the explicit linear-regression formulas."},
+  {"url": "https://github.com/Mechanical-Advantage/RobotCode2023/blob/main/src/main/java/org/littletonrobotics/frc2023/commands/FeedForwardCharacterization.java", "label": "Mechanical Advantage FeedForwardCharacterization", "note": "The earlier reusable voltage-and-velocity characterization pattern from which the team routine developed."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/introduction/introduction-to-feedforward.html", "note": "The <code>kS</code>, <code>kV</code>, and <code>kA</code> feedforward model."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Commands.html", "note": "Command sequences, waits, and run-once actions."}
 ]} />
+

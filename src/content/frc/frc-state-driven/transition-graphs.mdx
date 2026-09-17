@@ -1,0 +1,191 @@
+---
+title: "Transition Graphs"
+lessonId: transition-graphs
+section: frc
+group: frc-state-driven
+groupLabel: "State-Driven Robot Code"
+groupOrder: 18
+order: 5
+difficulty: advanced
+duration: 40 min
+description: "When a robot can collide with itself, the states become a graph: FRC 254's 2025 superstructure with 30 positions, allowed transitions per state, each transition a Command, a search for the cheapest safe path, and transition times measured by the robot itself. What it costs, and the small version worth building first."
+---
+
+The superstructure on the previous pages assumes any state can follow any other. An intake that is deployed can be told to stow; a shooter that is spinning can be told to stop. That holds for rollers and flywheels. It stops holding when the mechanisms share space: an elevator with a wrist on it, an arm that passes through the drivetrain's frame, a climber that must not deploy while the intake is out. Then "go to state X" has a hidden question, *by what route*, and the answer is a graph. This page reads FRC 254's 2025 superstructure, which is the fully worked version, and then scales it down to what is worth building for one interlock.
+
+<RulesBox title="Before you start">
+
+[The Superstructure](/frc/superstructure) and [States, Commands and Triggers](/frc/states-commands-and-triggers). The Java section's [Graphs](/java/java-graphs) and [Breadth-First Search](/java/java-breadth-first-search) for the search, and [Command Groups](/frc/command-groups) because every edge here is a command.
+
+</RulesBox>
+
+### States as positions, transitions as moves
+
+254's 2025 robot has an elevator and a wrist. Its `SuperstructureState` enum lists 30 named positions of that pair, each carrying the elevator height and wrist angle that define it:
+
+```java
+public enum SuperstructureState {
+    CLEAR_ELEVATOR_CROSSBEAM(
+            Constants.ElevatorConstants.kClearElevatorCrossbeamHeightMeters,
+            Constants.WristConstants.kClearElevatorCrossbeamMinPositionRadians,
+            container -> { /* a command that moves there safely */ }),
+    CLEAR_WHEELS(
+            Constants.ElevatorConstants.kClearWheelsHeightMeters,
+            Constants.WristConstants.kClearWheelsPositionRadians),
+    STOW_CORAL(/* ... */),
+    STAGE_CORAL_L4(/* ... */),
+    STAGE_BARGE(/* ... */),
+    // ...
+}
+```
+
+A state is a *place the mechanisms can be together*. Some are useful places (`STAGE_CORAL_L4`); some exist only to be passed through (`CLEAR_ELEVATOR_CROSSBEAM`, `CLEAR_WHEELS`) because the direct move between two useful places would hit something. That is the first idea: waypoint states.
+
+Each state says which states may follow it:
+
+```java
+public Set<SuperstructureState> allowedNextStates() {
+    Set<SuperstructureState> all = EnumSet.allOf(SuperstructureState.class);
+    switch (this) {
+        case STOW_CORAL:
+            all.removeAll(EnumSet.of(INTERMEDIATE_BARGE, NON_DESCORE_CORAL_L4, STAGE_BARGE));
+            return all;
+        case CLEAR_BUMPER:
+            return EnumSet.of(STOW_ALGAE, GROUND_ALGAE_INTAKE);
+        // ...
+    }
+}
+```
+
+Most states allow most others and remove a few that would collide; `CLEAR_BUMPER` allows exactly two. That set is the graph's edge list, and it is the second idea: the *mechanical* rules of the robot, written once as data, in the one place the code can consult them.
+
+### Every edge is a command
+
+A transition is an object:
+
+```java
+public class StateTransition {
+    private final SuperstructureState fromState;
+    private final SuperstructureState toState;
+    private final Supplier<Command> commandSupplier;
+    private final double transitionTime; // time in seconds for the transition
+    private final boolean collision;     // if true, this move is considered unsafe
+    // ...
+}
+```
+
+and the machine builds one for every allowed pair at startup:
+
+```java
+public void autoGenerateTransitions() {
+    for (SuperstructureState from : SuperstructureState.values()) {
+        for (SuperstructureState to : from.allowedNextStates()) {
+            double cost = getTransitionCost(from, to);
+            addTransition(new StateTransition(from, to, () -> to.getCommand(container), cost, false));
+        }
+    }
+}
+```
+
+The command for an edge is the destination state's `getCommand()`: usually "move elevator and wrist to my position, with a tolerance", built by `SuperstructureFactory`, and for the waypoint states something more careful about which mechanism moves first. This is the point where 254's design and 2910's meet: the *what* is a state machine, the *how* of each move is still a WPILib command, with `isFinished()` and requirements and everything the [Command-Based](/frc/introduction-to-command-based) group taught.
+
+### Finding the route
+
+With states as nodes and transitions as weighted edges, "go to X" is a shortest-path problem. 254 precomputes every pair at startup with an A* search over transition time, then walks the path one edge at a time:
+
+```java
+public void continueTransition() {
+    if (transitioning) return;
+    if (currentState.equals(desiredState)) return;
+
+    List<StateTransition> path = getPrecomputedPath(currentState, desiredState);
+    StateTransition nextTransition = path.get(0);
+    if (isTransitionBlocked(nextTransition)) {
+        // search again with the blocked edges removed
+        nextTransition = computeDynamicTransitionPath(currentState, desiredState).get(0);
+    }
+
+    transitioning = true;
+    new ChezySequenceCommandGroup(
+            nextTransition.getCommand(),
+            new InstantCommand(() -> {
+                setCurrentState(nextTransition.getToState());
+                transitioning = false;
+                if (!currentState.equals(desiredState)) continueTransition();
+            }))
+        .withName("SuperstructureMove")
+        .ignoringDisable(true)
+        .schedule();
+}
+```
+
+Read the loop: take the first edge of the path, schedule its command, and when it finishes, record the new current state and call `continueTransition()` again. The desired state can change mid-route (a new button press) and the next call simply plans from wherever the mechanisms are. `isTransitionBlocked` is a runtime guard on top of the static graph: an edge into a coral-scoring state is blocked while the claw holds algae, so the search reroutes rather than fails.
+
+There is also a *future desired state*, set when a request cannot be honoured yet (scoring asked for before a piece is staged); it is applied later and expires after three seconds. That is the graph's answer to "the operator pressed the button early".
+
+### Measuring the edge weights
+
+The search is only as good as its costs. 254 measures them on the robot: `buildCharacterizationCommand()` drives every transition in turn, times each one, and writes `from,to,seconds` lines to `deploy/transition_costs.txt`, with a transition that failed to arrive recorded as cost 100 so the planner avoids it. At startup, `loadTransitionCosts()` reads the file back and every edge gets its measured duration. The graph plans on data the robot collected about itself, which is the same idea as [Tunable Constants and Characterization](/frc/tunable-constants-and-characterization) applied to whole moves instead of single gains.
+
+### What it costs
+
+The 2025 superstructure is roughly 600 lines of state machine, 200 of factory, 1,200 of operator triggers, plus the enum and the characterization tooling. It was built for a robot with two coupled mechanisms, two game pieces and around thirty places to be. The price is paid every time a state is added: its position, its allowed neighbours, its command, and a characterization run. For a robot with rollers and a flywheel the price buys nothing; the two-layer superstructure is the right size. The signal that you have crossed into graph territory is a sentence like "it has to go up before it can come in", said about two mechanisms, more than once.
+
+### The small version
+
+One interlock does not need A*. It needs a waypoint state and a rule about who moves first, and the two-layer superstructure can express that in its transition method by adding a *transient* current state:
+
+```java
+private CurrentState handleStateTransitions() {
+  return switch (wantedState) {
+    case CLIMB -> {
+      // The climber may not deploy while the intake is out. Route through STOWING.
+      if (!intake.isStowed().getAsBoolean()) yield CurrentState.STOWING_FOR_CLIMB;
+      yield CurrentState.CLIMBING;
+    }
+    // ...
+  };
+}
+
+private void applyStates() {
+  switch (currentState) {
+    case STOWING_FOR_CLIMB -> {
+      intake.setWantedState(Intake.WantedState.STOW);
+      climber.setWantedState(Climber.WantedState.HOLD);
+    }
+    case CLIMBING -> {
+      intake.setWantedState(Intake.WantedState.STOW);
+      climber.setWantedState(Climber.WantedState.DEPLOY);
+    }
+    // ...
+  }
+}
+```
+
+`STOWING_FOR_CLIMB` is `CLEAR_WHEELS` with one predecessor and one successor. The wanted state stays `CLIMB` throughout; the current state walks `STOWING_FOR_CLIMB → CLIMBING` as the intake's own state machine reports stowed. The log shows the route. When the second interlock arrives and the transient states start needing transient states of their own, that is the moment to write the graph down as data the way 254 does, rather than as nested conditions.
+
+<RulesBox title="Rules for a graph, whatever its size">
+
+- **Waypoint states are real states.** Name them, log them, give them positions. A move that is "sort of between" two states is where collisions come from.
+- **Guards go on edges, not on nodes.** "Blocked while holding algae" belongs to the transition into the scoring state, so the planner can route around it.
+- **The mechanism's readiness decides when an edge is done**, never a timer. 254's edge commands finish on tolerance; the characterization records how long that took.
+- **Every edge gets driven in test.** If a transition has never been run on the robot, it has never been checked for a collision.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "frc254", "path": "src/main/java/com/team254/frc2025/subsystems/superstructure/SuperstructureState.java", "note": "The 30 states with elevator height, wrist angle and optional command; allowedNextStates per state."},
+  {"source": "frc254", "path": "src/main/java/com/team254/frc2025/subsystems/superstructure/StateTransition.java", "note": "from, to, command supplier, transition time, collision flag."},
+  {"source": "frc254", "path": "src/main/java/com/team254/frc2025/subsystems/superstructure/SuperstructureStateMachine.java", "note": "autoGenerateTransitions, precomputed A* paths, continueTransition, isTransitionBlocked, future desired state, transition costs loaded from deploy/transition_costs.txt, buildCharacterizationCommand."},
+  {"source": "frc254", "path": "src/main/java/com/team254/frc2025/factories/SuperstructureFactory.java", "note": "The commands that move elevator and wrist to a state with tolerance."},
+  {"source": "frc254", "path": "src/main/java/com/team254/frc2025/subsystems/superstructure/ModalSuperstructureTriggers.java", "note": "The operator-input layer that sets desired states; its size is part of the cost."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/SuperStructure.java", "note": "The two-layer design the small version extends with a transient state."},
+  {"source": "wpilib", "path": "docs/software/commandbased/command-compositions.html", "note": "Sequencing an edge command and its bookkeeping."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Debugging State Machines","id":"debugging-state-machines"},
+  {"label":"States, Commands and Triggers","id":"states-commands-and-triggers"},
+  {"label":"Graphs","url":"/java/java-graphs"},
+  {"label":"Tunable Constants and Characterization","id":"tunable-constants-and-characterization"}
+]} title="Next" section="frc" />

@@ -1,0 +1,218 @@
+---
+title: "Matrix Math"
+lessonId: java-matrix-math
+section: java
+group: java-programming-math
+groupLabel: Programming Math
+groupOrder: 6
+order: 4
+difficulty: intermediate
+duration: 40 min
+description: "Matrix dimensions, addition, scaling, multiplication, matrix-vector products, and coordinate transforms implemented with Java arrays."
+---
+
+A matrix is a rectangular table of numbers. Robot code uses matrices to transform coordinates, combine motion models, and track uncertainty in estimators.
+
+This lesson focuses on the shape rules that make a matrix operation valid. The code uses `double[][]` so the indexing stays visible. FRC code should use WPILib's matrix types when an API expects them.
+
+### Rows, columns, and dimensions
+
+The matrix below has two rows and three columns, so its dimensions are `2 × 3`.
+
+```text
+[ 1  2  3 ]
+[ 4  5  6 ]
+```
+
+In Java, `matrix[row][column]` selects an entry:
+
+```java norun
+double[][] matrix = {
+    {1.0, 2.0, 3.0},
+    {4.0, 5.0, 6.0}
+};
+
+double firstRowThirdColumn = matrix[0][2]; // 3.0
+```
+
+Java indices start at zero. `matrix.length` is the row count, and `matrix[0].length` is the column count when the matrix has at least one row.
+
+### Matrix operations and their shape rules
+
+<ContentTable
+  title="Matrix operations"
+  headers={["Operation", "Required dimensions", "Result dimensions", "How entries are computed"]}
+  rows={[
+    ["Add or subtract", "Both matrices have the same rows and columns", "Same as the inputs", "Add or subtract matching entries"],
+    ["Scale", "Any matrix and one scalar", "Same as the matrix", "Multiply every entry by the scalar"],
+    ["Matrix × vector", "Matrix columns equal vector length", "One value per matrix row", "Dot each row with the vector"],
+    ["Matrix × matrix", "Left columns equal right rows", "Left rows × right columns", "Dot each left row with each right column"],
+    ["Transpose", "Any matrix", "Columns × rows", "Swap row and column indices"]
+  ]}
+/>
+
+For multiplication, the **inner dimensions must match**:
+
+`(m × n)(n × p) = (m × p)`
+
+A `2 × 3` matrix can multiply a `3 × 4` matrix, producing a `2 × 4` matrix. Reversing the order would require `4 = 2`, so that reversed product is not defined.
+
+### Addition and scaling
+
+Let:
+
+```text
+A = [ 1  2 ]    B = [ 5  6 ]
+    [ 3  4 ]        [ 7  8 ]
+```
+
+<ContentTable
+  headers={["Expression", "Calculation", "Result"]}
+  rows={[
+    ["<code>A + B</code>", "Add matching entries", "<code>[[6, 8], [10, 12]]</code>"],
+    ["<code>A - B</code>", "Subtract matching entries", "<code>[[-4, -4], [-4, -4]]</code>"],
+    ["<code>2A</code>", "Multiply every entry by 2", "<code>[[2, 4], [6, 8]]</code>"]
+  ]}
+/>
+
+Addition does not combine rows with columns. It only combines entries at the same indices.
+
+### Matrix-vector multiplication
+
+A `2 × 2` matrix transforms a two-component vector by taking one dot product per row.
+
+```text
+[ a  b ] [ x ] = [ ax + by ]
+[ c  d ] [ y ]   [ cx + dy ]
+```
+
+A 90-degree counterclockwise rotation uses this matrix:
+
+```text
+[ 0  -1 ] [ 2 ] = [ -1 ]
+[ 1   0 ] [ 1 ]   [  2 ]
+```
+
+The vector `(2, 1)` becomes `(-1, 2)`. The length stays the same because rotation changes direction without changing magnitude.
+
+### Matrix-matrix multiplication
+
+Each output entry is the dot product of one row from the left matrix and one column from the right matrix.
+
+<ContentTable
+  title="Computing one 2 × 2 product"
+  headers={["Output entry", "Left row", "Right column", "Calculation"]}
+  rows={[
+    ["<code>result[0][0]</code>", "Row 0", "Column 0", "<code>a00 × b00 + a01 × b10</code>"],
+    ["<code>result[0][1]</code>", "Row 0", "Column 1", "<code>a00 × b01 + a01 × b11</code>"],
+    ["<code>result[1][0]</code>", "Row 1", "Column 0", "<code>a10 × b00 + a11 × b10</code>"],
+    ["<code>result[1][1]</code>", "Row 1", "Column 1", "<code>a10 × b01 + a11 × b11</code>"]
+  ]}
+/>
+
+Matrix multiplication usually does not commute: `A × B` and `B × A` may differ, and one order may be valid while the other is not.
+
+### Multiplication in Java
+
+This complete program multiplies two rectangular matrices after checking their dimensions.
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        double[][] left = {
+            {1.0, 2.0, 3.0},
+            {4.0, 5.0, 6.0}
+        };
+        double[][] right = {
+            {7.0, 8.0},
+            {9.0, 10.0},
+            {11.0, 12.0}
+        };
+
+        double[][] product = multiply(left, right);
+        printMatrix(product);
+    }
+
+    private static double[][] multiply(double[][] left, double[][] right) {
+        int leftRows = left.length;
+        int leftColumns = left[0].length;
+        int rightRows = right.length;
+        int rightColumns = right[0].length;
+
+        if (leftColumns != rightRows) {
+            throw new IllegalArgumentException(
+                "Left columns must equal right rows");
+        }
+
+        double[][] result = new double[leftRows][rightColumns];
+
+        for (int row = 0; row < leftRows; row++) {
+            for (int column = 0; column < rightColumns; column++) {
+                for (int shared = 0; shared < leftColumns; shared++) {
+                    result[row][column] +=
+                        left[row][shared] * right[shared][column];
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static void printMatrix(double[][] matrix) {
+        for (double[] row : matrix) {
+            for (double value : row) {
+                System.out.printf("%6.1f", value);
+            }
+            System.out.println();
+        }
+    }
+}
+```
+
+Expected output:
+
+```text
+  58.0  64.0
+ 139.0 154.0
+```
+
+The three loops correspond to the three decisions needed for each product: choose an output row, choose an output column, then walk across the shared dimension.
+
+### Identity and transpose
+
+<ContentTable
+  headers={["Concept", "Definition", "Effect"]}
+  rows={[
+    ["Identity matrix", "Square matrix with 1 on its main diagonal and 0 elsewhere", "<code>I × A = A</code> and <code>A × I = A</code>"],
+    ["Transpose", "Rows become columns", "A matrix with dimensions <code>m × n</code> becomes <code>n × m</code>"],
+    ["Zero matrix", "Every entry is 0", "Adding it leaves a matrix unchanged"]
+  ]}
+/>
+
+The identity matrix plays the same role in multiplication that `1` plays for ordinary numbers.
+
+### Matrices in FRC code
+
+WPILib uses matrices in state-space control, Kalman filters, and vision-measurement uncertainty. Types such as `Matrix<N3, N1>` carry dimensions in the Java type so incompatible operations can be rejected before the robot runs.
+
+Use raw arrays here to learn the loops and shape rules. Use WPILib's `Matrix`, `VecBuilder`, and related types when working with WPILib APIs rather than rebuilding those types inside a robot project.
+
+### Practice
+
+1. State the dimensions of a Java array with 3 rows and 5 values per row.
+2. Decide whether a `2 × 3` matrix can multiply a `3 × 1` vector, then state the result dimensions.
+3. Multiply `[[1, 2], [3, 4]]` by the vector `(5, 6)` by hand.
+4. Add a `transpose(double[][] matrix)` method to the complete program.
+5. Change the example to incompatible dimensions and confirm that the exception identifies the failed rule.
+
+### References
+
+- [Arrays and Their Trade-offs](/java/fundamentals/java-arrays-and-their-trade-offs#two-dimensional-arrays)
+- [Vector Math](/java/fundamentals/java-vector-math)
+- [Vision Subsystem](/frc/vision-subsystem)
+
+<Sources items={[
+  {"url": "https://openstax.org/books/precalculus-2e/pages/9-5-matrices-and-matrix-operations", "label": "OpenStax: Matrices and Matrix Operations", "note": "Matrix dimensions, addition, scaling, and multiplication."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/Matrix.html", "note": "WPILib's dimensioned Java matrix type."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/VecBuilder.html", "note": "WPILib vector construction helpers."}
+]} />

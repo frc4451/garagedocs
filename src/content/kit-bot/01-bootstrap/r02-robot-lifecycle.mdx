@@ -9,9 +9,11 @@ order: 2
 duration: 10 min
 description: "TimedRobot, the 20 ms tick, the state matrix of init and periodic methods, and the scheduler that runs inside it."
 ---
+
+
 Your robot is not running one program. It's running one program **fifty times a second**, every second, with state transitions when the driver hits Enable, Disable, or switches modes on the driver station. This module is how that machinery works.
 
-[While Loops](/java/java-while-loops#while-loops-with-conditions) covered loops that run until something tells them to stop. A robot program is one of those, running fifty times a second for the whole match. This module is that loop, made concrete.
+[While Loops](/java/fundamentals/java-while-loops#while-loops-with-conditions) covered loops that run until something tells them to stop. A robot program is one of those, running fifty times a second for the whole match. This module is that loop, made concrete.
 
 ---
 
@@ -41,7 +43,7 @@ The `*Init` methods run on a transition. The `*Periodic` methods run every tick 
 
 | Mode | When it's active | Init runs when | Exit runs when |
 |---|---|---|---|
-| **Disabled** | Driver station says "Disabled" or robot just booted | Disabled mode begins | Enable, or mode change |
+| **Disabled** | Driver Station says "Disabled" or the robot has booted | Disabled mode begins | Enable, or mode change |
 | **Autonomous** | Driver station says "Autonomous" + Enable | Autonomous begins | Disable, or mode change |
 | **Teleop** | Driver station says "Teleop" + Enable | Teleop begins | Disable, or mode change |
 | **Test** | Driver station says "Test" + Enable | Test begins | Disable, or mode change |
@@ -85,7 +87,7 @@ Every 20 ms, this:
 1. Runs `periodic()` on every registered subsystem.
 2. Polls every registered `Trigger` (button presses, conditions). New `Trigger` events fire their bound commands.
 3. Runs `execute()` on every currently-running command.
-4. Calls `end()` on commands that just finished (their `isFinished()` returned `true`).
+4. Calls `end()` on commands that finished during this tick (their `isFinished()` returned `true`).
 5. Schedules default commands on idle subsystems.
 
 If this line is missing or mis-spelled, *nothing in the command framework works*. No buttons. No subsystems. No autonomous. Triple-check it exists.
@@ -148,7 +150,7 @@ Read the file in your project. Trace what runs when you click Enable in autonomo
 - **No while-loops that wait for hardware**. Same problem.
 - **One iteration per tick**. If you want to count from 1 to 100, you don't do `for (i = 0; i < 100; i++)` in `periodic`. You increment a counter once per tick: 100 ticks = 2 seconds.
 
-This is the *single* mental shift required for periodic-loop programming. Everything is state machines, not procedures.
+Periodic code does a small amount of work, saves its state, and returns before the next tick. Later commands use the same pattern without blocking the robot loop.
 
 ---
 
@@ -162,7 +164,7 @@ Remove the print before moving on.
 
 ---
 
-<RulesBox title="Evaluate in simulation">
+<RulesBox title="Done when">
 
 With the `teleop tick` print in place, enable in teleop for two seconds and read the console: about 100 lines. Disable: the lines stop. Switch to Autonomous: `autonomousPeriodic` runs instead. Remove the print afterwards. The evidence is that you observed the rate; the print itself does not stay in the project.
 
@@ -170,7 +172,7 @@ With the `teleop tick` print in place, enable in teleop for two seconds and read
 
 ### References
 
-- [For Loops](/java/java-for-loops#for-loop-structure) and [While Loops](/java/java-while-loops#infinite-loops): the plain-Java version of a loop that runs until told to stop
+- [For Loops](/java/fundamentals/java-for-loops#for-loop-structure) and [While Loops](/java/fundamentals/java-while-loops#infinite-loops): the plain-Java version of a loop that runs until told to stop
 - WPILib: [What is the Command-Based Framework?](https://docs.wpilib.org/en/stable/docs/software/commandbased/what-is-command-based.html)
 - WPILib: [The Command Scheduler](https://docs.wpilib.org/en/stable/docs/software/commandbased/command-scheduler.html)
 - WPILib JavaDoc: [`TimedRobot`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/TimedRobot.html)

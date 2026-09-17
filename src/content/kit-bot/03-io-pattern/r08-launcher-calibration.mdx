@@ -1,0 +1,81 @@
+---
+title: "R08: LauncherIO, Part 3: Distance Table"
+lessonId: r08-launcher-calibration
+section: kit-bot
+group: io-pattern
+groupLabel: "Phase 3: Hardware via IO"
+groupOrder: 3
+order: 8.75
+duration: 25 min
+description: Choose repeatable launcher settings across several scoring distances.
+durationFixed: true
+---
+
+
+A competition launcher must score from more than one place on the field. A calibration table stores tested settings for known distances and fills the gaps between them. Use simulation values until a mentor is present for real launcher testing.
+
+For this first version, the table maps distance in meters to voltage. The values below are examples for simulation. They are not measurements from a real Kit Bot.
+
+### Add the table
+
+Add this field and helper to `Launcher`:
+
+```java
+private final InterpolatingDoubleTreeMap voltageByDistance =
+    buildVoltageTable();
+
+private static InterpolatingDoubleTreeMap buildVoltageTable() {
+    InterpolatingDoubleTreeMap table = new InterpolatingDoubleTreeMap();
+    table.put(1.0, 6.0);
+    table.put(2.0, 8.0);
+    table.put(3.0, 10.0);
+    return table;
+}
+```
+
+Import `edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap`.
+
+Add this method:
+
+```java
+public Command launchAtDistance(Distance distance) {
+    Voltage launcherVoltage = Volts.of(
+        voltageByDistance.get(distance.in(Meters)));
+    return launchAtVoltage(launcherVoltage);
+}
+```
+
+Import `Command` and `Distance`, then statically import `Meters`. This factory belongs on `Launcher` because the subsystem owns both fuel-path motors. It reuses the two-phase launch helper from Part 2, so the distance table changes the intake-launcher voltage while the feeder still waits through spin-up and then feeds.
+
+The map sorts its distance keys. A request for `2.5` meters returns a value between the entries for `2.0` and `3.0`. A request outside the table uses the nearest end value.
+
+### Add two test bindings
+
+Add temporary bindings in `RobotContainer`:
+
+```java
+driver.povUp().whileTrue(
+    launcher.launchAtDistance(Meters.of(1.0)));
+
+driver.povDown().whileTrue(
+    launcher.launchAtDistance(Meters.of(3.0)));
+```
+
+Run the simulator. Hold each D-pad direction and print RPM with the X binding from R08 Part 2. The longer-distance command should produce a higher simulated RPM because it requests a higher voltage. Releasing the D-pad stops the launcher.
+
+### Limits of this table
+
+Voltage is an input to the motor, not a measured launcher speed. A real battery and mechanism change during operation, so the same voltage may not produce the same RPM every time. [R09 Part 1](/kit-bot/r09-characterization) measures how the mechanism responds so later tuning can use robot data.
+
+<RulesBox title="Done when">
+
+Selecting the two test distances produces two different launcher speeds in simulation. You can explain which two table entries are used for a request at 2.5 meters.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/interpolation/InterpolatingDoubleTreeMap.html", "note": "Sorted keys, interpolation, and endpoint behavior."},
+  {"source": "wpilib", "path": "docs/software/basic-programming/java-units.html", "note": "Distance and voltage measures."}
+]} />
+
+

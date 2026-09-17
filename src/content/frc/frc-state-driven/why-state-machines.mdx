@@ -1,0 +1,146 @@
+---
+title: "Why State Machines"
+lessonId: why-state-machines
+section: frc
+group: frc-state-driven
+groupLabel: "State-Driven Robot Code"
+groupOrder: 18
+order: 1
+difficulty: intermediate
+duration: 25 min
+description: "What a state machine is, why the same intake looks different written as triggers and written as states, when command composition stops answering the question 'what is the robot doing', and what the top teams actually gain from state-driven code."
+---
+
+Every robot program is a state machine. The scheduler's list of running commands is a state; a subsystem's setpoint is a state; the boolean behind a `Trigger` is a state. Command-based code lets those states stay implicit, spread across bindings, default commands and `isFinished()` methods. State-driven code makes them explicit: one enum names what a mechanism or the whole robot is doing, and one method decides what happens next. This group is about when that trade is worth making, and how FRC 2910 and FRC 254 make it.
+
+<RulesBox title="Before you start">
+
+The [Command-Based Programming](/frc/introduction-to-command-based) group, [AdvantageKit](/frc/advantagekit) for `Logger.recordOutput`, and [BobotState](/frc/bobot-state) for how FRC 4451 already centralises what the robot knows. Kit Bot's subsystem-owned command factories ([R05](/kit-bot/r05-commands-and-triggers)) are the pattern this group builds on, not one it replaces.
+
+</RulesBox>
+
+### The vocabulary
+
+A **state** is one of a fixed set of situations the code can be in, named by an enum value: `IDLE`, `INTAKING`, `HOLDING`, `SHOOTING`. A **transition** is a move from one state to another. A transition fires on an **event** (a button, a sensor, a timer) and may be blocked by a **guard** (a condition that has to hold first). Every loop, the machine does two things in order: decide the state, then act on it.
+
+That is the whole idea. What differs between teams is how many machines they have, what each one owns, and how they connect to commands.
+
+### The same intake, two ways
+
+An intake with a roller and a beam-break sensor. Pressing the bumper intakes until a piece is seen; the piece is held; a second button feeds it to the shooter.
+
+Written with triggers and subsystem command factories, the way Kit Bot teaches it:
+
+```java
+// RobotContainer
+driver.leftBumper()
+    .whileTrue(intake.intakeUntilPiece())
+    .onFalse(intake.stop());
+
+driver.rightBumper()
+    .and(intake.hasPiece())
+    .whileTrue(intake.feed())
+    .onFalse(intake.stop());
+```
+
+Written as a state machine inside the subsystem:
+
+```java
+public class Intake extends SubsystemBase {
+  public enum WantedState { IDLE, INTAKE, FEED }
+  private enum SystemState { IDLE, INTAKING, HOLDING, FEEDING }
+
+  private WantedState wantedState = WantedState.IDLE;
+  private SystemState systemState = SystemState.IDLE;
+
+  @Override
+  public void periodic() {
+    io.updateInputs(inputs);
+    Logger.processInputs("Intake", inputs);
+
+    systemState = handleStateTransition();
+    Logger.recordOutput("Intake/WantedState", wantedState);
+    Logger.recordOutput("Intake/SystemState", systemState);
+
+    applyState();
+  }
+
+  private SystemState handleStateTransition() {
+    return switch (wantedState) {
+      case IDLE -> inputs.hasPiece ? SystemState.HOLDING : SystemState.IDLE;
+      case INTAKE -> inputs.hasPiece ? SystemState.HOLDING : SystemState.INTAKING;
+      case FEED -> inputs.hasPiece ? SystemState.FEEDING : SystemState.IDLE;
+    };
+  }
+
+  private void applyState() {
+    switch (systemState) {
+      case IDLE, HOLDING -> io.setVoltage(0.0);
+      case INTAKING -> io.setVoltage(8.0);
+      case FEEDING -> io.setVoltage(12.0);
+    }
+  }
+
+  public void setWantedState(WantedState state) {
+    wantedState = state;
+  }
+}
+```
+
+and the bindings shrink to intent:
+
+```java
+driver.leftBumper()
+    .onTrue(Commands.runOnce(() -> intake.setWantedState(WantedState.INTAKE)))
+    .onFalse(Commands.runOnce(() -> intake.setWantedState(WantedState.IDLE)));
+driver.rightBumper()
+    .onTrue(Commands.runOnce(() -> intake.setWantedState(WantedState.FEED)))
+    .onFalse(Commands.runOnce(() -> intake.setWantedState(WantedState.IDLE)));
+```
+
+Both versions do the same thing. The difference is where the truth lives. In the trigger version, "is the intake holding a piece" is an answer you assemble from which commands are scheduled and what `hasPiece()` returns right now. In the state version, `Intake/SystemState` is a single logged value that reads `HOLDING`, this loop and in every log afterwards.
+
+### What the trade buys
+
+**One place to read.** With four mechanisms and twenty bindings, "why did the shooter spin up" is a search through triggers. With a state machine it is a log column. FRC 2910's superstructure logs its wanted and current state every cycle for exactly this reason; the match log shows the robot's decisions in order.
+
+**One place to change.** A guard such as "never feed while the hood is moving" is one line in `handleStateTransition()`. In trigger code it is an `.and()` on every binding that could feed, and one of them gets missed.
+
+**The same intent from teleop and autonomous.** An auto routine that wants to shoot sets the same wanted state the driver's button sets. 2910's `WantedState` enum has `SCORE_ON_MOVE` for the driver and `AUTO_SCORE` for autos, and both drive the same subsystems through the same `applyStates()`.
+
+**Testable without a scheduler.** `handleStateTransition()` is a pure function of the wanted state and the inputs. A unit test sets both and asserts the result, with no `CommandScheduler`, no simulation loop. [Debugging State Machines](/frc/debugging-state-machines) uses this.
+
+### What it does not buy
+
+Two claims come up on Chief Delphi and are wrong.
+
+*Loop overruns.* A WPILib maintainer put it plainly in the thread on learning state-based programming: loop overruns are unrelated to how the code is structured; they come from garbage collection and slow algorithms. Moving to states does not make a 20 ms loop faster.
+
+*Escape from commands.* The state machine still runs inside `periodic()`, still scheduled by the same `CommandScheduler`, and 254's transitions are themselves `Command`s. As another maintainer said in the same thread, "state-based programming" is not one thing: everything resolves to state machines underneath. The choice is whether the states are written down.
+
+### When to reach for it
+
+A subsystem with two behaviours and one sensor does not need a state machine; a command factory and a `Trigger` are shorter and read fine. Reach for states when any of these are true:
+
+- A mechanism has a **hold** condition that depends on a sensor, not a button (a piece is present, a position is reached), so its behaviour is a function of the world and the request together.
+- Two mechanisms have an **interlock**: one may not move until the other is somewhere. 254's 2025 elevator-plus-wrist robot is why its superstructure is a graph ([Transition Graphs](/frc/transition-graphs)).
+- The same **intent** is needed from several places: driver, operator, autonomous, a test mode.
+- You have been asked "what was the robot doing at 1:47" and could not answer from the log.
+
+Cobra is already partway there. `Hood` has `HoodState {DOWN, MID, UP}` and logs it; `Intake` has `EndeffectorState`; `Flywheel` derives `FlywheelState` from its measured velocity. The next page is about that level, the subsystem, before the group climbs to the whole robot.
+
+<Sources items={[
+  {"url": "https://www.chiefdelphi.com/t/how-to-learn-state-based-programming/520547", "label": "Chief Delphi: How to learn state-based programming", "note": "The thread the two wrong claims are answered in: loop overruns are unrelated to structure; everything resolves to state machines underneath."},
+  {"url": "https://www.chiefdelphi.com/t/should-you-have-state-in-subsystems-java/467543", "label": "Chief Delphi: Should you have State in Subsystems? (Java)", "note": "The counter-case: a subsystem state enum that grew into tangled logic, and the command-factory answer for small robots."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/SuperStructure.java", "note": "The two-layer wanted/current state machine that logs both every cycle; SCORE_ON_MOVE and AUTO_SCORE as driver and auto intents."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/hopper/HopperSubsystem.java", "note": "The subsystem-sized version the intake example is modelled on: WantedState, SystemState, handleStateTransition, applyStates."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/Hood.java", "note": "HoodState and its logged current state."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/flywheel/Flywheel.java", "note": "FlywheelState derived from measured velocity."},
+  {"source": "wpilib", "path": "docs/software/commandbased/binding-commands-to-triggers.html", "note": "The trigger version of the intake."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Subsystem State Machines","id":"subsystem-state-machines"},
+  {"label":"Introduction to Command-Based","id":"introduction-to-command-based"},
+  {"label":"BobotState","id":"bobot-state"}
+]} title="Next" section="frc" />

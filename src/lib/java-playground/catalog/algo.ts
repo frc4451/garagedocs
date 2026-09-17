@@ -3,7 +3,7 @@ import type { JavaPlaygroundExercise } from '../types';
 
 export const ALGORITHMS: JavaPlaygroundExercise[] = [
   pg(
-    'java-algo-recursion',
+    'java-recursion',
     'Practice: recursion',
     `Write factorial so factorial(5) prints 120.
 
@@ -23,7 +23,7 @@ Expected:
     [{ name: 'factorial(5)', stdout: '120' }],
   ),
   pg(
-    'java-algo-searching',
+    'java-searching',
     'Practice: search',
     `Find the index of 14 in a sorted array. If it is missing, print -1.
 
@@ -36,7 +36,7 @@ Expected:
     [{ name: 'Not found', stdout: '-1' }],
   ),
   pg(
-    'java-algo-sorting',
+    'java-sorting-algorithms',
     'Practice: sort',
     `Sort the array ascending and print each value on its own line.
 
@@ -50,7 +50,7 @@ Expected:
     [{ name: 'Sorted', stdout: '1\n2\n3' }],
   ),
   pg(
-    'java-algo-tree-traversals',
+    'java-tree-traversals',
     'Practice: preorder',
     `Print a preorder walk (node, left, right) of the starter tree.
 
@@ -85,7 +85,7 @@ public class Main {
     [{ name: 'Preorder', stdout: '2\n1\n3' }],
   ),
   pg(
-    'java-algo-dfs',
+    'java-depth-first-search',
     'Practice: DFS',
     `Neighbors of 0 are 1 then 2. Neighbors of 1 are 3. DFS from 0, print each node when you first visit it (mark before recurse).
 
@@ -119,7 +119,7 @@ public class Main {
     [{ name: 'DFS visit order', stdout: '0\n1\n3\n2' }],
   ),
   pg(
-    'java-algo-bfs',
+    'java-breadth-first-search',
     'Practice: BFS',
     `Same graph as you would use for DFS: 0 connects to 1 then 2, 1 connects to 3. BFS from 0. Print each node when you first visit it.
 
@@ -152,7 +152,7 @@ public class Main {
     [{ name: 'BFS visit order', stdout: '0\n1\n2\n3' }],
   ),
   pg(
-    'java-algo-backtracking',
+    'java-backtracking',
     'Practice: backtracking',
     `Print every binary string of length 2, in this order:
 
@@ -173,7 +173,7 @@ public class Main {
     [{ name: 'Length 2', stdout: '00\n01\n10\n11' }],
   ),
   pg(
-    'java-algo-memoization',
+    'java-memoization-and-dynamic-programming',
     'Practice: memoization',
     `Return the 6th Fibonacci number with fib(0)=0 and fib(1)=1. Print fib(6).
 
@@ -222,7 +222,7 @@ public class Main {
     [{ name: 'Duplicates found', stdout: 'false\ntrue' }],
   ),
   pg(
-    'java-algo-shortest-paths',
+    'java-shortest-paths',
     'Practice: relax the edges',
     `dijkstra is written for you except for the relaxation step. Inside the loop over
 edges, compute the candidate distance through u, and if it beats dist[e.to],

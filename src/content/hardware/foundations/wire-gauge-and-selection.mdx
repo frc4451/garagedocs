@@ -1,0 +1,117 @@
+---
+title: "Wire Gauge and Selection"
+lessonId: wire-gauge-and-selection
+section: hardware
+group: foundations
+groupLabel: Electrical Foundations
+groupOrder: 1
+order: 2.5
+difficulty: beginner
+description: "What AWG numbers mean, why the breaker sets the minimum wire size, and which gauge, connector and protection each circuit on an FRC robot uses, from the 6 AWG battery leads to the 22 AWG CAN pair."
+---
+
+Every wire on the robot was chosen for the current it carries and the connector it ends in. This page is the reasoning behind those choices, so that when you replace a motor lead, extend a run to a far mechanism, or add a coprocessor, you pick the same wire an inspector expects to see.
+
+<RulesBox title="Before you start">
+
+[Electrical Basics: 5 V, 12 V, and Current](/hardware/electrical-basics-voltage-current) for voltage, current and why a breaker exists. Power off and battery disconnected before any wiring change.
+
+</RulesBox>
+
+### What a gauge number means
+
+FRC wire is sized in **AWG** (American Wire Gauge). The scale runs backwards from what the number suggests: **a lower AWG number is a thicker wire.** 6 AWG battery cable is the thickest wire on a typical robot; 22 AWG CAN wire is among the thinnest. The scale is logarithmic: every three steps down the scale doubles the copper cross-section, so 12 AWG carries twice the copper of 15 AWG and about four times that of 18 AWG.
+
+Thicker wire does two things for you:
+
+- **It carries more current without heating.** Current through resistance turns into heat; a wire too thin for its load gets warm, then softens its insulation, then fails. The breaker or fuse on the circuit exists to trip before that happens, which is why the two are chosen together.
+- **It drops less voltage.** Resistance grows with length and shrinks with thickness. A long thin run to a motor loses voltage under load, and the motor sees a browner-out supply than the battery is providing. When a mechanism is far from the power distribution board, go up a gauge rather than accept the drop.
+
+Metric parts lists give cross-section in square millimetres, rounded to the nearest metric size: 6 AWG is sold as 16 mm², 12 AWG as 4 mm², 18 AWG as 1 mm². Robot wire is **stranded**, not solid, so it survives vibration and bending; high-strand-count wire is also slightly fatter than its nominal size, which is why the 10 AWG slot on a stripper sometimes fits 12 AWG motor-controller leads better than the 12 AWG slot.
+
+### The breaker sets the minimum wire
+
+The rule that decides most choices: **the protection device protects the wire, so the wire must be able to carry at least what the breaker allows.** Every port on the power distribution board is protected by a breaker or fuse, and the FRC rules give a minimum gauge for each protection rating. FRCElectrical.org's rule of thumb (10 to 12 AWG on 40 A, 13 to 16 AWG on 30 A, 16 to 18 AWG on 20 A, 22 AWG on 10 A) is looser than the manual's table in places; the pairings below use the tighter of the two, which is what the kit wiring guide also uses:
+
+| Protection on the channel | Minimum wire | Typical loads |
+|---|---|---|
+| 40 A breaker | 12 AWG (10 AWG also common) | Drive and mechanism motors on SPARK MAX, Talon FX, Thrifty Nova |
+| 30 A breaker | 14 AWG | Smaller mechanism motors |
+| 20 A breaker | 18 AWG | Small motors, higher-current accessories |
+| 10 A fuse | 18 AWG | roboRIO, radio power injector, voltage regulators for coprocessors |
+
+The current season's game manual is the authority; it publishes the exact table and the inspector checks against it. Treat the table above as the shape of the rule, and read the manual's row before wiring a new channel.
+
+<RulesBox title="Two ways to get this wrong">
+
+- **Thin wire on a big breaker.** An 18 AWG lead on a 40 A channel is legal nowhere and will heat before the breaker trips. The breaker did not fail; the wire was never protected.
+- **A big breaker on a small device.** A 5 V regulator on a 40 A channel is protected only if its wire is 12 AWG, which will not fit its terminals. Use a fused channel sized to the device and the wire it accepts.
+
+</RulesBox>
+
+### Where each gauge is used
+
+| Circuit | Gauge | Connector or termination | Why |
+|---|---|---|---|
+| Battery leads, battery to main breaker, main breaker to power distribution | 6 AWG (4 AWG with SB120 connectors) | Crimped lugs on the breaker and PD studs; Anderson SB50 (6 AWG) or SB120 (4 AWG) at the battery | The whole robot's current flows here; the main breaker is 120 A |
+| Motor controller power input (SPARK MAX, Talon FX) | 12 AWG, 10 AWG for the longest runs | Lever terminals on the PDH, ring terminals on Kraken and Talon FXS, Anderson Powerpole for a disconnect | 40 A channel; the motor's stall current passes through |
+| Motor controller to motor | 12 AWG (the leads the motor ships with) | Wago 221 lever splices or Powerpoles; a 12 AWG extension for a far motor | Same current as the input; keep the extension at least as thick as the leads |
+| roboRIO power | 18 AWG | Screw terminal on the roboRIO, fused PDH channel | 10 A fuse; a short run |
+| Radio power over Ethernet injector | 18 AWG | PDH fused channel to the injector | Low current; the manual specifies how the radio may be powered |
+| Coprocessor via a 5 V or 12 V regulator | 18 to 22 AWG into the regulator, then the regulator's own output lead | Fused channel; see [Pololu Voltage Regulators](/hardware/pololu-voltage-regulators) | A few amps at most |
+| CAN bus | 22 AWG twisted pair, yellow and green | Molex SL or the device's CAN pigtail; 120 Ω termination at each end | Signal, not power; twisting rejects noise from the motor wires beside it |
+| PWM servos | 22 AWG, three conductor | roboRIO PWM header, Servo Hub | Milliamps |
+| Sensors and encoders | 22 to 24 AWG in the sensor's cable | The sensor's own connector | Milliamps; never extend with power wire |
+
+Motor leads and controller pigtails come with their gauge chosen for you. The decisions you make are the runs you build: the battery cable, the PDH-to-controller leads, motor extensions, and every low-current feed you add. Match the run to the row above and to the breaker on its channel.
+
+### Colour and pairing
+
+Power wire is red for positive and black for negative on every FRC wiring guide, and the manual restricts which colours may carry each. CAN is yellow (high) and green (low). Keep the convention even on a bench test; the next person to open the robot reads colour before they read a label.
+
+Run each power pair together, positive and negative side by side, and keep signal wires away from motor leads where the layout allows. A CAN pair routed along a motor cable picks up its switching noise; the twist helps, distance helps more.
+
+### Matching connectors to gauge
+
+The connector is part of the gauge decision, because each connector is rated for a range of wire:
+
+- **Lugs and Anderson SB50/SB120** for 6 and 4 AWG battery circuits. Crimp with a hex die (25 mm² for 4 AWG, 16 mm² for 6 AWG) and heat-shrink the joint. Do not solder wire this size: a soldered lug is a brittle joint on the highest-current circuit on the robot.
+- **Anderson Powerpole** for 10 to 12 AWG motor and controller power, where a disconnect is worth having.
+- **Wago 221 lever splices** for 12 to 18 AWG motor extensions and power splits. One conductor per lever; strip to the gauge printed on the connector.
+- **Ferrules** on stranded wire entering a spring or screw terminal such as the PDH: 12 mm pins for the PDH, 8 mm for smaller terminal blocks. A ferrule keeps every strand in the terminal and gives the tug test something to hold.
+- **Molex SL** for 22 AWG CAN and other signal wire, with the terminal position assurance clip fitted.
+
+Whatever the connector, strip only the length the terminal needs, keep every strand inside, and tug-test before power. [Power, Wiring, and CAN](/hardware/power-wiring-and-can) covers the build habits; this page is about picking the wire.
+
+### Reading a wire you did not install
+
+You will often need to know what is already there. Three checks, in order:
+
+1. **Read the jacket.** Wire is usually printed with its gauge every few centimetres.
+2. **Use the stripper.** A stripper's slots are marked by gauge; the slot that cleanly removes insulation without nicking strands is the size, remembering that high-strand wire reads one size thick.
+3. **Trace the channel.** Whatever the wire is, the breaker on its PDH channel says what it must be at minimum. If the wire is thinner than the row above allows, the fix is new wire, not a smaller breaker.
+
+<RulesBox title="Done when">
+
+On the Kit Bot with power off, identify the gauge of five wires (battery lead, one SPARK MAX power input, one motor lead, the roboRIO power lead, one CAN pair) and, for each, name the breaker or fuse on its channel and say why that gauge is the right size for it. A mentor checks the answers against the current manual's table.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "frcelectrical", "path": "intro/", "note": "AWG: lower number is thicker, current capacity and voltage drop, and the typical FRC ranges (2 to 6 AWG battery, 8 to 12 AWG motors, 18 to 22 AWG CAN and PWM)."},
+  {"source": "frcelectrical", "path": "FRC-Control-System/", "note": "Every PD port protected by a breaker or fuse; the breaker sets the minimum gauge; the gauge-to-breaker rule of thumb."},
+  {"source": "frcelectrical", "path": "Battery/", "note": "6 AWG with SB50, 4 AWG with SB120, crimp die sizes, and why the battery joint is crimped."},
+  {"source": "frcelectrical", "path": "Making-Connections/", "note": "Molex SL for CAN, Anderson for power, and why large wire is not soldered."},
+  {"source": "frcelectrical", "path": "Tools/", "note": "Ferrule and crimp sizes by gauge; 12 mm ferrules for power distribution terminals."},
+  {"source": "frcelectrical", "path": "Glossary/", "note": "CAN on 22 AWG twisted yellow and green wire with 120 ohm termination."},
+  {"source": "wpilib", "path": "docs/zero-to-robot/step-1/intro-to-frc-robot-wiring.html", "note": "The kit wiring sequence: 6 AWG battery and main breaker leads, 12 AWG SPARK MAX leads and motor extensions, 18 AWG roboRIO power on a 10 A fuse, 22 AWG CAN, and the strand-count stripping note."},
+  {"source": "wpilib", "path": "docs/hardware/hardware-basics/wiring-best-practices.html", "note": "Strip length, strand containment, tug tests and strain relief."},
+  {"source": "first-manual", "path": "resource-library/frc/competition-manual-qa-system", "note": "The current season's robot rules, which publish the binding wire-gauge and protection table."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Power, Wiring, and CAN","id":"power-wiring-and-can"},
+  {"label":"Electrical Basics: 5 V, 12 V, and Current","id":"electrical-basics-voltage-current"},
+  {"label":"Robot Control System","id":"hardware-control-system"},
+  {"label":"FRCElectrical.org","url":"https://frcelectrical.org/"}
+]} title="Next" section="hardware" />

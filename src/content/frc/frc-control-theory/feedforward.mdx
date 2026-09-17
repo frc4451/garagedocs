@@ -1,10 +1,10 @@
 ---
-title: "Feedforward: Predict, Then Correct"
+title: "Feedforward"
 lessonId: feedforward
 section: frc
 group: frc-control-theory
 groupLabel: "Control Theory"
-groupOrder: 4
+groupOrder: 9
 order: 2
 difficulty: intermediate
 duration: 30 min
@@ -12,9 +12,9 @@ durationFixed: true
 description: "The half of every controller that PID cannot do: the four feedforward terms (kS, kG, kV, kA), what physical effect each one cancels, the equations for a roller, an elevator and an arm, units in volts and in amps, where the terms live on the RIO (WPILib's feedforward classes) and on the motor controller (Phoenix Slot0 with GravityType), how FRC 4451 measures them instead of guessing, and how to read a feedforward on a graph."
 ---
 
-[PID](/frc/frc-pid-control) reacts. It waits for the mechanism to be somewhere it should not be, then pushes. That is fine for the last few millimetres, and terrible as the whole plan: an elevator held up by PID alone sags until the error is big enough to produce the voltage gravity demands, and a flywheel run by PID alone is always a little slow until the integral catches up. **Feedforward** is the other half of the controller: instead of waiting for an error, it predicts how much output the mechanism needs to do what it was asked and applies that up front. PID is left with only the part the prediction got wrong, which is small, so the gains can be small, and the mechanism is stable, fast and accurate at the same time.
+[PID](/frc/pid-control) reacts. It waits for the mechanism to be somewhere it should not be, then pushes. That is fine for the last few millimetres, and terrible as the whole plan: an elevator held up by PID alone sags until the error is big enough to produce the voltage gravity demands, and a flywheel run by PID alone is always a little slow until the integral catches up. **Feedforward** is the other half of the controller: instead of waiting for an error, it predicts how much output the mechanism needs to do what it was asked and applies that up front. PID is left with only the part the prediction got wrong, which is small, so the gains can be small, and the mechanism is stable, fast and accurate at the same time.
 
-You met two of the four terms in [Kit Bot R09](/kit-bot/r09-characterization), where a quasistatic ramp produced `kS` and `kV` for the launcher and a `SimpleMotorFeedforward` ran it. This lesson adds gravity and acceleration, the arm's cosine, the amps-versus-volts question, and the on-controller form the team actually uses. It is the lesson [Why Motion Magic](/frc/motion-magic-why), both mechanism examples and four of the tuning-practice sessions lean on; get the four terms straight here and every later page reads as arithmetic.
+You met three feedforward terms in [Kit Bot R09 Parts 1 and 2](/kit-bot/r09-characterization), where SysId tests produced a model and the results were checked before use. This lesson adds gravity and acceleration, the arm's cosine, the amps-versus-volts question, and the on-controller form the team actually uses. It is the lesson [Why Motion Magic](/frc/why-motion-magic), both mechanism examples and four of the tuning-practice sessions lean on; get the four terms straight here and every later page reads as arithmetic.
 
 ### The idea in one line
 
@@ -102,16 +102,16 @@ new Slot0Configs()
     .withKP(150).withKI(0).withKD(0);
 ```
 
-The controller computes `kS·sgn(v) + kG·cos(θ) + kV·v + kA·a` itself, at 1 kHz, from the Motion Magic profile it is generating, and adds the PID correction on top. Nothing to write in `periodic()`. `StaticFeedforwardSign` chooses whether `kS` follows the velocity sign (right for a profiled move, and the default FRC 4451 uses) or the closed-loop error sign (for a pure position hold, where velocity is zero but you still want to break friction toward the target). This is the form every `…IOTalonFX` in the ROBOTZ Garage library uses; the gains come from a `MotorConfigs` record ([Motor Configuration](/frc/motor-controller-configuration)).
+The controller computes `kS·sgn(v) + kG·cos(θ) + kV·v + kA·a` itself, at 1 kHz, from the Motion Magic profile it is generating, and adds the PID correction on top. Nothing to write in `periodic()`. `StaticFeedforwardSign` chooses whether `kS` follows the velocity sign (right for a profiled move, and the default FRC 4451 uses) or the closed-loop error sign (for a pure position hold, where velocity is zero but you still want to break friction toward the target). This is the form every `…IOTalonFX` in the ROBOTZ Garage library uses; the gains come from a `MotorConfigs` record ([Motor Controller Configuration](/frc/motor-controller-configuration)).
 
 </CodeTab>
 </CodeTabs>
 
-The two forms are the same mathematics. Choosing between them is about where the loop runs ([PID Control](/frc/frc-pid-control#where-the-loop-runs) covers the trade), not about what feedforward means.
+The two forms are the same mathematics. Choosing between them is about where the loop runs ([PID Control](/frc/pid-control#where-the-loop-runs) covers the trade), not about what feedforward means.
 
 ### Feedforward without a profile is half a feedforward
 
-`kV` and `kA` need a velocity and an acceleration to multiply. If you command a **position step** ("go to 30 inches", now), the setpoint velocity is undefined, and the only terms doing anything are `kS` and `kG`. That is why feedforward and motion profiling arrive together: the [trapezoidal](/frc/trapezoidal-motion-profiling) or [exponential](/frc/exponential-motion-profiling) profile supplies a velocity and acceleration at every instant, and `kV`/`kA` turn those into output. [Why Motion Magic](/frc/motion-magic-why) is the full argument; the short version is that a profile plus feedforward does most of the work, and PID cleans up.
+`kV` and `kA` need a velocity and an acceleration to multiply. If you command a **position step** ("go to 30 inches", now), the setpoint velocity is undefined, and the only terms doing anything are `kS` and `kG`. That is why feedforward and motion profiling arrive together: the [trapezoidal](/frc/trapezoidal-motion-profiling) or [exponential](/frc/exponential-motion-profiling) profile supplies a velocity and acceleration at every instant, and `kV`/`kA` turn those into output. [Why Motion Magic](/frc/why-motion-magic) is the full argument; the short version is that a profile plus feedforward does most of the work, and PID cleans up.
 
 ### Measuring instead of guessing
 
@@ -119,9 +119,9 @@ Because the gains are physical, you measure them, once, with the mechanism on th
 
 <StepsBox title="In the order the terms are found">
 
-1. **`kG` by holding.** Zero every gain. Command a small output and raise it until the elevator (or the horizontal arm) neither rises nor falls. That output is `kG`. For an arm, do it horizontal, where `cos θ = 1`. (The bracket version, the smallest output that stops it falling and the largest that does not lift it, gives `kG` as their midpoint and `kS` as half their difference in one experiment; [Manual PID Tuning](/frc/manual-tuning-arm-elevator) walks through it.)
+1. **`kG` by holding.** Zero every gain. Command a small output and raise it until the elevator (or the horizontal arm) neither rises nor falls. That output is `kG`. For an arm, do it horizontal, where `cos θ = 1`. (The bracket version, the smallest output that stops it falling and the largest that does not lift it, gives `kG` as their midpoint and `kS` as half their difference in one experiment; [Manual PID Tuning](/frc/manual-tuning-arm-and-elevator) walks through it.)
 2. **`kS` and `kV` by steady states.** Apply a fixed output, wait for velocity to settle, record both; repeat at several outputs. Plot output against velocity: the line's intercept is `kS`, its slope is `kV`. Cobra's `SingleRoller.steadyStateCharacterization(unit)` does this: twenty steps, 1.5 s settle each, a least-squares fit, the result printed and logged under `TuningRoutine/SteadyState/<name>/`. (The `quasistaticCharacterization` variant ramps continuously; it is faster and slightly contaminated by `kA`.)
-3. **`kA` by a step.** A sudden output step; the acceleration you get versus the output you applied, after `kS`/`kV` are accounted for. WPILib's [SysId](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/system-identification/index.html) dynamic test does this and reports all three at once; [Tunable Constants](/frc/tunable-constants#measure-feedforward-do-not-guess-it) shows how FRC 4451 exposes SysId from the auto chooser.
+3. **`kA` by a step.** A sudden output step; the acceleration you get versus the output you applied, after `kS`/`kV` are accounted for. WPILib's [SysId](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/system-identification/index.html) dynamic test does this and reports all three at once; [Tunable Constants](/frc/tunable-constants-and-characterization#measure-feedforward-do-not-guess-it) shows how FRC 4451 exposes SysId from the auto chooser.
 4. **Then, and only then, PID.** With feedforward carrying the load, `kP` is tuned against a much smaller error, and `kI` is usually unnecessary.
 
 </StepsBox>
@@ -130,7 +130,7 @@ A guessed `kV` that is 30 % off looks like a PID problem. The mechanism lags and
 
 ### Reading it on a graph
 
-Open [commanded versus measured](/frc/advantagescope-sim#the-line-graph-commanded-versus-measured) with the applied output on the second axis. With feedforward right:
+Open [commanded versus measured](/frc/simulation-in-advantagescope#the-line-graph-commanded-versus-measured) with the applied output on the second axis. With feedforward right:
 
 - At rest, the applied output equals `kG` (for an elevator) and the position sits exactly on the goal. Output above `kG` at rest means the PID is fighting something: an under-measured `kG`, or friction the `kS` sign convention is not covering.
 - During a constant-velocity stretch of a profile, the output is flat at `kS + kG + kV·v`, and the measured velocity sits on the setpoint velocity. A measured velocity consistently *below* the setpoint is `kV` too small; above, too large.
@@ -178,11 +178,11 @@ If the picture is right with `kP` set to zero, meaning the mechanism follows the
 ]} />
 
 <LinkGrid links={[
-  {"label":"PID Control","id":"frc-pid-control"},
+  {"label":"PID Control","id":"pid-control"},
   {"label":"Kit Bot R09: Characterization","url":"/kit-bot/r09-characterization"},
-  {"label":"Motion Profiling: Trapezoidal","id":"trapezoidal-motion-profiling"},
-  {"label":"Why Motion Magic: Profiles Before Gains","id":"motion-magic-why"},
-  {"label":"Tunable Constants and Characterization","id":"tunable-constants"},
+  {"label":"Trapezoidal Motion Profiling","id":"trapezoidal-motion-profiling"},
+  {"label":"Why Motion Magic","id":"why-motion-magic"},
+  {"label":"Tunable Constants and Characterization","id":"tunable-constants-and-characterization"},
   {"label":"WPILib: Feedforward Control","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/feedforward.html"},
   {"label":"WPILib: Introduction to DC Motor Feedforward","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/introduction/introduction-to-feedforward.html"},
   {"label":"CTRE: Closed-loop overview (gains and units)","url":"https://v6.docs.ctr-electronics.com/en/stable/docs/api-reference/device-specific/talonfx/closed-loop-requests.html"}

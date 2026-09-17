@@ -1,197 +1,189 @@
 ---
-title: Elevator Example
+title: "Elevators"
 lessonId: elevator-example
 section: frc
 group: frc-examples
-groupLabel: "Mechanism Examples"
-groupOrder: 7
-order: 2
+groupLabel: "Mechanism Components"
+groupOrder: 11
+order: 5
 difficulty: intermediate
-duration: 30 min
-description: "An elevator the way the ROBOTZ Garage library builds one: Elevator extends SingleRoller, an ElevatorConfig with gravity and travel limits, TalonFX and sim configs side by side, height in inches at the API and rotor rotations underneath, the drawn mechanism, and what to watch in AdvantageScope before it ever touches hardware."
+duration: 20 min
+description: "Build a distance-controlled elevator and calculate carriage travel from motor rotations, gearing, drum radius, and rigging."
 ---
 
-You built a launcher and a drivetrain on the IO pattern in [Kit Bot R07](/kit-bot/r07-launcher-io) and [R08](/kit-bot/r08-drive-io), writing every IO class yourself. On the competition robot FRC 4451 does not write those from scratch each time: `org.robotzgarage.frc2026`, the ROBOTZ Garage library toured in [Reading Our Robot Code](/frc/team-robot-code#the-two-packages), already has a `SingleRoller` with real, sim and vendor-sim IO implementations, and an `Elevator` that specialises it. This lesson builds an elevator on that library, in simulation, the way a new mechanism gets added to Cobra.
+An elevator moves a carriage vertically. The component should accept a `Distance` goal even when the motor controller measures rotor rotations. The IO layer converts between those units.
 
-### The shape
+This page uses **motor rotations per drum rotation** for gear reduction. A 12:1 reduction means the motor turns 12 times while the drum turns once.
 
+### Convert drum rotation to rope travel
+
+A drum pulls one circumference of rope per drum rotation:
+
+```text
+drum circumference = 2 × π × drum radius
+rope travel = drum rotations × 2 × π × drum radius
 ```
-Elevator (ROBOTZ Garage library)          extends   SingleRoller (ROBOTZ Garage library)
-  ├─ ElevatorConfig                          ├─ SingleRollerIO io      ← TalonFX / SimTalonFX / Sim / empty
-  ├─ height ↔ rotations conversion           ├─ inputs (AutoLogged)
-  ├─ clamped goal                            ├─ LoggedTunableNumbers for kP…kA
-  └─ ElevatorSim for logging/limits          └─ steadyStateCharacterization()
+
+If a drum has a 1-inch radius, one rotation moves about 6.283 inches of rope.
+
+### Convert motor rotation to carriage height
+
+Let:
+
+- `R_motor` be motor rotations
+- `G` be motor rotations per drum rotation
+- `r` be loaded drum radius
+- `S` be the rigging travel multiplier
+
+```text
+drum rotations = R_motor / G
+carriage distance = (R_motor / G) × 2 × π × r × S
 ```
 
-Everything you wrote by hand for the Kit Bot launcher (the interface, the inputs struct, the real and sim implementations, the tunable gains) is the `SingleRoller` half. `Elevator` adds what makes a roller an elevator: a drum radius that turns rotations into a height, travel limits, gravity, and a mechanism drawing.
+For a 12:1 reduction, a 1-inch drum radius, and direct 1:1 rigging:
 
-### Step 1: the constants
+```text
+distance per motor rotation = (1 / 12) × 2 × π × 1 in
+                            ≈ 0.524 in
+```
 
-Two configs, kept together so they cannot drift: the **real** TalonFX config and the **sim** config that carries the physics the model needs. The `ElevatorConfig` describes the mechanism itself and is shared by both.
+Twenty-four motor rotations move the carriage about 12.57 inches.
+
+`S` describes how the rigging changes carriage travel relative to rope travel. It is 1 for direct rigging. Measure and document the multiplier for a cascading or moving-pulley layout instead of assuming it. The CAD rope path determines both travel and force.
+
+### Account for changing drum radius
+
+The calculation assumes a constant loaded radius. A rope or strap that builds up in layers increases the effective radius as the elevator moves. Each later drum rotation then moves more rope than an earlier rotation.
+
+Use a narrow drum that keeps the rope in one layer when practical. Otherwise, measure carriage height against encoder position and use that relationship in the IO layer. A single constant conversion will accumulate error when the effective radius changes.
+
+### Calculate velocity and load torque
+
+```text
+linear velocity = drum RPS × 2 × π × r × S
+load force = moving mass × gravitational acceleration
+drum torque = load force × S × r
+```
+
+Here `S` is carriage travel divided by rope travel. A moving-pulley arrangement that moves the carriage half as far as the rope has `S = 0.5`, so it needs half the ideal rope tension and twice as much rope travel. These equations describe ideal rigging. Friction and efficiency increase the motor torque required. The gearbox trades motor speed for torque:
+
+```text
+output torque ≈ motor torque × G × efficiency
+```
+
+The holding voltage appears as `kG` in an elevator feedforward. Unlike an arm, the elevator's gravity term stays approximately constant through its travel.
+
+### Define the IO boundary
 
 ```java
-public class ElevatorConstants {
-  public static final double reduction = 9.0;                 // motor rotations per drum rotation
-  public static final Distance drumRadius = Inches.of(0.75);
-  public static final Distance minHeight = Inches.of(0.0);
-  public static final Distance maxHeight = Inches.of(56.0);
-  public static final Mass carriageMass = Pounds.of(16.0);
+public interface ElevatorIO {
+  @AutoLog
+  class ElevatorIOInputs {
+    public Distance position = Meters.zero();
+    public LinearVelocity velocity = MetersPerSecond.zero();
+    public Distance positionSetpoint = Meters.zero();
+    public Distance positionError = Meters.zero();
+  }
 
-  public static final Elevator.ElevatorConfig elevatorConfig =
-      Elevator.ElevatorConfig.builder()
-          .gearbox(DCMotor.getKrakenX60Foc(2))
-          .minHeight(minHeight)
-          .maxHeight(maxHeight)
-          .drumRadius(drumRadius)
-          .initialHeight(Inches.zero())
-          .tolerance(Inches.of(0.5))
-          .carriageMass(carriageMass)
-          .simulateGravity(true)                              // never false for an elevator
-          .moi(0.004)
-          .reduction(reduction)
-          .build();
-
-  public static final TalonFXConfig elevatorTalonConfig =
-      TalonFXConfig.builder()
-          .canId(30)
-          .canBus(Constants.rioBus)
-          .reduction(reduction)
-          .currentLimitAmps(60.0)
-          .invert(false)
-          .isBrakeMode(true)                                  // an elevator coasts down otherwise
-          .foc(Constants.focEnabled)
-          .slot0Config(new Slot0Configs()
-              .withKS(0.15).withKG(0.35).withKV(0.12).withKA(0.0)   // feedforward; kG holds it up
-              .withKP(4.0).withKI(0.0).withKD(0.1)
-              .withGravityType(GravityTypeValue.Elevator_Static))
-          .mmConfig(new MotionMagicConfigs()
-              .withMotionMagicCruiseVelocity(RotationsPerSecond.of(40))
-              .withMotionMagicAcceleration(RotationsPerSecondPerSecond.of(120)))
-          .build();
-
-  public static final TalonFXConfigSim elevatorTalonConfigSim =
-      TalonFXConfigSim.builder()
-          .config(elevatorTalonConfig)                        // the SAME real config…
-          .dcMotor(DCMotor.getKrakenX60Foc(2))               // …plus what the physics model needs
-          .moi(0.004)
-          .build();
+  default void updateInputs(ElevatorIOInputs inputs) {}
+  default void setPosition(Distance goal) {}
+  default void setVoltage(Voltage output) {}
+  default void stop() {}
 }
 ```
 
-Three things to notice against the Kit Bot version. The gains are **on the motor controller** (`Slot0Configs`, Motion Magic), not in a WPILib `ProfiledPIDController`; [Motor Configuration](/frc/motor-controller-configuration#control-request-types) covers why. `withGravityType(Elevator_Static)` tells the TalonFX that kG is a constant lift, which is what an elevator needs (an arm would use `Arm_Cosine`). And the sim config wraps the real one rather than copying it, so a gain changed in `elevatorTalonConfig` is the gain the simulation runs.
-
-### Step 2: the subsystem
-
-FRC 4451's convention is a thin `SubsystemBase` that *owns* a library mechanism, exposes command factories, and nothing else, the same shape as Cobra's `Shooter` wrapping a `FlywheelFollower`:
+### Build the component
 
 ```java
-public class ElevatorSubsystem extends SubsystemBase {
-  private static final String name = "Elevator";
+public final class Elevator {
+  private final ElevatorIO io;
+  private final ElevatorIOInputsAutoLogged inputs = new ElevatorIOInputsAutoLogged();
+  private final Distance minHeight;
+  private final Distance maxHeight;
+  private final Distance tolerance;
+  private final String logKey;
+  private Distance goal;
 
-  private static final LoggedTunableNumber stowHeight = new LoggedTunableNumber(name + "/StowInches", 0.0);
-  private static final LoggedTunableNumber scoreHeight = new LoggedTunableNumber(name + "/ScoreInches", 48.0);
-
-  private final Elevator elevator;
-  private final ElevatorMechanism mechanism;
-
-  public ElevatorSubsystem(SingleRollerIO io) {
-    elevator = new Elevator(name, io, ElevatorConstants.elevatorConfig);
-    mechanism = new ElevatorMechanism(ElevatorMechanism.ElevatorMechanismConfig.builder()
-        .name(name).length(0.1).width(6).color(new Color8Bit(Color.kOrange)).build());
+  public Elevator(
+      ElevatorIO io,
+      String logKey,
+      Distance minHeight,
+      Distance maxHeight,
+      Distance tolerance) {
+    this.io = io;
+    this.logKey = logKey;
+    this.minHeight = minHeight;
+    this.maxHeight = maxHeight;
+    this.tolerance = tolerance;
+    goal = minHeight;
   }
 
-  @Override
   public void periodic() {
-    elevator.periodic();                                       // inputs, logging, tunables, sim
-    mechanism.update(elevator.getHeight());                    // the drawing follows the measured height
+    io.updateInputs(inputs);
+    Logger.processInputs(logKey, inputs);
+    io.setPosition(goal);
   }
 
-  public Command goTo(Distance height) {
-    return run(() -> elevator.setGoalHeight(height)).until(elevator::atGoal);
+  public void setGoal(Distance requestedGoal) {
+    goal = Meters.of(MathUtil.clamp(
+        requestedGoal.in(Meters),
+        minHeight.in(Meters),
+        maxHeight.in(Meters)));
   }
-  public Command stow()  { return goTo(Inches.of(stowHeight.get())); }
-  public Command score() { return goTo(Inches.of(scoreHeight.get())); }
-  public Command hold()  { return run(() -> elevator.setGoalHeight(elevator.getHeight())); }
 
-  public Trigger atGoal() { return new Trigger(elevator::atGoal); }
+  public boolean atGoal() {
+    return inputs.position.isNear(goal, tolerance);
+  }
+
+  public Distance getPosition() {
+    return inputs.position;
+  }
 }
 ```
 
-`elevator.setGoalHeight` takes a `Distance` and clamps it to the travel limits before converting to rotor rotations, so a command asking for 80 inches on a 56-inch elevator gets 56 rather than a carriage into the crossbar. `atGoal` uses the config's tolerance. Both come from the library, and both were things you had to write yourself in [Kit Bot R07 Part 2](/kit-bot/r07-launcher-io-part-2).
+The hardware IO configures motion profiling, travel conversion, and constant gravity compensation. A position sensor still needs a trustworthy zero from a limit switch, absolute sensor, or documented homing procedure.
 
-### Step 3: choose the IO
+### Simulate the elevator
 
-The one place the environment is decided ([Simulation First](/frc/simulation-first#the-three-modes)):
-
-```java
-SingleRollerIO elevatorIO = switch (Constants.currentMode) {
-  case REAL -> new SingleRollerIOTalonFX(ElevatorConstants.elevatorTalonConfig);
-  case SIM  -> new SingleRollerIOSimTalonFX(ElevatorConstants.elevatorTalonConfigSim);
-  default   -> new SingleRollerIO() {};
-};
-elevator = new ElevatorSubsystem(elevatorIO);
-```
-
-In `SIM` the `SingleRollerIOSimTalonFX` runs the real TalonFX code path against a `DCMotorSim` (the [vendor-sim-state pattern](/frc/physics-sim-io#the-vendor-sim-state-pattern)), so Motion Magic, kG and the current limit all behave as they will on the robot.
-
-### Step 4: bindings
+WPILib's `ElevatorSim` constructor accepts the motor model, gearing, moving mass, drum radius, lower and upper travel limits, whether to simulate gravity, and starting height.
 
 ```java
-operator.a().onTrue(elevator.stow());
-operator.y().onTrue(elevator.score());
-elevator.setDefaultCommand(elevator.hold());
+private final ElevatorSim sim = new ElevatorSim(
+    DCMotor.getKrakenX60Foc(1),
+    12.0,                 // motor rotations per drum rotation
+    7.5,                  // moving mass in kilograms
+    Units.inchesToMeters(1.0),
+    Units.inchesToMeters(0.0),
+    Units.inchesToMeters(30.0),
+    true,
+    Units.inchesToMeters(0.0));
 ```
 
-A default `hold()` means the elevator is always closed-loop on *something*; with kG in the controller that is what keeps it from sagging between commands.
+Pass the applied voltage to the model, call `update()` once per loop, and read `getPositionMeters()`, `getVelocityMetersPerSecond()`, and `getCurrentDrawAmps()`.
 
-### Step 5: watch it in simulation
+`ElevatorSim` models a constant drum radius and one linear carriage. Adjust the model or its interpretation if the real rigging has a travel multiplier. Simulation can check goals, limits, gravity behavior, and command sequencing. Hardware still confirms homing, rope behavior, friction, and hard-stop clearance.
 
-Launch the simulator, connect AdvantageScope ([Watching Simulation in AdvantageScope](/frc/advantagescope-sim#connecting)), and build this layout:
+<RulesBox title="Check your work">
 
-<ContentTable
-  headers={["Tab", "Keys", "What you are checking"]}
-  rows={[
-    ["Line Graph", "<code>RealOutputs/Elevator/GoalHeightInches</code>, <code>…/CurrentHeightInches</code>; <code>Elevator/AppliedVoltage</code> on the right axis", "Press Y: the measured line should follow a Motion Magic ramp to 48 in with no overshoot, and the voltage should settle at kG, a non-zero hold"],
-    ["Line Graph", "<code>Elevator/FeedForward/kG</code> (tunable)", "Set kG to 0 from AdvantageScope's tunable editor and watch the held elevator sink. Put it back. That is the whole reason for kG, seen once"],
-    ["Mechanism", "<code>RealOutputs/Mechanisms/Elevator</code>", "The drawn carriage rises and falls with the measured height. Wrong direction = inversion; wrong distance = reduction or drum radius"],
-    ["Line Graph", "<code>RealOutputs/Elevator/PhysicalSim/HasHitUpperLimit</code>, <code>…/HasHitLowerLimit</code>", "Command <code>goTo(Inches.of(80))</code> from a test binding: the goal clamps to 56 and neither limit flag trips"],
-    ["Line Graph", "<code>Elevator/SupplyCurrentAmps</code>", "Peaks during acceleration, small during hold. A hold current near the limit means kG is doing what kP should not have to"]
-  ]}
-/>
-
-`Elevator/PhysicalSim/*` is a second, independent `ElevatorSim` the library runs alongside the TalonFX simulation, fed with the applied voltage. It exists to log what the physics thinks (position, current draw, limit contact) without touching the controller loop. When its `PositionInches` and the measured `CurrentHeightInches` disagree, one of the two models has a wrong constant, and that is worth finding before the carriage is real.
-
-<RulesBox title="Common mistakes">
-
-- **<code>simulateGravity(false)</code>.** The sim elevator holds at zero volts, kG tunes to nothing, the real one drops.
-- **Gains in the subsystem.** They belong in the TalonFX config. A <code>ProfiledPIDController</code> in <code>periodic</code> is the Kit Bot way and does not transfer to the controller.
-- **Heights in rotations at the API.** The library's boundary is <code>Distance</code>. Convert at the edge (<code>drumCircumference</code>), never in a command.
-- **Reduction off by the drum.** <code>reduction</code> is motor rotations per <em>drum</em> rotation; the drum radius does the rest. Do not fold the circumference into the reduction.
-- **Trusting <code>atGoal</code> with a zero tolerance.** The default is zero inches; set <code>tolerance</code> or the command never ends.
+- Measure the loaded drum radius, not the bare shaft radius.
+- Write the gear-ratio and rigging conventions beside their constants.
+- Keep rotor rotations inside the IO layer and expose carriage distance.
+- Clamp goals before sending them to the motor controller.
+- Test the lower limit and zero procedure at low voltage before closed-loop motion.
 
 </RulesBox>
 
 <Sources items={[
-  {"source": "mantik", "path": "src/content/frc/frc-examples/elevator-example.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "<code>Elevator extends SingleRoller</code>; <code>ElevatorConfig</code> with compact-constructor defaults; height-to-rotations conversion."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/ElevatorMechanism.java", "note": "The <code>LoggedMechanism2d</code> drawn in AdvantageScope."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "Tunables, <code>setGoal</code>, control requests, <code>periodic()</code> disable behaviour."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIO.java", "note": "The inputs class and IO methods."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFX.java", "note": "Slot0 with <code>Elevator_Static</code> gravity, Motion Magic configuration."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFX.java", "note": "The simulated TalonFX behind the elevator in SIM mode."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java", "note": "The record the slot gains and limits are built in."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "Mode selection."},
-  {"source": "cobra", "path": "src/main/java/org/littletonrobotics/LoggedTunableNumber.java", "note": "How the gains are exposed for tuning."},
-  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/closed-loop-requests.html", "note": "<code>MotionMagicVoltage</code> and the gravity feedforward types."},
-  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/motion-magic.html", "note": "Cruise velocity, acceleration and jerk."},
-  {"source": "ctre", "path": "docs/api-reference/api-usage/configuration.html", "note": "Applying a <code>TalonFXConfiguration</code>."}
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/elevator/Elevator.java", "note": "Typed goals, logging, and position checks."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/elevator/ElevatorIO.java", "note": "Linear mechanism measurements and requests."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "FRC 4451 distance conversion, travel clamping, and simulation structure."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html", "note": "ElevatorSim parameters and simulation loop."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/ElevatorSim.html", "note": "The 2026 ElevatorSim constructor and measurements."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/feedforward.html", "note": "Elevator feedforward and unit requirements."}
 ]} />
 
-<LinkGrid links={[
-  {"label":"Shooter Example","id":"shooter-example"},
-  {"label":"Reading Our Robot Code","id":"team-robot-code"},
-  {"label":"Physics in the IO Layer","id":"physics-sim-io"},
-  {"label":"Tunable Constants and Characterization","id":"tunable-constants"},
-  {"label":"Kit Bot R07: Launcher IO","url":"/kit-bot/r07-launcher-io"},
-  {"label":"CTRE: Slot0 gravity types","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/closed-loop-requests.html"}
-]} title="Resources" section="frc" />
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Linear Rails","id":"linear-rail-example"},
+  {"label":"Manual Tuning: Arm and Elevator","id":"manual-tuning-arm-and-elevator"},
+  {"label":"Composing Mechanism Subsystems","id":"composing-mechanism-subsystems"}
+]} />

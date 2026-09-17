@@ -1,0 +1,202 @@
+---
+title: "Linear Rails"
+lessonId: linear-rail-example
+section: frc
+group: frc-examples
+groupLabel: "Mechanism Components"
+groupOrder: 11
+order: 6
+difficulty: intermediate
+duration: 20 min
+description: "Build and simulate a horizontal linear-rail component driven by a belt, chain, rack and pinion, or lead screw."
+---
+
+A linear rail moves a carriage in and out like a dresser drawer. It may extend an intake, move a camera, shift a game-piece guide, or position another mechanism.
+
+Its public goal is a `Distance`, like an elevator. The useful distinction is physical: a horizontal rail does not lift its carriage against gravity along the direction of travel. It also may use a belt, chain, rack and pinion, or lead screw instead of a winding drum.
+
+Use the same `Elevator` component when the only difference is the mounting angle and its configuration already makes gravity optional. Use a separate `LinearRail` component when the drive conversion, naming, or safety behavior would otherwise make `Elevator` misleading.
+
+### Convert rotation for a belt or pulley
+
+For a timing-belt pulley with pitch radius `r`:
+
+```text
+pulley rotations = motor rotations / gear reduction
+carriage distance = pulley rotations × 2 × π × pitch radius
+```
+
+Use pitch radius rather than the outside radius. The belt teeth follow the pitch circle.
+
+### Convert rotation for chain
+
+For a chain sprocket:
+
+```text
+distance per sprocket rotation = tooth count × chain pitch
+carriage distance = sprocket rotations × tooth count × chain pitch
+```
+
+A 16-tooth sprocket with 0.25-inch chain pitch moves 4 inches of chain per sprocket rotation.
+
+### Convert rotation for rack and pinion
+
+For a pinion with pitch diameter `d`:
+
+```text
+distance per pinion rotation = π × pitch diameter
+carriage distance = pinion rotations × π × pitch diameter
+```
+
+Use the gear's pitch diameter. The outside diameter includes tooth height and gives the wrong travel conversion.
+
+### Convert rotation for a lead screw
+
+A lead screw specifies **lead**, the linear distance traveled in one screw rotation:
+
+```text
+screw rotations = motor rotations / gear reduction
+carriage distance = screw rotations × screw lead
+```
+
+Lead and thread pitch are equal for a single-start screw. A multi-start screw advances by more than one thread pitch per rotation, so use its published lead.
+
+### Relate torque to linear force
+
+For a pulley or pinion, an ideal estimate is:
+
+```text
+linear force ≈ output torque / pitch radius
+```
+
+For a lead screw with lead `L` and estimated efficiency `η`:
+
+```text
+linear force ≈ 2 × π × efficiency × output torque / lead
+```
+
+Friction, belt tension, rail alignment, and carriage loading affect the result. A drawer slide that binds under side load needs a mechanical fix before stronger closed-loop gains.
+
+### Define the component contract
+
+```java
+public interface LinearRailIO {
+  @AutoLog
+  class LinearRailIOInputs {
+    public Distance position = Meters.zero();
+    public LinearVelocity velocity = MetersPerSecond.zero();
+    public Distance positionSetpoint = Meters.zero();
+    public Voltage appliedVoltage = Volts.zero();
+  }
+
+  default void updateInputs(LinearRailIOInputs inputs) {}
+  default void setPosition(Distance goal) {}
+  default void setVoltage(Voltage output) {}
+  default void stop() {}
+}
+```
+
+```java
+public final class LinearRail {
+  private final LinearRailIO io;
+  private final LinearRailIOInputsAutoLogged inputs = new LinearRailIOInputsAutoLogged();
+  private final Distance minExtension;
+  private final Distance maxExtension;
+  private final Distance tolerance;
+  private final String logKey;
+  private Distance goal;
+
+  public LinearRail(
+      LinearRailIO io,
+      String logKey,
+      Distance minExtension,
+      Distance maxExtension,
+      Distance tolerance) {
+    this.io = io;
+    this.logKey = logKey;
+    this.minExtension = minExtension;
+    this.maxExtension = maxExtension;
+    this.tolerance = tolerance;
+    goal = minExtension;
+  }
+
+  public void periodic() {
+    io.updateInputs(inputs);
+    Logger.processInputs(logKey, inputs);
+    io.setPosition(goal);
+  }
+
+  public void setGoal(Distance requestedGoal) {
+    goal = Meters.of(MathUtil.clamp(
+        requestedGoal.in(Meters),
+        minExtension.in(Meters),
+        maxExtension.in(Meters)));
+  }
+
+  public boolean atGoal() {
+    return inputs.position.isNear(goal, tolerance);
+  }
+}
+```
+
+The IO implementation owns the conversion for its drive type. The component should not need to know whether a motor turns a pulley or a lead screw.
+
+### Simulate a horizontal rail
+
+WPILib does not need a separate drawer-slide class. `ElevatorSim` already models a motor-driven, limited linear carriage and allows gravity to be disabled.
+
+```java
+private final ElevatorSim railSim = new ElevatorSim(
+    DCMotor.getNEO(1),
+    5.0,                   // motor rotations per drive rotation
+    4.0,                   // moving mass in kilograms
+    Units.inchesToMeters(0.75), // equivalent pulley radius
+    Units.inchesToMeters(0.0),
+    Units.inchesToMeters(18.0),
+    false,                 // horizontal: no gravity along the rail
+    Units.inchesToMeters(0.0));
+```
+
+This constructor directly matches a pulley-driven rail. For a chain or rack, choose the equivalent radius that produces the same travel per drive rotation:
+
+```text
+equivalent radius = distance per drive rotation / (2 × π)
+```
+
+For a lead screw, `distance per drive rotation` is the screw lead.
+
+The model does not include stiction, backlash, belt stretch, or a carriage binding on its rail. Add only the test behavior you need, and keep those limits clear when comparing simulation with hardware.
+
+### Test the simulated behavior
+
+Start with three checks:
+
+1. Command 6 inches and verify the reported position approaches 6 inches without crossing either travel limit.
+2. Interrupt the command and verify the parent subsystem applies its intended stop or hold behavior.
+3. Command beyond maximum extension and verify the component clamps the goal before the IO receives it.
+
+Then graph goal, measured distance, velocity, applied voltage, and current. A reversed measurement will move away from the goal. A wrong gear ratio or drive radius will change the apparent speed and distance.
+
+<RulesBox title="Check your work">
+
+- Use pitch radius, pitch diameter, chain pitch, or screw lead as required by the drive.
+- Give the rail a repeatable zero reference and both software and physical limits.
+- Disable gravity in simulation only when gravity has no meaningful component along travel.
+- Keep side loads out of drawer slides and linear bearings.
+- Verify the conversion by marking and measuring a known physical movement.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html", "note": "ElevatorSim as a limited linear mechanism and its gravity option."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/ElevatorSim.html", "note": "The 2026 constructor, position, velocity, current, and limit API."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/system/plant/LinearSystemId.html", "note": "The motor-driven linear plant used by ElevatorSim."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/elevator/Elevator.java", "note": "Typed distance goals and a reusable linear-component boundary."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "FRC 4451 travel clamping and linear simulation structure."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Composing Mechanism Subsystems","id":"composing-mechanism-subsystems"},
+  {"label":"Physics in the IO Layer","id":"physics-in-the-io-layer"},
+  {"label":"Elevators","id":"elevator-example"}
+]} />

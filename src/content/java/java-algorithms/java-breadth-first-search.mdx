@@ -1,0 +1,240 @@
+---
+title: "Breadth-First Search"
+lessonId: java-breadth-first-search
+section: java
+group: java-algorithms
+groupLabel: "Common Algorithms"
+groupOrder: 7
+order: 6
+difficulty: intermediate
+duration: 25 min
+description: Exploring outward in rings from a starting point, why that finds shortest paths, and how to recover both the route and its distance.
+---
+
+### Spreading outward
+
+Breadth-first search visits everything one step away, then everything two steps away, and so on. It uses a [queue](/java/fundamentals/java-queues#first-in-first-out) rather than recursion, which is what makes it spread sideways instead of diving deep.
+
+```java
+static int[] bfs(int start, List<List<Integer>> adj, int n) {
+    int[] distance = new int[n];
+    Arrays.fill(distance, -1);           // -1 means not reached yet
+
+    Queue<Integer> queue = new ArrayDeque<>();
+    distance[start] = 0;
+    queue.offer(start);
+
+    while (!queue.isEmpty()) {
+        int node = queue.poll();
+
+        for (int neighbour : adj.get(node)) {
+            if (distance[neighbour] == -1) {
+                distance[neighbour] = distance[node] + 1;
+                queue.offer(neighbour);
+            }
+        }
+    }
+    return distance;
+}
+```
+
+`distance` doubles as the visited marker, so no separate array is needed.
+
+### Why it finds shortest paths
+
+Because nodes come out of the queue in order of distance, the first time you reach a node is by the fewest possible edges. There is no shorter route still to be discovered; anything shorter would have been dequeued earlier.
+
+This is the property [depth-first search](/java/fundamentals/java-depth-first-search#dfs-or-bfs) lacks. DFS reaches nodes in whatever order its recursion happens to take, so its first arrival is not necessarily the shortest.
+
+<RulesBox title="Set the distance when you enqueue, not when you dequeue">
+
+```java norun
+distance[neighbour] = distance[node] + 1;
+queue.offer(neighbour);                    // both together
+```
+
+If you only record the distance after polling, the same node can be offered several times before it is first processed. The queue fills with duplicates, the search slows dramatically, and on large graphs it can exhaust memory.
+
+Marking on discovery guarantees each node enters the queue exactly once.
+
+</RulesBox>
+
+BFS gives shortest paths only when **every edge counts the same**. With varying edge costs (distances, travel times, fuel), the fewest-edges route may not be the cheapest, and you need Dijkstra's algorithm instead.
+
+### On a grid
+
+Most BFS you write will be on a grid, where neighbours are computed rather than stored.
+
+```java
+static int shortestPath(char[][] grid, int startR, int startC, int endR, int endC) {
+    int rows = grid.length, cols = grid[0].length;
+    int[][] dist = new int[rows][cols];
+    for (int[] row : dist) Arrays.fill(row, -1);
+
+    int[] dr = {-1, 1, 0, 0};
+    int[] dc = {0, 0, -1, 1};
+
+    Queue<int[]> queue = new ArrayDeque<>();
+    dist[startR][startC] = 0;
+    queue.offer(new int[]{startR, startC});
+
+    while (!queue.isEmpty()) {
+        int[] cell = queue.poll();
+        int r = cell[0], c = cell[1];
+
+        if (r == endR && c == endC) return dist[r][c];   // arrived
+
+        for (int d = 0; d < 4; d++) {
+            int nr = r + dr[d], nc = c + dc[d];
+
+            if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+            if (grid[nr][nc] == '#' || dist[nr][nc] != -1) continue;
+
+            dist[nr][nc] = dist[r][c] + 1;
+            queue.offer(new int[]{nr, nc});
+        }
+    }
+    return -1;                            // unreachable
+}
+```
+
+Storing coordinates as a two-element `int[]` avoids defining a class. Bounds checks come before reading the grid, as always.
+
+### Recovering the path
+
+Distance alone often is not the answer; you may need the actual route. Record where each node was first reached from:
+
+```java norun
+int[] parent = new int[n];
+Arrays.fill(parent, -1);
+
+// inside the neighbour loop:
+if (distance[neighbour] == -1) {
+    distance[neighbour] = distance[node] + 1;
+    parent[neighbour] = node;             // remember how we got here
+    queue.offer(neighbour);
+}
+```
+
+Then walk backwards from the destination and reverse:
+
+```java
+static List<Integer> pathTo(int target, int[] parent) {
+    List<Integer> path = new ArrayList<>();
+    for (int at = target; at != -1; at = parent[at]) {
+        path.add(at);
+    }
+    Collections.reverse(path);
+    return path;
+}
+```
+
+If the target was never reached its parent is still `-1`, so check the distance before trusting the path.
+
+### Multi-source BFS
+
+Sometimes you want the distance from the *nearest* of several starting points, such as how far each cell is from any exit. Rather than running BFS once per source, seed the queue with all of them at distance 0:
+
+```java norun
+for (int[] source : sources) {
+    dist[source[0]][source[1]] = 0;
+    queue.offer(source);
+}
+// then the identical loop
+```
+
+Everything else is unchanged, and one pass gives every cell its distance to the closest source. This approach may be unfamiliar at first. It appears often in graph and grid problems.
+
+### Level by level
+
+To know which "ring" you are processing, capture the queue size before draining it:
+
+```java norun
+int steps = 0;
+while (!queue.isEmpty()) {
+    int levelSize = queue.size();         // fixed before adding the next ring
+
+    for (int i = 0; i < levelSize; i++) {
+        int node = queue.poll();
+        // ... offer neighbours
+    }
+    steps++;
+}
+```
+
+Reading `queue.size()` directly in the inner condition would include nodes added during the loop, merging the levels.
+
+<ContentTable
+  title="BFS or DFS"
+  headers={["Need", "Use"]}
+  rows={[
+    ["Fewest steps / shortest path (equal costs)", "BFS"],
+    ["Reach every node", "Either"],
+    ["Cycle detection", "DFS"],
+    ["Explore all arrangements", "DFS with undo"],
+    ["Distance from nearest of several sources", "Multi-source BFS"],
+    ["Varying edge costs", "Neither; <a href=\"/java/fundamentals/java-shortest-paths\">Dijkstra</a>"]
+  ]}
+/>
+
+<RulesBox title="Common mistakes">
+
+- **Marking visited on dequeue instead of enqueue**, filling the queue with duplicates.
+- **Using BFS with varying edge weights** and expecting the cheapest route.
+- **Reading `queue.size()` inside the level loop.**
+- **Bounds check after grid access.**
+- **Using `LinkedList` as the queue.** `ArrayDeque` is faster.
+- **Forgetting the unreachable case**, and treating `-1` as a real distance.
+- **Using DFS when the question says "shortest" or "fewest".**
+
+</RulesBox>
+
+<JavaPlayground id="java-breadth-first-search" />
+
+<ExerciseBox title="Practice">
+
+1. Given an unweighted graph, print the distance from node 0 to every other node.
+2. Given a grid with walls, print the fewest steps from the top-left to the bottom-right, or `-1`.
+3. Extend exercise 2 to print the actual route.
+4. Given a grid with several exits, print each open cell's distance to the nearest exit.
+5. Print a graph's nodes grouped by distance from the start, one line per distance.
+
+<details>
+<summary>Hints</summary>
+
+1. The basic BFS; unreached nodes keep `-1`.
+2. The grid version above.
+3. Add a parent array storing coordinates, then walk back from the end.
+4. Multi-source: seed every exit at distance 0 before the loop.
+5. The level-size capture.
+
+</details>
+
+</ExerciseBox>
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    {"label":"Backtracking","id":"java-backtracking"},
+    {"label":"Memoization and Dynamic Programming","id":"java-memoization-and-dynamic-programming"}
+  ]}
+/>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"url": "https://en.wikipedia.org/wiki/Breadth-first_search", "label": "Wikipedia: Breadth-first search", "note": "Why it finds shortest paths."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayDeque.html", "note": "The queue."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Related"
+  section="java"
+  links={[
+    {"label":"Depth-First Search","id":"java-depth-first-search"},
+    {"label":"Queues","id":"java-queues"},
+    {"label":"Graphs","id":"java-graphs"}
+  ]}
+/>

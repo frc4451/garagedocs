@@ -1,0 +1,212 @@
+---
+title: "Swerve Pose Estimation Example"
+lessonId: swerve-pose-estimation-example
+section: frc
+group: frc-vision-fusion
+groupLabel: "Vision and Sensor Fusion"
+groupOrder: 15
+order: 7
+difficulty: advanced
+duration: 20 min
+description: "How a swerve drivetrain applies synchronized module and gyro samples, accepts vision observations, resets pose, and publishes one field-relative estimate."
+---
+
+This example connects the pieces from the Pose Estimation group inside a swerve drivetrain. It focuses on estimator ownership and data flow. Module control, PathPlanner, SysId, and generated Tuner X constants belong to the drivetrain and autonomous lessons.
+
+FRC 4451's Cobra drivetrain uses the same structure at a larger scale: module and gyro IO provide synchronized samples, `Drive` owns the pose estimators, and vision subsystems publish observations through queues.
+
+### Estimator state
+
+```java
+public class Drive extends SubsystemBase {
+    private final SwerveDriveKinematics kinematics;
+    private final SwerveDrivePoseEstimator poseEstimator;
+    private final Module[] modules;
+    private final GyroIOInputsAutoLogged gyroInputs;
+    private final Queue<VisionObservation> visionQueue;
+
+    private Rotation2d rawGyroRotation =
+        Rotation2d.kZero;
+    private SwerveModulePosition[]
+        lastModulePositions;
+
+    public Drive(
+            SwerveDriveKinematics kinematics,
+            Module[] modules,
+            Queue<VisionObservation> visionQueue) {
+        this.kinematics = kinematics;
+        this.modules = modules;
+        this.visionQueue = visionQueue;
+
+        SwerveModulePosition[] initialPositions =
+            getLatestModulePositions();
+
+        lastModulePositions =
+            copyPositions(initialPositions);
+
+        poseEstimator =
+            new SwerveDrivePoseEstimator(
+                kinematics,
+                rawGyroRotation,
+                initialPositions,
+                new Pose2d());
+    }
+}
+```
+
+The module array order must match the order passed to `SwerveDriveKinematics`. This example and Cobra use front-left, front-right, back-left, back-right.
+
+### Apply synchronized odometry samples
+
+A high-rate odometry thread can collect several samples during one normal robot loop. Process the samples oldest to newest:
+
+```java
+private void updateOdometry() {
+    double[] timestamps =
+        modules[0].getOdometryTimestamps();
+
+    for (int sample = 0;
+            sample < timestamps.length;
+            sample++) {
+        SwerveModulePosition[] positions =
+            new SwerveModulePosition[modules.length];
+        SwerveModulePosition[] deltas =
+            new SwerveModulePosition[modules.length];
+
+        for (int module = 0;
+                module < modules.length;
+                module++) {
+            positions[module] =
+                modules[module]
+                    .getOdometryPositions()[sample];
+
+            deltas[module] =
+                new SwerveModulePosition(
+                    positions[module].distanceMeters
+                        - lastModulePositions[module]
+                            .distanceMeters,
+                    positions[module].angle);
+
+            lastModulePositions[module] =
+                positions[module];
+        }
+
+        if (gyroInputs.connected) {
+            rawGyroRotation =
+                gyroInputs
+                    .odometryYawPositions[sample];
+        } else {
+            Twist2d wheelMotion =
+                kinematics.toTwist2d(deltas);
+            rawGyroRotation =
+                rawGyroRotation.plus(
+                    new Rotation2d(
+                        wheelMotion.dtheta));
+        }
+
+        poseEstimator.updateWithTime(
+            timestamps[sample],
+            rawGyroRotation,
+            positions);
+    }
+}
+```
+
+The gyro and module arrays at a given sample index must describe the same time. The gyro fallback keeps the estimator running, but its heading then depends entirely on wheel measurements.
+
+### Apply accepted observations
+
+Drain the observation queue after the odometry samples:
+
+```java
+private void updateVision() {
+    VisionObservation observation;
+
+    while ((observation =
+            visionQueue.poll()) != null) {
+        poseEstimator.addVisionMeasurement(
+            observation.fieldToRobot()
+                .toPose2d(),
+            observation.timestampSeconds(),
+            observation.stdDevs());
+    }
+}
+```
+
+Each observation enters once with its original timestamp and uncertainty. Filtering belongs upstream in the vision subsystem.
+
+### Publish one authoritative pose
+
+```java
+@Override
+public void periodic() {
+    updateInputs();
+    updateOdometry();
+    updateVision();
+
+    BobotState.setGlobalPose(getPose());
+}
+
+public Pose2d getPose() {
+    return poseEstimator
+        .getEstimatedPosition();
+}
+```
+
+Commands, autonomous routines, field-relative drive conversion, and mechanism calculations should read the same published pose. Maintaining unrelated pose objects for each feature creates disagreements that are difficult to diagnose.
+
+A team may deliberately run multiple estimators to compare algorithms, as Cobra does. Name and log each one, and choose one authoritative pose for normal robot behavior.
+
+### Reset from a known pose
+
+```java
+public void setPose(Pose2d fieldToRobot) {
+    poseEstimator.resetPosition(
+        rawGyroRotation,
+        getLatestModulePositions(),
+        fieldToRobot);
+}
+```
+
+Call this with the autonomous starting pose before the path begins. If another localization device needs seeding, send the corresponding device pose during the same reset flow.
+
+### Verify the integration
+
+In simulation and hardware logs, check:
+
+1. Module and gyro sample counts stay aligned.
+2. The odometry pose moves in the expected axes before vision is enabled.
+3. Every accepted observation appears once.
+4. Observation timestamps precede or equal their delivery times.
+5. A known pose reset moves the estimate without requiring a gyro hardware reset.
+6. The fused pose corrects after a deliberate odometry error without jumping to every noisy observation.
+7. The pose used by field-relative driving and autonomous code matches the logged authoritative pose.
+
+<RulesBox title="Common failures">
+
+- Module positions use a different order from the kinematics object.
+- Module distances are instantaneous speeds instead of cumulative positions.
+- Samples from different times share one array index.
+- The observation timestamp is replaced with the current loop time.
+- More than one subsystem drains the same unread results.
+- Vision updates reset the estimator instead of adding measurements.
+- Commands read a second pose that the drivetrain does not publish.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "mantik", "path": "src/content/frc/frc-examples/swerve-drive-example.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/estimator/SwerveDrivePoseEstimator.html", "note": "<code>updateWithTime</code>, <code>addVisionMeasurement</code>, <code>resetPosition</code>."},
+  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/swerve-drive-kinematics.html", "note": "Module ordering and <code>toTwist2d</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "The structure this example is reduced from: samples, gyro fallback, queues, authoritative pose, reset."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/PhoenixOdometryThread.java", "note": "The high-rate sample source."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "Observation queues and the published global pose."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Wheel Odometry","id":"wheel-odometry"},
+  {"label":"Vision Subsystem","id":"vision-subsystem"},
+  {"label":"Fused Pose Estimation","id":"fused-pose-estimation"},
+  {"label":"Team Robot Code","id":"cobra-repository-tour"},
+  {"label":"WPILib Swerve Pose Estimator","url":"https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/estimator/SwerveDrivePoseEstimator.html"}
+]} title="Next" section="frc" />

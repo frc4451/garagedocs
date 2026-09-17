@@ -1,0 +1,99 @@
+---
+title: "Vision Simulation"
+lessonId: vision-simulation
+section: frc
+group: frc-vision-fusion
+groupLabel: "Vision and Sensor Fusion"
+groupOrder: 15
+order: 6
+difficulty: advanced
+duration: 20 min
+durationFixed: true
+description: "PhotonVision's simulator feeding AprilTag observations to the pose estimator from a laptop: VisionSystemSim, SimCameraProperties and PhotonCameraSim, FRC 4451's AprilTagIOPhotonSim and simulationInit, simulated object detection, and what to watch on the field to catch a wrong camera transform before the robot exists."
+---
+
+Everything in this group so far (odometry, the vision subsystem, fusion, calibration) can be exercised on a laptop before a camera is installed. PhotonLib ships a **vision simulator** with a virtual field, targets, and cameras. It publishes results through the same `PhotonCamera` API used by the [vision subsystem](/frc/vision-subsystem), which lets the same processing code run in simulation.
+
+This page assumes the [Simulation](/frc/simulation-first) group: the simulator is running and AdvantageScope is connected to it.
+
+### The three pieces
+
+<ContentTable
+  headers={["Class", "Represents", "Where FRC 4451 creates it"]}
+  rows={[
+    ["<code>VisionSystemSim</code>", "The world: a field with targets on it, and every simulated camera's place on the robot", "<code>VisionConstants.aprilTagSim</code>, an <code>Optional</code> that exists only when <code>currentMode == SIM</code>"],
+    ["<code>SimCameraProperties</code>", "One camera's resolution, FOV, frame rate, latency and noise", "<code>SimCameraConfig</code> presets (<code>ARDUCAM_OV9782_100</code>, <code>THRIFTY_CAM_80</code>) applied per camera"],
+    ["<code>PhotonCameraSim</code>", "A camera attached to the world, rendering what it would see and publishing it as if the coprocessor had", "<code>AprilTagIOPhotonSim</code>, one per camera"]
+  ]}
+/>
+
+`AprilTagIOPhotonSim` is the [vendor-sim-state pattern](/frc/physics-in-the-io-layer#the-vendor-sim-state-pattern) again: it **extends the real `AprilTagIOPhoton`**, so the pose-estimation code runs unchanged, and adds a camera to the simulated world:
+
+```java
+public class AprilTagIOPhotonSim extends AprilTagIOPhoton {
+  private final PhotonCameraSim cameraSim;
+
+  public AprilTagIOPhotonSim(VisionSource source, AprilTagFieldLayout layout,
+      Supplier<Rotation2d> headingSupplier, List<PoseEstimationMethod> methods, SimCameraConfig config) {
+    super(source, layout, headingSupplier, methods);          // the REAL IO, unchanged
+
+    SimCameraProperties props = config.apply(new SimCameraProperties());
+    cameraSim = new PhotonCameraSim(camera, props, layout);
+    cameraSim.enableDrawWireframe(true);                       // renders the field wireframe in the sim camera stream
+    cameraSim.setMaxSightRange(10.0);
+
+    VisionConstants.aprilTagSim.ifPresent(
+        sim -> sim.addCamera(cameraSim, source.robotToCamera().getTransform()));
+  }
+}
+```
+
+The world needs tags in it and needs to know where the robot is. `Robot.simulationInit()` adds the season's tag layout once, and `AprilTagVision` calls `aprilTagSim.update(globalPoseSupplier.get())` every loop to move the simulated robot to the estimator's current pose. After that, each `PhotonCameraSim` works out which tags its camera can see from there, at what pixel positions, with the configured latency and noise, and publishes a result. The vision subsystem receives it exactly as it would on the robot, runs `estimateCoprocMultiTagPose` on it, and hands a pose to the estimator. The whole [vision pipeline](/frc/vision-subsystem#process-unread-results-once) executes; only the photons are fake.
+
+```java
+@Override
+public void simulationInit() {
+  VisionConstants.aprilTagSim.ifPresent(
+      sim -> sim.addAprilTags(VisionConstants.visionSubsystemConfig.aprilTagFieldLayout()));
+  // …object-detection targets are placed the same way, as VisionTargetSim
+}
+```
+
+The same mechanism simulates **object detection**: `simulationInit` scatters `VisionTargetSim`s (game pieces with a size) around the field, and `ObjectDetectionIOPhotonSim` sees them. Cobra places a cluster of fuel at field centre plus one stray, which is exactly the arrangement that exercises "pick the nearest one".
+
+### What to watch
+
+Open the [AdvantageScope layout](/frc/simulation-in-advantagescope#the-2d-and-3d-field) for drive and add three things:
+
+- **`RealOutputs/Odometry/Global`**, the fused estimate, on the 2D Field, with the vision system's own pose observations (FRC 4451 logs them per camera) beside it. In simulation the module models have no wheel slip, so wheel odometry is effectively the truth; the vision observations should land on top of the robot whenever a tag is in view, and the fused pose should not jump. Observations that land *away* from the robot mean a `robotToCamera` transform is wrong; no observations at all means no camera is seeing tags. Reset the estimator to a deliberately wrong pose (the Sim GUI can call the reset command) and watch vision pull it back. That is the correction you are relying on at a match.
+- **The camera poses** as `Pose3d` on the 3D Field. Each should sit on the robot where the real camera is bolted, pointing the way it points ([AdvantageScope: Poses on the Field](/tools/advantagescope-poses-on-the-field#the-3d-field-tab)). A camera drawn upside-down or facing backwards is a transform typed with the wrong sign, and this is the cheapest moment you will ever catch it.
+- **The simulated camera stream.** With `cameraSim.enableProcessedStream(true)` (and `enableRawStream`), each simulated camera serves an MJPEG stream on the laptop (`http://localhost:1181`, `1182`, and so on) showing what the camera sees, with the field wireframe from `enableDrawWireframe(true)` drawn over it. Tags that should be visible and are not means the sight range, FOV or mount is wrong. Leave the streams off when you are not looking; rendering them costs loop time.
+
+Vision simulation models the latency and noise configured in `SimCameraProperties`. It does not reproduce lighting, motion blur, mount movement, or a miscalibrated real lens. Values chosen in simulation are a starting point for [hardware calibration](/frc/pose-estimation-calibration#6-test-raw-vision-observations).
+
+<RulesBox title="Common mistakes">
+
+- **Forgetting <code>VisionSystemSim.update(pose)</code>.** The cameras render from wherever the world last thought the robot was, usually the origin, and see tags that are nowhere near.
+- **Testing vision with the robot parked.** Drive it. Latency and pose-jump behaviour only show up moving.
+- **A camera preset that is not your camera.** A wider FOV or lower latency than the real lens makes simulation optimistic; match the preset to the hardware you bought.
+- **Leaving the camera streams on.** They are for looking, not for running.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "photonvision", "path": "docs/simulation/simulation-java.html", "note": "<code>VisionSystemSim</code>, <code>PhotonCameraSim</code>, <code>SimCameraProperties</code>, <code>VisionTargetSim</code>, the processed and raw streams."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagIOPhotonSim.java", "note": "The sim IO that extends <code>AprilTagIOPhoton</code> and adds a camera to the world."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagVision.java", "note": "<code>aprilTagSim.update(pose)</code> every loop."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/vision/ObjectDetectionIOPhotonSim.java", "note": "Object-detection simulation with <code>VisionTargetSim</code> fuel."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "<code>simulationInit()</code>: tag layout and scattered fuel added to the world."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/vision/VisionConstants.java", "note": "<code>SimCameraConfig</code> presets per camera."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Swerve Drive Example","id":"swerve-pose-estimation-example"},
+  {"label":"Vision Subsystem","id":"vision-subsystem"},
+  {"label":"PhotonVision","id":"photonvision"},
+  {"label":"Simulating Autonomous","id":"autonomous-simulation"},
+  {"label":"Physics in the IO Layer","id":"physics-in-the-io-layer"},
+  {"label":"PhotonVision docs: Simulation","url":"https://docs.photonvision.org/en/latest/docs/simulation/simulation-java.html"}
+]} title="Next" section="frc" />

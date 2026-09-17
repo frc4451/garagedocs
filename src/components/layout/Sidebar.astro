@@ -85,13 +85,40 @@ const currentSection = sections.find((section) => isRouteActive(section.path));
         {showSidebar && sidebarGroups.length > 0 && (
           <div class="sidebar-tree">
             <p class="caption" role="heading">
-              <span class="caption-text">{currentSection?.label ?? 'Course'} curriculum</span>
+              {currentSection ? (
+                <a class="caption-text caption-link" href={withBase(currentSection.path)}>
+                  {currentSection.label} curriculum
+                </a>
+              ) : (
+                <span class="caption-text">Course curriculum</span>
+              )}
             </p>
             <ul id="sidebar-navigation">
               {sidebarGroups.map((group) => {
                 const isExpanded = groupHasActiveLesson(group);
+                if (group.flat) {
+                  return (
+                    <li class="parent-tab sidebar-group sidebar-group-flat" data-group-id={group.id}>
+                      <p class="sidebar-part-label">{group.partLabel ?? group.label}</p>
+                      <ul class="children-nav expanded flat-nav" id={`children-${group.id}`}>
+                        {group.items.map((item) => (
+                          <li class="child-tab">
+                            <a
+                              href={withBase(item.href)}
+                              class:list={['child-reference sidebar-link', { active: isLessonActive(item.href) }]}
+                            >
+                              {item.label}
+                              {item.duration && <span class="sidebar-meta">{item.duration}</span>}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  );
+                }
                 return (
                   <li class="parent-tab sidebar-group" data-group-id={group.id}>
+                    {group.partLabel && <p class="sidebar-part-label">{group.partLabel}</p>}
                     <button
                       type="button"
                       class="parent-reference sidebar-group-toggle"

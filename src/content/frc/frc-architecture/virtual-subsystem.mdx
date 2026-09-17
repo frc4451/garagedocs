@@ -1,17 +1,42 @@
 ---
-title: "VirtualSubsystem: A Heartbeat Without the Scheduler"
+title: "VirtualSubsystem"
 lessonId: virtual-subsystem
 section: frc
-group: frc-architecture
-groupLabel: "Cobra Architecture"
-groupOrder: 8.5
-order: 1
+group: frc-runtime-and-io
+groupLabel: "Robot Runtime and IO"
+groupOrder: 6
+order: 3
 difficulty: intermediate
 duration: 20 min
 description: "The thirty-line base class that gives BobotState, the vision subsystems and the dashboard manager a periodic() without making them things a command can require: how it registers itself, exactly when it runs relative to the CommandScheduler and why that order is what makes vision work, what extends it in Cobra, and how to decide between SubsystemBase, VirtualSubsystem and neither."
 ---
 
 `SubsystemBase` does two unrelated things: it gives a class a `periodic()` that runs every loop, and it makes that class a **resource the scheduler arbitrates**: commands `require` it, and two commands that require the same subsystem cannot run together. For a motor that is exactly right. For "the robot's estimate of where it is" or "a camera that publishes what it sees" it is wrong: nothing should be able to own the pose, and a command that accidentally required the vision system would block every other command that did. Cobra's answer is a base class that provides the first thing without the second.
+
+### How the pattern entered FRC 4451's code
+
+FRC 4451 adopted `VirtualSubsystem` while programming *Ember* in 2024. The team wanted `VisionSubsystem` to receive a callback every robot loop, but vision was not a mechanical resource for commands to own. We pulled the self-registering pattern from Mechanical Advantage's [2024 `VirtualSubsystem`](https://github.com/Mechanical-Advantage/RobotCode2024Public/blob/main/src/main/java/org/littletonrobotics/frc2024/util/VirtualSubsystem.java) and adapted it for Ember.
+
+"Separate callback" means a separate phase of the same 20 ms robot loop. It does **not** mean that vision ran on a second Java thread:
+
+1. Ember's `Robot.robotPeriodic()` called `VirtualSubsystem.runPeriodically()`.
+2. Ember's `VisionSubsystem.periodic()` polled the camera IO, logged new frames, and published AprilTag and game-piece results.
+3. `CommandScheduler.run()` then called the mechanical subsystems and commands.
+
+That order gave vision a clear place before the scheduler. It also kept vision outside WPILib's requirement system, so scheduling a command could not interrupt the camera callback. The camera software and PhotonVision pipeline could still perform work asynchronously; `VisionSubsystem.periodic()` was the predictable robot-loop callback that collected their latest results.
+
+Ember added a simulation callback to Mechanical Advantage's small 2024 class. That allowed the same virtual subsystem to advance `VisionSystemSim` from `Robot.simulationPeriodic()`. Later robots kept the pattern and expanded its use to shared robot state and dashboard services.
+
+### How Mechanical Advantage uses it now
+
+Mechanical Advantage's [current 2026 `VirtualSubsystem`](https://github.com/Mechanical-Advantage/RobotCode2026Public/blob/main/src/main/java/org/littletonrobotics/frc2026/util/VirtualSubsystem.java) has two callbacks:
+
+- `periodic()` runs before `CommandScheduler.run()` and is intended for reading inputs and updating state.
+- `periodicAfterScheduler()` runs after the scheduler and is intended for applying outputs.
+
+Their [2026 `Robot.robotPeriodic()`](https://github.com/Mechanical-Advantage/RobotCode2026Public/blob/main/src/main/java/org/littletonrobotics/frc2026/Robot.java#L231-L244) calls the two static runners on opposite sides of the scheduler. Their current [vision implementation](https://github.com/Mechanical-Advantage/RobotCode2026Public/blob/main/src/main/java/org/littletonrobotics/frc2026/subsystems/vision/Vision.java) still extends `VirtualSubsystem`.
+
+Cobra keeps FRC 4451's earlier shape: one pre-scheduler `periodic()` callback and a separate simulation callback. The current Mechanical Advantage version is useful when a service needs an explicit read-before-commands and write-after-commands split. Copy the idea deliberately rather than replacing the team's class without checking every caller.
 
 ### The class
 
@@ -54,7 +79,7 @@ Three ideas, each a line or two:
 
 - **Self-registration.** The constructor adds `this` to a static list. Extend the class, construct one instance, and it is in the loop, with no registration call to forget. (`SubsystemBase` does the same thing: its constructor registers with the `CommandScheduler`.)
 - **A static entry point.** `runPeriodically()` walks the list. Whoever calls it decides *when* in the loop the virtual subsystems run.
-- **A simulation hook.** `simulationPeriodic()` mirrors `Robot.simulationPeriodic()`; a virtual subsystem that owns a simulated world, such as the vision sim from [Simulating Vision](/frc/sim-vision#the-three-pieces), updates it here.
+- **A simulation hook.** `simulationPeriodic()` mirrors `Robot.simulationPeriodic()`; a virtual subsystem that owns a simulated world, such as the vision sim from [Vision Simulation](/frc/vision-simulation#the-three-pieces), updates it here.
 
 ### When it runs, and why that is the point
 
@@ -105,7 +130,7 @@ None of them has a motor. That is the tell: a class with a motor is a `Subsystem
     ["Needs a heartbeat but nothing should own it", "<code>VirtualSubsystem</code>", "periodic() without requirements; runs before the scheduler"],
     ["Must run <em>before</em> the drivetrain every loop", "<code>VirtualSubsystem</code>", "The call order in <code>robotPeriodic</code>"],
     ["Is only computed from other state, on demand", "Neither: a static method, or a field on <code>BobotState</code>", "If nobody needs it every loop, do not run it every loop"],
-    ["Runs on its own thread (a 5 ms Notifier, an odometry thread)", "Neither: a <code>Notifier</code> or a <code>Thread</code>, with care", "Faster than the loop; see <a href=\"/frc/talonfx-simulation#the-reference-implementation\">the sim IO's Notifier</a> and <a href=\"/frc/swerve-drive-example#apply-synchronized-odometry-samples\">the odometry thread</a>"]
+    ["Runs on its own thread (a 5 ms Notifier, an odometry thread)", "Neither: a <code>Notifier</code> or a <code>Thread</code>, with care", "Faster than the loop; see <a href=\"/frc/talonfx-simulation#the-reference-implementation\">the sim IO's Notifier</a> and <a href=\"/frc/swerve-pose-estimation-example#apply-synchronized-odometry-samples\">the odometry thread</a>"]
   ]}
 />
 
@@ -131,7 +156,7 @@ public class BatteryMonitor extends VirtualSubsystem {
 
 Construct it once (`new BatteryMonitor();` in `RobotContainer`) and it runs. It logs, it raises an `Alert` the dashboard shows, and no command can require it, which is right: no command should be able to own the battery voltage.
 
-Test it in simulation by dragging `Battery/FilteredVolts` onto a graph and spinning up the shooter: the `BatterySim` from [Simulating a TalonFX](/frc/talonfx-simulation#the-reference-implementation) sags the simulated supply, the filtered line dips, and the alert appears if it crosses the tunable.
+Test it in simulation by dragging `Battery/FilteredVolts` onto a graph and spinning up the shooter: the `BatterySim` from [TalonFX Simulation](/frc/talonfx-simulation#the-reference-implementation) sags the simulated supply, the filtered line dips, and the alert appears if it crosses the tunable.
 
 <RulesBox title="Common mistakes">
 
@@ -152,15 +177,22 @@ Test it in simulation by dragging `Battery/FilteredVolts` onto a graph and spinn
   {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/vision/ObjectDetectionVision.java", "note": "Second vision example."},
   {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/dashboard/TeleopShiftManager.java", "note": "A dashboard manager as a <code>VirtualSubsystem</code>."},
   {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/vision/FuelTracker.java", "note": "Field-object tracking as a <code>VirtualSubsystem</code>."},
-  {"source": "mech-adv", "path": "src/main/java/org/littletonrobotics/frc2025/util/VirtualSubsystem.java", "note": "The Team 6328 class this pattern comes from."},
+  {"source": "ember", "path": "src/main/java/frc/utils/VirtualSubsystem.java", "note": "FRC 4451's 2024 adaptation: self-registration, a pre-scheduler periodic runner, and a simulation callback."},
+  {"source": "ember", "path": "src/main/java/frc/robot/Robot.java", "note": "Ember calls the virtual-subsystem runner before the WPILib command scheduler and calls the simulation runner from simulationPeriodic()."},
+  {"source": "ember", "path": "src/main/java/frc/robot/subsystems/vision/VisionSubsystem.java", "note": "The 2024 reason for adopting the pattern: camera processing with a robot-loop callback outside scheduler requirements."},
+  {"source": "mech-adv-2024", "path": "src/main/java/org/littletonrobotics/frc2024/util/VirtualSubsystem.java", "note": "The original Team 6328 class FRC 4451 adapted for Ember."},
+  {"source": "mech-adv-2024", "path": "src/main/java/org/littletonrobotics/frc2024/Robot.java", "note": "Team 6328's 2024 pre-scheduler call site."},
+  {"source": "mech-adv-2026", "path": "src/main/java/org/littletonrobotics/frc2026/util/VirtualSubsystem.java", "note": "The current class, with callbacks before and after the command scheduler."},
+  {"source": "mech-adv-2026", "path": "src/main/java/org/littletonrobotics/frc2026/Robot.java", "note": "The current call order around CommandScheduler.run()."},
+  {"source": "mech-adv-2026", "path": "src/main/java/org/littletonrobotics/frc2026/subsystems/vision/Vision.java", "note": "Mechanical Advantage's current vision service still extends VirtualSubsystem."},
   {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "What a scheduler-registered <code>Subsystem</code> is, and the requirement semantics a virtual one deliberately lacks."},
   {"source": "wpilib", "path": "docs/software/commandbased/command-scheduler.html", "note": "When <code>CommandScheduler.run()</code> calls subsystem <code>periodic()</code> methods."},
   {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/CommandScheduler.html", "note": "<code>registerSubsystem</code> and the order of <code>run()</code>."}
 ]} />
 
 <LinkGrid links={[
-  {"label":"BobotState: The One Global","id":"bobot-state"},
-  {"label":"Lombok: Less Boilerplate, Same Class","id":"lombok"},
+  {"label":"BobotState","id":"bobot-state"},
+  {"label":"Lombok","id":"lombok"},
   {"label":"Subsystems","id":"subsystems"},
   {"label":"Vision Subsystem","id":"vision-subsystem"},
   {"label":"Kit Bot R04: Subsystems","url":"/kit-bot/r04-subsystems"}

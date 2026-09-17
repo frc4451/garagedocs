@@ -1,0 +1,178 @@
+---
+title: "Boolean Logic"
+lessonId: java-boolean-logic
+section: java
+group: java-programming-math
+groupLabel: Programming Math
+groupOrder: 6
+order: 1
+difficulty: beginner
+duration: 30 min
+description: "Truth tables, Boolean equivalences, implication, and the inference rules used to reason about conditions in code."
+---
+
+[Conditionals](/java/fundamentals/java-conditionals) showed how Java chooses a path with `if`, `&&`, `||`, and `!`. Boolean logic gives us a way to check whether those conditions say what we intend.
+
+### Statements that can be true or false
+
+A **proposition** is a statement with one truth value: true or false.
+
+- `batteryVoltage >= 12.0` is a proposition once `batteryVoltage` has a value.
+- "The robot is enabled" is a proposition.
+- "Set the motor voltage" is an instruction, so it is not a proposition.
+
+A statement containing a variable is often called a **predicate**. `temperature < limit` becomes true or false after both variables have values.
+
+### Boolean operators
+
+This lesson uses the same operator order whenever several Boolean operations appear.
+
+<ContentTable
+  title="Boolean operators"
+  headers={["Symbol", "Name", "Meaning", "Java example"]}
+  rows={[
+    ["<code>!</code>", "NOT", "Reverse one truth value", "<code>!enabled</code>"],
+    ["<code>&amp;&amp;</code>", "AND", "True when both operands are true", "<code>enabled &amp;&amp; connected</code>"],
+    ["<code>||</code>", "OR", "True when at least one operand is true", "<code>manual || automatic</code>"],
+    ["<code>^</code>", "XOR", "True when the operands differ", "<code>leftLimit ^ rightLimit</code>"],
+    ["<code>p &rarr; q</code>", "Implication", "If <code>p</code> is true, <code>q</code> must be true", "Usually written as an <code>if</code> statement"],
+    ["<code>p &harr; q</code>", "Biconditional", "True when both operands have the same truth value", "<code>p == q</code> for booleans"]
+  ]}
+/>
+
+Java has no implication operator. In logic, **p implies q** is equivalent to `!p || q`. An implication is false only when `p` is true and `q` is false.
+
+### Truth tables
+
+A truth table checks every possible input. Keep the input rows in this order: true/true, true/false, false/true, false/false.
+
+<ContentTable
+  title="Java Boolean operators"
+  headers={["p", "q", "!p", "p && q", "p || q", "p ^ q"]}
+  rows={[
+    ["true", "true", "false", "true", "true", "false"],
+    ["true", "false", "false", "false", "true", "true"],
+    ["false", "true", "true", "false", "true", "true"],
+    ["false", "false", "true", "false", "false", "false"]
+  ]}
+/>
+
+<ContentTable
+  title="Implication and biconditional"
+  headers={["p", "q", "p &rarr; q", "p &harr; q"]}
+  rows={[
+    ["true", "true", "true", "true"],
+    ["true", "false", "false", "false"],
+    ["false", "true", "true", "false"],
+    ["false", "false", "true", "true"]
+  ]}
+/>
+
+The implication column often feels unusual. When `p` is false, the statement "if `p`, then `q`" has not been broken. The table therefore marks both rows beginning with false as true.
+
+### Equivalent expressions
+
+Two expressions are **equivalent** when every row of their truth tables matches.
+
+<ContentTable
+  title="Boolean equivalences"
+  headers={["Name", "First expression", "Equivalent expression", "Use in code"]}
+  rows={[
+    ["Double negation", "<code>!!p</code>", "<code>p</code>", "Remove a repeated negation"],
+    ["Identity", "<code>p &amp;&amp; true</code><br /><code>p || false</code>", "<code>p</code><br /><code>p</code>", "Remove a value that cannot change the result"],
+    ["Domination", "<code>p &amp;&amp; false</code><br /><code>p || true</code>", "<code>false</code><br /><code>true</code>", "Find a condition whose result is already fixed"],
+    ["De Morgan's first law", "<code>!(p &amp;&amp; q)</code>", "<code>!p || !q</code>", "Negate an AND condition"],
+    ["De Morgan's second law", "<code>!(p || q)</code>", "<code>!p &amp;&amp; !q</code>", "Negate an OR condition"],
+    ["Implication", "<code>p &rarr; q</code>", "<code>!p || q</code>", "Express an if-then requirement"],
+    ["Contrapositive", "<code>p &rarr; q</code>", "<code>!q &rarr; !p</code>", "Reason backward from a missing result"]
+  ]}
+/>
+
+De Morgan's laws change both operators: negate each operand, then swap AND with OR or OR with AND.
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        boolean enabled = true;
+        boolean connected = false;
+
+        boolean first = !(enabled && connected);
+        boolean equivalent = !enabled || !connected;
+
+        System.out.println(first);      // true
+        System.out.println(equivalent); // true
+    }
+}
+```
+
+### Implication and its relatives
+
+Start with the statement: "If the robot is enabled, then motor output is allowed."
+
+<ContentTable
+  title="Statements related to an implication"
+  headers={["Form", "Symbol", "Robot statement", "Equivalent to the original?"]}
+  rows={[
+    ["Original", "<code>p &rarr; q</code>", "If enabled, output is allowed", "Yes"],
+    ["Contrapositive", "<code>!q &rarr; !p</code>", "If output is not allowed, the robot is not enabled", "Yes"],
+    ["Converse", "<code>q &rarr; p</code>", "If output is allowed, the robot is enabled", "Not necessarily"],
+    ["Inverse", "<code>!p &rarr; !q</code>", "If the robot is not enabled, output is not allowed", "Not necessarily"]
+  ]}
+/>
+
+Only the contrapositive is guaranteed to match the original implication. The converse and inverse need their own evidence.
+
+### Rules of inference
+
+An **inference rule** combines known statements to reach a conclusion. The table keeps the same order for every rule: premises first, conclusion second, then a programming example.
+
+<ContentTable
+  title="Common inference rules"
+  headers={["Rule", "Premises", "Conclusion", "Programming example"]}
+  rows={[
+    ["Modus ponens", "<code>p &rarr; q</code><br /><code>p</code>", "<code>q</code>", "If the command is scheduled, it executes. The command is scheduled. Therefore, it executes."],
+    ["Modus tollens", "<code>p &rarr; q</code><br /><code>!q</code>", "<code>!p</code>", "If the sensor is connected, it reports data. No data arrived. Therefore, the sensor is not connected, assuming the first premise is complete."],
+    ["Hypothetical syllogism", "<code>p &rarr; q</code><br /><code>q &rarr; r</code>", "<code>p &rarr; r</code>", "If the trigger fires, the command schedules. If it schedules, it requires the subsystem. Therefore, a fired trigger leads to that requirement."],
+    ["Disjunctive syllogism", "<code>p || q</code><br /><code>!p</code>", "<code>q</code>", "The fault is in the cable or sensor. The cable passes its test. Therefore, inspect the sensor."]
+  ]}
+/>
+
+Inference rules are only as reliable as their premises. In the modus tollens sensor example, a delayed packet or a logging error would make the first premise incomplete. Code debugging still requires checking what the program actually guarantees.
+
+### Tautologies and contradictions
+
+<ContentTable
+  headers={["Kind", "Meaning", "Example", "What it suggests in code"]}
+  rows={[
+    ["Tautology", "Always true", "<code>p || !p</code>", "A branch that always runs"],
+    ["Contradiction", "Always false", "<code>p &amp;&amp; !p</code>", "A branch that cannot run"]
+  ]}
+/>
+
+When a long condition is always true or always false, build its truth table. The table exposes the row where an assumption fails or confirms that a branch is unreachable.
+
+### Practice
+
+1. Build a truth table for `ready && (!fault || override)`.
+2. Use De Morgan's laws to rewrite `!(enabled && connected)` without parentheses around an AND expression.
+3. Label each argument as modus ponens, modus tollens, hypothetical syllogism, or disjunctive syllogism.
+4. Explain why the converse of "if the encoder is connected, it reports a position" is not guaranteed.
+
+### References
+
+- [Conditionals](/java/fundamentals/java-conditionals)
+- [Sets and Maps](/java/fundamentals/java-sets-and-maps)
+- [FSC Open Docs](https://github.com/firstsouthcarolina/FSCOpenDocs)
+
+<RulesBox title="Origin">
+
+This lesson expands the Boolean Algebra appendix from [FSC Open Docs](https://github.com/firstsouthcarolina/FSCOpenDocs), written by FIRST South Carolina contributors and used under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). The truth-table and inference-rule structure also follows the topics in Professor Frank Thorne's University of South Carolina MATH 374 course.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "jls", "path": "jls-15.html", "note": "Java logical, conditional, equality, and relational operators."},
+  {"url": "https://github.com/firstsouthcarolina/FSCOpenDocs", "label": "FSC Open Docs", "note": "The Boolean algebra appendix and De Morgan's laws adapted for this lesson."},
+  {"url": "https://thornef.github.io/math374/index.html", "label": "University of South Carolina MATH 374: Discrete Structures", "note": "Course sequence covering truth tables, propositional logic, predicates, equivalences, and inference rules."},
+  {"url": "https://courses.csail.mit.edu/6.042/spring18/", "label": "MIT Mathematics for Computer Science", "note": "Propositions, logical equivalence, and methods of reasoning."}
+]} />

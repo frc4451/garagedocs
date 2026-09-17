@@ -9,9 +9,11 @@ order: 4
 duration: 20 min
 description: "SubsystemBase, periodic(), and a counter subsystem with no hardware: the shape of a subsystem before any wiring."
 ---
+
+
 A **subsystem** is one mechanism on the robot: the drivetrain, the launcher, the intake. Each one is a Java class that owns its hardware, manages its own state, and exposes a small public API.
 
-If you remember [A16: Subsystem-Family Inheritance](/assignments/a16-subsystem-fleet), the shape will be very familiar. WPILib's `SubsystemBase` is the production version of your `Subsystem` class from that assignment.
+A subsystem is a Java class, so the class owns its fields and methods. WPILib's `SubsystemBase` adds the connection to the command scheduler. If inheritance is new, read [Inheritance](/java/fundamentals/java-inheritance#sharing-what-is-common) before continuing. [A16](/java/assignments/a16-subsystem-family) provides extra practice with the same shape.
 
 ---
 
@@ -44,16 +46,16 @@ Every subsystem you write has the same three responsibilities. Holding to them k
 | Job | What it looks like |
 |---|---|
 | **Own its hardware** | `private final` fields for motor controllers, sensors. Initialized in the constructor. Nothing outside the class touches them. |
-| **Expose a small public API** | Methods like `setVoltage(Voltage)`, `getDistance()`. The CALLER says "do this thing", the subsystem decides how. |
+| **Expose a small public API** | Query methods return measurements. Action methods such as `launchFuel()` return a `Command` that already requires the subsystem. |
 | **Run its periodic work** | `@Override periodic()` updates internal state, runs control loops, publishes telemetry. Never reads from joysticks or makes decisions about *what* to do, only *how*. |
 
 What it does **not** do:
 
 - Read joysticks. (Joysticks live in `RobotContainer`, see [R05](/kit-bot/r05-commands-and-triggers).)
-- Decide "should I run now?" (commands answer that).
-- Talk directly to other subsystems. They get composed at the command level.
+- Decide when a command should run. Triggers and autonomous routines schedule the commands.
+- Talk directly to other subsystems. Commands that coordinate several mechanisms compose their subsystem commands outside the subsystems.
 
-This separation is what lets you swap hardware (next batch, R07 / R08), test in isolation, and reason about one mechanism without dragging in the rest of the robot.
+This separation is what lets you swap hardware (next batch, R07 / R08), test in isolation, and reason about one mechanism without dragging in the rest of the robot. R05 adds command-returning methods to `Heartbeat`; R08 uses the same pattern for `Launcher.launchFuel()`.
 
 ---
 
@@ -147,7 +149,7 @@ If the prints don't start at all, the most common cause is the subsystem isn't b
 
 ### What a real subsystem will look like
 
-Sneak peek of where this is going. By R08 your `Drive` subsystem will look roughly like:
+Sneak peek of where this is going. By R07 your `Drive` subsystem will look roughly like:
 
 ```java
 public class Drive extends SubsystemBase {
@@ -179,18 +181,18 @@ Three additions to today's heartbeat:
 2. State variables (`leftVoltage`, `rightVoltage`): the desired output, updated by the public API. Typed as `Voltage`, not `double`, using [WPILib's Units library](/kit-bot/r03-constants) you'll see everywhere from R07 onward.
 3. A meaningful public method, `arcadeDrive(speed, rotation)`, that commands call. `speed`/`rotation` stay plain `double`: dimensionless joystick fractions, not a physical quantity.
 
-Everything else is the same shape as `Heartbeat`. We get there in R07 and R08, the next batch after this one.
+Everything else is the same shape as `Heartbeat`. We get there in R07, then repeat the pattern in R08, the next batch after this one.
 
 ---
 
-### Why subsystems have to be classes, not just methods
+### Why subsystems are classes
 
 A common question is why the motor variables cannot live in `RobotContainer` without the wrapper.
 
 Three reasons:
 
 1. **The scheduler needs to know about them**. The requirements system, "no two commands can use the drivetrain at once", works by name-matching subsystems. Without subsystem objects, no requirements, no safety.
-2. **Encapsulation** ([Classes: Instance Variables and Encapsulation](/java/java-classes#instance-variables-and-encapsulation)). The drivetrain has invariants (max voltage, current limit). The subsystem class is where those get enforced. Public field access bypasses them.
+2. **Encapsulation** ([Classes: Instance Variables and Encapsulation](/java/fundamentals/java-classes#instance-variables-and-encapsulation)). The drivetrain has invariants (max voltage, current limit). The subsystem class is where those get enforced. Public field access bypasses them.
 3. **Swappability**. With the IO pattern (coming up in R07), you can swap real hardware for a sim implementation. That swap happens at subsystem construction time. Without a class, there's nothing to swap.
 
 ---
@@ -222,7 +224,7 @@ That's the shape every subsystem will follow.
 
 ---
 
-<RulesBox title="Evaluate in simulation">
+<RulesBox title="Done when">
 
 Simulate, enable in teleop, and the `Heartbeat` subsystem's tick count rises in the console at 50 Hz. Disable and it keeps ticking, because `periodic` runs regardless of mode. That observation is the point of this module.
 
@@ -230,9 +232,9 @@ Simulate, enable in teleop, and the `Heartbeat` subsystem's tick count rises in 
 
 ### References
 
-- [Inheritance](/java/java-inheritance#sharing-what-is-common): `extends SubsystemBase` is plain Java inheritance
-- [Abstract Classes](/java/java-abstract-classes#a-template-method) and [Runtime Polymorphism](/java/java-runtime-polymorphism#a-worked-example): `periodic()` is a method the parent calls; subclasses override it
-- [A16: Subsystem-Family Inheritance](/assignments/a16-subsystem-fleet): the assignment that built this pattern in miniature
+- [Inheritance](/java/fundamentals/java-inheritance#sharing-what-is-common): `extends SubsystemBase` is plain Java inheritance
+- [Abstract Classes](/java/fundamentals/java-abstract-classes#a-template-method) and [Runtime Polymorphism](/java/fundamentals/java-runtime-polymorphism#a-worked-example): `periodic()` is a method the parent calls; subclasses override it
+- [A16: Subsystem-Family Inheritance](/java/assignments/a16-subsystem-family): the assignment that built this pattern in miniature
 - WPILib: [Subsystems](https://docs.wpilib.org/en/stable/docs/software/commandbased/subsystems.html)
 - WPILib JavaDoc: [`SubsystemBase`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/SubsystemBase.html)
 - WPILib JavaDoc: [`Subsystem`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/Subsystem.html) (the interface `SubsystemBase` implements)

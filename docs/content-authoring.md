@@ -10,6 +10,7 @@ How to add and edit GarageDocs pages. Follow [Documentation style](documentation
 | `src/content/java/` | Java training lessons |
 | `src/content/assignments/` | Practice assignments |
 | `src/content/kit-bot/` | Kit Bot curriculum |
+| `src/content/badges/` | Badge sign-off paths that map the other sections onto the team's year-by-year badges |
 | `src/content/frc/` | FRC robotics lessons |
 | `src/content/homepage/` | Homepage copy |
 | `src/content/references/` | Project sources, authorship and credits |
@@ -21,8 +22,13 @@ Each lesson is one `.mdx` file. Sidebar navigation is built from frontmatter —
 ```yaml
 ---
 title: Branching and Merging          # Display title
-lessonId: branching-merging           # URL slug: /tools/branching-merging
-section: tools                        # tools | java | assignments | kit-bot | frc (nav order)
+lessonId: branching-merging           # URL slug: /tools/branching-and-merging
+section: tools                        # tools | java | assignments | kit-bot | frc | badges (nav order)
+# lessonId is the title in kebab-case (leading "The" dropped, "&" written as "and"); the
+# file is named after it. Titles are Title Case noun phrases without taglines; a series uses
+# "Series: Item" (Manual Tuning: Flywheel; VS Code: Debugging). Java ids keep the `java-` prefix and
+# Practice ids the `aNN-` prefix (both are also the JavaPlayground exercise ids in
+# src/lib/java-playground/catalog). Renaming an id needs a redirect in astro.config.mjs.
 group: version-control                # Sidebar group id (lessons with same group nest together)
 groupLabel: "Version Control with Git & GitHub"  # Sidebar group label
 groupOrder: 5                         # Sidebar group sort order
@@ -63,8 +69,8 @@ Every heading gets an `id` slugified from its text (`### Working with Branches` 
 `#working-with-branches`) and is rendered as a link to itself
 (`scripts/rehype-heading-links.mjs`), so a reader can click a section title to put its
 anchor in the address bar. **When a cross-reference is about one section, link to the
-section, not the page**: `[Conflict Resolution](/tools/branching-merging#conflict-resolution)`
-rather than `[Branching and Merging](/tools/branching-merging)`. Link the page when the
+section, not the page**: `[Conflict Resolution](/tools/branching-and-merging#conflict-resolution)`
+rather than `[Branching and Merging](/tools/branching-and-merging)`. Link the page when the
 whole lesson is meant (the `**Cites:**` line on an assignment, a "read this first"). The
 same works in LinkGrid `url` entries. Renaming a heading changes its id; the site-wide
 link check after a build reports fragments that no longer resolve.
@@ -142,7 +148,7 @@ For external URLs, use `url` instead of `id`:
 
 ### Sources
 
-Every lesson (Tools, Java, Practice, Kit Bot, FRC; section overviews exempt) ends with a `<Sources>` block, placed before the closing `LinkGrid`: the
+Every lesson (Tools, Java, Practice, Kit Bot, FRC, Badges; section overviews exempt) ends with a `<Sources>` block, placed before the closing `LinkGrid`: the
 documentation pages, Javadoc entries and team-repository files the page was written
 against, each with a note saying what the page took from it. Point at the specific page
 or file, never a docs home page.
@@ -155,7 +161,7 @@ or file, never a docs home page.
 ]} />
 ```
 
-`source` is an id from `src/data/sources.ts` (`mantik`, `mantik-orange`, `cobra`, `riptide`, `ember`, `mech-adv` for the Team 6328 classes Cobra reuses, `wpilib`, `wpilib-javadoc`,
+`source` is an id from `src/data/sources.ts` (`mantik`, `mantik-orange`, `cobra`, `riptide`, `ember`, `mech-adv-2024`, `mech-adv`, and `mech-adv-2026` for the Team 6328 classes GarageDocs compares across seasons, `gompeilib` for Team 190's mechanism components, `wpilib`, `wpilib-javadoc`,
 `ctre`, `ctre-javadoc`, `rev`, `revlib`, `photonvision`, `photonlib-javadoc`, `questnav`,
 `thrifty`, `advantagekit`, `advantagescope`, `pathplanner`, `choreo`, `bline`, `maple-sim`,
 `first-manual`, `java-api`, `jls`, `dev-java`, `java-tutorial`, `csce145`, `csce146`, `git`,
@@ -207,6 +213,8 @@ The lesson appears in the sidebar automatically when `group` / `groupOrder` / `o
 ## Adding a new sidebar module
 
 Use the same `group` and `groupLabel` on all lessons in the module. Set `groupOrder` to position the module relative to others in that section.
+
+Broad curriculum parts are presentation labels rather than content groups. The Java, Badges, and FRC part labels are assigned in `src/lib/content.ts`. When adding or moving the first module in one of those parts, update the matching part-label map so the sidebar heading stays attached to the correct module.
 
 ## Adding a new curriculum section
 

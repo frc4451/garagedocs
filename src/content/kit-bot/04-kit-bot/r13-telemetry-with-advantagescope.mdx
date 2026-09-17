@@ -1,5 +1,5 @@
 ---
-title: "R13: Telemetry with AdvantageScope"
+title: "R13: Telemetry, Part 1: AdvantageScope"
 lessonId: r13-telemetry-with-advantagescope
 section: kit-bot
 group: kit-bot
@@ -7,291 +7,122 @@ groupLabel: "Phase 4: Kit Bot Integration"
 groupOrder: 4
 order: 13
 duration: 25 min
-description: "DoublePublisher, DataLogManager.start(), and reading it all back in the AdvantageScope viewer."
----
-Every previous module ended with "the console doesn't print anything yet". This is where that ends. You're going to publish your subsystems' state to NetworkTables and disk, then open AdvantageScope to see what your robot is actually doing.
-
-We use AdvantageScope instead of SmartDashboard/Shuffleboard for three reasons:
-
-1. **Better visualisation.** Field views, plots, mechanism rendering. The widgets you'd want in 2026, not the widgets that existed in 2014.
-2. **Log replay.** AdvantageScope reads a `.wpilog` file as well as live NetworkTables. After a match, you can scrub through every second of telemetry. SmartDashboard is live-only.
-3. **No widget JSON files to commit.** AdvantageScope's layouts are user files, not project files. No more "your dashboard moved my chart" merge conflicts.
-
-The plumbing is the same either way: publish to NetworkTables, log to disk. SmartDashboard reads NT; AdvantageScope reads NT *and* WPILOG files. We're just picking the better viewer.
-
+description: Publish the feeder and intake-launcher readings through NetworkTables, graph them in AdvantageScope, and save a WPILOG.
 ---
 
-### The data path
 
-```
-your subsystem  ──┐
-                  ├──> NetworkTables  ──┬──> AdvantageScope (live, while sim is running)
-                  │                     │
-                  └──> DataLogManager ──┴──> .wpilog file on disk ──> AdvantageScope (replay)
-```
+Telemetry is data the robot sends out so you can inspect its behavior. The feeder and intake-launcher motor each publish RPM, current, and applied voltage. Seeing both sets of values is how you confirm that launch spins the roller before the feeder changes to its full launch output.
 
-Two destinations, one source. You publish once; both viewers get it.
+**NetworkTables** carries named values between robot code and tools on the driver-station computer. A name such as `Launcher/Feeder/velocityRPM` identifies one value. The code publishes a new number every robot tick.
 
----
+### Step 1: start the log
 
-### Step 1: start the logger
-
-In `Robot.robotInit`:
+Add these two lines near the start of `Robot.robotInit()`, before constructing `RobotContainer`:
 
 ```java
-import edu.wpi.first.wpilibj.DataLogManager;
-import edu.wpi.first.wpilibj.DriverStation;
-
-@Override
-public void robotInit() {
-    DataLogManager.start();                            // start the WPILOG
-    DriverStation.startDataLog(DataLogManager.getLog()); // include DS data in the log
-    m_robotContainer = new RobotContainer();
-}
+DataLogManager.start();
+DriverStation.startDataLog(DataLogManager.getLog());
 ```
 
-`DataLogManager.start()` opens a `.wpilog` file on the roboRIO's USB stick (or the project root, in sim) and starts logging anything published to NetworkTables. `DriverStation.startDataLog` adds driver-station data (joystick positions, match time, alliance colour) to the same file.
+Add imports for `DataLogManager` and `DriverStation`.
 
-That's the entire setup. Nothing else needs changing in `Robot.java`.
+`DataLogManager` saves a `.wpilog` file. In simulation, the file is stored on the computer. `DriverStation.startDataLog` adds controller and Driver Station information to the same log.
 
----
+### Step 2: open publishers once
 
-### Step 2: publish values from your subsystems
-
-The pattern is "open a publisher once, set a value every tick." Open the publishers as `private final` fields; set them in `periodic()`.
-
-Here's the launcher subsystem with telemetry added:
+Add these fields to `Launcher`:
 
 ```java
-package frc.robot.subsystems.launcher;
+private final NetworkTable table =
+    NetworkTableInstance.getDefault().getTable("Launcher");
 
-import edu.wpi.first.networktables.DoublePublisher;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.units.measure.AngularVelocity;
-import edu.wpi.first.units.measure.Current;
-import edu.wpi.first.units.measure.Voltage;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import static edu.wpi.first.units.Units.Amps;
-import static edu.wpi.first.units.Units.RPM;
-import static edu.wpi.first.units.Units.Volts;
+private final DoublePublisher feederVelocityPublisher =
+    table.getDoubleTopic("Feeder/velocityRPM").publish();
+private final DoublePublisher feederCurrentPublisher =
+    table.getDoubleTopic("Feeder/currentAmps").publish();
+private final DoublePublisher feederVoltagePublisher =
+    table.getDoubleTopic("Feeder/appliedVolts").publish();
 
-public class Launcher extends SubsystemBase {
-
-    private final LauncherIO io;
-    private final LauncherIO.LauncherInputs inputs = new LauncherIO.LauncherInputs();
-
-    private Voltage targetVoltage = Volts.of(0);
-
-    // ---- telemetry publishers ----
-    private final NetworkTable table = NetworkTableInstance.getDefault().getTable("Launcher");
-    private final DoublePublisher velocityPub  = table.getDoubleTopic("velocityRPM").publish();
-    private final DoublePublisher currentPub   = table.getDoubleTopic("currentAmps").publish();
-    private final DoublePublisher appliedPub   = table.getDoubleTopic("appliedVolts").publish();
-    private final DoublePublisher targetPub    = table.getDoubleTopic("targetVolts").publish();
-
-    public Launcher(LauncherIO io) {
-        this.io = io;
-    }
-
-    @Override
-    public void periodic() {
-        io.updateInputs(inputs);
-        io.setVoltage(targetVoltage);
-
-        velocityPub.set(inputs.velocity.in(RPM));
-        currentPub.set(inputs.current.in(Amps));
-        appliedPub.set(inputs.appliedVoltage.in(Volts));
-        targetPub.set(targetVoltage.in(Volts));
-    }
-
-    public void runAt(Voltage volts)      { targetVoltage = volts; }
-    public void stop()                    { targetVoltage = Volts.of(0); }
-    public AngularVelocity velocity()     { return inputs.velocity; }
-    public Current current()              { return inputs.current; }
-}
+private final DoublePublisher launcherVelocityPublisher =
+    table.getDoubleTopic("IntakeLauncher/velocityRPM").publish();
+private final DoublePublisher launcherCurrentPublisher =
+    table.getDoubleTopic("IntakeLauncher/currentAmps").publish();
+private final DoublePublisher launcherVoltagePublisher =
+    table.getDoubleTopic("IntakeLauncher/appliedVolts").publish();
 ```
 
-What's happening:
+Add imports for `NetworkTable`, `NetworkTableInstance`, and `DoublePublisher`.
 
-- **`NetworkTableInstance.getDefault().getTable("Launcher")`**: gets the top-level table named `Launcher` (it's created if it doesn't exist).
-- **`table.getDoubleTopic("velocityRPM").publish()`**: opens a publisher for the `Launcher/velocityRPM` topic. Returns a `DoublePublisher` you can call `set` on every tick.
-- **`velocityPub.set(...)` in `periodic()`**: publishes the current value. Visible in AdvantageScope immediately.
-- **`inputs.velocity.in(RPM)`, not `inputs.velocity`**: `DoublePublisher.set` takes a bare `double`, NetworkTables (like REVLib) predates the Units library and doesn't know what a `Voltage` or an `AngularVelocity` is. This is the same "unwrap at the boundary" rule as R07 and R08, applied to a third boundary: REVLib, the sim classes, and now NetworkTables. The topic *name* (`"velocityRPM"`) is your only remaining record of which unit got published, since the wire format is just a number, so name topics after the unit you unwrapped to and keep that choice consistent.
+The fields are created once with the subsystem. Do not call `publish()` inside `periodic()`.
 
-`set` is cheap. Calling it at 50 Hz on a handful of values is no problem. Calling it on hundreds of values is also fine on modern hardware.
+The topic paths keep each motor's readings together. A student inspecting `Launcher/Feeder` knows those three values came from the feeder controller, while `Launcher/IntakeLauncher` came from the other controller.
 
----
+### Step 3: set the values every tick
 
-### Step 3: publish the robot pose for the field view
-
-The killer AdvantageScope feature is the field viewer, a 2D rendering of the robot on the field. To use it, you publish a `Pose2d`.
-
-`Drive` doesn't track pose yet. Add a [`DifferentialDriveOdometry`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/kinematics/DifferentialDriveOdometry.html) that integrates the position readings every tick. You'll also need a heading; for that, add one field to `DriveIO.DriveInputs`:
+Add these lines at the end of `Launcher.periodic()`:
 
 ```java
-import edu.wpi.first.units.measure.MutAngle;
-import static edu.wpi.first.units.Units.Degrees;
+feederVelocityPublisher.set(inputs.feederVelocity.in(RPM));
+feederCurrentPublisher.set(inputs.feederCurrent.in(Amps));
+feederVoltagePublisher.set(inputs.feederAppliedVoltage.in(Volts));
 
-final class DriveInputs {
-    // ... existing fields ...
-    public final MutAngle heading = Degrees.mutable(0);
-}
+launcherVelocityPublisher.set(
+    inputs.intakeLauncherVelocity.in(RPM));
+launcherCurrentPublisher.set(
+    inputs.intakeLauncherCurrent.in(Amps));
+launcherVoltagePublisher.set(
+    inputs.intakeLauncherAppliedVoltage.in(Volts));
 ```
 
-In `DriveIOSim.updateInputs` add:
+`DoublePublisher` accepts a primitive `double`, so each measure is converted to the unit named by its topic with `.in(...)`.
 
-```java
-inputs.heading.mut_replace(sim.getHeading().getDegrees(), Degrees);
-```
+### Step 4: graph the values
 
-`Rotation2d.getDegrees()` is still a bare `double`, `Rotation2d` predates the Units library too, so this is the same boundary conversion you've done twice already this module.
+1. Open AdvantageScope with `WPILib: Start Tool`.
+2. Select **File → Connect to Simulator → Default**.
+3. Add a Line Graph tab.
+4. Add all three values from `Launcher/Feeder`.
+5. Add all three values from `Launcher/IntakeLauncher`.
+6. Enable teleop. Hold the left bumper to intake, the right bumper to launch, and A to eject.
 
-In `DriveIOReal.updateInputs`, leave it alone: the field's already zeroed by `Degrees.mutable(0)`, and the stock Kit Bot has no gyro to report anything else. (Adding a real gyro is one of the first upgrades teams make after getting basic drive working.)
+Look for these behaviors:
 
-Now teach the subsystem to track pose:
+- Intake and eject move both motors and reverse the fuel path.
+- The intake-launcher voltage changes immediately when launch starts.
+- The feeder uses its spin-up voltage first, then changes to its full launch voltage.
+- Releasing any button returns both applied-voltage topics to zero.
 
-```java
-package frc.robot.subsystems.drive;
+The two RPM traces do not need to match. The motors do different jobs and are not followers.
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.kinematics.DifferentialDriveOdometry;
-import edu.wpi.first.networktables.DoublePublisher;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StructPublisher;
-import edu.wpi.first.units.measure.Voltage;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import static edu.wpi.first.units.Units.Degrees;
-import static edu.wpi.first.units.Units.Meters;
-import static edu.wpi.first.units.Units.MetersPerSecond;
-import static edu.wpi.first.units.Units.Volts;
+### Match the graph to video
 
-public class Drive extends SubsystemBase {
+On real hardware, record the mechanism from the side while AdvantageScope records the same run. Use the video to mark when fuel enters the feeder and touches the intake and launcher roller. Compare those moments with both RPM traces. A dip in one trace tells you which roller took on the load.
 
-    private final DriveIO io;
-    private final DriveIO.DriveInputs inputs = new DriveIO.DriveInputs();
-    private Voltage leftVoltage  = Volts.of(0);
-    private Voltage rightVoltage = Volts.of(0);
+The [YETI Robotics 2026 build thread](https://www.chiefdelphi.com/t/frc-3506-yeti-robotics-2026-build-thread/511666) shows repeated-shot testing with motor-speed evidence on a Kit Bot. Use its graphs as an example of the question to ask, not as a target value for your robot.
 
-    private final DifferentialDriveOdometry odometry =
-        new DifferentialDriveOdometry(Rotation2d.kZero, 0.0, 0.0);
+### Open a saved log
 
-    // ---- telemetry ----
-    private final NetworkTable table = NetworkTableInstance.getDefault().getTable("Drive");
-    private final DoublePublisher leftPosPub  = table.getDoubleTopic("leftPositionMeters").publish();
-    private final DoublePublisher rightPosPub = table.getDoubleTopic("rightPositionMeters").publish();
-    private final DoublePublisher leftVelPub  = table.getDoubleTopic("leftVelocityMps").publish();
-    private final DoublePublisher rightVelPub = table.getDoubleTopic("rightVelocityMps").publish();
-    private final StructPublisher<Pose2d> posePub =
-        table.getStructTopic("pose", Pose2d.struct).publish();
+Stop simulation and find the new `.wpilog` file. Open it in AdvantageScope. The same six values should be available for playback even though robot code is no longer running.
 
-    public Drive(DriveIO io) {
-        this.io = io;
-    }
+### Troubleshooting
 
-    @Override
-    public void periodic() {
-        io.updateInputs(inputs);
-        io.setVoltages(leftVoltage, rightVoltage);
+- **The Launcher table is missing:** confirm simulation is running and AdvantageScope is connected to the simulator.
+- **Only one motor changes:** confirm `Launcher.periodic()` sends both target voltages and publishes both input groups.
+- **Feeder and launcher traces are identical:** check for an accidental `.follow(...)` configuration or a copied topic path.
+- **No log file appears:** confirm `DataLogManager.start()` runs from `robotInit()`.
+- **A graph has the wrong scale:** confirm the topic name and `.in(...)` conversion use the same unit.
 
-        odometry.update(
-            Rotation2d.fromDegrees(inputs.heading.in(Degrees)),
-            inputs.leftPosition.in(Meters),
-            inputs.rightPosition.in(Meters));
+<RulesBox title="Done when">
 
-        leftPosPub.set(inputs.leftPosition.in(Meters));
-        rightPosPub.set(inputs.rightPosition.in(Meters));
-        leftVelPub.set(inputs.leftVelocity.in(MetersPerSecond));
-        rightVelPub.set(inputs.rightVelocity.in(MetersPerSecond));
-        posePub.set(odometry.getPoseMeters());
-    }
-
-    // ... arcadeDrive, stop, getters unchanged ...
-}
-```
-
-A few things to absorb:
-
-- **`StructPublisher<Pose2d>`** for the pose. WPILib publishes structured types (Pose2d, ChassisSpeeds, etc.) over a binary "struct" topic; AdvantageScope deserialises them automatically. `Pose2d` itself isn't part of the Units library, `posePub.set(odometry.getPoseMeters())` needs no `.in(...)` call.
-- **`Pose2d.struct`**: the schema. Every WPILib geometry/kinematics type has a static `struct` field; AdvantageScope and the WPILOG format know how to read them.
-- **`odometry.update` still takes a `Rotation2d` and two bare `double` distances.** `DifferentialDriveOdometry` is a math/kinematics class, same generation as `DifferentialDrivetrainSim`, not yet retrofitted with typed overloads. `.in(Degrees)` and `.in(Meters)` unwrap right at the call, a fourth boundary in this module alone (REVLib, the sim classes, NetworkTables, and now WPILib's own older math classes).
-- **The publishers are `private final`** opened once. Opening a new publisher every tick would leak handles.
-
----
-
-### Step 4: open AdvantageScope
-
-While the sim is running:
-
-1. Open AdvantageScope: *WPILib: Start Tool* → *AdvantageScope* in VS Code, or the shortcut in `wpilib/2026/tools`. It was installed with WPILib in R00.
-2. **File → Connect to Simulator** (the sim runs on your machine; *Connect to Robot* would look for `10.TE.AM.2`).
-3. AdvantageScope shows the field viewer on the right and a list of NetworkTables topics on the left. Expand the `Launcher` and `Drive` tables; you should see the values you published.
-4. Drag `Drive/pose` onto the field viewer. A robot icon appears at (0, 0). Drive around in sim; the icon moves on the field.
-5. Drag `Drive/leftVelocityMps` and `Drive/rightVelocityMps` onto the line graph. They climb when you push the stick forward, fall when you release.
-
-For log replay: AdvantageScope's **File → Open** loads a `.wpilog` file. The `DataLogManager.start()` line you added saves logs to the project's `logs/` directory in sim and to the USB stick on a real robot. Open one after a sim run; the same plots and field view replay, scrubbable.
-
----
-
-### Try it
-
-The exercise is the AdvantageScope tour above. After it works, build something more interesting:
-
-- A line plot of left vs right velocity. Drive in a turn. Watch the two lines separate.
-- Stack `targetVolts` and `appliedVolts` on the same chart. They should be identical when the motor is unloaded, but appliedVolts will sag below targetVolts under heavy load (the sim models this).
-- Sit the robot still and spam the right bumper to bring the launcher up. Watch the `Launcher/currentAmps` spike at start, then settle.
-
-These reads are how every PID tune, every encoder check, every "wait why is the robot doing that" debug session starts. Get used to them.
-
----
-
-### What you've now built
-
-The complete Phase 4 stack:
-
-- IOs that publish nothing but raw values to a clean inputs struct.
-- Subsystems that consume the inputs, run control logic, and publish telemetry.
-- An R11 default command that reads sticks and drives.
-- A real-vs-sim runtime selector (R12).
-- An AdvantageScope view of every subsystem's state.
-- Practice unwrapping typed measures at every raw-`double` boundary you'll actually hit: REVLib, WPILib's older sim/math classes, and now NetworkTables.
-
-The only thing missing for a working Kit Bot is autonomous. That's R14.
-
----
-
-<RulesBox title="Evaluate in simulation">
-
-AdvantageScope connected to the simulator, three things on screen: the robot's pose tracking on the 2D Field as you drive, `Drive/leftVelocityMps` and `Drive/rightVelocityMps` separating on a line graph in a turn, and `Launcher/currentAmps` spiking when the launcher spins up. Export the layout; it is the capstone's.
+AdvantageScope shows separate RPM, current, and applied-voltage topics for the feeder and intake-launcher motors. A launch graph shows the spin-up phase, the feeder transition, and both outputs returning to zero. The same topics open from a saved WPILOG.
 
 </RulesBox>
 
-### References
-
-- [AdvantageScope documentation](https://docs.advantagescope.org/): comprehensive
-- [AdvantageScope Live Sources](https://docs.advantagescope.org/overview/live-sources/): sim, real robot, Driver Station
-- Tools section: [Getting Around AdvantageScope](/tools/advantagescope-tour), [Poses on the Field](/tools/advantagescope-field), [Controllers and the Console](/tools/advantagescope-controllers-and-console): the tabs in depth, including why joystick data only appears when `DriverStation.startDataLog` is called
-- WPILib: [Robot Telemetry with NetworkTables](https://docs.wpilib.org/en/stable/docs/software/networktables/networktables-intro.html)
-- WPILib: [On-Robot Telemetry Recording into DataLogs](https://docs.wpilib.org/en/stable/docs/software/telemetry/datalog.html)
-- WPILib: [Differential Drive Odometry](https://docs.wpilib.org/en/stable/docs/software/kinematics-and-odometry/differential-drive-odometry.html)
-- WPILib JavaDoc: [`NetworkTableInstance`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/networktables/NetworkTableInstance.html)
-- WPILib JavaDoc: [`DoublePublisher`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/networktables/DoublePublisher.html)
-- WPILib JavaDoc: [`StructPublisher`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/networktables/StructPublisher.html)
-- WPILib JavaDoc: [`DataLogManager`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/DataLogManager.html)
-- WPILib JavaDoc: [`DifferentialDriveOdometry`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/kinematics/DifferentialDriveOdometry.html)
-
 <Sources items={[
-  {"source": "wpilib", "path": "docs/software/networktables/networktables-intro.html", "note": "NetworkTables."},
-  {"source": "wpilib", "path": "docs/software/telemetry/datalog.html", "note": "DataLog."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/networktables/NetworkTableInstance.html", "note": "<code>NetworkTableInstance</code>."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/networktables/DoublePublisher.html", "note": "<code>DoublePublisher</code>."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/networktables/StructPublisher.html", "note": "<code>StructPublisher</code> for a <code>Pose2d</code>."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/DataLogManager.html", "note": "<code>DataLogManager</code>."},
-  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/differential-drive-odometry.html", "note": "Odometry for the pose."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/kinematics/DifferentialDriveOdometry.html", "note": "<code>DifferentialDriveOdometry</code>."},
-  {"source": "advantagescope", "path": "overview/live-sources/", "note": "Connecting AdvantageScope."},
-  {"source": "advantagescope", "path": "tab-reference/line-graph/", "note": "Graphing the values."},
-  {"source": "advantagescope", "path": "tab-reference/2d-field/", "note": "The pose on the field."}
+  {"source": "wpilib", "path": "docs/software/networktables/networktables-intro.html", "note": "NetworkTables and named topics."},
+  {"source": "wpilib", "path": "docs/software/telemetry/datalog.html", "note": "DataLogManager and WPILOG files."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/networktables/DoublePublisher.html", "note": "Publishing double values."},
+  {"source": "advantagescope", "path": "overview/live-sources/", "note": "Connecting to simulation."},
+  {"source": "advantagescope", "path": "tab-reference/line-graph/", "note": "Graphing live values."},
+  {"url": "https://www.chiefdelphi.com/t/frc-3506-yeti-robotics-2026-build-thread/511666", "label": "YETI Robotics 2026 build thread", "note": "Kit Bot launcher testing with video and motor-speed evidence."}
 ]} />

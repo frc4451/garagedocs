@@ -1,0 +1,103 @@
+---
+title: "REV Power Distribution Hub"
+lessonId: rev-power-distribution-hub
+section: hardware
+group: rev-electronics
+groupLabel: REV Electronics
+groupOrder: 5
+order: 4
+difficulty: beginner
+description: "Wire, inspect, configure, and read telemetry from the REV Power Distribution Hub without confusing its channel types or protection limits."
+---
+
+### What the PDH does
+
+The REV Power Distribution Hub, part number `REV-11-1850`, takes battery power after the main breaker and divides it among protected robot circuits. It also measures input voltage and channel current. Its CAN connection sends that data to the roboRIO, while its USB-C connection lets REV Hardware Client inspect and update the device.
+
+The PDH does not choose the correct breaker, wire size, or load for you. Build from the electrical plan and the current FRC rules.
+
+| Output group | Count | Protection | Typical use |
+|---|---:|---|---|
+| High-current channels | 20 | ATO/ATC breaker or fuse, up to 40 A | Motor controllers and other higher-current loads |
+| Low-current channels | 3 | ATM/APM fuse, normally up to 15 A | Controllers and accessories that need a smaller protected branch |
+| Switchable low-current channel | 1 | ATM/APM fuse, up to 15 A continuous | A load that robot code must turn on or off |
+
+Do not select a 40 A breaker just because a high-current channel accepts one. The breaker protects the branch wiring and connected hardware. Use the rating approved for that complete circuit.
+
+### Recognize the connections
+
+- **Main input:** receives battery voltage after the main breaker.
+- **High-current outputs:** channels `0` through `19` use ATO/ATC protection.
+- **Low-current outputs:** channels `20` through `22` use ATM/APM protection.
+- **Switchable output:** channel `23` uses ATM/APM protection and can be controlled in software.
+- **CAN:** reports telemetry and faults and supports firmware updates.
+- **USB-C:** connects the PDH to a computer for inspection and service.
+
+The device can protect itself from reversed input polarity, but REV states that this protection does **not** protect downstream devices. Verify polarity before installing breakers or powering connected hardware.
+
+### Inspect and configure it
+
+1. Disable the robot, open the main breaker, and disconnect the battery.
+2. Compare every planned load, wire size, and protective device with the wiring plan and current FRC rules.
+3. Check the main input polarity, exposed copper, loose strands, and strain relief.
+4. Seat each fuse or breaker in the channel listed on the wiring plan.
+5. Give every wire a controlled tug and label both ends.
+6. Check the CAN connection and decide whether this device should provide the bus's 120-ohm termination.
+7. Connect with USB-C and open REV Hardware Client 2.
+8. Confirm the device, apply approved firmware, and inspect current and sticky faults.
+9. Power-cycle the robot and confirm that the PDH communicates over CAN.
+10. Save the final channel map with the robot's electrical documentation.
+
+Do not use thread-locking fluid on PDH mounting hardware. REV identifies the enclosure as ABS plastic and warns that thread locker damages it.
+
+### Read PDH data in Java
+
+WPILib's `PowerDistribution` class can read the PDH over CAN. A REV unit at the default module number uses module `1`.
+
+```java
+import edu.wpi.first.wpilibj.PowerDistribution;
+import edu.wpi.first.wpilibj.PowerDistribution.ModuleType;
+
+private final PowerDistribution pdh =
+    new PowerDistribution(1, ModuleType.kRev);
+
+public void logPower() {
+    System.out.println("Battery voltage: " + pdh.getVoltage());
+    System.out.println("Total current: " + pdh.getTotalCurrent());
+    System.out.println("Launcher current: " + pdh.getCurrent(7));
+}
+```
+
+Channel `7` is only an example. Replace it with the channel from the robot's wiring map. A current reading is evidence about that branch, so its label must match the physical wire.
+
+### Diagnose a problem from evidence
+
+| Evidence | First checks |
+|---|---|
+| No input voltage on the display | Battery, main breaker, main cables, polarity, and terminal engagement |
+| One channel reports no voltage | Missing or tripped protection, a shorted load, or a loose output wire |
+| CAN warning | CAN polarity, continuity, termination, and duplicate or missing devices |
+| Device-reset sticky fault | Loose battery path, severe voltage drop, or a recent normal power cycle |
+| Current is missing from a channel | Channel mapping, firmware notes, and the PDH's current-sense fault information |
+
+Clear a sticky fault only after recording it and checking its cause. Clearing it removes evidence; it does not repair the circuit.
+
+<RulesBox title="Done when">
+
+The PDH channel map matches the physical robot. Every branch uses an approved wire and protective device. REV Hardware Client 2 shows expected firmware and no unexplained fault. The roboRIO can read voltage and current from the correct labeled channels.
+
+</RulesBox>
+
+<Sources items={[
+  {"url":"https://docs.revrobotics.com/ion-control/pdh/overview","label":"REV: Power Distribution Hub Overview","note":"Part number, channel groups, protection types, WAGO terminals, CAN, USB-C, and telemetry."},
+  {"url":"https://docs.revrobotics.com/ion-control/pdh/specs","label":"REV: Power Distribution Hub Specifications","note":"Voltage limits, channel ratings, wire ranges, CAN termination, polarity warning, and enclosure warning."},
+  {"url":"https://docs.revrobotics.com/rev-hardware-client/ion/power-distribution-hub","label":"REV Hardware Client: Power Distribution Hub","note":"Current RHC2 requirement and fault inspection."},
+  {"url":"https://docs.revrobotics.com/ion-control/pdh/troubleshooting","label":"REV: Power Distribution Hub Troubleshooting","note":"Fault behavior, current-sense limits, recovery, and diagnostic checks."},
+  {"url":"https://docs.wpilib.org/en/stable/docs/software/can-devices/power-distribution-module.html","label":"WPILib: Power Distribution Module","note":"Java construction and voltage, current, temperature, and energy telemetry."}
+]} />
+
+<LinkGrid links={[
+  {"label":"REV Hardware Client 2","id":"rev-hardware-setup"},
+  {"label":"5 V, 12 V, and Current","url":"/hardware/electrical-basics-voltage-current"},
+  {"label":"Power, Wiring, and CAN","url":"/hardware/power-wiring-and-can"}
+]} title="Related lessons" section="hardware" />

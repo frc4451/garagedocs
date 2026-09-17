@@ -1,0 +1,149 @@
+---
+title: "Fused Pose Estimation"
+lessonId: fused-pose-estimation
+section: frc
+group: frc-vision-fusion
+groupLabel: "Vision and Sensor Fusion"
+groupOrder: 15
+order: 3
+difficulty: advanced
+duration: 20 min
+description: "Updating a WPILib pose estimator from synchronized odometry samples and timestamped field-pose observations."
+---
+
+A WPILib pose estimator wraps drivetrain odometry and accepts delayed field-relative pose measurements. Wheel and gyro updates keep the estimate moving. Accepted vision or visual-inertial observations correct error in that estimate.
+
+The drivetrain should own the estimator because it owns the wheel and gyro measurements that advance it.
+
+### Construct the estimator
+
+```java
+SwerveDrivePoseEstimator poseEstimator =
+    new SwerveDrivePoseEstimator(
+        kinematics,
+        gyroHeading,
+        modulePositions,
+        startingPose,
+        VecBuilder.fill(0.1, 0.1, 0.1),
+        VecBuilder.fill(0.9, 0.9, 0.9));
+```
+
+The last two vectors describe x, y, and heading uncertainty:
+
+- Increasing a state standard deviation makes the estimator trust its motion model less.
+- Increasing a vision standard deviation gives that vision measurement less influence.
+- X and Y values use meters.
+- Heading uses radians.
+
+These are model parameters. Choose them from repeatable tests on the robot.
+
+### Advance odometry
+
+Call `update` every robot loop, or `updateWithTime` for explicitly timestamped samples:
+
+```java
+poseEstimator.updateWithTime(
+    sampleTimestampSeconds,
+    gyroHeading,
+    modulePositions);
+```
+
+If the IO layer provides several synchronized samples per loop, apply them in timestamp order. The estimator's current pose is then:
+
+```java
+Pose2d fieldToRobot =
+    poseEstimator.getEstimatedPosition();
+```
+
+### Add each accepted observation once
+
+```java
+while ((observation =
+        visionQueue.poll()) != null) {
+    poseEstimator.addVisionMeasurement(
+        observation.fieldToRobot().toPose2d(),
+        observation.timestampSeconds(),
+        observation.stdDevs());
+}
+```
+
+The timestamp is the time represented by the observation, not the time the drivetrain happened to read it. WPILib retains recent estimator history, applies the correction at the supplied timestamp, and updates the present estimate from that corrected history.
+
+Use the three-argument overload when uncertainty changes by observation. Calling `setVisionMeasurementStdDevs` before the two-argument overload can work, but it separates the values from the observation they describe.
+
+### Filter before fusion
+
+The pose estimator weights an accepted observation. It does not decide whether a camera result used the wrong tag layout, came from a flexible mount, or lies outside the field.
+
+Reject an observation before fusion when a documented check fails. Examples include an unknown tag, excessive single-tag ambiguity, excessive tested distance, impossible field position, or implausible robot height.
+
+After an observation passes the checks, use standard deviations to express its remaining uncertainty. A close multi-tag observation can receive more influence than a distant single-tag observation without treating either as exact.
+
+### Reset and correct are different operations
+
+Use `resetPosition` when the code has a known pose that should replace the estimator state, such as the selected autonomous starting pose:
+
+```java
+poseEstimator.resetPosition(
+    gyroHeading,
+    modulePositions,
+    autonomousStartPose);
+```
+
+Use `addVisionMeasurement` for normal sensor observations. Repeatedly resetting to camera poses bypasses the estimator's uncertainty and latency handling.
+
+### FRC 4451's queue pattern
+
+Cobra's vision subsystem offers `PoseObservation` records to queues in `BobotState`. `Drive.periodic()` drains those queues after applying the synchronized odometry samples. This ordering gives the estimator current motion history before it processes delayed observations.
+
+The inspected 2026 Cobra source stores a `stdDevs` matrix in each `PoseObservation`, but `Drive.java` currently calls the two-argument `addVisionMeasurement(pose, timestamp)` overload. That means the recorded per-observation values are not passed in those calls.
+
+Treat this as a documented implementation discrepancy:
+
+- The example on this page shows the intended per-observation call.
+- Do not claim that the inspected Cobra drivetrain currently consumes those matrices.
+- Confirm the drivetrain implementation before using Cobra logs to tune the heuristic.
+
+### What to log
+
+Log enough information to distinguish a bad observation from poor weighting:
+
+- Raw odometry pose
+- Fused pose
+- Raw, accepted, and rejected observations
+- Capture timestamp and delivery age
+- Source camera or sensor
+- Tag IDs, count, distance, and ambiguity
+- Estimation method
+- Standard deviations
+- Rejection reason
+
+Plot the poses together. A consistent offset points toward a transform or field-layout problem. Isolated jumps point toward filtering. Slow correction after good observations points toward weighting.
+
+<RulesBox title="Common failures">
+
+- Using the current loop time for a delayed observation
+- Processing only the newest result and dropping unread frames
+- Adding one observation more than once
+- Passing measurements before their corresponding odometry samples
+- Using uncertainty to hide observations that should be rejected
+- Resetting the estimator for every camera update
+- Tuning from a stationary test only
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "mantik", "path": "src/content/frc/frc-pose-estimation/vision-pose-estimation-fusion.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/state-space/state-space-pose-estimators.html", "note": "Estimator construction, state and vision standard deviations, latency compensation."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/estimator/SwerveDrivePoseEstimator.html", "note": "<code>update</code>, <code>updateWithTime</code>, the two <code>addVisionMeasurement</code> overloads, <code>resetPosition</code>, <code>setVisionMeasurementStdDevs</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "Odometry samples first, then the observation queues; the two-argument <code>addVisionMeasurement</code> call noted on this page."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "The global, constrained and trig observation queues and the published poses."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/VisionTypes.java", "note": "<code>PoseObservation</code> and the <code>stdDevs</code> it carries."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Vision Subsystem","id":"vision-subsystem"},
+  {"label":"Pose Estimation Calibration","id":"pose-estimation-calibration"},
+  {"label":"WPILib Pose Estimators","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/state-space/state-space-pose-estimators.html"},
+  {"label":"SwerveDrivePoseEstimator API","url":"https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/estimator/SwerveDrivePoseEstimator.html"}
+]} title="Next" section="frc" />

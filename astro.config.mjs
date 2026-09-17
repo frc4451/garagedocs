@@ -26,6 +26,11 @@ function normalizeBase(value) {
   if (!trimmed || trimmed === '/') return '/';
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 }
+
+/** Add the deployment base to a site-root-relative path. */
+function withBase(path) {
+  return BASE === '/' ? path : `${BASE}${path}`;
+}
 // Astro default 4321 falls in Windows excluded range 4239–4338 (Hyper-V/WSL) → EACCES on bind.
 const DEV_PORT = 5173;
 const DEV_HOST = '127.0.0.1';
@@ -35,6 +40,121 @@ export default defineConfig({
   site: SITE,
   base: BASE,
   output: 'static',
+  // Preserve links created before Phase 3 was reordered to teach the drivetrain first.
+  redirects: {
+    // Hardware moved from the FRC subsection to its own top-level curriculum.
+    '/frc/hardware-control-system': withBase('/hardware/hardware-control-system'),
+    '/frc/electrical-basics-voltage-current': withBase('/hardware/electrical-basics-voltage-current'),
+    '/frc/power-wiring-and-can': withBase('/hardware/power-wiring-and-can'),
+    '/frc/roborio-and-ni-tools': withBase('/hardware/roborio-and-ni-tools'),
+    '/frc/ctre-hardware-setup': withBase('/hardware/ctre-hardware-setup'),
+    '/frc/west-coast-products-motors': withBase('/hardware/west-coast-products-motors'),
+    '/frc/rev-hardware-setup': withBase('/hardware/rev-hardware-setup'),
+    '/frc/thrifty-bot-hardware-and-config': withBase('/hardware/thrifty-bot-hardware-and-config'),
+    '/frc/andymark-kitbot-hardware': withBase('/hardware/andymark-kitbot-hardware'),
+    '/frc/vivid-hosting-radio': withBase('/hardware/vivid-hosting-radio'),
+    '/frc/pololu-voltage-regulators': withBase('/hardware/pololu-voltage-regulators'),
+    '/frc/photonvision-coprocessors': withBase('/hardware/photonvision-coprocessors'),
+    '/frc/arducam-cameras': withBase('/hardware/cameras'),
+    '/hardware/arducam-cameras': withBase('/hardware/cameras'),
+    '/frc/quest-3s-and-questnav': withBase('/hardware/quest-3s-and-questnav'),
+    '/frc/zebraswitch': withBase('/hardware/zebraswitch'),
+    '/frc/hardware-bring-up-checklist': withBase('/hardware/hardware-bring-up-checklist'),
+    '/kit-bot/r08-drive-io': withBase('/kit-bot/r07-drive-io'),
+    '/kit-bot/r08-drive-io-part-2': withBase('/kit-bot/r07-drive-io-part-2'),
+    '/kit-bot/r07-launcher-io': withBase('/kit-bot/r08-launcher-io'),
+    '/kit-bot/r07-launcher-io-part-2': withBase('/kit-bot/r08-launcher-io-part-2'),
+    '/kit-bot/r07-launcher-calibration': withBase('/kit-bot/r08-launcher-calibration'),
+    // FRC lesson ids renamed to match their titles (2026-09-16).
+    '/frc/advantagescope': withBase('/frc/reading-a-match-log'),
+    '/frc/advantagescope-sim': withBase('/frc/simulation-in-advantagescope'),
+    '/frc/controllers-and-bindings': withBase('/frc/controllers-and-inputs'),
+    '/frc/frc-code-organization': withBase('/frc/code-organization'),
+    '/frc/frc-pid-control': withBase('/frc/pid-control'),
+    '/frc/frc-programming-resources': withBase('/frc/programming-resources'),
+    '/frc/geometry-classes': withBase('/frc/pose-geometry'),
+    '/frc/intake-command-based': withBase('/frc/command-based-intake'),
+    '/frc/intake-example-robot': withBase('/frc/basic-intake-example'),
+    '/frc/intro-to-command-based': withBase('/frc/introduction-to-command-based'),
+    '/frc/intro-to-motors': withBase('/frc/introduction-to-motors'),
+    '/frc/io-layer': withBase('/frc/io-layers'),
+    '/frc/manual-pid-tuning': withBase('/frc/manual-tuning-introduction'),
+    '/frc/manual-tuning-arm-elevator': withBase('/frc/manual-tuning-arm-and-elevator'),
+    '/frc/math-interpolation': withBase('/frc/math-toolbox-units-and-interpolation'),
+    '/frc/math-toolbox': withBase('/frc/math-toolbox-geometry'),
+    '/frc/motion-magic-why': withBase('/frc/why-motion-magic'),
+    '/frc/motor-config': withBase('/frc/motor-configuration-basics'),
+    '/frc/motor-current-limiting': withBase('/frc/current-limiting'),
+    '/frc/network-troubleshooting': withBase('/frc/robot-network-troubleshooting'),
+    '/frc/odometry': withBase('/frc/wheel-odometry'),
+    '/frc/physics-sim-io': withBase('/frc/physics-in-the-io-layer'),
+    '/frc/pose-estimation-intro': withBase('/frc/introduction-to-pose-estimation'),
+    '/frc/sim-autos': withBase('/frc/autonomous-simulation'),
+    '/frc/sim-vision': withBase('/frc/vision-simulation'),
+    '/frc/swerve-drive-example': withBase('/frc/swerve-pose-estimation-example'),
+    '/frc/team-robot-code': withBase('/frc/cobra-repository-tour'),
+    '/frc/tunable-constants': withBase('/frc/tunable-constants-and-characterization'),
+    '/frc/unit-tests-in-sim': withBase('/frc/unit-tests-in-simulation'),
+    '/frc/vision-pose-estimation-fusion': withBase('/frc/fused-pose-estimation'),
+    // Tools, Java and Practice ids renamed to match their titles (2026-09-16).
+    '/tools/advantagescope-controllers-and-console': withBase('/tools/advantagescope-controllers-and-the-console'),
+    '/tools/advantagescope-field': withBase('/tools/advantagescope-poses-on-the-field'),
+    '/tools/best-practices': withBase('/tools/version-control-best-practices'),
+    '/tools/branching-merging': withBase('/tools/branching-and-merging'),
+    '/tools/github-account': withBase('/tools/creating-your-github-account'),
+    '/tools/install-git': withBase('/tools/installing-git'),
+    '/tools/intro-version-control': withBase('/tools/introduction-to-version-control'),
+    '/tools/local-workflow': withBase('/tools/local-git-workflow'),
+    '/tools/organizations': withBase('/tools/github-organizations'),
+    '/tools/static-ip': withBase('/tools/setting-a-static-ip'),
+    '/tools/vscode-hotkeys': withBase('/tools/vscode-keyboard-shortcuts'),
+    '/tools/vscode-java': withBase('/tools/vscode-editing-java'),
+    '/tools/vscode-workflow': withBase('/tools/vscode-daily-workflow'),
+    '/java/java-algo-backtracking': withBase('/java/fundamentals/java-backtracking'),
+    '/java/java-algo-bfs': withBase('/java/fundamentals/java-breadth-first-search'),
+    '/java/java-algo-dfs': withBase('/java/fundamentals/java-depth-first-search'),
+    '/java/java-algo-memoization': withBase('/java/fundamentals/java-memoization-and-dynamic-programming'),
+    '/java/java-algo-recursion': withBase('/java/fundamentals/java-recursion'),
+    '/java/java-algo-searching': withBase('/java/fundamentals/java-searching'),
+    '/java/java-algo-shortest-paths': withBase('/java/fundamentals/java-shortest-paths'),
+    '/java/java-algo-sorting': withBase('/java/fundamentals/java-sorting-algorithms'),
+    '/java/java-algo-tree-traversals': withBase('/java/fundamentals/java-tree-traversals'),
+    '/java/java-control': withBase('/java/fundamentals/java-control-structures'),
+    '/java/java-dp-command': withBase('/java/fundamentals/java-command-pattern'),
+    '/java/java-dp-dependency-injection': withBase('/java/fundamentals/java-dependency-injection'),
+    '/java/java-dp-factory-method': withBase('/java/fundamentals/java-factory-methods'),
+    '/java/java-ds-arraylists': withBase('/java/fundamentals/java-arraylists'),
+    '/java/java-ds-arrays': withBase('/java/fundamentals/java-arrays-and-their-trade-offs'),
+    '/java/java-ds-deques': withBase('/java/fundamentals/java-deques'),
+    '/java/java-ds-graphs': withBase('/java/fundamentals/java-graphs'),
+    '/java/java-ds-linked-lists': withBase('/java/fundamentals/java-linked-lists'),
+    '/java/java-ds-queues': withBase('/java/fundamentals/java-queues'),
+    '/java/java-ds-sets-maps': withBase('/java/fundamentals/java-sets-and-maps'),
+    '/java/java-ds-stacks': withBase('/java/fundamentals/java-stacks'),
+    '/java/java-ds-trees': withBase('/java/fundamentals/java-trees'),
+    '/java/java-executors': withBase('/java/fundamentals/java-executors-and-thread-pools'),
+    '/java/java-fn-functions-as-data': withBase('/java/fundamentals/java-functions-as-data'),
+    '/java/java-fn-lambdas': withBase('/java/fundamentals/java-lambdas'),
+    '/java/java-fn-method-references': withBase('/java/fundamentals/java-method-references'),
+    '/java/java-fn-supplier': withBase('/java/fundamentals/java-functional-interfaces'),
+    '/java/java-intro': withBase('/java/fundamentals/java-overview'),
+    '/java/java-objects-references': withBase('/java/fundamentals/java-objects-and-references'),
+    '/java/java-packages': withBase('/java/fundamentals/java-packages-and-project-layout'),
+    '/java/java-race-conditions': withBase('/java/fundamentals/java-race-conditions-and-synchronization'),
+    '/java/java-static-final': withBase('/java/fundamentals/java-static-and-final'),
+    '/java/java-threads-basics': withBase('/java/fundamentals/java-threads-and-concurrency'),
+    '/assignments/a00-setup-git-repository': withBase('/java/assignments/a00-practice-repository-setup'),
+    '/assignments/a02-battery-sanity': withBase('/java/assignments/a02-battery-sanity-check'),
+    '/assignments/a10-shooter-lookup': withBase('/java/assignments/a10-shooter-lookup-table'),
+    '/assignments/a11-robot-class': withBase('/java/assignments/a11-simple-robot-class'),
+    '/assignments/a12-document-robot': withBase('/java/assignments/a12-document-the-robot-class'),
+    '/assignments/a13-reference-semantics': withBase('/java/assignments/a13-reference-semantics-lab'),
+    '/assignments/a14-robot-and-battery': withBase('/java/assignments/a14-robot-and-battery-composition'),
+    '/assignments/a15-match-phase-enum': withBase('/java/assignments/a15-matchphase-enum'),
+    '/assignments/a16-subsystem-fleet': withBase('/java/assignments/a16-subsystem-family'),
+    '/assignments/a19-sort-roster': withBase('/java/assignments/a19-sorting-a-scouting-roster'),
+    '/assignments/a23-ring-buffer': withBase('/java/assignments/a23-generic-ring-buffer'),
+  },
   // GitHub Pages normalizes `/foo` -> `/foo/` for directory-style output, so let
   // the host decide rather than enforcing a form Astro cannot redirect to.
   trailingSlash: 'ignore',
@@ -45,7 +165,18 @@ export default defineConfig({
   integrations: [
     mdx(),
     react(),
-    sitemap(),
+    sitemap({
+      filter(page) {
+        const deployedPath = new URL(page).pathname;
+        const localPath = BASE === '/' || !deployedPath.startsWith(BASE)
+          ? deployedPath
+          : deployedPath.slice(BASE.length) || '/';
+
+        if (localPath === '/assignments' || localPath === '/assignments/' || localPath.startsWith('/assignments/')) return false;
+        if (localPath === '/java' || localPath === '/java/') return true;
+        return !/^\/java\/(?!fundamentals(?:\/|$)|assignments(?:\/|$))/.test(localPath);
+      },
+    }),
   ],
   markdown: {
     // `java norun` on a fence opts an example out of the Run control. The remark
@@ -143,3 +274,6 @@ export default defineConfig({
     },
   },
 });
+
+
+

@@ -60,7 +60,7 @@ public class Main {
     [{ name: 'Two bots', stdout: 'Alpha\nBeta' }],
   ),
   pg(
-    'java-objects-references',
+    'java-objects-and-references',
     'Practice: references',
     `a and b should point at the same Cell. Set a.value to 5, then print b.value.
 
@@ -259,7 +259,7 @@ public class Main {
     [{ name: 'Pair and swap', stdout: 'Robonauts 118\n118 Robonauts' }],
   ),
   pg(
-    'java-static-final',
+    'java-static-and-final',
     'Practice: one counter, many sensors',
     `Give Sensor a static int named built that every constructor increments, and a
 final String named id that is set once in the constructor. main creates three

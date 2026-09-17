@@ -1,10 +1,9 @@
 /**
  * Start the Java runtime as soon as the document is parsed, independently of React.
  *
- * The runnable examples hydrate with `client:idle`, which on a lesson page lands
- * several seconds after navigation. The runtime (CheerpJ, the staged JDK and the
- * compiler server) takes tens of seconds to become ready, so those seconds are
- * pure waiting for the reader. This runs from an inline module in the page head:
+ * The runnable example controls hydrate when the page loads. The runtime (CheerpJ,
+ * the staged JDK and the compiler server) takes longer to become ready, so this
+ * starts that work from an inline module in the page head:
  * it looks for runnable markup, starts the preload, and reports progress in a
  * small toast (`[data-jp-runtime-status]`) that dismisses itself once the runtime
  * is ready, so the reader knows Run will work without the lesson being pushed down.

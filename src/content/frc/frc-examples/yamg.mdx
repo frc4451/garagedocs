@@ -1,78 +1,99 @@
 ---
-title: "YAMG: Generating a Mechanism"
+title: "YAMG as a Starting Point"
 lessonId: yamg
 section: frc
 group: frc-examples
-groupLabel: "Mechanism Examples"
-groupOrder: 7
+groupLabel: "Mechanism Components"
+groupOrder: 11
 order: 1
 difficulty: beginner
 duration: 10 min
-description: "A web form that turns one motor, a gear ratio and a set of limits into a working subsystem: what it is good for, what it is not, and how it fits beside the ROBOTZ Garage library."
+description: "Use YAMG to establish a mechanism's hardware configuration, then decide whether the robot needs a reusable component with an IO boundary."
 ---
 
-### What it is
+YAMG and a component library solve different parts of the same job. [YAMG](https://yamg.yassrobotics.com/) generates a complete subsystem for one elevator, arm, or pivot. A component library provides smaller mechanism objects that a subsystem can combine.
 
-[YAMG](https://yamg.yassrobotics.com/), Yet Another Mechanism Generator, is a browser form. You describe a mechanism and it hands back Java: a command-based subsystem for an **elevator**, an **arm**, or a **pivot**, already wired to the motor controller you named, with limits, ramp rates, current limits and a closed-loop position controller filled in from what you typed.
+Use YAMG when you need to establish the hardware facts first: motor controller, CAN ID, inversion, current limits, gear ratio, travel limits, and the control mode. Keep the generated code as a readable reference. Move those proven values into reusable components when the robot has several mechanisms or needs simulation, replay, and consistent logging.
 
-The generated code is plain WPILib plus the vendor library: Phoenix 6 for a TalonFX or TalonFXS, REVLib for a SparkMax or SparkFlex, ThriftyLib for a Nova. It depends on nothing else. In particular it does **not** depend on YAMS or any other part of the suite it was born in, which is why it is on this list and they are not.
+### Start with the mechanism contract
 
-### What you give it
+Before opening a generator or writing Java, decide what the mechanism controls.
 
 <ContentTable
-  headers={["Field", "What it decides"]}
+  headers={["Mechanism", "Main goal", "Typical control"]}
   rows={[
-    ["Mechanism type", "Elevator, arm or pivot, which decides the feedforward shape and the units the generated code uses"],
-    ["Controller and motor", "TalonFX / TalonFXS / SparkMax / SparkFlex / Nova, and the motor behind it"],
-    ["CAN ID", "The one number that has to match the hardware"],
-    ["Gear ratio", "<em>Motor rotations per mechanism rotation</em>: the conversion between what the encoder counts and what the mechanism does"],
-    ["Brake mode", "Whether the mechanism holds when unpowered"],
-    ["Ramp rates", "Open- and closed-loop, in seconds from zero to full; larger values are gentler"],
-    ["Stator current limit", "The amps that protect the motor and the breaker"]
+    ["Roller", "Effort and direction", "Open-loop voltage or torque current, with no required speed setpoint"],
+    ["Flywheel", "Angular velocity", "Closed-loop velocity with voltage or torque-current output"],
+    ["Pivot", "Angular position", "Profiled position; use cosine gravity compensation only when gravity changes the load"],
+    ["Elevator", "Linear position", "Profiled position with constant gravity compensation"],
+    ["Linear rail", "Linear position", "Profiled position; choose a conversion for the belt, chain, rack, or lead screw"]
   ]}
 />
 
-Every one of those is a number you should have measured or decided before writing any code, and that is the first thing the tool is good for: it is a checklist. If you cannot fill in the gear ratio, you are not ready to write the subsystem, generator or no generator.
+This choice decides the public API. A shooter wheel should accept an `AngularVelocity`. An elevator should accept a `Distance`. A feeder roller should accept a `Voltage` or `Current`. Keeping those types separate prevents a subsystem from accidentally commanding a roller as though it were a flywheel.
 
-### What you get, and what to do with it
+### What YAMG contributes
 
-The output is a subsystem class you can paste into `subsystems/` and run. Read it before you run it. A generated elevator is the clearest example on offer of a correctly configured motor (soft limits set, current limited, brake mode chosen, ramp rates present, a `Slot0` PID), and the configuration block alone is worth studying against [Motor Controller Configuration](/frc/motor-controller-configuration#configuration-code).
+YAMG asks for the details that every real mechanism needs:
 
-Two things to know about where it stops:
+- motor controller and motor model
+- CAN ID and inversion
+- motor rotations per mechanism rotation
+- brake or coast mode
+- current limits and ramp rates
+- position limits for elevators and pivots
+- starter feedback and feedforward gains
 
-- **It is vendor-direct.** The generated class talks to the TalonFX (or Spark) itself. There is no IO interface between the subsystem and the hardware, so there is no simulation implementation to swap in and nothing for AdvantageKit to replay. That is fine for a test rig or an off-season prototype; it is not how the competition robot is built.
-- **The ROBOTZ Garage library already covers these mechanisms.** Cobra's `org.robotzgarage.frc2026` package has `Elevator`, `Pivot` and `SingleRoller` classes built on the IO pattern, with TalonFX, TalonFXS, Nova and simulation implementations of each. For anything that will ride on the robot, start there; see [Reading Our Robot Code](/frc/team-robot-code#one-mechanism-end-to-end). YAMG is the quick answer for a mechanism on a bench, a rookie's first subsystem, or a reference for what a complete motor config looks like.
+The generated class is useful on a test board because it places the configuration, motor object, and command methods in one file. Read each generated setting before enabling hardware. Default gains and limits still need to be checked against the mechanism in front of you.
 
-### A sensible workflow
+### Where a component library begins
 
-1. Fill in the form for the mechanism in front of you. Measure the gear ratio; do not estimate it.
-2. Paste the generated subsystem into a scratch project and drive it from a test command. Confirm direction, soft limits and brake mode on the real hardware.
-3. Read the configuration block and the position-control call until every line makes sense.
-4. If the mechanism is going on the competition robot, rebuild it on the ROBOTZ Garage library's `Elevator` or `Pivot` with an IO implementation, carrying over the numbers you just proved: the gear ratio, the limits, the current limit, the gains.
+Team 190's GompeiLib separates a mechanism into three layers:
 
-The generator saves an hour of typing. The reading is where the learning is.
+1. A component such as `GenericFlywheel`, `GenericRoller`, `Elevator`, or `Arm` owns goals, state, logging, and the mechanism-level API.
+2. An IO interface defines the sensor values and actuator requests the component needs.
+3. A hardware or simulation IO class implements that interface.
 
-<RulesBox title="Common mistakes">
+The component receives its parent `Subsystem`. It does not register as another WPILib subsystem. The parent calls each component's `periodic()` method and creates the commands that require the parent.
 
-- **Gear ratio the wrong way round.** The tool asks for motor rotations per mechanism rotation; a 12:1 reduction is `12`, not `0.083`.
-- **Skipping the soft-limit test.** Generated limits are only as good as the numbers you typed. Jog the mechanism to each end slowly before trusting them.
-- **Shipping the generated class as-is on the robot.** No IO layer means no sim, no replay, and a second copy of hardware-configuration logic that the ROBOTZ Garage library already owns.
-- **Treating the default gains as tuned.** They are placeholders. [PID Tuning Practice](/frc/pid-tuning-practice-setup) is the next step, not an optional one.
+GarageDocs uses that architecture in the next lessons. The examples use 2026 WPILib package names and simplify GompeiLib's 2027-alpha code. They copy the separation of responsibilities rather than asking students to install GompeiLib directly.
+
+### A practical workflow
+
+1. Measure the ratio and travel limits.
+2. Generate the closest YAMG mechanism.
+3. Test inversion, limits, current limits, and sensor units at low output.
+4. Decide whether the mechanism is a roller, flywheel, pivot, elevator, or linear rail.
+5. Put its goals and logging in the matching component.
+6. Put vendor calls in an IO implementation.
+7. Compose components inside the subsystem that represents one robot responsibility.
+8. Add command factories and readiness checks to that parent subsystem.
+
+<RulesBox title="Checks before reuse">
+
+- Confirm that the gear ratio is motor rotations per mechanism rotation.
+- Treat generated gains as starting values.
+- Test both ends of position travel slowly.
+- Keep hardware-specific types inside the IO implementation.
+- Give each component a unique log name when a subsystem owns more than one.
 
 </RulesBox>
 
 <Sources items={[
-  {"url": "https://yamg.yassrobotics.com/", "label": "YAMG: Yet Another Mechanism Generator", "note": "The generator, its inputs and the WPILib + vendor code it emits."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "What a generated elevator or pivot is rebuilt on before it reaches the competition robot."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "The library elevator."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/pivot/Pivot.java", "note": "The library pivot."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "Why generated code cannot plug into the logging and replay setup unchanged."},
-  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/introduction.html", "note": "The simulation the generated project runs in."}
+  {"url": "https://yamg.yassrobotics.com/", "label": "YAMG: Yet Another Mechanism Generator", "note": "Generator inputs and generated mechanism structure."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/generic/flywheel/GenericFlywheel.java", "note": "A reusable mechanism object owned by a parent subsystem."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/generic/roller/GenericRoller.java", "note": "The smaller voltage-controlled roller contract."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/elevator/Elevator.java", "note": "A typed linear-position component."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/arm/Arm.java", "note": "The angular-position component used as the basis for the pivot example."},
+  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "WPILib subsystem ownership and periodic execution."}
 ]} />
 
-<LinkGrid title="Next" section="frc" links={[
-  {"label":"YAMG","url":"https://yamg.yassrobotics.com/"},
-  {"label":"Motor Controller Configuration","id":"motor-controller-configuration"},
-  {"label":"Reading Our Robot Code","id":"team-robot-code"},
-  {"label":"PID Tuning Practice","id":"pid-tuning-practice-setup"}
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Rollers","id":"roller-example"},
+  {"label":"Flywheels","id":"shooter-example"},
+  {"label":"Pivots","id":"pivot-example"},
+  {"label":"Elevators","id":"elevator-example"},
+  {"label":"Linear Rails","id":"linear-rail-example"},
+  {"label":"Composing Mechanism Subsystems","id":"composing-mechanism-subsystems"},
+  {"label":"Open YAMG","url":"https://yamg.yassrobotics.com/"}
 ]} />

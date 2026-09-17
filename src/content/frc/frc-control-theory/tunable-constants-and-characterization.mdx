@@ -1,0 +1,267 @@
+---
+title: "Tunable Constants and Characterization"
+lessonId: tunable-constants-and-characterization
+section: frc
+group: frc-control-theory
+groupLabel: "Control Theory"
+groupOrder: 9
+order: 6
+difficulty: advanced
+duration: 25 min
+description: Changing gains from the dashboard instead of redeploying, measuring feedforward instead of guessing, and reading the result off a graph.
+---
+
+### Deploying To Change A Number Is Too Slow
+
+A deploy takes roughly thirty seconds. Tuning a flywheel takes dozens of small changes. Thirty seconds each is most of a practice session spent watching a progress bar.
+
+The fix is a wrapper that reads a constant from the dashboard while the robot is running, and falls back to a hard-coded default when you turn the feature off. AdvantageKit's `LoggedNetworkNumber` provides the plumbing; a small class on top gives it a safe default.
+
+### Declaring A Tunable
+
+```java
+private static final LoggedTunableNumber kP = new LoggedTunableNumber("Flywheel/kP", 0.4);
+private static final LoggedTunableNumber kD = new LoggedTunableNumber("Flywheel/kD", 0.0);
+private static final LoggedTunableNumber kS = new LoggedTunableNumber("Flywheel/kS", 0.22);
+private static final LoggedTunableNumber kV = new LoggedTunableNumber("Flywheel/kV", 0.019);
+```
+
+The string is the dashboard key; the number is the default. Read it with `get()`:
+
+```java
+public Command setTunableVelocityCommand() {
+    return run(() -> setPIDSetpoint(tunableRPS.get()));
+}
+```
+
+Have the class implement `DoubleSupplier` so it can be passed anywhere a supplier is expected without a lambda.
+
+### The tuningMode Flag
+
+One boolean in `Constants` controls every tunable at once:
+
+```java
+public static final boolean tuningMode = true;
+```
+
+```java
+public void initDefault(double defaultValue) {
+    if (!hasDefault) {
+        hasDefault = true;
+        this.defaultValue = defaultValue;
+        if (Constants.tuningMode) {
+            dashboardNumber = new LoggedNetworkNumber(key, defaultValue);
+        }
+    }
+}
+
+public double get() {
+    if (!hasDefault) {
+        return 0.0;
+    } else {
+        return Constants.tuningMode ? dashboardNumber.get() : defaultValue;
+    }
+}
+```
+
+<ContentTable
+  headers={["<code>tuningMode</code>", "Behaviour"]}
+  rows={[
+    ["<code>true</code>", "Values published to NetworkTables and read from the dashboard on each call"],
+    ["<code>false</code>", "The hard-coded default is returned; nothing is published"]
+  ]}
+/>
+
+<RulesBox title="Turn tuningMode off for competition">
+
+With it on, every tunable is a live NetworkTables entry, and the robot uses whatever value is sitting in that entry rather than what the source file says. A stale value left over from practice survives until the next reboot.
+
+Tune with it on. Copy the values you settled on into the defaults in code. Set it to `false`. Deploy. Now the robot does the same thing every time, and the source file is the truth.
+
+</RulesBox>
+
+### Editing Tunables From AdvantageScope
+
+AdvantageScope can write values back to NetworkTables, which is how you change a gain without touching the dashboard's own widgets.
+
+Everything is **read-only by default**. To change that, click the **slider icon to the right of the search bar** while connected to a live source. When the icon is purple, tuning mode is on and fields become editable:
+
+- **Numeric field:** type a new value in the text box to the right of the field in the sidebar. It publishes when the box loses focus or you press Enter. Leave it blank to go back to the robot-published value.
+- **Boolean field:** click the red or green circle to the right of the field.
+
+That read-only default is a real safeguard: nobody can nudge a gain by clicking around in the pit unless they deliberately turn the toggle on first.
+
+<RulesBox title="It is a safeguard, not a substitute">
+
+The AdvantageScope toggle controls whether **AdvantageScope** may write. It does not change whether the **robot** reads.
+
+With `tuningMode = true`, the robot still takes its values from NetworkTables no matter what the viewer is doing, so a value someone set an hour ago is still in effect. Setting `tuningMode = false` is what makes the robot ignore NetworkTables entirely and use the compiled-in constants.
+
+Use both. The toggle prevents accidental edits during a session; the flag is what you ship.
+
+</RulesBox>
+
+AdvantageScope's own documentation is blunt about the scope of the feature:
+
+> This feature is not intended for controlling the robot on the field. Dashboard-style inputs like choosers, trigger buttons, etc. are not supported.
+
+<RulesBox title="Publish tunables under /Tuning">
+
+With the **NetworkTables (AdvantageKit)** live source, AdvantageScope surfaces editable fields from the `/Tuning` table. AdvantageKit's own input subtable is deliberately **not** editable, because it is what gets recorded for replay.
+
+`LoggedNetworkNumber` publishes to the root of NetworkTables using your key verbatim, so the key you choose decides whether the field is editable at all:
+
+```java
+// Editable from AdvantageScope
+new LoggedNetworkNumber("/Tuning/Flywheel/kP", 0.4);
+
+// Publishes to /TunableNumbers/..., outside the Tuning table
+new LoggedNetworkNumber("TunableNumbers/Flywheel/kP", 0.4);
+```
+
+If your tunables are not showing up as editable, this is almost always why. Prefix the key with `/Tuning/`.
+
+</RulesBox>
+
+### Reacting To A Change
+
+Some values cannot simply be read each loop; a PID gain has to be pushed into the motor controller. Re-applying the configuration every loop would flood the CAN bus, so act only when a value has actually moved:
+
+```java
+LoggedTunableNumber.ifChanged(
+    hashCode(),
+    values -> {
+        slot0.kP = values[0];
+        slot0.kD = values[1];
+        slot0.kS = values[2];
+        slot0.kV = values[3];
+        PhoenixUtil.tryUntilOk(5, () -> rightShooter.getConfigurator().apply(config));
+    },
+    kP, kD, kS, kV);
+```
+
+The first argument is an id used to track "changed since last check" per caller. `hashCode()` is the usual choice, so two objects watching the same tunable do not interfere with each other.
+
+### The Tuning Loop
+
+<StepsBox title="Tuning a mechanism">
+
+1. Make the values tunable and confirm `tuningMode = true`.
+2. Deploy once.
+3. Connect AdvantageScope to the robot and turn on tuning mode (the slider icon to the right of the search bar).
+4. Run the mechanism, change a value in the sidebar, watch the effect immediately.
+5. Watch **commanded vs actual** on a graph, not the mechanism itself. Your eyes cannot see 20 ms of overshoot.
+6. When it is right, copy the values into the defaults in code.
+7. Set `tuningMode = false` and deploy.
+
+</StepsBox>
+
+Step 5 is where logging discipline pays off. If your setters return the value they set and carry `@AutoLogOutput` (see [Subsystems](/frc/subsystems#setters-that-return-what-they-set)), both halves of the comparison are already recorded:
+
+```java
+@AutoLogOutput(key = "Intake/targetPos")
+public double setIntakePosition(double pos) { ... }
+
+@AutoLogOutput(key = "Intake/Position")
+public double getIntakePosition() { ... }
+```
+
+Drag `Intake/targetPos` and `Intake/Position` onto one line graph and the tuning question answers itself.
+
+<RulesBox title="Tunables are logged; dashboard entries are not">
+
+A plain editable NetworkTables entry vanishes when the dashboard closes. A logged tunable is recorded into the log file, so a log from three weeks ago still tells you exactly what the robot was running.
+
+That is the difference between "the shooter was off that day" and "the shooter was off that day because kP was 0.9."
+
+</RulesBox>
+
+### Measure Feedforward, Do Not Guess It
+
+Feedback gains have to be tuned by feel. Feedforward gains do not; they are physical properties and can be measured.
+
+<ContentTable
+  headers={["Routine", "Produces", "How it works"]}
+  rows={[
+    ["SysId Quasistatic", "<code>kS</code>, <code>kV</code>", "Slow voltage ramp; velocity vs voltage is a straight line"],
+    ["SysId Dynamic", "<code>kA</code>", "Step input; acceleration reveals inertia"],
+    ["Simple FF Characterization", "<code>kS</code>, <code>kV</code>", "Lightweight alternative for a drivetrain"],
+    ["Wheel Radius Characterization", "Effective wheel radius", "Spin in place, compare gyro to wheel distance"]
+  ]}
+/>
+
+[SysId](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/system-identification/index.html) is a WPILib tool. Expose the routines as commands and add them to the auto chooser so they can be run from the dashboard:
+
+```java
+autoChooser.addOption(
+    "Drive SysId (Quasistatic Forward)", drive.sysIdQuasistatic(SysIdRoutine.Direction.kForward));
+autoChooser.addOption(
+    "Drive SysId (Dynamic Forward)", drive.sysIdDynamic(SysIdRoutine.Direction.kForward));
+```
+
+Run them first, put the measured numbers in as defaults, and reserve tunables for the feedback gains that remain. Guessing at `kV` when a routine will measure it in two minutes wastes practice time.
+
+<RulesBox title="Run characterization safely">
+
+These routines drive the mechanism with no human in the loop. The dynamic tests accelerate hard.
+
+Clear the area, keep a hand on the disable, and give a drivetrain far more room than you think it needs.
+
+</RulesBox>
+
+### Interpolation Tables
+
+Not every tuned value is a gain. A shooter that must hit a target from varying distances needs a distance-to-velocity relationship, and the honest way to get one is to measure it:
+
+```java
+double[] distance = new double[] { 1.790, 1.900, 2.050, 2.200, 2.558, /* ... */ 4.947 };
+double[] velocity = new double[] { 40.00, 41.50, 42.00, 43.00, 44.50, /* ... */ 61.75 };
+```
+
+Then interpolate between the measured points, clamping outside them:
+
+```java
+public double veloInterpolate(double d) {
+    if (d < distance[0]) return velocity[0];
+    else if (d > distance[distance.length - 1]) return velocity[velocity.length - 1];
+    else {
+        for (int i = 1; i < distance.length; i++) {
+            if (distance[i] > d)
+                return (d - distance[i - 1]) / (distance[i] - distance[i - 1])
+                    * (velocity[i] - velocity[i - 1]) + velocity[i - 1];
+        }
+    }
+    return 0;
+}
+```
+
+Fitting a curve to the same data is the alternative, and it is worth keeping both. The equation extrapolates sensibly past the ends of the data; the table is exactly what was measured in between. Clamping to the endpoints, as above, keeps a bad pose estimate from asking for an absurd flywheel speed.
+
+<RulesBox title="Common mistakes">
+
+- **Shipping with `tuningMode = true`.** The robot then depends on the dashboard.
+- **Tuned values never copied back into code.** They vanish when the dashboard closes.
+- **Re-applying configuration every loop** instead of acting only on change.
+- **Tuning by watching the mechanism.** Use the graph.
+- **Guessing feedforward** when a characterization routine measures it.
+- **Reusing an id in `ifChanged`,** so two callers cancel each other's change detection.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "mantik", "path": "src/content/frc/frc-control-theory/tunable-constants.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
+  {"source": "mech-adv", "path": "src/main/java/org/littletonrobotics/frc2025/util/LoggedTunableNumber.java", "note": "The Team 6328 class Cobra's <code>LoggedTunableNumber</code> comes from."},
+  {"source": "cobra", "path": "src/main/java/org/littletonrobotics/LoggedTunableNumber.java", "note": "The tunable: default value, <code>hasChanged</code>, <code>ifChanged</code>."},
+  {"source": "advantagescope", "path": "overview/live-sources/", "note": "Tuning mode on the AdvantageKit live source: the editable <code>/Tuning</code> table."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/system-identification/index.html", "note": "SysId: quasistatic and dynamic tests, the analysis tool."},
+  {"source": "ctre", "path": "docs/api-reference/wpilib-integration/sysid-integration/index.html", "note": "SysId with Phoenix signal logging."},
+  {"source": "ctre", "path": "docs/api-reference/api-usage/signal-logging.html", "note": "The hoot log SysId reads."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "<code>tuningMode</code>."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "Gains published as tunables and re-applied on change; the steady-state characterization command."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "The drivetrain <code>SysIdRoutine</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "SysId and characterization commands on the auto chooser."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "A subsystem reading tunables in <code>periodic()</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/util/PhoenixUtil.java", "note": "Re-applying a configuration when a tunable changes."}
+]} />
+
+<LinkGrid links={[{"label":"PID Control","id":"pid-control"},{"label":"Feedforward","id":"feedforward"},{"label":"PID Tuning Practice","id":"pid-tuning-practice-setup"},{"label":"AdvantageScope","id":"reading-a-match-log"},{"label":"WPILib System Identification","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-controls/system-identification/index.html"}]} title="Resources" section="frc" />

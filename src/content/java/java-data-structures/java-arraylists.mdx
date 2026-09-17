@@ -1,0 +1,233 @@
+---
+title: "ArrayLists"
+lessonId: java-arraylists
+section: java
+group: java-data-structures
+groupLabel: "Data Structures"
+groupOrder: 5
+order: 2
+difficulty: beginner
+duration: 30 min
+description: A list that grows as you add to it, how it manages that behind the scenes, and where it is still slow.
+---
+
+### The problem it solves
+
+An array's length is fixed. If you do not know how many values you will collect, you either guess high and waste space, or run out and copy everything into a bigger array by hand.
+
+`ArrayList` does that copying for you.
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+
+List<Integer> readings = new ArrayList<>();
+readings.add(120);
+readings.add(118);
+readings.add(125);
+
+System.out.println(readings.size());     // 3
+System.out.println(readings.get(1));     // 118
+```
+
+No size declared up front, and no manual resizing.
+
+<RulesBox title="Declare the interface, create the class">
+
+```java
+List<Integer> readings = new ArrayList<>();
+```
+
+The left side is `List` (the interface), the right is `ArrayList` (the implementation). This is worth doing as a habit: if you later switch to a different list implementation, only one line changes.
+
+The `<>` on the right is the "diamond": Java infers the type from the left side, so you do not repeat `Integer`.
+
+</RulesBox>
+
+### How it grows
+
+Internally an `ArrayList` holds an ordinary array with spare capacity. When you add to a full one, it allocates a larger array (typically about 1.5 times the size) and copies everything across.
+
+That means most `add` calls are instant, and occasionally one is expensive. Averaged over many additions, the cost per addition stays small, because the expensive copies get rarer as the list grows.
+
+You can skip some of that work if you know roughly how many elements to expect:
+
+```java
+List<Integer> readings = new ArrayList<>(1000);   // initial capacity
+```
+
+This is a performance hint only. The list still starts empty; `size()` is 0, not 1000.
+
+### Common operations
+
+```java
+List<String> motors = new ArrayList<>();
+
+motors.add("frontLeft");            // append
+motors.add("frontRight");
+motors.add(0, "rearLeft");          // insert at index 0
+
+System.out.println(motors.get(0));  // rearLeft
+System.out.println(motors.size());  // 3
+
+motors.set(1, "frontLeftDrive");    // replace
+motors.remove("frontRight");        // remove by value
+motors.remove(0);                   // remove by index
+
+System.out.println(motors.contains("frontLeftDrive"));  // true
+System.out.println(motors.indexOf("frontLeftDrive"));   // 0
+System.out.println(motors.isEmpty());                   // false
+
+motors.clear();                     // remove everything
+```
+
+<RulesBox title="remove() has a trap with Integer lists">
+
+For a `List<Integer>`, the two `remove` methods behave very differently:
+
+```java
+List<Integer> nums = new ArrayList<>();
+nums.add(10); nums.add(20); nums.add(30);
+
+nums.remove(1);                        // removes INDEX 1  -> removes 20
+nums.remove(Integer.valueOf(10));      // removes the VALUE 10
+```
+
+`remove(int)` means index; `remove(Object)` means value. With a list of integers both are available and Java picks the index version for a plain number. Wrap the value when you mean the value.
+
+</RulesBox>
+
+### Iterating
+
+```java norun
+// most readable, when you do not need the index
+for (String name : motors) {
+    System.out.println(name);
+}
+
+// when you need the index
+for (int i = 0; i < motors.size(); i++) {
+    System.out.println(i + ": " + motors.get(i));
+}
+```
+
+<RulesBox title="Never modify a list while looping over it">
+
+```java norun
+for (String name : motors) {
+    if (name.startsWith("rear")) {
+        motors.remove(name);          // throws ConcurrentModificationException
+    }
+}
+```
+
+Removing during a for-each breaks the iteration. Two safe options:
+
+```java norun
+// 1. removeIf: clearest
+motors.removeIf(name -> name.startsWith("rear"));
+
+// 2. loop backwards by index, so removals do not shift what is ahead
+for (int i = motors.size() - 1; i >= 0; i--) {
+    if (motors.get(i).startsWith("rear")) {
+        motors.remove(i);
+    }
+}
+```
+
+Looping backwards works because removing at index `i` only shifts elements after `i`, which you have already passed.
+
+</RulesBox>
+
+### Costs
+
+<ContentTable
+  title="ArrayList operation costs"
+  headers={["Operation", "Cost", "Note"]}
+  rows={[
+    ["<code>get(i)</code> / <code>set(i, x)</code>", "Instant", "Backed by an array"],
+    ["<code>add(x)</code> at the end", "Instant on average", "Occasional resize copy"],
+    ["<code>add(0, x)</code> at the front", "Proportional to size", "Shifts every element right"],
+    ["<code>remove(i)</code> from the middle", "Proportional to size", "Shifts elements left"],
+    ["<code>contains(x)</code>", "Proportional to size", "Checks each element"],
+    ["<code>size()</code>", "Instant", "Stored, not counted"]
+  ]}
+/>
+
+The two rows to remember are inserting at the front and removing from the middle. Both move every element after the position. If your program does that constantly, an `ArrayList` is the wrong structure; see [Deques](/java/fundamentals/java-deques#both-ends).
+
+### It stores objects, not primitives
+
+`List<int>` does not compile. Generics only work with reference types, so you use `List<Integer>` and Java wraps each `int` in an `Integer` object automatically.
+
+That has two consequences:
+
+```java
+Integer a = 1000, b = 1000;
+System.out.println(a == b);          // false: compares object identity
+System.out.println(a.equals(b));     // true: compares value
+```
+
+Always compare boxed values with `.equals()`. And for a large collection of numbers where speed or memory matters, a plain `int[]` is meaningfully faster and smaller.
+
+<RulesBox title="ArrayList is the right choice when">
+
+- The number of elements changes as the program runs
+- You mostly add at the end and read by index
+- You rarely insert or remove at the front or middle
+
+It is the default general-purpose list, and reaching for it first is usually correct. Move to something else only when a cost in the table above is hurting you.
+
+</RulesBox>
+
+<JavaPlayground id="java-arraylists" />
+
+<ExerciseBox title="Practice">
+
+1. Build a `List<String>` of five robot subsystem names, then print them one per line.
+2. Write a method that takes a `List<Integer>` and returns the average as a `double`.
+3. Write a method that removes every negative number from a `List<Integer>`, without triggering a `ConcurrentModificationException`.
+4. Write a method that takes two lists and returns a new list containing only the values present in both.
+5. Read numbers from the user until they enter `0`, storing them in a list, then print them in reverse order.
+
+<details>
+<summary>Hints</summary>
+
+1. `add` five times, then a for-each loop.
+2. Sum in a `long` or `double`, then divide by `size()`. Decide what to return for an empty list.
+3. `removeIf`, or loop backwards by index.
+4. Loop the first list; keep values where `second.contains(value)`. Note this is slow for large lists because `contains` scans; a `HashSet` would be faster.
+5. A `while (true)` loop with a `break` when the input is 0, then loop the list backwards.
+
+</details>
+
+</ExerciseBox>
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    {"label":"Linked Lists","id":"java-linked-lists"},
+    {"label":"Stacks","id":"java-stacks"}
+  ]}
+/>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "dev-java", "path": "api/collections-framework/lists/", "note": "Lists."},
+  {"source": "dev-java", "path": "api/collections-framework/iterating/", "note": "Iterating and removing safely."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code>: capacity, <code>add</code>, <code>remove</code>, <code>removeIf</code>."},
+  {"source": "java-api", "path": "java.base/java/util/ConcurrentModificationException.html", "note": "Removing during a for-each."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Related"
+  section="java"
+  links={[
+    {"label":"Arrays and Their Trade-offs","id":"java-arrays-and-their-trade-offs"},
+    {"label":"Objects and References","id":"java-objects-and-references"}
+  ]}
+/>

@@ -21,7 +21,7 @@ import type { JavaPlaygroundExercise } from '../types';
  */
 export const FSC_COLLECTIONS: JavaPlaygroundExercise[] = [
   {
-    id: 'a23-ring-buffer',
+    id: 'a23-generic-ring-buffer',
     title: 'A23: Generic Ring Buffer',
     entryClass: 'RingBufferDemo',
     showStdin: false,

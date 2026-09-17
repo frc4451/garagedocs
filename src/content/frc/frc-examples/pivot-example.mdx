@@ -1,0 +1,169 @@
+---
+title: "Pivots"
+lessonId: pivot-example
+section: frc
+group: frc-examples
+groupLabel: "Mechanism Components"
+groupOrder: 11
+order: 4
+difficulty: intermediate
+duration: 15 min
+description: "Build an angle-controlled pivot and calculate mechanism angle, angular speed, gravity torque, and moment of inertia."
+---
+
+A pivot rotates a mechanism to an angle. Arms, wrists, hoods, and turrets can share the same public component shape, but their limits and gravity models differ.
+
+This page uses **motor rotations per pivot rotation** for gear reduction.
+
+### Convert rotor position to mechanism angle
+
+```text
+pivot rotations = motor rotations / gear reduction
+pivot angle in degrees = pivot rotations × 360
+pivot RPS = motor RPS / gear reduction
+```
+
+With a 100:1 reduction, 25 motor rotations move the pivot one quarter turn:
+
+```text
+pivot rotations = 25 / 100 = 0.25
+pivot angle = 0.25 × 360° = 90°
+```
+
+An absolute encoder mounted after the gearbox may already report the mechanism angle. The IO layer should apply its offset and direction so the component always receives the documented pivot coordinate.
+
+### Calculate gravity torque
+
+For a mechanism whose center of mass is distance `L` from the pivot:
+
+```text
+gravity torque = mass × gravitational acceleration × L × cos(angle)
+```
+
+This form assumes zero degrees is horizontal. At horizontal, gravity produces its largest torque. At 90 degrees above horizontal, the center of mass is over the pivot and ideal gravity torque is zero.
+
+If your zero points somewhere else, shift the angle before taking the cosine. Write the zero direction beside the constant. A correct equation with the wrong angle convention produces the wrong feedforward.
+
+A vertical-axis turret does not lift its mass as it rotates, so its gravity torque around that axis is approximately zero. Configure `kG = 0` instead of applying arm-cosine compensation.
+
+### Estimate moment of inertia
+
+Moment of inertia describes how hard the mechanism is to accelerate around its pivot. For a point mass:
+
+```text
+moment of inertia = mass × distance²
+```
+
+Real arms distribute mass along their length, so use CAD when available. Moving the same mass twice as far from the pivot makes its contribution to moment of inertia four times larger. This affects acceleration, simulation, and the `kA` needed by a feedforward.
+
+### Define the pivot IO
+
+```java
+public interface PivotIO {
+  @AutoLog
+  class PivotIOInputs {
+    public Angle position = Rotations.zero();
+    public AngularVelocity velocity = RotationsPerSecond.zero();
+    public Angle positionSetpoint = Rotations.zero();
+    public Angle positionError = Rotations.zero();
+  }
+
+  default void updateInputs(PivotIOInputs inputs) {}
+  default void setPosition(Angle goal) {}
+  default void setVoltage(Voltage output) {}
+  default void stop() {}
+}
+```
+
+### Build the component
+
+```java
+public final class Pivot {
+  private final PivotIO io;
+  private final PivotIOInputsAutoLogged inputs = new PivotIOInputsAutoLogged();
+  private final String logKey;
+  private final Angle minAngle;
+  private final Angle maxAngle;
+  private final Angle tolerance;
+  private Angle goal;
+
+  public Pivot(
+      PivotIO io,
+      String logKey,
+      Angle minAngle,
+      Angle maxAngle,
+      Angle tolerance) {
+    this.io = io;
+    this.logKey = logKey;
+    this.minAngle = minAngle;
+    this.maxAngle = maxAngle;
+    this.tolerance = tolerance;
+    goal = minAngle;
+  }
+
+  public void periodic() {
+    io.updateInputs(inputs);
+    Logger.processInputs(logKey, inputs);
+    io.setPosition(goal);
+  }
+
+  public void setGoal(Angle requestedGoal) {
+    goal = Degrees.of(MathUtil.clamp(
+        requestedGoal.in(Degrees),
+        minAngle.in(Degrees),
+        maxAngle.in(Degrees)));
+  }
+
+  public boolean atGoal() {
+    return inputs.position.isNear(goal, tolerance);
+  }
+}
+```
+
+This component suits a limited arm, wrist, or hood. A continuous turret needs angle wrapping instead of simple clamping, plus a plan for cable protection.
+
+### Match the gravity model to the axis
+
+```java
+// Vertical turret axis
+var turretGains = new Slot0Configs()
+    .withKG(0.0);
+
+// Hood or arm with zero degrees horizontal
+var hoodGains = new Slot0Configs()
+    .withKG(0.35)
+    .withGravityType(GravityTypeValue.Arm_Cosine);
+```
+
+The values are illustrative. Find gains on the actual mechanism using the manual tuning procedure.
+
+### Simulate the pivot
+
+Use `SingleJointedArmSim` when gravity acts on a limited rotating mechanism. It needs the motor model, gearing, moment of inertia, arm length, angle limits, and a gravity flag. Use `DCMotorSim` for a vertical-axis turret when a simple rotating load is the better model.
+
+Simulation can reveal reversed sensors, incorrect ratios, unreachable goals, bad limits, and missing gravity compensation. Hardware checks still establish the absolute offset and verify that the mechanism clears its frame.
+
+<RulesBox title="Check your work">
+
+- Document which direction is positive and where zero degrees points.
+- Use mechanism angle at the component boundary.
+- Use cosine gravity compensation only when gravity turns the mechanism around its axis.
+- Clamp limited pivots before sending a goal.
+- Keep continuous wrapping and cable limits explicit for turrets.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/arm/Arm.java", "note": "Angular-position component used as the pivot model."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/arm/ArmIO.java", "note": "Angular mechanism measurements and requests."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/arm/ArmIOTalonFX.java", "note": "Motion Magic, continuous wrap, and arm-cosine gravity configuration."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html", "note": "SingleJointedArmSim and DCMotorSim."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/SingleJointedArmSim.html", "note": "The 2026 arm simulation API."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/closed-loop-requests.html", "note": "Position requests and gravity feedforward behavior."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Elevators","id":"elevator-example"},
+  {"label":"Manual Tuning: Arm and Elevator","id":"manual-tuning-arm-and-elevator"},
+  {"label":"CANcoder Absolute Position","id":"cancoder-absolute-position"}
+]} />

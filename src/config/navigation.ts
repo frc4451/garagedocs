@@ -1,4 +1,4 @@
-export type SectionId = 'tools' | 'java' | 'assignments' | 'kit-bot' | 'frc';
+export type SectionId = 'tools' | 'hardware' | 'java' | 'assignments' | 'kit-bot' | 'frc' | 'badges';
 
 export type AppRouteId = 'resources' | 'references';
 
@@ -21,14 +21,8 @@ export interface AppRoute {
 export const sections: NavSection[] = [
   // General technical skills (shell, Git) come first: they are day-one, before any code.
   { id: 'tools', label: 'Tools', path: '/tools', collection: 'tools', breadcrumbLabel: 'Tools' },
-  { id: 'java', label: 'Java', path: '/java', collection: 'java' },
-  {
-    id: 'assignments',
-    label: 'Practice',
-    path: '/assignments',
-    collection: 'assignments',
-    breadcrumbLabel: 'Practice Assignments',
-  },
+  { id: 'hardware', label: 'Hardware', path: '/hardware', collection: 'hardware', breadcrumbLabel: 'Hardware' },
+  { id: 'java', label: 'Java', path: '/java', collection: 'java', breadcrumbLabel: 'Java' },
   {
     id: 'kit-bot',
     label: 'Kit Bot',
@@ -37,6 +31,8 @@ export const sections: NavSection[] = [
     breadcrumbLabel: 'Kit Bot',
   },
   { id: 'frc', label: 'FRC', path: '/frc', collection: 'frc' },
+  // Badges map the other sections onto the team's year-by-year sign-off sheets.
+  { id: 'badges', label: 'Badges', path: '/badges', collection: 'badges', breadcrumbLabel: 'Badges' },
 ];
 
 export const appRoutes: AppRoute[] = [
@@ -62,11 +58,16 @@ export const siteConfig = {
 };
 
 export function sectionFromPath(pathname: string): SectionId | null {
-  const match = pathname.match(/^\/(tools|java|assignments|kit-bot|frc)/);
+  const match = pathname.match(/^\/(tools|hardware|java|kit-bot|frc|badges)/);
   return match ? (match[1] as SectionId) : null;
 }
 
 export function lessonUrl(section: SectionId, lessonId: string): string {
-  if (lessonId === 'overview') return `/${section}`;
+  if (lessonId === 'overview') {
+    if (section === 'assignments') return '/java/assignments';
+    return `/${section}`;
+  }
+  if (section === 'java') return `/java/fundamentals/${lessonId}`;
+  if (section === 'assignments') return `/java/assignments/${lessonId}`;
   return `/${section}/${lessonId}`;
 }

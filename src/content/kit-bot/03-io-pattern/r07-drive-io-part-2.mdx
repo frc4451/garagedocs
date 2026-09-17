@@ -1,0 +1,170 @@
+---
+title: "R07: DriveIO, Part 2: Make It Drive"
+lessonId: r07-drive-io-part-2
+section: kit-bot
+group: io-pattern
+groupLabel: "Phase 3: Hardware via IO"
+groupOrder: 3
+order: 7.5
+duration: 30 min
+description: "The Drive subsystem on top of DriveIO, wired into RobotContainer and driven from the sim."
+durationFixed: true
+---
+
+
+[Part 1](/kit-bot/r07-drive-io) built `DriveIO` with both implementations. This part builds the `Drive` subsystem, wires it in, and drives it.
+
+### Step 1: create the subsystem
+
+Create `Drive.java`. This is a **complete file**.
+
+```java
+package frc.robot.subsystems.drive;
+
+import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.LinearVelocity;
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import static edu.wpi.first.units.Units.Volts;
+
+public class Drive extends SubsystemBase {
+
+    private final DriveIO io;
+    private final DriveIO.DriveInputs inputs = new DriveIO.DriveInputs();
+
+    private Voltage leftVoltage  = Volts.of(0);
+    private Voltage rightVoltage = Volts.of(0);
+
+    public Drive(DriveIO io) {
+        this.io = io;
+    }
+
+    @Override
+    public void periodic() {
+        io.updateInputs(inputs);
+        io.setVoltages(leftVoltage, rightVoltage);
+    }
+
+    /** Standard arcade-drive math: speed in [-1,1], rotation in [-1,1] (dimensionless, not units). */
+    public void arcadeDrive(double speed, double rotation) {
+        double left  = (speed + rotation) * 12.0 * DriveConstants.MAX_DRIVE_PERCENT;
+        double right = (speed - rotation) * 12.0 * DriveConstants.MAX_DRIVE_PERCENT;
+
+        leftVoltage  = Volts.of(Math.max(-12.0, Math.min(12.0, left)));
+        rightVoltage = Volts.of(Math.max(-12.0, Math.min(12.0, right)));
+    }
+
+    public void stop() {
+        leftVoltage  = Volts.of(0);
+        rightVoltage = Volts.of(0);
+    }
+
+    public Command driveAt(double speed, double rotation) {
+        return runEnd(
+            () -> arcadeDrive(speed, rotation),
+            this::stop);
+    }
+
+    public Command stopCommand() {
+        return runOnce(this::stop);
+    }
+
+    public Distance leftPosition() {
+        return inputs.leftPosition;
+    }
+
+    public Distance rightPosition() {
+        return inputs.rightPosition;
+    }
+
+    public LinearVelocity leftVelocity() {
+        return inputs.leftVelocity;
+    }
+
+    public LinearVelocity rightVelocity() {
+        return inputs.rightVelocity;
+    }
+}
+```
+
+`arcadeDrive(speed, rotation)` turns forward and turning requests into left and right voltages. `driveAt` wraps that action in a command for fixed-output moves, and `stopCommand` exposes a one-shot stop. These command factories belong in the subsystem because they operate only `Drive` and automatically require it. The IO receives voltage requests and does not read joysticks.
+
+`speed` and `rotation` remain `double` values because they are fractions of full input. They have no physical unit. [R03](/kit-bot/r03-constants) made the same distinction between `Distance` and `MAX_DRIVE_PERCENT`.
+
+The teleop deadband and stick scaling are *not* here either. They belong to the command that reads the joystick (R10). The subsystem only does drive math, not driver-input math.
+
+---
+
+### Step 2: wire it in `RobotContainer`
+
+```java
+private final Drive drive = new Drive(new DriveIOSim());
+
+private final CommandXboxController driver =
+    new CommandXboxController(OperatorConstants.DRIVER_CONTROLLER_PORT);
+
+private void configureBindings() {
+    drive.setDefaultCommand(
+        Commands.run(
+            () -> drive.arcadeDrive(-driver.getLeftY(), -driver.getRightX()),
+            drive
+        )
+    );
+}
+```
+
+Two new patterns:
+
+- **Default command** on `drive`. While no other command requires `drive`, this one runs every tick, reading the sticks and calling `arcadeDrive`. The `-` on both axes is the FRC convention (Xbox stick Y is positive *down*; X depends on left vs right).
+- **One simulated subsystem** is constructed at the top. R08 will add the launcher beside it, and R12 will select real or simulation IO for both mechanisms.
+
+---
+
+### Step 3: run it
+
+Build (`F5`). Plug in an Xbox controller or use the sim keyboard. Enable in teleop.
+
+Push the left stick forward. The console doesn't print anything (we don't have telemetry yet; that's R13), but if you add a temporary `System.out.println(drive.leftPosition().in(Meters))` to `Drive.periodic()` (needs `import static edu.wpi.first.units.Units.Meters;`) you should see the left position growing while you're driving forward.
+
+Push left stick fully forward and hold for 2 seconds. The Kit Bot's max speed at 85% drive cap is about 3 m/s, so you should accumulate ~6 m of distance. If you see 60 m, your gear ratio division is missing somewhere. If you see 0.6 m, you have an extra factor of 10.
+
+Push right stick to the right and the robot turns. The left side accelerates forward, right side backward.
+
+---
+
+### What you now have
+
+- The drivetrain works in simulation before another mechanism is added.
+- Each subsystem uses a small IO interface.
+- Real and simulation details stay in separate implementation files.
+- Physical measurements keep their units in the subsystem API.
+
+R08 repeats the IO pattern with the launcher. Phase 4 then adds real stick math (R10), a controller-specific drive command (R11), runtime IO selection (R12), and AdvantageScope telemetry (R13).
+
+---
+
+<RulesBox title="Done when">
+
+Full stick forward for two seconds accumulates about six metres of left and right position; right stick turns the sides in opposite directions. A number about ten times too large usually points to a units error in the sim's conversion; finding it is part of the module.
+
+</RulesBox>
+
+### References
+
+- [A17: IO Interface](/java/assignments/a17-io-interface)
+- WPILib: [Drivetrain Simulation](https://docs.wpilib.org/en/stable/docs/software/wpilib-tools/robot-simulation/drivesim-tutorial/index.html)
+- WPILib JavaDoc: [`DifferentialDrivetrainSim`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html)
+- WPILib JavaDoc: [`DifferentialDrivetrainSim.createKitbotSim`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html#createKitbotSim(edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotMotor,edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotGearing,edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotWheelSize,edu.wpi.first.math.Matrix))
+- WPILib: [The Java Units Library](https://docs.wpilib.org/en/stable/docs/software/basic-programming/java-units.html)
+- REV: [SparkMax follower mode](https://docs.revrobotics.com/brushless/spark-max/control-interfaces#follower-mode)
+- WPILib: [Differential Drive Robots](https://docs.wpilib.org/en/stable/docs/software/kinematics-and-odometry/differential-drive-kinematics.html)
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/differential-drive-kinematics.html", "note": "Differential-drive kinematics and <code>ChassisSpeeds</code>."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/drivesim-tutorial/index.html", "note": "Drivetrain simulation."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html", "note": "<code>createKitbotSim</code>."},
+  {"source": "rev", "path": "brushless/spark-max/control-interfaces", "note": "Follower mode."},
+  {"source": "wpilib", "path": "docs/software/basic-programming/java-units.html", "note": "Typed units."},
+  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "Default commands."}
+]} />

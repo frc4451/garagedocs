@@ -1,10 +1,10 @@
 ---
-title: "Choreo: Time-Optimal Trajectories"
+title: "Choreo"
 lessonId: choreo
 section: frc
 group: frc-autonomous
-groupLabel: Autonomous
-groupOrder: 9
+groupLabel: "Autonomous"
+groupOrder: 17
 order: 2
 difficulty: advanced
 duration: 35 min
@@ -26,7 +26,7 @@ Riptide's `deploy/choreo/` reads as the whole auto strategy: `StartBottom-FL4.tr
 
 <StepsBox title="From a blank project to a trajectory">
 
-1. **Robot configuration** first ([document settings](https://choreo.autos/document-settings/robot-configuration/)): mass, moment of inertia, wheelbase and track width, wheel radius, gearing, motor type and the current limit. These numbers *are* the optimiser's model. A wrong MOI produces a trajectory the real robot cannot track, and no follower gain fixes it. Get them from CAD and from the drivetrain's constants; the same values feed [the swerve drive's sim](/frc/swerve-drive-example).
+1. **Robot configuration** first ([document settings](https://choreo.autos/document-settings/robot-configuration/)): mass, moment of inertia, wheelbase and track width, wheel radius, gearing, motor type and the current limit. These numbers *are* the optimiser's model. A wrong MOI produces a trajectory the real robot cannot track, and no follower gain fixes it. Get them from CAD and from the drivetrain's constants; the same values feed [the swerve drive's sim](/frc/swerve-pose-estimation-example).
 2. **Waypoints** ([editing paths](https://choreo.autos/usage/editing-paths/)): a *pose waypoint* fixes position and heading; a *translation waypoint* fixes position and lets the optimiser choose heading; an *empty waypoint* only shapes the path around an obstacle and cannot be an endpoint. Click the field to add, drag to move, type exact values in the side panel.
 3. **Constraints**: a *stop point* zeroes velocity at a waypoint (the endpoints get one by default); *max velocity / acceleration / angular velocity* limit a segment; *keep in rectangle / circle / lane* and *keep out circle* fence the path; *point at* holds the heading toward a target through a segment.
 4. **Generate.** The optimiser runs for a few seconds and draws the result with a velocity colour map. If it fails, a constraint is unsatisfiable, usually two stop points too close together, or a keep-out the path must cross.
@@ -76,7 +76,7 @@ public void followTrajectory(SwerveSample sample) {
 }
 ```
 
-Read it as **feedforward plus feedback**. `sample.vx`, `vy`, `omega` are the trajectory's own velocities: the feedforward, which does almost all the work when the robot model is right. The three PID terms correct the position error between where the sample says the robot should be and where the pose estimate says it is. Field-relative speeds because the sample is in field coordinates; `runVelocity` is the same method teleop uses. The three `recordOutput`s are how you tune the gains: `Sample/Pose` as a Ghost on the [2D Field](/tools/advantagescope-field#the-2d-field-tab) beside the real pose, and `PoseError` on a line graph. If the error grows along the path, raise the gains; if it is large from the first sample, the robot configuration in the app is wrong.
+Read it as **feedforward plus feedback**. `sample.vx`, `vy`, `omega` are the trajectory's own velocities: the feedforward, which does almost all the work when the robot model is right. The three PID terms correct the position error between where the sample says the robot should be and where the pose estimate says it is. Field-relative speeds because the sample is in field coordinates; `runVelocity` is the same method teleop uses. The three `recordOutput`s are how you tune the gains: `Sample/Pose` as a Ghost on the [2D Field](/tools/advantagescope-poses-on-the-field#the-2d-field-tab) beside the real pose, and `PoseError` on a line graph. If the error grows along the path, raise the gains; if it is large from the first sample, the robot configuration in the app is wrong.
 
 A `Drive` that already has `getGlobalPose()`, `setPose(Pose2d)` and `runVelocity(ChassisSpeeds)`, which Cobra's does, needs only this method added. (Cobra's `Drive` today carries a PathPlanner `AutoBuilder` and a BLine follower; a Choreo follower sits beside them without conflict, and the `Autos` class decides which one a routine uses.)
 
@@ -96,7 +96,7 @@ autoFactory = new AutoFactory(
     this);                   // the drive subsystem, required by every trajectory command
 ```
 
-Trajectories are drawn for the **blue** alliance and mirrored automatically for red when that flag is true and the Driver Station reports red, the same convention as every pose at FRC 4451 ([Poses on the Field](/tools/advantagescope-field#what-a-pose-is-and-which-way-is-which)).
+Trajectories are drawn for the **blue** alliance and mirrored automatically for red when that flag is true and the Driver Station reports red, the same convention as every pose at FRC 4451 ([AdvantageScope: Poses on the Field](/tools/advantagescope-poses-on-the-field#what-a-pose-is-and-which-way-is-which)).
 
 From the factory you get **routines**, and from a routine, **trajectories**:
 
@@ -117,7 +117,7 @@ An `AutoTrajectory` is both a command and a set of triggers:
     ["<code>done()</code>", "Trigger", "One loop after it finishes; <code>doneDelayed(n)</code>, <code>doneFor(n)</code> for margins; <code>recentlyDone()</code> until the next one starts"],
     ["<code>atTime(\"L4\")</code> / <code>atTime(1.5)</code>", "Trigger", "At an <strong>event marker</strong> by name, or at a time in seconds"],
     ["<code>atPose(\"name\", tolM, tolRad)</code>", "Trigger", "When the robot is within tolerance of a named pose in the trajectory"],
-    ["<code>getRawTrajectory().getPoses()</code>", "<code>Pose2d[]</code>", "For logging the path as a <a href=\"/tools/advantagescope-field#the-2d-field-tab\">Trajectory</a> object"]
+    ["<code>getRawTrajectory().getPoses()</code>", "<code>Pose2d[]</code>", "For logging the path as a <a href=\"/tools/advantagescope-poses-on-the-field#the-2d-field-tab\">Trajectory</a> object"]
   ]}
 />
 
@@ -207,7 +207,7 @@ The routine methods are `Supplier`s, so a routine is built when it is selected, 
 
 ### Watching it
 
-Everything above logs, and [Simulating Autonomous](/frc/sim-autos#the-three-tools-in-simulation) is the workflow: run the routine in the simulator, `Odometry/Choreo/Trajectory` as a Trajectory object and `Odometry/Choreo/Sample/Pose` as a Ghost on the 2D Field, `Odometry/Global` as the Robot. The ghost is where Choreo wants the robot this instant; the robot is where the estimate says it is; the gap is `PoseError`. In simulation the gap should be small. If it is not, the app's robot configuration and the sim's drivetrain constants disagree. On the real robot the gap is the follower gains and the drivetrain's real limits.
+Everything above logs, and [Simulating Autonomous](/frc/autonomous-simulation#the-three-tools-in-simulation) is the workflow: run the routine in the simulator, `Odometry/Choreo/Trajectory` as a Trajectory object and `Odometry/Choreo/Sample/Pose` as a Ghost on the 2D Field, `Odometry/Global` as the Robot. The ghost is where Choreo wants the robot this instant; the robot is where the estimate says it is; the gap is `PoseError`. In simulation the gap should be small. If it is not, the app's robot configuration and the sim's drivetrain constants disagree. On the real robot the gap is the follower gains and the drivetrain's real limits.
 
 ### Which tool, when
 
@@ -251,10 +251,10 @@ They are not exclusive. Riptide's routines were Choreo legs joined by pose-to-po
 ]} />
 
 <LinkGrid links={[
-  {"label":"PathPlanner: Visual Autonomous Routines","id":"pathplanner"},
-  {"label":"BLine: Point-to-Point Autonomous","id":"bline"},
-  {"label":"Simulating Autonomous","id":"sim-autos"},
-  {"label":"Swerve Drive Example","id":"swerve-drive-example"},
+  {"label":"PathPlanner","id":"pathplanner"},
+  {"label":"BLine","id":"bline"},
+  {"label":"Simulating Autonomous","id":"autonomous-simulation"},
+  {"label":"Swerve Drive Example","id":"swerve-pose-estimation-example"},
   {"label":"Choreo documentation","url":"https://choreo.autos/"},
   {"label":"Choreo: Auto Factory","url":"https://choreo.autos/choreolib/auto-factory/"},
   {"label":"Choreo: Editing paths","url":"https://choreo.autos/usage/editing-paths/"},

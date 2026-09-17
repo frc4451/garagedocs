@@ -1,6 +1,6 @@
 # GarageDocs
 
-FRC 4451's programming training site: Tools, Java, Practice, Kit Bot and FRC. Forked from
+FRC 4451's programming training site: Tools, Java, Practice, Kit Bot, FRC and Badges. Forked from
 [itkan-robotics/mantik](https://github.com/itkan-robotics/mantik), whose Astro framework this site
 still runs on; the curriculum has been rewritten (see `NOTICE` and the site's References page).
 
@@ -87,11 +87,20 @@ the browser runtime's level. Three things the wrapper does that are worth knowin
 ### Kit Bot
 
 `src/content/kit-bot/` is a separate section (`/kit-bot`). It was written by the
-mentors from FRC 4864's *Skorpion* build and is FRC 4451's own material, edited in
+mentors from FRC 4864's *Scorpion* build and is FRC 4451's own material, edited in
 place. Authorship of every section is
 listed on the References page and in `NOTICE`. Its Java fences are WPILib code and are deliberately
 **not** runnable: `rehype-runnable-java` only wraps fences on pages whose `section` is
 `java`, so a new section needs nothing extra to opt out.
+
+### Badges
+
+`src/content/badges/` (`/badges`) is the last content section: the team's year-by-year
+Automation Badge sign-off paths. A badge page does not teach; it lists the Tools, Java,
+Practice and Kit Bot lessons in the order the sheet signs them off, with a *done when* per
+row and a badge check per stage. Only Badge 1 (`badge-1/`, seven pages: overview, stages 0 to
+4, sign-off sheet) exists. Its running draft with the open mentor decisions is kept outside
+the repo in the Obsidian vault (`Badge 1 Draft.md`).
 
 `src/content/tools/` (`/tools`) is the first section in the nav: general technical
 skills that are not Java and not robot-specific — the command line on PowerShell and
@@ -170,7 +179,7 @@ Netlify configuration, its submit-resource function, and the Decap CMS admin at
 `/admin` were removed with the move to Pages:
 
 - **Resources** at `/resources` is a read-only catalog. Add approved links by
-  editing `src/data/resources.json` (sorted by title; majors `java`/`frc`/`general`,
+  editing `src/data/resources.json` (sorted by title; majors `java`/`hardware`/`frc`/`general`,
   minors are free text and become the filter chips) — see
   [docs/content-authoring.md](docs/content-authoring.md). Every external tool or doc site
   a lesson relies on should have an entry, and the References page should list it.

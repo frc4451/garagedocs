@@ -1,0 +1,96 @@
+---
+title: "CTRE PDP 1.0"
+lessonId: ctre-pdp-1
+section: hardware
+group: ctre
+groupLabel: CTRE
+groupOrder: 3
+order: 4
+difficulty: beginner
+description: "Identify, wire, and read telemetry from the original CTRE Power Distribution Panel used on older FRC robots."
+---
+
+### Identify the correct generation
+
+Teams often call the original CTRE Power Distribution Panel the **PDP 1.0**. CTRE's product page calls it the **PDP - Power Distribution Panel**, part number `14-806880`. CTRE no longer sells it and points teams to the newer PDP 2.0.
+
+Check the label and connector layout before following this lesson. The original PDP and PDP 2.0 are different products. This page covers the original 16-channel panel.
+
+### What the original PDP does
+
+The PDP takes battery power after the main breaker and divides it among protected robot circuits. Its CAN connection reports bus voltage, temperature, total current, energy, and current for individual channels to the roboRIO.
+
+| Connection | Original PDP 1.0 behavior |
+|---|---|
+| Main input | FRC battery supply; CTRE lists a `5.5 V` to `16 V` operating range |
+| Channels `0-3` and `12-15` | Eight protected channels that accept up to 40 A breakers |
+| Channels `4-11` | Eight protected channels for 20 A or 30 A breakers |
+| PCM/VRM output | One shared, protected 20 A output |
+| roboRIO output | One protected 10 A controller output |
+| CAN | Telemetry to the roboRIO; optional 120-ohm termination when its jumper is installed |
+
+The largest breaker a slot accepts is not automatically correct for the circuit. Match the breaker to the wire, load, manufacturer instructions, and current FRC rules.
+
+### Inspect an older installation
+
+1. Disable the robot, open the main breaker, and disconnect the battery.
+2. Read the product label and confirm that the unit is the original CTRE PDP.
+3. Compare every channel label with the robot's wiring map.
+4. Check that each breaker rating is allowed in that channel and appropriate for its branch.
+5. Inspect the main terminals, branch wires, controller output, and shared PCM/VRM output.
+6. Check for loose strands, damaged housings, heat discoloration, corrosion, or missing strain relief.
+7. Give each wire a controlled tug and repair any connection that moves.
+8. Trace CAN from end to end and inspect the PDP termination jumper.
+9. Reconnect power, then confirm that the roboRIO receives PDP telemetry.
+10. Update the wiring map before replacing or moving any branch.
+
+The termination jumper adds 120 ohms only when installed. A healthy CAN bus normally has one terminator at each physical end. Inspect the whole bus before changing the jumper.
+
+### Read PDP data in Java
+
+WPILib uses the same `PowerDistribution` class for the original CTRE PDP and the REV PDH. An original PDP at its default module number uses module `0` and `ModuleType.kCTRE`.
+
+```java
+import edu.wpi.first.wpilibj.PowerDistribution;
+import edu.wpi.first.wpilibj.PowerDistribution.ModuleType;
+
+private final PowerDistribution pdp =
+    new PowerDistribution(0, ModuleType.kCTRE);
+
+public void logPower() {
+    System.out.println("Battery voltage: " + pdp.getVoltage());
+    System.out.println("Total current: " + pdp.getTotalCurrent());
+    System.out.println("Drive current: " + pdp.getCurrent(2));
+}
+```
+
+Channel `2` is an example. Use the robot's channel map so the logged name describes the physical branch.
+
+### Decide whether to reuse it
+
+An installed PDP can still provide useful distribution and telemetry, but age and support status matter. Before reuse:
+
+- inspect the housing and every terminal for mechanical or heat damage
+- verify the device against the current FRC rules
+- confirm that the team's current software can read its telemetry
+- record the part number and channel map
+- compare replacement cost and support with a current distribution device
+
+Do not treat a discontinued part as failed by definition. Base the decision on inspection, test results, current rules, and whether the team can support it.
+
+<RulesBox title="Done when">
+
+The unit is identified as the original PDP, its termination setting is understood, every branch is labeled and protected correctly, and the roboRIO reads plausible voltage and channel-current data. No damaged or overheated connection remains in service.
+
+</RulesBox>
+
+<Sources items={[
+  {"url":"https://store.ctr-electronics.com/products/power-distribution-panel","label":"CTRE: PDP - Power Distribution Panel","note":"Part number, discontinued status, channel groups, protected controller outputs, voltage range, CAN feedback, and termination jumper."},
+  {"url":"https://docs.wpilib.org/en/stable/docs/software/can-devices/power-distribution-module.html","label":"WPILib: Power Distribution Module","note":"Java construction and voltage, current, temperature, and energy telemetry for CTRE PDP and REV PDH hardware."}
+]} />
+
+<LinkGrid links={[
+  {"label":"CTRE and Phoenix Tuner X","id":"ctre-hardware-setup"},
+  {"label":"5 V, 12 V, and Current","url":"/hardware/electrical-basics-voltage-current"},
+  {"label":"Power, Wiring, and CAN","url":"/hardware/power-wiring-and-can"}
+]} title="Related lessons" section="hardware" />

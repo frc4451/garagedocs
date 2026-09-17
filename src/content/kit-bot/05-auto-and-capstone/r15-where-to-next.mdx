@@ -1,5 +1,5 @@
 ---
-title: "R15: Where to next"
+title: "R15: Choose Your Next Project"
 lessonId: r15-where-to-next
 section: kit-bot
 group: auto-and-capstone
@@ -7,184 +7,58 @@ groupLabel: "Phase 5: Autonomous and Capstone"
 groupOrder: 5
 order: 15
 duration: 10 min
-description: "Where to go after the Kit Bot: PathPlanner and BLine, AdvantageKit, PhotonVision and sensors."
----
-You finished the curriculum. The Kit Bot drives, the launcher launches, autonomous runs from a chooser, AdvantageScope shows what's happening. You have a working robot.
-
-This module is not a tutorial. It's a sign-post: a list of the next things teams typically build on top of a working Kit Bot, what each one is for, and where to look. None of them is required. Most teams ship a robot that uses only a handful of them in their first competitive season.
-
-Read this once. Pick one item. Build it. Come back and pick another.
-
+description: Choose one follow-up project based on a specific need in the working Kit Bot.
 ---
 
-### Better paths than "drive forward for 1.5 seconds"
 
-#### PathPlanner
+The capstone produces a working simulated Kit Bot with distance-based launcher settings, checked `kS` and `kV` calculations, a field pose, and timed autonomous routines. Use the project guide below when evidence points to the next control or sensor improvement.
 
-A graphical path editor + a runtime library. You drag waypoints on a 2D field, set robot constraints (max velocity, acceleration), and PathPlanner generates a trajectory your robot can follow precisely. Pairs well with `DifferentialDriveOdometry` (which you set up in R13) plus a real gyro. In code, the time-based auto commands from R14 (`Commands.run(...).withTimeout(...)`) get replaced by `AutoBuilder.followPath(path)`; the subsystem itself doesn't change.
+### Project guide
 
-- [PathPlanner documentation](https://pathplanner.dev/) (look in the "Java" section)
-- [PathPlanner GitHub](https://github.com/mjansen4857/pathplanner)
+| Need you observed | Project | Preparation | Start here |
+|---|---|---|---|
+| Autonomous distance changes between runs | Add encoder-based distance control and a gyro for heading | Encoders, feedback control, drivetrain safety | [WPILib differential-drive odometry](https://docs.wpilib.org/en/stable/docs/software/kinematics-and-odometry/differential-drive-odometry.html) |
+| Launcher speed drops as fuel enters | Add a velocity target with feedforward and feedback | R09 results, launcher RPM telemetry | [WPILib feedforward and feedback](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/combining-feedforward-feedback.html) |
+| You need complete replayable logs | Add AdvantageKit after the base robot is understood | IO interfaces, AdvantageScope | [AdvantageKit documentation](https://docs.advantagekit.org/) |
+| The launcher needs settings for additional field locations | Add measured distance and speed pairs | [R08 Part 3](/kit-bot/r08-launcher-calibration) and the current test logs | [A10](/java/assignments/a10-shooter-lookup-table) |
+| A mechanism needs its position after reboot | Add an absolute encoder or homing routine | Sensors, mechanism safety | [CTRE CANcoder](https://v6.docs.ctr-electronics.com/en/latest/docs/hardware-reference/cancoder/index.html) |
+| The robot needs to detect fuel or a hard limit | Add a beam break or limit switch | Digital input wiring | [WPILib digital inputs](https://docs.wpilib.org/en/stable/docs/software/hardware-apis/sensors/digital-inputs-software.html) |
+| Drivers need clear robot-state feedback | Add addressable LEDs | A small subsystem and state definitions | [WPILib addressable LEDs](https://docs.wpilib.org/en/stable/docs/software/hardware-apis/misc/addressable-leds.html) |
+| You need to diagnose brownouts or high current | Add power-distribution telemetry | AdvantageScope graphs | [WPILib power distribution](https://docs.wpilib.org/en/stable/docs/software/can-devices/power-distribution-module.html) |
 
-#### BLine
+### Pick a project from evidence
 
-A different answer to the same problem. Instead of generating a trajectory in time, BLine follows a sequence of points from wherever the robot currently is, so a robot that gets bumped or blocked for a second resumes from its real position instead of chasing a schedule that has moved on. It is less fast in the ideal case and much harder to knock off course, and it is the tool FRC 4451 reaches for on short scoring segments. The [BLine](/frc/bline) lesson has the side-by-side with PathPlanner and the wiring from our 2026 robot.
+Write down:
 
-- [BLine documentation](https://bline-docs.pages.dev/)
-- [BLine-Lib GitHub](https://github.com/edanliahovetsky/BLine-Lib)
+1. The behavior you observed.
+2. The measurement that would show improvement.
+3. The smallest change that can affect that measurement.
+4. The simulation check and the later hardware check.
 
-(Choreo, a time-optimal trajectory generator, is the third tool you will hear about. It is excellent for swerve at the top level and overkill for the Kit Bot.)
+Example: "The time-based auto stops at different distances. We will graph wheel distance, add a heading sensor, and replace the timed drive command with a distance target. Simulation must stop within the chosen tolerance before hardware testing."
 
-Either way, you'll need a **gyro** on the robot. Two common choices:
+### Keep season-specific choices separate
 
-- [CTRE Pigeon 2.0](https://store.ctr-electronics.com/products/pigeon-2): CAN, well-documented
-- [Kauai Labs NavX](https://pdocs.kauailabs.com/navx-mxp/): older but works fine
+Sensors, motor controllers, and game rules change. Record the season and library version when adding one. Keep the subsystem's general behavior separate from the configuration for a specific robot.
 
-Pigeon 2 wiring + driver setup is a Saturday morning project. Once it's installed, plumb its heading into `DriveInputs.heading` (`inputs.heading.mut_replace(gyro.getAngle(), Degrees)`, the same pattern R13 used for the sim's heading) and you can stop telling fibs about your real robot pose.
+### Read other teams' code carefully
 
----
+Public robot repositories can show how experienced teams organize similar features. Start with one file and trace its inputs and outputs. Recreate the idea in your own project only after you can explain each dependency and safety condition.
 
-### Telemetry and logging at the next level
+- [Scorpion 2026](https://github.com/frc4451/Scorpion2026/tree/main/src/main/java/frc/robot)
+- [FRC 6328 Mechanical Advantage](https://github.com/Mechanical-Advantage)
+- [FRC 254 The Cheesy Poofs](https://github.com/Team254)
 
-#### AdvantageKit
+<RulesBox title="Done when">
 
-Auto-generates the IO-inputs boilerplate you wrote by hand in R07 / R08 and adds comprehensive logging for free: every input, every output, every Command lifecycle event ends up in the log. Switches between real, sim, and *replay* modes (re-running a real match against a simulated robot).
+You selected one project, named the observed problem it addresses, linked its primary documentation, and wrote separate simulation and hardware checks.
 
-The IO interface technique you used through R07–R13 was designed to make the AdvantageKit migration smooth. Most of your code doesn't change; the `Inputs` classes implement the `LoggableInputs` interface and AdvantageKit generates the boilerplate.
-
-- [AdvantageKit documentation](https://docs.advantagekit.org/)
-
-#### NetworkTables tunable values
-
-For tuning gains live, AdvantageScope and your AdvantageScope-published telemetry pair well with the [`LoggedTunableNumber`](https://github.com/Mechanical-Advantage/AdvantageKit/blob/main/template_projects/sources/talonfx_swerve/src/main/java/frc/robot/util/LoggedTunableNumber.java) pattern from Team 6328. It's about 70 lines of Java and it lets you adjust gains in real time during development without changing constants and rebuilding.
-
----
-
-### Vision
-
-#### PhotonVision
-
-Coprocessor-based vision software (typically running on an Orange Pi, a Raspberry Pi, or a purpose-built camera). AprilTag detection, object detection, game-piece tracking. Outputs to NetworkTables; PhotonLib reads it in your subsystem and does the pose maths. This is the vision stack this curriculum standardises on. See the [PhotonVision](/frc/photonvision) lesson and [Building a Vision Subsystem](/frc/vision-subsystem).
-
-- [PhotonVision documentation](https://docs.photonvision.org/en/v2027.0.0-alpha-2/)
-- [Getting Started](https://docs.photonvision.org/en/v2027.0.0-alpha-2/docs/quick-start/index.html)
-
-A Kit Bot with vision can do things like auto-align to the launcher target or pick up a game piece off the floor. That's a multi-day project, not because the code is hard, but because mounting, lighting, and calibration are.
-
-One direct payoff: [R07](/kit-bot/r07-launcher-io) built a `Launcher.runAtDistance(Distance distance)` fed by test-button values, because nothing on the stock Kit Bot measures distance to the goal. A PhotonVision AprilTag distance reading, wrapped in `Meters.of(...)` or whatever unit the vision library hands you, is exactly the real value that method was always meant to take. Nothing about the calibration table changes, only what you pass into it.
-
----
-
-### Better sensors on the existing motors
-
-#### CANCoders
-
-Absolute encoders that read the position of an axle directly (not just rotations since boot). Useful for arms that need to know their angle on power-up.
-
-- [CTRE CANCoder docs](https://docs.ctr-electronics.com/docs/api/CANCoder-Tutorial.html)
-
-#### Beam-break sensors and limit switches
-
-Cheap digital inputs that tell you "is there a game piece in the launcher?" or "is the climber at the top?" Wire to the roboRIO DIO ports; read with `new DigitalInput(port)`.
-
-- [WPILib DigitalInput](https://docs.wpilib.org/en/stable/docs/software/hardware-apis/sensors/digital-inputs-software.html)
-
----
-
-### Pneumatics
-
-If your Kit Bot has a pneumatic launcher release or any solenoid-driven mechanism, WPILib's pneumatics API is similar in shape to the motor APIs: open a `Solenoid` or `DoubleSolenoid`, call `set(true)` to actuate, read state to confirm.
-
-- [WPILib Pneumatics](https://docs.wpilib.org/en/stable/docs/software/hardware-apis/pneumatics/index.html)
-
-The IO pattern works here too. Define a `ClimberIO` (or whatever) with `void deploy()` and `boolean isDeployed()`, and you have the same separation as your motor IOs.
-
----
-
-### Power and battery management
-
-#### Power Distribution Hub
-
-The PDH on the robot reports per-channel current draw to the roboRIO. Knowing which channel is pulling 80 A during a drive is the difference between "weird brownouts" and "we tightened the chain and they stopped."
-
-- [WPILib PowerDistribution](https://docs.wpilib.org/en/stable/docs/software/can-devices/power-distribution-module.html)
-
-Publish channel currents to NetworkTables. AdvantageScope's PDH viewer renders the entire current map in real time.
-
-#### Voltage compensation
-
-Already partially handled: `setVoltage` (which we use everywhere) compensates for bus voltage in the controller. You can go further with `RobotController.getBatteryVoltage()` and `RobotController.getInputCurrent()` to make your control loops aware of battery state.
-
----
-
-### LEDs
-
-`AddressableLED` drives WS2812-style strips from a single PWM port on the roboRIO. Subsystem-shaped: open the controller, set a buffer pattern, push it. Useful for driver feedback ("intake has a game piece", "auto routine selected") and pit signaling.
-
-- [WPILib Addressable LEDs](https://docs.wpilib.org/en/stable/docs/software/hardware-apis/misc/addressable-leds.html)
-
----
-
-### Refactoring patterns
-
-Three patterns that grow out of the IO setup you have:
-
-#### `LoggedTunableNumber`
-
-Covered above. Re-bind your `DriveConstants.MAX_DRIVE_PERCENT` to a `LoggedTunableNumber("Drive/maxDrivePercent", 0.85)` and you can change driver feel from AdvantageScope without rebuilding. Once you've felt this, you'll wonder why you went without it.
-
-#### A shared base class for IO classes
-
-You wrote `LauncherIO` and `DriveIO` independently. If you add a third subsystem, you'll notice patterns: every IO defines `updateInputs` against a mutable inputs class, every IO has a "set output" method.
-
-There are mature solutions (AdvantageKit's auto-generation), and there's the pragmatic approach of just copying the pattern. Don't try to abstract until you've written three. Two is a coincidence; three is a pattern.
-
-#### A `Constants` parser
-
-For teams that change their robot mid-season (swap a battery, replace a wheel, re-gear), having constants in a JSON file that's loaded at boot is convenient. Use [A20](/assignments/a20-config-validator) as the starting point.
-
----
-
-### Reading other teams' code
-
-Once you have your own working Kit Bot, reading public repositories from competitive teams is the single highest-leverage thing you can do. Pick one or two and read their drivetrain end-to-end. Notice what they did that you didn't.
-
-Some places to start:
-
-- **[FRC 6328 Mechanical Advantage](https://github.com/Mechanical-Advantage)**: the team behind AdvantageKit and AdvantageScope; their season repos are heavily commented and use the IO pattern thoroughly.
-- **[FRC 254 The Cheesy Poofs](https://github.com/Team254)**: long-time Java team; their seasons are rich references.
-
-**Read, don't copy.** If you see a clever single-roller helper in someone's repo and want one of your own, *design yours from scratch* using their code as inspiration. You'll learn far more from writing a worse version yourself than from pasting a better one. (This was the rule in [A17](/assignments/a17-io-interface), and it applies for the rest of your career.)
-
----
-
-### What to NOT do early
-
-Three temptations to resist in your first season:
-
-- **Don't add swerve before your Kit Bot wins matches**. Swerve is a 6-month project. Kit Bot wins matches.
-- **Don't write your own physics simulation framework.** WPILib's built-in `*Sim` classes are good. Improving on them is for teams that have shipped first.
-- **Don't refactor your IO pattern to be "cleaner" mid-build-season**. The 200-line refactor you'd do in week 3 will create bugs and miss the next week. Refactor between seasons.
-
-The capstone ([RC](/kit-bot/rc-capstone)) is the rubric for "done." Hit that. Compete. Then come back to this page.
-
----
-
-### References
-
-This module is references all the way down. The list above is the curated set. The single bookmark to keep is the [WPILib documentation home](https://docs.wpilib.org/en/stable/): almost every "how do I" question routes through there.
+</RulesBox>
 
 <Sources items={[
-  {"source": "wpilib", "note": "WPILib documentation."},
-  {"source": "wpilib", "path": "docs/software/hardware-apis/sensors/digital-inputs-software.html", "note": "Digital inputs."},
-  {"source": "wpilib", "path": "docs/software/hardware-apis/misc/addressable-leds.html", "note": "Addressable LEDs."},
-  {"source": "wpilib", "path": "docs/software/hardware-apis/pneumatics/index.html", "note": "Pneumatics."},
-  {"source": "wpilib", "path": "docs/software/can-devices/power-distribution-module.html", "note": "Power distribution."},
-  {"source": "photonvision", "path": "docs/quick-start/index.html", "note": "PhotonVision quick start."},
-  {"source": "ctre", "path": "docs/hardware-reference/cancoder/index.html", "note": "CANcoder."},
-  {"source": "advantagekit", "note": "AdvantageKit."},
-  {"source": "pathplanner", "note": "PathPlanner."},
-  {"source": "choreo", "note": "Choreo."},
-  {"source": "bline", "note": "BLine."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/autonomous/bline/BLineManager.java", "note": "Where FRC 4451 uses BLine."}
+  {"source": "wpilib", "note": "WPILib documentation for sensors, telemetry, odometry, and hardware APIs."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/combining-feedforward-feedback.html", "note": "Combining measured feedforward gains with feedback for a velocity target."},
+  {"source": "ctre", "path": "docs/hardware-reference/cancoder/index.html", "note": "CANcoder hardware."},
+  {"source": "advantagekit", "note": "AdvantageKit logging and replay."},
+  {"url": "https://github.com/frc4451/Scorpion2026/tree/main/src/main/java/frc/robot", "label": "Scorpion 2026 robot code", "note": "A team example of the later controls and logging work that can follow the Kit Bot capstone."}
 ]} />

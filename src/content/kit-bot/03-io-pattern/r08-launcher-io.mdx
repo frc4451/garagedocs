@@ -1,0 +1,287 @@
+---
+title: "R08: LauncherIO, Part 1: The IO Layer"
+lessonId: r08-launcher-io
+section: kit-bot
+group: io-pattern
+groupLabel: "Phase 3: Hardware via IO"
+groupOrder: 3
+order: 8
+duration: 40 min
+description: "Build the IO interface for a feeder and a separate intake and launcher roller, then implement both motors in real hardware and simulation."
+durationFixed: true
+---
+
+
+The Kit Bot has two rollers with different jobs:
+
+- The **intake and launcher roller** pulls fuel into the robot and sends it toward the target.
+- The **feeder** moves fuel between the storage area and the intake and launcher roller.
+
+Each roller has its own motor controller, encoder, voltage command, and sensor readings. They are **not** a leader and follower pair. Intake, launch, and eject commands coordinate the two motors with different voltages.
+
+The `Launcher` name describes the subsystem in this curriculum. It owns both rollers because every public action needs them to move as one mechanism. Scorpion called the equivalent subsystem `Superstructure` and added a third agitator motor. This curriculum keeps the two motors from the official Kit Bot and omits Scorpion's agitator.
+
+This lesson creates a `LauncherIO` interface and two implementations. `LauncherIOReal` talks to the two SparkMax controllers. `LauncherIOSim` gives each motor its own WPILib flywheel model. Part 2 builds the subsystem and coordinates both outputs.
+
+### The shape we're building
+
+```text
+subsystems/launcher/
+├── LauncherConstants.java
+├── Launcher.java            ← subsystem; coordinates both rollers
+├── LauncherIO.java          ← two outputs and two sets of inputs
+├── LauncherIOReal.java      ← talks to two independent SparkMax controllers
+└── LauncherIOSim.java       ← simulates each roller separately
+```
+
+### The IO interface
+
+```java
+package frc.robot.subsystems.launcher;
+
+import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Voltage;
+import static edu.wpi.first.units.Units.Amps;
+import static edu.wpi.first.units.Units.RPM;
+import static edu.wpi.first.units.Units.Volts;
+
+public interface LauncherIO {
+
+    /** Apply voltage to the feeder motor. */
+    public void setFeederVoltage(Voltage volts);
+
+    /** Apply voltage to the roller that intakes and launches fuel. */
+    public void setIntakeLauncherVoltage(Voltage volts);
+
+    /** Refresh both motors' readings. */
+    public void updateInputs(LauncherInputs inputs);
+
+    public static final class LauncherInputs {
+        public AngularVelocity feederVelocity = RPM.zero();
+        public Current feederCurrent = Amps.zero();
+        public Voltage feederAppliedVoltage = Volts.zero();
+
+        public AngularVelocity intakeLauncherVelocity = RPM.zero();
+        public Current intakeLauncherCurrent = Amps.zero();
+        public Voltage intakeLauncherAppliedVoltage = Volts.zero();
+    }
+}
+```
+
+The interface makes the independence visible. A caller may send different voltages to the feeder and intake and launcher roller. Each reading uses a WPILib measure, and the readings remain separate so a stalled feeder cannot hide inside a combined current value.
+
+### The constants
+
+```java
+package frc.robot.subsystems.launcher;
+
+import edu.wpi.first.units.measure.MomentOfInertia;
+import edu.wpi.first.units.measure.Time;
+import edu.wpi.first.units.measure.Voltage;
+import static edu.wpi.first.units.Units.KilogramSquareMeters;
+import static edu.wpi.first.units.Units.Volts;
+
+public final class LauncherConstants {
+
+    public static final int FEEDER_CAN_ID = 21;
+    public static final int INTAKE_LAUNCHER_CAN_ID = 22;
+    public static final int SMART_CURRENT_LIMIT_AMPS = 60;
+
+    public static final MomentOfInertia FEEDER_SIM_MOI =
+        KilogramSquareMeters.of(0.0010);
+    public static final MomentOfInertia INTAKE_LAUNCHER_SIM_MOI =
+        KilogramSquareMeters.of(0.0018);
+    public static final double SIM_GEAR_RATIO = 1.0;
+
+    public static final Voltage INTAKE_FEEDER_VOLTAGE = Volts.of(6.0);
+    public static final Voltage INTAKE_ROLLER_VOLTAGE = Volts.of(-4.0);
+
+    public static final Voltage LAUNCH_SPINUP_FEEDER_VOLTAGE = Volts.of(1.0);
+    public static final Voltage LAUNCH_FEEDER_VOLTAGE = Volts.of(-7.0);
+    public static final Voltage LAUNCH_ROLLER_VOLTAGE = Volts.of(-7.0);
+    public static final double LAUNCH_SPINUP_SECONDS = 1.0;
+
+    public static final Voltage EJECT_FEEDER_VOLTAGE = Volts.of(-6.0);
+    public static final Voltage EJECT_ROLLER_VOLTAGE = Volts.of(4.0);
+    public static final Voltage IDLE_VOLTAGE = Volts.of(0.0);
+
+    private LauncherConstants() {}
+}
+```
+
+These are starter values based on the control pattern used by Scorpion and the Mechanical Advantage Kit Bot template. They are not universal tuning values. Check each direction on blocks with no fuel before testing the complete fuel path.
+
+Notice that launch has two feeder values. During spin-up, the intake and launcher roller accelerates while the feeder applies only a small voltage. After the delay, the feeder receives its full launch voltage and sends fuel into the moving roller.
+
+### The real implementation
+
+```java
+package frc.robot.subsystems.launcher;
+
+import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkBase.ResetMode;
+import com.revrobotics.spark.SparkBase.PersistMode;
+import com.revrobotics.spark.config.SparkMaxConfig;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Voltage;
+import static edu.wpi.first.units.Units.Amps;
+import static edu.wpi.first.units.Units.RPM;
+import static edu.wpi.first.units.Units.Volts;
+
+public class LauncherIOReal implements LauncherIO {
+
+    private final SparkMax feeder;
+    private final SparkMax intakeLauncher;
+
+    public LauncherIOReal() {
+        feeder = new SparkMax(
+            LauncherConstants.FEEDER_CAN_ID,
+            MotorType.kBrushless);
+        intakeLauncher = new SparkMax(
+            LauncherConstants.INTAKE_LAUNCHER_CAN_ID,
+            MotorType.kBrushless);
+
+        SparkMaxConfig feederConfig = new SparkMaxConfig();
+        feederConfig.idleMode(IdleMode.kBrake)
+            .smartCurrentLimit(LauncherConstants.SMART_CURRENT_LIMIT_AMPS);
+
+        SparkMaxConfig intakeLauncherConfig = new SparkMaxConfig();
+        intakeLauncherConfig.idleMode(IdleMode.kBrake)
+            .smartCurrentLimit(LauncherConstants.SMART_CURRENT_LIMIT_AMPS)
+            .inverted(true);
+
+        feeder.configure(
+            feederConfig,
+            ResetMode.kResetSafeParameters,
+            PersistMode.kPersistParameters);
+        intakeLauncher.configure(
+            intakeLauncherConfig,
+            ResetMode.kResetSafeParameters,
+            PersistMode.kPersistParameters);
+    }
+
+    @Override
+    public void setFeederVoltage(Voltage volts) {
+        feeder.setVoltage(volts.in(Volts));
+    }
+
+    @Override
+    public void setIntakeLauncherVoltage(Voltage volts) {
+        intakeLauncher.setVoltage(volts.in(Volts));
+    }
+
+    @Override
+    public void updateInputs(LauncherInputs inputs) {
+        inputs.feederVelocity =
+            RPM.of(feeder.getEncoder().getVelocity());
+        inputs.feederCurrent = Amps.of(feeder.getOutputCurrent());
+        inputs.feederAppliedVoltage = Volts.of(
+            feeder.getAppliedOutput() * feeder.getBusVoltage());
+
+        inputs.intakeLauncherVelocity =
+            RPM.of(intakeLauncher.getEncoder().getVelocity());
+        inputs.intakeLauncherCurrent =
+            Amps.of(intakeLauncher.getOutputCurrent());
+        inputs.intakeLauncherAppliedVoltage = Volts.of(
+            intakeLauncher.getAppliedOutput()
+                * intakeLauncher.getBusVoltage());
+    }
+}
+```
+
+There is no `.follow(...)` call. Each controller receives its own configuration and its own voltage command. `updateInputs` also reads each controller separately.
+
+The inversion shown here is a starting point. Motor mounting, gearing, and wiring determine the correct signs on a particular robot. Verify motion at low voltage and change the configuration or constants when the real mechanism disagrees with the intended fuel direction.
+
+### The simulation implementation
+
+```java
+package frc.robot.subsystems.launcher;
+
+import edu.wpi.first.math.system.plant.DCMotor;
+import edu.wpi.first.math.system.plant.LinearSystemId;
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj.simulation.FlywheelSim;
+import static edu.wpi.first.units.Units.Amps;
+import static edu.wpi.first.units.Units.KilogramSquareMeters;
+import static edu.wpi.first.units.Units.Volts;
+
+public class LauncherIOSim implements LauncherIO {
+
+    private final FlywheelSim feederSim;
+    private final FlywheelSim intakeLauncherSim;
+    private Voltage feederVoltage = Volts.of(0);
+    private Voltage intakeLauncherVoltage = Volts.of(0);
+
+    public LauncherIOSim() {
+        feederSim = createSim(LauncherConstants.FEEDER_SIM_MOI);
+        intakeLauncherSim = createSim(
+            LauncherConstants.INTAKE_LAUNCHER_SIM_MOI);
+    }
+
+    private static FlywheelSim createSim(
+            edu.wpi.first.units.measure.MomentOfInertia moi) {
+        return new FlywheelSim(
+            LinearSystemId.createFlywheelSystem(
+                DCMotor.getNEO(1),
+                moi.in(KilogramSquareMeters),
+                LauncherConstants.SIM_GEAR_RATIO),
+            DCMotor.getNEO(1));
+    }
+
+    @Override
+    public void setFeederVoltage(Voltage volts) {
+        feederVoltage = clamp(volts);
+        feederSim.setInputVoltage(feederVoltage.in(Volts));
+    }
+
+    @Override
+    public void setIntakeLauncherVoltage(Voltage volts) {
+        intakeLauncherVoltage = clamp(volts);
+        intakeLauncherSim.setInputVoltage(
+            intakeLauncherVoltage.in(Volts));
+    }
+
+    @Override
+    public void updateInputs(LauncherInputs inputs) {
+        feederSim.update(0.020);
+        intakeLauncherSim.update(0.020);
+
+        inputs.feederVelocity = feederSim.getAngularVelocity();
+        inputs.feederCurrent = Amps.of(feederSim.getCurrentDrawAmps());
+        inputs.feederAppliedVoltage = feederVoltage;
+
+        inputs.intakeLauncherVelocity =
+            intakeLauncherSim.getAngularVelocity();
+        inputs.intakeLauncherCurrent =
+            Amps.of(intakeLauncherSim.getCurrentDrawAmps());
+        inputs.intakeLauncherAppliedVoltage = intakeLauncherVoltage;
+    }
+
+    private static Voltage clamp(Voltage volts) {
+        return Volts.of(Math.max(
+            -12.0, Math.min(12.0, volts.in(Volts))));
+    }
+}
+```
+
+The two simulations do not model fuel moving between rollers. They do prove that code can command and observe each motor independently. A feeder value cannot accidentally overwrite the intake and launcher value, and stopping the subsystem must set both outputs to zero.
+
+<RulesBox title="Done when">
+
+The constants, interface, and two IO implementations build. You can point to both voltage methods, both motor objects, and both simulation models, and explain why follower mode would be incorrect here.
+
+</RulesBox>
+
+[Part 2](/kit-bot/r08-launcher-io-part-2) builds the subsystem commands that coordinate the two motors.
+
+<Sources items={[
+  {"url": "https://github.com/Mechanical-Advantage/AdvantageKit/blob/main/template_projects/sources/kitbot_2026/src/main/java/frc/robot/subsystems/superstructure/SuperstructureIOSpark.java", "label": "Mechanical Advantage Kit Bot SuperstructureIOSpark", "note": "The reference implementation's separate feeder and intake-launcher SparkMax controllers."},
+  {"source": "scorpion", "path": "src/main/java/frc/robot/subsystems/superstructure/SuperstructureIOSparkNEO.java", "note": "Scorpion's separate feeder and intake-launcher controllers; its extra agitator is outside this curriculum."},
+  {"source": "revlib", "path": "com/revrobotics/spark/SparkMax.html", "note": "SparkMax voltage commands and sensor readings."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/FlywheelSim.html", "note": "The simulation model used once per roller."}
+]} />

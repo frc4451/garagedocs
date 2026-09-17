@@ -1,0 +1,331 @@
+---
+title: "R07: DriveIO, Part 1: The IO Layer"
+lessonId: r07-drive-io
+section: kit-bot
+group: io-pattern
+groupLabel: "Phase 3: Hardware via IO"
+groupOrder: 3
+order: 7
+duration: 35 min
+description: "The DriveIO interface for the Kit Bot drivetrain, its constants, the four-SparkMax real implementation and the DifferentialDrivetrainSim one."
+durationFixed: true
+---
+
+
+The Kit Bot drivetrain uses four SparkMax controllers in two leader/follower pairs. This lesson builds its IO interface, real implementation, and 2D physics simulation. Part 2 adds the `Drive` subsystem and gets the robot moving.
+
+By the end of the module a simulated robot drives on a virtual field from joystick input; no hardware required.
+
+---
+
+### What we're modeling
+
+The Kit Bot's drivetrain:
+
+```
+Left side                  Right side
+┌────────────────┐         ┌────────────────┐
+│  Left leader   │         │  Right leader  │  ← takes commands
+│   (CAN 40)     │         │   (CAN 50)     │
+│        ↓ follows         │        ↓ follows
+│  Left follower │         │  Right follower│  ← mirrors leader
+│   (CAN 41)     │         │   (CAN 51)     │
+└────────────────┘         └────────────────┘
+```
+
+Two motors per side. Only the leaders take voltage commands; the followers mirror them via the SparkMax follower mode (covered in [R06](/kit-bot/r06-motor-controllers)). The right side is mounted backwards relative to the left, so both right motors are inverted in software.
+
+That's the entire hardware story. The IO interface hides it from everything above.
+
+---
+
+### Step 1: create the interface
+
+Create `DriveIO.java`. This is a **complete file**.
+
+```java
+package frc.robot.subsystems.drive;
+
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.LinearVelocity;
+import edu.wpi.first.units.measure.Voltage;
+import static edu.wpi.first.units.Units.Amps;
+import static edu.wpi.first.units.Units.Meters;
+import static edu.wpi.first.units.Units.MetersPerSecond;
+import static edu.wpi.first.units.Units.Volts;
+
+public interface DriveIO {
+
+    /** Set per-side voltages, each in [-12, 12] V. */
+    public void setVoltages(Voltage leftVolts, Voltage rightVolts);
+
+    /** Refresh the inputs object with the latest readings. */
+    public void updateInputs(DriveInputs inputs);
+
+    /** Snapshot of everything the subsystem reads each tick. */
+    public static final class DriveInputs {
+        public Distance leftPosition = Meters.zero();
+        public Distance rightPosition = Meters.zero();
+        public LinearVelocity leftVelocity = MetersPerSecond.zero();
+        public LinearVelocity rightVelocity = MetersPerSecond.zero();
+        public Voltage leftAppliedVoltage = Volts.zero();
+        public Voltage rightAppliedVoltage = Volts.zero();
+        public Current leftCurrent = Amps.zero();
+        public Current rightCurrent = Amps.zero();
+    }
+}
+```
+
+The interface has one output method, one input method, and one inputs class. Each field uses WPILib's `Measure` API. `updateInputs` gives each field a `Meters.of(...)`, `Volts.of(...)`, or similar value.
+
+Two design choices worth naming:
+
+- **`Distance`/`LinearVelocity`, not rotations.** The IO converts motor rotations → wheel distance internally. Everything above the IO works in real physical units, not motor-shaft rotations. This decision is small; not making it means every consumer has to repeat the conversion, and repeat the chance to get it wrong.
+- **Per-side voltages, not arcade speed.** The IO is intentionally low-level. Arcade-drive math (turn the stick inputs into per-side voltages) lives on the subsystem. That keeps the IO trivially substitutable.
+
+---
+
+Build after creating the interface. Fix its package and imports before continuing.
+
+### Step 2: confirm the constants
+
+R03 created `DriveConstants.java`. Replace it with this **complete file** if your copy differs:
+
+```java
+package frc.robot.subsystems.drive;
+
+import edu.wpi.first.units.measure.Distance;
+import static edu.wpi.first.units.Units.Inches;
+
+public final class DriveConstants {
+
+    // CAN IDs
+    public static final int LEFT_LEADER_CAN_ID    = 40;
+    public static final int LEFT_FOLLOWER_CAN_ID  = 41;
+    public static final int RIGHT_LEADER_CAN_ID   = 50;
+    public static final int RIGHT_FOLLOWER_CAN_ID = 51;
+
+    // Motor protection (config-time REVLib parameter; see R03)
+    public static final int SMART_CURRENT_LIMIT_AMPS = 60;
+
+    // Geometry (Kit Bot stock)
+    public static final Distance WHEEL_DIAMETER = Inches.of(6);
+    public static final double GEAR_RATIO =
+        (50.0 / 14.0)  // first stage: driven gear / driver gear
+        * (48.0 / 16.0); // second stage: driven gear / driver gear
+    public static final Distance TRACK_WIDTH = Inches.of(22);
+
+    // Tele driving caps (dimensionless fractions, not units)
+    public static final double MAX_DRIVE_PERCENT = 0.85;
+    public static final double TELEOP_DEADBAND   = 0.05;
+
+    private DriveConstants() {}
+}
+```
+
+This is the exact `DriveConstants` [R03](/kit-bot/r03-constants) already showed you as the worked example, no coincidence: drive was the running example there, this module is where it gets used for real. The Kit Bot's stock geometry. If you swap wheels or gearboxes, `WHEEL_DIAMETER` and `TRACK_WIDTH` are the numbers to update, in whatever unit you measured them in.
+
+---
+
+### Step 3: create the real implementation
+
+Create `DriveIOReal.java`. This is a **complete file**. It compiles on the laptop, but do not operate real motors yet.
+
+```java
+package frc.robot.subsystems.drive;
+
+import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkBase.ResetMode;
+import com.revrobotics.spark.SparkBase.PersistMode;
+import com.revrobotics.spark.config.SparkMaxConfig;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.LinearVelocity;
+import edu.wpi.first.units.measure.Voltage;
+import static edu.wpi.first.units.Units.Amps;
+import static edu.wpi.first.units.Units.Meters;
+import static edu.wpi.first.units.Units.MetersPerSecond;
+import static edu.wpi.first.units.Units.Volts;
+
+public class DriveIOReal implements DriveIO {
+
+    private final SparkMax leftLeader;
+    private final SparkMax leftFollower;
+    private final SparkMax rightLeader;
+    private final SparkMax rightFollower;
+
+    public DriveIOReal() {
+        leftLeader     = new SparkMax(DriveConstants.LEFT_LEADER_CAN_ID,    MotorType.kBrushless);
+        leftFollower   = new SparkMax(DriveConstants.LEFT_FOLLOWER_CAN_ID,  MotorType.kBrushless);
+        rightLeader    = new SparkMax(DriveConstants.RIGHT_LEADER_CAN_ID,   MotorType.kBrushless);
+        rightFollower  = new SparkMax(DriveConstants.RIGHT_FOLLOWER_CAN_ID, MotorType.kBrushless);
+
+        SparkMaxConfig leftLeaderCfg = leaderConfig(false);
+        SparkMaxConfig leftFollowerCfg = followerConfig(DriveConstants.LEFT_LEADER_CAN_ID, false);
+        SparkMaxConfig rightLeaderCfg = leaderConfig(true);     // right side inverted
+        SparkMaxConfig rightFollowerCfg = followerConfig(DriveConstants.RIGHT_LEADER_CAN_ID, false);
+
+        configure(leftLeader,    leftLeaderCfg);
+        configure(leftFollower,  leftFollowerCfg);
+        configure(rightLeader,   rightLeaderCfg);
+        configure(rightFollower, rightFollowerCfg);
+
+        leftLeader.getEncoder().setPosition(0);
+        rightLeader.getEncoder().setPosition(0);
+    }
+
+    @Override
+    public void setVoltages(Voltage leftVolts, Voltage rightVolts) {
+        leftLeader.setVoltage(leftVolts.in(Volts));
+        rightLeader.setVoltage(rightVolts.in(Volts));
+    }
+
+    @Override
+    public void updateInputs(DriveInputs inputs) {
+        inputs.leftPosition = Meters.of(
+            motorRotationsToMeters(leftLeader.getEncoder().getPosition()));
+        inputs.rightPosition = Meters.of(
+            motorRotationsToMeters(rightLeader.getEncoder().getPosition()));
+        inputs.leftVelocity = MetersPerSecond.of(
+            motorRpmToMetersPerSecond(leftLeader.getEncoder().getVelocity()));
+        inputs.rightVelocity = MetersPerSecond.of(
+            motorRpmToMetersPerSecond(rightLeader.getEncoder().getVelocity()));
+        inputs.leftAppliedVoltage = Volts.of(
+            leftLeader.getAppliedOutput() * leftLeader.getBusVoltage());
+        inputs.rightAppliedVoltage = Volts.of(
+            rightLeader.getAppliedOutput() * rightLeader.getBusVoltage());
+        inputs.leftCurrent = Amps.of(
+            leftLeader.getOutputCurrent() + leftFollower.getOutputCurrent());
+        inputs.rightCurrent = Amps.of(
+            rightLeader.getOutputCurrent() + rightFollower.getOutputCurrent());
+    }
+
+    // ---- helpers ----
+
+    private static SparkMaxConfig leaderConfig(boolean inverted) {
+        SparkMaxConfig cfg = new SparkMaxConfig();
+        cfg.idleMode(IdleMode.kBrake)
+           .smartCurrentLimit(DriveConstants.SMART_CURRENT_LIMIT_AMPS)
+           .inverted(inverted);
+        return cfg;
+    }
+
+    private static SparkMaxConfig followerConfig(int leaderCanId, boolean invertRelativeToLeader) {
+        SparkMaxConfig cfg = new SparkMaxConfig();
+        cfg.idleMode(IdleMode.kBrake)
+           .smartCurrentLimit(DriveConstants.SMART_CURRENT_LIMIT_AMPS)
+           .follow(leaderCanId, invertRelativeToLeader);
+        return cfg;
+    }
+
+    private static void configure(SparkMax motor, SparkMaxConfig cfg) {
+        motor.configure(cfg,
+            ResetMode.kResetSafeParameters,
+            PersistMode.kPersistParameters);
+    }
+
+    // The unit is stated in the method name and destination field.
+    // These private helpers convert vendor sensor values at the IO boundary.
+    private static double motorRotationsToMeters(double motorRotations) {
+        double wheelRotations = motorRotations / DriveConstants.GEAR_RATIO;
+        return wheelRotations * Math.PI * DriveConstants.WHEEL_DIAMETER.in(Meters);
+    }
+
+    private static double motorRpmToMetersPerSecond(double motorRpm) {
+        double wheelRpm = motorRpm / DriveConstants.GEAR_RATIO;
+        double wheelRps = wheelRpm / 60.0;
+        return wheelRps * Math.PI * DriveConstants.WHEEL_DIAMETER.in(Meters);
+    }
+}
+```
+
+Three things worth lingering on:
+
+1. **The two `Config` helpers** (`leaderConfig`, `followerConfig`) eat the SparkMax boilerplate. Without them, the constructor would be 30+ lines of repeated config, exactly the sort of thing the IO pattern lets you contain.
+2. **Right side inverted at the leader.** The leader is `inverted(true)`. The follower uses `follow(leaderCanId, false)`, "mirror the leader exactly", which propagates the inversion. If your right side ends up spinning the wrong way, this is the line to flip.
+3. **Combined current per side.** `leftCurrent` sums both left motors. That's what your breaker math cares about.
+4. **Units become measures at the IO boundary.** `motorRotationsToMeters` and `motorRpmToMetersPerSecond` return `double` values because REVLib returns primitive sensor values. `Meters.of(...)` and `MetersPerSecond.of(...)` immediately wrap those results before they leave the IO implementation.
+
+---
+
+Build again before adding simulation.
+
+### Step 4: create the simulation implementation
+
+Create `DriveIOSim.java`. This is a **complete file**. WPILib ships a [`DifferentialDrivetrainSim`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html) with a `createKitbotSim` factory that pre-configures the geometry for the standard Kit Bot. We use it directly.
+
+```java
+package frc.robot.subsystems.drive;
+
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim;
+import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotMotor;
+import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotGearing;
+import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotWheelSize;
+import static edu.wpi.first.units.Units.Meters;
+import static edu.wpi.first.units.Units.Volts;
+
+public class DriveIOSim implements DriveIO {
+
+    private final DifferentialDrivetrainSim sim;
+    private Voltage leftAppliedVoltage  = Volts.of(0);
+    private Voltage rightAppliedVoltage = Volts.of(0);
+
+    public DriveIOSim() {
+        sim = DifferentialDrivetrainSim.createKitbotSim(
+            KitbotMotor.kDoubleNEOPerSide,
+            KitbotGearing.k10p71,
+            KitbotWheelSize.kSixInch,
+            null   // optional measurement noise; null = no noise
+        );
+    }
+
+    @Override
+    public void setVoltages(Voltage leftVolts, Voltage rightVolts) {
+        leftAppliedVoltage  = Volts.of(Math.max(-12.0, Math.min(12.0, leftVolts.in(Volts))));
+        rightAppliedVoltage = Volts.of(Math.max(-12.0, Math.min(12.0, rightVolts.in(Volts))));
+        sim.setInputs(leftAppliedVoltage.in(Volts), rightAppliedVoltage.in(Volts));
+    }
+
+    @Override
+    public void updateInputs(DriveInputs inputs) {
+        sim.update(0.020);                                  // 20 ms tick
+        inputs.leftPosition = Meters.of(sim.getLeftPositionMeters());
+        inputs.rightPosition = Meters.of(sim.getRightPositionMeters());
+        inputs.leftVelocity =
+            MetersPerSecond.of(sim.getLeftVelocityMetersPerSecond());
+        inputs.rightVelocity =
+            MetersPerSecond.of(sim.getRightVelocityMetersPerSecond());
+        inputs.leftAppliedVoltage = leftAppliedVoltage;
+        inputs.rightAppliedVoltage = rightAppliedVoltage;
+        inputs.leftCurrent = Amps.of(sim.getLeftCurrentDrawAmps());
+        inputs.rightCurrent = Amps.of(sim.getRightCurrentDrawAmps());
+    }
+}
+```
+
+`KitbotMotor.kDoubleNEOPerSide` is "two NEOs per side", exactly the Kit Bot drivetrain. The other enum values pin down the standard geometry. Three enum lookups give you a complete physics model.
+
+`setVoltages` limits and applies the requested voltages. `updateInputs` advances the simulation and reads the result. Both implementations follow the same `DriveIO` interface, so the subsystem will not need environment-specific code.
+
+`DifferentialDrivetrainSim` returns primitive values for position, velocity, and current. The unit factories turn them into measures as they enter `DriveInputs`. `DriveIOReal` uses the same boundary rule with REVLib values.
+
+<RulesBox title="Done when">
+
+The drive files build with `DriveIOSim` beside `DriveIOReal`, and the subsystem compiles against `DriveIO` only. The running check is in Part 2.
+
+</RulesBox>
+
+---
+
+The drivetrain IO is complete: interface, constants, real and sim. [Part 2](/kit-bot/r07-drive-io-part-2) builds the `Drive` subsystem on it and gets the Kit Bot moving in the simulator.
+
+<Sources items={[
+  {"source": "advantagekit", "path": "data-flow/recording-inputs/io-interfaces/", "note": "The IO pattern, applied to a drivetrain."},
+  {"source": "revlib", "path": "com/revrobotics/spark/SparkMax.html", "note": "Four SPARK MAXes and follower mode."},
+  {"source": "rev", "path": "brushless/spark-max/control-interfaces", "note": "Follower mode."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html", "note": "The simulated drivetrain."}
+]} />

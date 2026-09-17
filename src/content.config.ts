@@ -5,7 +5,7 @@ import { glob } from 'astro/loaders';
 const lessonSchema = z.object({
   title: z.string(),
   lessonId: z.string(),
-  section: z.enum(['tools', 'java', 'assignments', 'kit-bot', 'frc']),
+  section: z.enum(['tools', 'hardware', 'java', 'assignments', 'kit-bot', 'frc', 'badges']),
   group: z.string().optional(),
   groupLabel: z.string().optional(),
   groupOrder: z.number().optional(),
@@ -24,7 +24,7 @@ const lessonSchema = z.object({
 });
  
 const createLessonCollection = (
-  section: 'tools' | 'java' | 'assignments' | 'kit-bot' | 'frc',
+  section: 'tools' | 'hardware' | 'java' | 'assignments' | 'kit-bot' | 'frc' | 'badges',
 ) =>
   defineCollection({
     loader: glob({ pattern: '**/*.{md,mdx}', base: `./src/content/${section}` }),
@@ -33,10 +33,12 @@ const createLessonCollection = (
 
 export const collections = {
   tools: createLessonCollection('tools'),
+  hardware: createLessonCollection('hardware'),
   java: createLessonCollection('java'),
   assignments: createLessonCollection('assignments'),
   'kit-bot': createLessonCollection('kit-bot'),
   frc: createLessonCollection('frc'),
+  badges: createLessonCollection('badges'),
   homepage: defineCollection({
     loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/homepage' }),
     schema: z.object({

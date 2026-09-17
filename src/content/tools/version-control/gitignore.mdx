@@ -1,0 +1,157 @@
+---
+title: ".gitignore"
+lessonId: gitignore
+section: tools
+group: version-control
+groupLabel: "Version Control with Git & GitHub"
+groupOrder: 3
+order: 3.5
+difficulty: beginner
+description: "Keep generated output and local machine files out of Git without hiding source code or project configuration."
+---
+
+### What `.gitignore` does
+
+A `.gitignore` file names untracked files and folders that Git should leave out of normal
+status and staging operations. Use it for files your tools can regenerate, such as Java
+class files and build directories, and for local files that do not belong to the project.
+
+Commit the project's `.gitignore` so every clone uses the same rules. A rule affects
+untracked files. It does not stop Git from tracking a file that was committed earlier.
+
+### Start with the project's existing file
+
+Open `.gitignore` in the repository root before adding rules. Java, Gradle, and WPILib
+project generators may create one for the project. Keep its existing rules unless you
+understand why a rule is no longer needed.
+
+For a small Java practice repository, this is a useful starting point:
+
+```text
+# Java compiler and build output
+*.class
+.gradle/
+build/
+out/
+
+# Local editor and operating-system files
+.DS_Store
+Thumbs.db
+```
+
+For a WPILib project, keep the generated wrapper, build scripts, source code, vendordep
+JSON files, and team-shared editor configuration. Generated build output, caches,
+simulation window state, and logs are common ignore candidates. Use the `.gitignore`
+created with the project as the starting point because its exact entries can change with
+the project template.
+
+### Read the patterns
+
+Each nonblank line is one pattern. These examples cover the patterns students use most:
+
+| Pattern | Effect |
+|---|---|
+| `*.class` | Ignore files ending in `.class` in any folder. |
+| `build/` | Ignore folders named `build` and their contents. |
+| `/build/` | Ignore only the `build` folder at the repository root. |
+| `logs/**/*.wpilog` | Ignore `.wpilog` files below `logs`, including nested folders. |
+| `# explanation` | Add a comment. |
+| `!gradle-wrapper.jar` | Make an exception to an earlier matching rule. |
+
+Rules are relative to the folder containing the `.gitignore`. Most projects need one file
+at the repository root. A nested `.gitignore` can add or override rules for its folder.
+
+### Check a rule before committing it
+
+After creating a generated file or folder, use Git to confirm the rule matches what you
+intended:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+git status --ignored
+git check-ignore -v build/example.class
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+git status --ignored
+git check-ignore -v build/example.class
+```
+
+</CodeTab>
+</CodeTabs>
+
+`git status --ignored` lists ignored paths. `git check-ignore -v` prints the file and rule
+that caused a path to be ignored. If a required source or configuration file appears,
+fix the rule before committing.
+
+### Handle a file Git already tracks
+
+Adding a tracked file to `.gitignore` does not remove it from Git. Remove that path from
+the index, keep the working copy, and commit the change:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+git rm --cached path-to-generated-file
+git add .gitignore
+git diff --staged
+git commit -m "Ignore generated file"
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+git rm --cached path-to-generated-file
+git add .gitignore
+git diff --staged
+git commit -m "Ignore generated file"
+```
+
+</CodeTab>
+</CodeTabs>
+
+Replace `path-to-generated-file` with the exact path. The `--cached` option removes the
+path from Git's index while leaving the working file on your computer. Read the staged
+diff before committing so you can confirm that only the intended path stopped being
+tracked.
+
+### Keep secrets out of the repository
+
+Add local credential files to `.gitignore` before they contain a real token or password.
+Do not treat `.gitignore` as secret storage. Anyone can edit or bypass its rules, and an
+ignored file that was committed earlier remains in repository history.
+
+If a credential reaches GitHub, revoke or rotate it first. Removing the file from the
+latest commit does not make the exposed credential safe again. Follow GitHub's sensitive
+data removal procedure when the history also needs to be cleaned.
+
+### Practice in a safe repository
+
+1. Add `*.class` and `build/` to a practice repository's `.gitignore`.
+2. Create `Example.class` and `build/output.txt` as empty test files.
+3. Run `git status --ignored` and confirm both appear under ignored files.
+4. Run `git check-ignore -v Example.class build/output.txt` and identify each matching
+   rule.
+5. Delete the two test files. Commit only `.gitignore`.
+
+<Sources items={[
+  {"source": "git", "path": "docs/gitignore", "note": "Ignore-file purpose, precedence, pattern format, and tracked-file limitation."},
+  {"source": "git", "path": "docs/git-check-ignore", "note": "Checking which rule ignores a path."},
+  {"source": "git", "path": "docs/git-rm", "note": "Removing a tracked path from the index with <code>--cached</code>."},
+  {"source": "github", "path": "get-started/getting-started-with-git/ignoring-files", "note": "Repository and global ignore files."},
+  {"source": "github", "path": "authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository", "note": "Response when sensitive data has entered repository history."},
+  {"source": "cobra", "path": ".gitignore", "note": "FRC 4451's current WPILib project ignore rules for Gradle, editors, simulation state, logs, and generated build metadata."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Local Git Workflow","id":"local-git-workflow"},
+  {"label":"Branching and Merging","id":"branching-and-merging"},
+  {"label":"GitHub collection of .gitignore templates","url":"https://github.com/github/gitignore"}
+]} title="Next" section="tools" />

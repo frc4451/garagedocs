@@ -1,0 +1,246 @@
+---
+title: "Shortest Paths"
+lessonId: java-shortest-paths
+section: java
+group: java-algorithms
+groupLabel: "Common Algorithms"
+groupOrder: 7
+order: 7
+difficulty: advanced
+duration: 30 min
+description: When edges have different costs, BFS stops being enough. Dijkstra's algorithm, the priority queue that drives it, and getting the actual route back out.
+---
+
+### When BFS is not enough
+
+[Breadth-First Search](/java/fundamentals/java-breadth-first-search#why-it-finds-shortest-paths) finds the shortest path when every step costs the same. The moment edges carry different **weights** (a longer corridor, a slower surface, a route that passes near a defender), the fewest-edges path and the cheapest path stop being the same thing, and BFS gives the wrong answer with no warning.
+
+Picture a set of waypoints on the field with the driving time between each connected pair. The question is "what is the fastest route from here to the loading zone?" That is a shortest-path problem on a weighted graph, and the standard answer is **Dijkstra's algorithm**.
+
+<ContentTable
+  headers={["Situation", "Use", "Cost"]}
+  rows={[
+    ["Every edge costs the same", "BFS", "O(V + E)"],
+    ["Edges cost different non-negative amounts", "Dijkstra", "O(E log V)"],
+    ["Some edges have negative cost", "Bellman–Ford; rare outside contests", "O(V · E)"]
+  ]}
+/>
+
+The first row matters: if all your edges are equal, Dijkstra is overhead. Reach for it only when the weights differ.
+
+### The idea
+
+Dijkstra grows a region of nodes whose shortest distance is *settled*. At each step, it picks the closest unsettled node.
+
+After settling a node, inspect each of its edges. If going through that node creates a shorter route to a neighbour, record the improvement. This step is called **relaxing** the edge.
+
+Always taking the closest unsettled node is what makes it correct: with non-negative weights, nothing discovered later can beat a distance that is already the smallest on the frontier. And "always take the smallest" is exactly what a [priority queue](/java/fundamentals/java-queues#priority-queues) does.
+
+### The code
+
+```java
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.PriorityQueue;
+
+public class Main {
+    record Edge(int to, double cost) {}
+
+    static double[] dijkstra(List<List<Edge>> adj, int source) {
+        int n = adj.size();
+        double[] dist = new double[n];
+        Arrays.fill(dist, Double.POSITIVE_INFINITY);
+        dist[source] = 0.0;
+
+        // entries are {node, distance}, smallest distance first
+        PriorityQueue<double[]> pq = new PriorityQueue<>((a, b) -> Double.compare(a[1], b[1]));
+        pq.offer(new double[] { source, 0.0 });
+
+        while (!pq.isEmpty()) {
+            double[] top = pq.poll();
+            int u = (int) top[0];
+            double d = top[1];
+            if (d > dist[u]) continue;          // a stale entry; this node already has a better distance
+
+            for (Edge e : adj.get(u)) {
+                double candidate = d + e.cost();
+                if (candidate < dist[e.to()]) { // relax
+                    dist[e.to()] = candidate;
+                    pq.offer(new double[] { e.to(), candidate });
+                }
+            }
+        }
+        return dist;
+    }
+
+    public static void main(String[] args) {
+        // 0 = start, 1 = mid-field, 2 = near the wall, 3 = loading zone
+        List<List<Edge>> adj = new ArrayList<>();
+        for (int i = 0; i < 4; i++) adj.add(new ArrayList<>());
+        addEdge(adj, 0, 1, 2.0);
+        addEdge(adj, 0, 2, 5.0);
+        addEdge(adj, 1, 2, 1.0);
+        addEdge(adj, 1, 3, 6.0);
+        addEdge(adj, 2, 3, 2.0);
+
+        double[] dist = dijkstra(adj, 0);
+        System.out.println(Arrays.toString(dist));   // [0.0, 2.0, 3.0, 5.0]
+    }
+
+    static void addEdge(List<List<Edge>> adj, int a, int b, double cost) {
+        adj.get(a).add(new Edge(b, cost));
+        adj.get(b).add(new Edge(a, cost));            // undirected: both ways
+    }
+}
+```
+
+The direct edge from start to the loading zone via mid-field costs 8; going start → mid-field → wall → loading zone costs 5. BFS would have picked the two-edge route and been wrong by three seconds.
+
+<RulesBox title="The stale-entry check is not optional">
+
+```java norun
+if (d > dist[u]) continue;
+```
+
+Java's `PriorityQueue` cannot update an entry already inside it. Whenever a distance improves, the code pushes a *new* entry and leaves the old one behind. That line discards each outdated entry when it surfaces.
+
+Without the check, the answer remains correct, but the algorithm may expand each node many times. Dense graphs can then take much longer to process.
+
+</RulesBox>
+
+Three more details that decide whether it works:
+
+- **Initialise with infinity, and keep it a `double`.** `Double.POSITIVE_INFINITY` plus a weight is still infinity. An `int` sentinel of `Integer.MAX_VALUE` plus a weight overflows to a negative number (see [Math](/java/fundamentals/java-math#integer-ranges-and-overflow)), and the algorithm quietly picks it as the best route.
+- **Test before assigning.** `if (candidate < dist[to])` first, then write. Writing unconditionally makes the distance worse.
+- **Non-negative weights only.** A negative edge can make a settled node's distance wrong after the fact, and Dijkstra never revisits. Driving time, distance, and energy are never negative, so on a robot this is rarely a constraint, but it is the reason the algorithm works at all.
+
+### Getting the route back
+
+Distances alone rarely answer the question. To know *which way to drive*, record where each improvement came from and walk it backwards from the destination:
+
+```java
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.PriorityQueue;
+
+public class Main {
+    record Edge(int to, double cost) {}
+
+    static int[] parent;
+
+    static double[] dijkstra(List<List<Edge>> adj, int source) {
+        int n = adj.size();
+        double[] dist = new double[n];
+        Arrays.fill(dist, Double.POSITIVE_INFINITY);
+        parent = new int[n];
+        Arrays.fill(parent, -1);
+        dist[source] = 0.0;
+
+        PriorityQueue<double[]> pq = new PriorityQueue<>((a, b) -> Double.compare(a[1], b[1]));
+        pq.offer(new double[] { source, 0.0 });
+        while (!pq.isEmpty()) {
+            double[] top = pq.poll();
+            int u = (int) top[0];
+            if (top[1] > dist[u]) continue;
+            for (Edge e : adj.get(u)) {
+                double candidate = dist[u] + e.cost();
+                if (candidate < dist[e.to()]) {
+                    dist[e.to()] = candidate;
+                    parent[e.to()] = u;                 // remember how we got here
+                    pq.offer(new double[] { e.to(), candidate });
+                }
+            }
+        }
+        return dist;
+    }
+
+    static List<Integer> pathTo(int target) {
+        List<Integer> path = new ArrayList<>();
+        for (int at = target; at != -1; at = parent[at]) path.add(at);
+        Collections.reverse(path);
+        return path;
+    }
+
+    public static void main(String[] args) {
+        List<List<Edge>> adj = new ArrayList<>();
+        for (int i = 0; i < 4; i++) adj.add(new ArrayList<>());
+        int[][] edges = { { 0, 1, 2 }, { 0, 2, 5 }, { 1, 2, 1 }, { 1, 3, 6 }, { 2, 3, 2 } };
+        for (int[] e : edges) {
+            adj.get(e[0]).add(new Edge(e[1], e[2]));
+            adj.get(e[1]).add(new Edge(e[0], e[2]));
+        }
+        double[] dist = dijkstra(adj, 0);
+        System.out.println("cost " + dist[3] + " via " + pathTo(3));   // cost 5.0 via [0, 1, 2, 3]
+    }
+}
+```
+
+`parent[v]` is overwritten every time `v`'s distance improves, so when the algorithm finishes it holds the last, and therefore best, predecessor. Walking it from the target to the source and reversing gives the route.
+
+### Where this sits on a real robot
+
+FRC teams usually create autonomous paths in a tool such as [PathPlanner](/frc/pathplanner#paths-autos-and-event-markers) or [BLine](/frc/bline#points-not-time). These tools let you draw continuous curves or point-to-point segments through the field.
+
+Dijkstra can help one level earlier. It can choose a sequence of zones before a path is drawn, route around a known obstacle on a coarse grid, or search any field model made of places connected by costs.
+
+**A\*** is a common variation of Dijkstra's algorithm. It adds a hint, such as the straight-line distance to the goal, to each priority. That hint directs the search toward the target instead of expanding evenly in every direction. The code needs one additional term in the comparator.
+
+<RulesBox title="Common mistakes">
+
+- **Using Dijkstra when every edge costs the same.** BFS is simpler and faster.
+- **Forgetting the stale-entry check**, and wondering why a small graph takes so long.
+- **An `int` sentinel that overflows** when a weight is added to it.
+- **Adding an edge in one direction** for a graph that should be undirected.
+- **Reading the distance of an unreachable node** and printing infinity as if it were a route.
+- **A negative weight**, which the algorithm cannot handle and will not warn you about.
+
+</RulesBox>
+
+<JavaPlayground id="java-shortest-paths" />
+
+<ExerciseBox title="Practice">
+
+1. Add a fifth node to the example, connected only to node 3 with cost 1, and confirm its distance is 6.
+2. Make one edge directed (only from 0 to 2) and see which distances change.
+3. Give the graph a node nothing connects to. Print its distance and decide what your program should say instead of `Infinity`.
+4. Model a 4 × 4 grid where each cell connects to its four neighbours, with a few "slow" cells costing 3 instead of 1. Find the cheapest route corner to corner and print it.
+5. Turn the priority into `distance + straightLineToGoal` and count how many nodes each version expands on the grid from exercise 4.
+
+<details>
+<summary>Hints</summary>
+
+1. Add the node to the adjacency list before running; `adj.size()` sets the array sizes.
+2. Only call `adj.get(0).add(...)` for that edge. Node 2 is still reachable via 1.
+3. `Double.isInfinite(dist[v])` is the test.
+4. Number the cells `row * 4 + col`. Build the edges in a double loop; the cost of an edge is the cost of the cell you are entering.
+5. That is A\*. On a grid with a clear goal it should settle noticeably fewer nodes.
+
+</details>
+
+</ExerciseBox>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"url": "https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm", "label": "Wikipedia: Dijkstra's algorithm", "note": "The algorithm and its non-negative-weight condition."},
+  {"url": "https://en.wikipedia.org/wiki/A*_search_algorithm", "label": "Wikipedia: A* search", "note": "Dijkstra with a heuristic."},
+  {"source": "java-api", "path": "java.base/java/util/PriorityQueue.html", "note": "The frontier."},
+  {"url": "/frc/pathplanner", "label": "PathPlanner", "note": "Where pathfinding appears on the robot."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/Double.html", "note": "<code>Double</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/Arrays.html", "note": "<code>Arrays</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Related"
+  section="java"
+  links={[
+    {"label":"Breadth-First Search","id":"java-breadth-first-search"},
+    {"label":"Queues","id":"java-queues"},
+    {"label":"Graphs","id":"java-graphs"}
+  ]}
+/>

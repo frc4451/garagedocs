@@ -1,10 +1,12 @@
-# CLAUDE.md: Mantik Garage handoff
+# CLAUDE.md: GarageDocs handoff
 
-Project context for working on **Mantik Garage**, FRC 4451's training site: an Astro fork of
-[itkan-robotics/mantik](https://github.com/itkan-robotics/mantik) deployed to GitHub Pages at
-`/mantik-garage`. Five content sections (Tools, Java, Practice, Kit Bot, FRC) plus the
-Resources catalog. The FTC section and the browser PID Simulation were removed in
-September 2026 as out of scope; do not resurrect them.
+Project context for working on **GarageDocs**, FRC 4451's training site: an Astro fork of
+[itkan-robotics/mantik](https://github.com/itkan-robotics/mantik) (renamed 2026-09-15; Mantik
+remains the framework source and is cited where its outline survives) deployed to GitHub
+Pages at the domain root (`/`). Six content sections (Tools, Java, Practice, Kit Bot, FRC, Badges) plus the
+Resources catalog. Badges are the team's year-by-year sign-off paths; only Badge 1 (Kit Bot) is written,
+and its running draft with open decisions is `Badge 1 Draft.md` in the Obsidian vault. The browser PID Simulation was removed in September 2026 as out of
+scope; do not resurrect it.
 
 ---
 
@@ -22,7 +24,7 @@ every option.
   real requirements, sentence-case headings.
 - **Site facts must match the sources**: the team's robot code
   (`C:\Users\judso\FIRST Robotics\2026\Cobra2026Private`, `org.robotzgarage.frc2026`)
-  and the vendor documentation the homepage References section lists. Do not invent
+  and the vendor documentation the References page lists. Do not invent
   API names, values or behaviour; say what needs checking.
 - **Every fact about a tool or library is checked against its docs** before it goes in.
 
@@ -32,21 +34,31 @@ every option.
   `groupLabel`, `groupOrder`, `order` and `lessonId` drive the sidebar; an overview's
   structure list must mirror the sidebar. See
   [`docs/content-authoring.md`](docs/content-authoring.md).
-- Navigation order (`src/config/navigation.ts`): tools, java, assignments, kit-bot, frc.
+- Navigation order (`src/config/navigation.ts`): tools, java, assignments, kit-bot, frc, badges.
 - Heading anchors are slugs of the heading text; renaming a heading breaks inbound links
   until `npm run links` is clean.
-- **Base path:** links are authored site-root-relative (`/frc/...`) and wrapped with
+- **Base path:** the site deploys at `/`; a subdirectory build is `BASE_PATH=/x`. Links are authored site-root-relative (`/frc/...`) and wrapped with
   `withBase()` (`withBaseHtml()` for raw HTML props) from `src/lib/url.ts`; MDX links
-  are rewritten by `scripts/rehype-base-path.mjs`. Never hardcode `/mantik-garage`.
+  are rewritten by `scripts/rehype-base-path.mjs`. Never hardcode a base path.
 - **Styling:** plain CSS with tokens on `:root` (`src/styles/global.css`); no Tailwind.
   Reader preferences live in `src/lib/prefs.ts` and are applied as `data-*` attributes
   on `<html>` before first paint. Font sizes are `rem` or `--font-size--*` tokens.
 
 ## Verification commands
 
+npm 11.19 or newer only: CI runs Node 24 (npm 11.19), `engines.npm` is `>=11.19.0` and
+`.npmrc` sets `engine-strict=true`. Older npm (10.9 and 11.6 both) writes `package-lock.json`
+without the `@emnapi/core` and `@emnapi/runtime` peers of `@napi-rs/wasm-runtime`, and
+`npm ci` on the runner then fails with "Missing … from lock file"; that broke four pushes.
+Regenerate the lockfile only with `npx npm@11.19.0 install --package-lock-only` or a
+global npm at that version or newer. npm 11.19 also stops auto-installing optional peers,
+so every package the project imports must be declared in `package.json`
+(`@astrojs/markdown-remark`, `unist-util-visit` and `@types/mdx` were missing and broke CI's
+`astro build` while the local `node_modules` still had them).
+
 | Command | Purpose |
 |---------|---------|
-| `npm run dev` | http://127.0.0.1:5173/mantik-garage/ |
+| `npm run dev` | http://127.0.0.1:5173/ |
 | `npm run build` | Astro + Pagefind; 200+ pages |
 | `npm run links` | internal hrefs and heading fragments over `dist/`; must be 0/0 |
 | `npx vite-node scripts/test-java-lesson-examples.ts` | compiles and runs every Java lesson fence |
@@ -72,13 +84,13 @@ edit `describe` strings or expected-output blocks; they are the hidden checks.
 ## Provenance
 
 Tools, Java, Practice and Kit Bot are FRC 4451's own writing (Java and Practice with
-direct inspiration from USC CSCE 145/146; Kit Bot from FRC 4864's *Skorpion* build,
+direct inspiration from USC CSCE 145/146; Kit Bot from FRC 4864's *Scorpion* build (github.com/frc4451/Scorpion2026),
 imported once by `scripts/import-robot-basics.py`, which must not be re-run). FRC is
-Mantik's lessons plus the team's rewrites; the PID Tuning Practice group uses Mantik's
+the team's rewrites on Mantik's original outline (cited per page); the PID Tuning Practice group uses Mantik's
 [mantik-pid-practice](https://github.com/itkan-robotics/mantik-pid-practice) project and
 videos. The two FRC Networking pages are adapted from FSC Open Docs (CC BY-SA 4.0) and
-carry an Origin box. The homepage "Who wrote what" table and `NOTICE` state all of this;
-keep both current, and keep the homepage References section growing with the sources the
+carry an Origin box. The References page and `NOTICE` state all of this;
+keep both current, and keep the References page growing with the sources the
 lessons cite.
 
 ## Collaboration
@@ -87,7 +99,7 @@ Codex (OpenAI) runs prose passes in parallel. Shared context lives in the Obsidi
 `F:\Claude\FSC Open Docs\Claude Context\Mantik - Garage\` (`Claude Context Doc.md`,
 `Codex Context Doc.md`, `Anti Slop Prose Doc.md`, dated records in `Prose Plans\`).
 Record each pass there. Site content never references any AI tool other than the
-Claude disclosure on the homepage.
+Claude disclosure on the homepage and the Claude and Codex disclosure on the References page.
 
 ## Tooling notes
 

@@ -97,6 +97,8 @@ Prefer examples involving a drivetrain, elevator, arm, intake, shooter, climber,
 
 Keep code examples focused on one idea. Label each example as runnable code, a partial snippet, or pseudocode. For runnable examples, include or link to the required setup, dependencies, and relevant versions. For partial snippets, explain what has been omitted and where the code belongs.
 
+In Java examples, declare the visibility of every type and member. Write `public` or `private` on classes, nested classes, records, interfaces, fields, constructors, and methods instead of relying on package-private or implicit interface visibility. Never write a bare `static` declaration: use `public static` for part of the class API or `private static` for an implementation detail. Local variables and record components do not take access modifiers.
+
 Explain inputs, behavior, and expected results. Use names that reflect what values actually represent. A requested motor output is not necessarily a measured motor speed. Do not claim that a half-output setting produces half the maximum speed.
 
 Keep code and prose consistent. If a name, value, or behavior changes, update the explanation too.

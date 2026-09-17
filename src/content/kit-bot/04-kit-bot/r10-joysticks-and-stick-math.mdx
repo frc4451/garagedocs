@@ -9,9 +9,11 @@ order: 10
 duration: 10 min
 description: "Deadband, scaling, and the stick curve from A08 applied to a real controller."
 ---
-The Drive subsystem from R08 takes a `speed` and a `rotation`, both in `[-1, 1]`. The Xbox sticks already report `[-1, 1]`. You could feed one straight into the other and call it done. You'd hate driving it.
 
-This module is the small layer of math that turns raw stick input into something a driver can actually steer. You already wrote it as plain Java in [A08](/assignments/a08-stick-curve-calculator). This is where it gets a home in the project.
+
+The Drive subsystem from R07 takes `speed` and `rotation` values in `[-1, 1]`. Xbox sticks report values in the same range, but raw readings can make the robot creep at rest and respond too sharply near the center.
+
+This module is the small layer of math that turns raw stick input into something a driver can actually steer. You already wrote it as plain Java in [A08](/java/assignments/a08-stick-curve-calculator). This is where it gets a home in the project.
 
 ---
 
@@ -62,7 +64,7 @@ public final class StickCurve {
 
 Same shape as A08: deadband first, sign-preserving power second, clamp last. The order matters: deadband on a *post*-curve value would zero out values that the curve already pushed close to zero, double-clipping. Deadband on the raw input first is the right move.
 
-Notice everything here stays a plain `double`: `rawStick`, `deadband`, `maxOutput` are all dimensionless fractions of full stick deflection, not a physical quantity WPILib's Units library has a type for. That's the same distinction R03 drew between `Distance` and `MAX_DRIVE_PERCENT`, and R08 drew between `arcadeDrive`'s `speed`/`rotation` and its internal `Voltage` math. Units typing stops where the physical quantity does.
+Notice everything here stays a plain `double`: `rawStick`, `deadband`, `maxOutput` are all dimensionless fractions of full stick deflection, not a physical quantity WPILib's Units library has a type for. That's the same distinction R03 drew between `Distance` and `MAX_DRIVE_PERCENT`, and R07 drew between `arcadeDrive`'s `speed`/`rotation` and its internal `Voltage` math. Units typing stops where the physical quantity does.
 
 The exponent `2` is the common choice; `3` is gentler near zero and worth trying once you've driven the robot. Pick one and stick with it; flip-flopping is more confusing than either choice.
 
@@ -111,11 +113,11 @@ drive.setDefaultCommand(
 );
 ```
 
-What changed from the R08 version:
+What changed from the R07 version:
 
 - Stick reads are conditioned through `StickCurve.shape` before reaching `arcadeDrive`.
 - Deadband comes from `DriveConstants.TELEOP_DEADBAND`. Adjusting the feel is a constants edit, not a code edit.
-- `shape` is called with a max output of `1.0`, not `DriveConstants.MAX_DRIVE_PERCENT`. `arcadeDrive`'s own doc comment (R08) says it takes `speed` and `rotation` in the full `[-1, 1]` range, then applies `MAX_DRIVE_PERCENT` itself when it converts that to volts. Capping to `MAX_DRIVE_PERCENT` a second time here, before the value ever reaches `arcadeDrive`, would compound the two caps and leave full stick deflection well under 85% of battery voltage.
+- `shape` is called with a max output of `1.0`, not `DriveConstants.MAX_DRIVE_PERCENT`. `arcadeDrive`'s own doc comment (R07) says it takes `speed` and `rotation` in the full `[-1, 1]` range, then applies `MAX_DRIVE_PERCENT` itself when it converts that to volts. Capping to `MAX_DRIVE_PERCENT` a second time here, before the value ever reaches `arcadeDrive`, would compound the two caps and leave full stick deflection well under 85% of battery voltage.
 - The lambda still ends in `drive.arcadeDrive(...)`: the subsystem's API is unchanged. Good IO design means everything below is sealed.
 
 ---
@@ -138,17 +140,17 @@ Then try sitting on a single 30% reading for a few seconds. The robot should gli
 
 ### When to revisit these values
 
-The numbers in `DriveConstants` aren't sacred. Things to tune once you have a real robot:
+The values in `DriveConstants` are starting points. Test these items with the same driver and route when real hardware is available:
 
 - **Deadband 0.05** is conservative. Some controllers stay tighter and can use 0.02–0.03; older ones may need 0.10.
-- **MAX_DRIVE_PERCENT 0.85** caps voltage at 10.2 V. It's applied inside `Drive.arcadeDrive` (R08), not inside `StickCurve.shape`, so this is a `Drive` edit, not a `StickCurve` edit. Some teams run 0.7 in early drive practice and ratchet up to 1.0 as the driver gets comfortable.
+- **MAX_DRIVE_PERCENT 0.85** caps voltage at 10.2 V. It's applied inside `Drive.arcadeDrive` (R07), not inside `StickCurve.shape`, so this is a `Drive` edit, not a `StickCurve` edit. Some teams run 0.7 in early drive practice and ratchet up to 1.0 as the driver gets comfortable.
 - **Exponent of 2** is a good starting point. A cubic (`Math.pow(abs, 3)`) is gentler near the centre and helps brand-new drivers; experienced drivers often prefer 2.
 
 Change one variable at a time and have the same person drive the same route both ways before deciding.
 
 ---
 
-<RulesBox title="Evaluate in simulation">
+<RulesBox title="Done when">
 
 Slowly deflecting the stick: nothing until about 5 %, gentle motion at 20–30 %, full speed at full deflection, and a held 30 % that glides rather than creeps and jolts. If any of those is wrong, check whether the deadband and the curve are applied on the path from the stick to the drive command. The stick behaviour is the evidence.
 
@@ -156,9 +158,9 @@ Slowly deflecting the stick: nothing until about 5 %, gentle motion at 20–30 %
 
 ### References
 
-- [A08: Stick-Curve Calculator](/assignments/a08-stick-curve-calculator): the assignment that built `StickCurve.shape` from scratch
-- [Math in Java](/java/java-math#deadband-and-sign): `Math.abs`, `Math.signum`, clamping, and the deadband idiom itself
-- [Calculations](/java/java-calculations#integer-vs-floating-point-division): the integer-versus-double division trap that quietly zeroes a deadband
+- [A08: Stick Curve Calculator](/java/assignments/a08-stick-curve-calculator): the assignment that built `StickCurve.shape` from scratch
+- [Math](/java/fundamentals/java-math#deadband-and-sign): `Math.abs`, `Math.signum`, clamping, and the deadband idiom itself
+- [Calculations](/java/fundamentals/java-calculations#integer-vs-floating-point-division): the integer-versus-double division trap that quietly zeroes a deadband
 - WPILib JavaDoc: [`CommandXboxController`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/button/CommandXboxController.html)
 - WPILib JavaDoc: [`MathUtil.applyDeadband`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/MathUtil.html#applyDeadband(double,double)), WPILib's built-in deadband helper if you'd rather not roll your own
 - WPILib: [Joystick Tutorial](https://docs.wpilib.org/en/stable/docs/software/basic-programming/joystick.html)

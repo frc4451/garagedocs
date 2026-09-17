@@ -4,17 +4,35 @@ import { withBase } from '@/lib/url';
 
 interface Props {
   currentPath: string;
+  /** The page's title; when given on a page below the section root, it becomes the current crumb and the section becomes a link. */
+  title?: string;
+  /** The sidebar group the page belongs to; rendered as a crumb between the section and the page. */
+  groupLabel?: string;
 }
 
-const { currentPath } = Astro.props;
+const { currentPath, title, groupLabel } = Astro.props;
 
 if (currentPath === '/') return null;
 
 const sectionId = sectionFromPath(currentPath);
-const section = sectionId ? sections.find((s) => s.id === sectionId) : null;
+const section = sectionId ? sections.find((candidate) => candidate.id === sectionId) : null;
 if (!section) return null;
 
 const sectionLabel = section.breadcrumbLabel ?? `${section.label} Training`;
+const javaPart = currentPath.startsWith('/java/fundamentals')
+  ? 'Fundamentals'
+  : currentPath.startsWith('/java/assignments')
+    ? 'Practice Assignments'
+    : null;
+const javaPartPath = currentPath.startsWith('/java/fundamentals')
+  ? '/java/fundamentals'
+  : currentPath.startsWith('/java/assignments')
+    ? '/java/assignments'
+    : null;
+const normalizedPath = currentPath.replace(/\/$/, '');
+const rootPath = javaPartPath ?? section.path;
+// A lesson sits below its section (or Java part) root; the root becomes a link and the lesson the current crumb.
+const isLesson = Boolean(title) && normalizedPath !== rootPath;
 ---
 
 <nav class="breadcrumb-nav" aria-label="Breadcrumb">
@@ -22,8 +40,39 @@ const sectionLabel = section.breadcrumbLabel ?? `${section.label} Training`;
     <li class="breadcrumb-item">
       <a href={withBase('/')}>Home</a>
     </li>
-    <li class="breadcrumb-item breadcrumb-current">
-      <span>{sectionLabel}</span>
-    </li>
+    {javaPart ? (
+      <>
+        <li class="breadcrumb-item">
+          <a href={withBase('/java')}>{sectionLabel}</a>
+        </li>
+        {isLesson ? (
+          <li class="breadcrumb-item">
+            <a href={withBase(javaPartPath!)}>{javaPart}</a>
+          </li>
+        ) : (
+          <li class="breadcrumb-item breadcrumb-current">
+            <span>{javaPart}</span>
+          </li>
+        )}
+      </>
+    ) : isLesson ? (
+      <li class="breadcrumb-item">
+        <a href={withBase(section.path)}>{sectionLabel}</a>
+      </li>
+    ) : (
+      <li class="breadcrumb-item breadcrumb-current">
+        <span>{sectionLabel}</span>
+      </li>
+    )}
+    {isLesson && groupLabel && (
+      <li class="breadcrumb-item">
+        <span>{groupLabel}</span>
+      </li>
+    )}
+    {isLesson && (
+      <li class="breadcrumb-item breadcrumb-current">
+        <span>{title}</span>
+      </li>
+    )}
   </ol>
 </nav>

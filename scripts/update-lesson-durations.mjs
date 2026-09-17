@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Estimates realistic student completion time from lesson content and updates
- * frontmatter `duration` fields across FRC, FTC, and Java collections.
+ * frontmatter `duration` fields across the FRC and Java collections.
  */
 import fs from 'fs';
 import path from 'path';
@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const SECTIONS = ['frc', 'ftc', 'java'];
+const SECTIONS = ['frc', 'java'];
 
 function parseFrontmatter(raw) {
   const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -137,7 +137,7 @@ export function estimateDuration(filePath, fm, body) {
   }
 
 
-  if (section === 'frc' || section === 'ftc') {
+  if (section === 'frc') {
     if (/pid|odometry|path|vision|autonomous|control|profiling/i.test(name)) {
       minutes += 8;
     }

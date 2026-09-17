@@ -1,0 +1,138 @@
+---
+title: "Controllers and Inputs"
+lessonId: controllers-and-inputs
+section: frc
+group: frc-basics
+groupLabel: "Robot Programming Basics"
+groupOrder: 3
+order: 2
+difficulty: beginner
+duration: 15 min
+description: "Reading an Xbox controller in Robot.java: sticks, triggers and buttons, a tank-drive example, and button-driven mechanism control."
+---
+
+### Map driver input to robot actions
+
+WPILib supports Xbox controllers, PS4 controllers, and generic joysticks. This page uses `XboxController` to read axes and buttons, apply a deadband, and control motors from `Robot.java`.
+
+### Setup
+
+Create a controller instance by specifying its USB port (usually 0 for driver, 1 for operator).
+
+**Note:** Connect controllers to the Driver Station computer, not the robot.
+
+### Initialization
+
+```java
+package frc.robot;
+
+import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.XboxController;
+
+public class Robot extends TimedRobot {
+    // Create controller on USB port 0 (driver station)
+    private XboxController m_driver = new XboxController(0);
+}
+```
+
+### Reading Inputs
+
+**Axes (-1.0 to 1.0):**
+
+`getLeftX()`, `getLeftY()`
+
+`getRightX()`, `getRightY()`
+
+**Triggers (0.0 to 1.0):**
+
+`getLeftTriggerAxis()`, `getRightTriggerAxis()`
+
+**Buttons (boolean):**
+
+`getAButton()`, `getBButton()`, etc.
+
+### Reading Values
+
+```java
+// ... (rest of Robot class)
+
+@Override
+public void teleopPeriodic() {
+    // Read joystick Y-axis (-1.0 to 1.0, negative is forward)
+    double speed = m_driver.getLeftY();
+    // Read button state (true when pressed)
+    boolean isPressed = m_driver.getAButton();
+}
+
+// ... (rest of class)
+```
+
+### Tank Drive Example
+
+Map left/right joysticks directly to left/right motors.
+
+### Tank Drive Code
+
+<CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot;\n\nimport edu.wpi.first.wpilibj.TimedRobot;\nimport edu.wpi.first.wpilibj.XboxController;\nimport com.ctre.phoenix6.hardware.TalonFX;\nimport com.ctre.phoenix6.controls.DutyCycleOut;\n\npublic class Robot extends TimedRobot {\n    private TalonFX m_left = new TalonFX(1);\n    private TalonFX m_right = new TalonFX(2);\n    private DutyCycleOut m_out = new DutyCycleOut(0);\n    private XboxController m_driver = new XboxController(0);\n    \n    @Override\n    public void teleopPeriodic() {\n        // Left joystick controls left motor, right joystick controls right motor\n        m_left.setControl(m_out.withOutput(m_driver.getLeftY()));\n        m_right.setControl(m_out.withOutput(m_driver.getRightY()));\n    }\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot;\n\nimport edu.wpi.first.wpilibj.TimedRobot;\nimport edu.wpi.first.wpilibj.XboxController;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\n\npublic class Robot extends TimedRobot {\n    private SparkMax m_left = new SparkMax(1, MotorType.kBrushless);\n    private SparkMax m_right = new SparkMax(2, MotorType.kBrushless);\n    private XboxController m_driver = new XboxController(0);\n    \n    @Override\n    public void teleopPeriodic() {\n        // Left joystick controls left motor, right joystick controls right motor\n        m_left.set(m_driver.getLeftY());\n        m_right.set(m_driver.getRightY());\n    }\n}","language":"java"}]} />
+
+### Button Control
+
+Use buttons for discrete actions (e.g., run intake). Always include an `else` block to stop the motor.
+
+### Button Logic
+
+```java
+// ... (rest of Robot class)
+
+@Override
+public void teleopPeriodic() {
+    // Button A: Run motor forward
+    if (m_driver.getAButton()) {
+        m_motor.set(0.6);
+    }
+    // Button B: Run motor reverse
+    else if (m_driver.getBButton()) {
+        m_motor.set(-0.4);
+    }
+    // No button pressed: Stop motor
+    else {
+        m_motor.set(0.0);
+    }
+}
+
+// ... (rest of class)
+```
+
+### Deadband
+
+Joysticks may not return exactly 0.0 when centered. Use `MathUtil.applyDeadband()` to ignore small values.
+
+### Deadband Example
+
+```java
+// ... (rest of Robot class)
+
+import edu.wpi.first.math.MathUtil;
+
+@Override
+public void teleopPeriodic() {
+    // Apply deadband: ignore values between -0.1 and 0.1
+    // This prevents drift when joystick is centered
+    double speed = MathUtil.applyDeadband(m_driver.getLeftY(), 0.1);
+    m_motor.set(speed);
+}
+
+// ... (rest of class)
+```
+
+<Sources items={[
+  {"source": "mantik", "path": "src/content/frc/frc-basics/controllers-and-bindings.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
+  {"source": "wpilib", "path": "docs/software/basic-programming/joystick.html", "note": "Joysticks and gamepads: axes, buttons, <code>XboxController</code>."},
+  {"source": "wpilib", "path": "docs/software/hardware-apis/motors/wpi-drive-classes.html", "note": "<code>DifferentialDrive</code> and tank drive."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/MathUtil.html", "note": "<code>applyDeadband</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "Reading the controller in <code>teleopPeriodic()</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "Where Cobra reads the driver's sticks."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "A button-driven mechanism."}
+]} />
+
+<LinkGrid links={[{"label":"Motor Controller Configuration","id":"motor-configuration-basics"},{"label":"Intake Example","id":"basic-intake-example"}]} title="Resources" section="frc" />

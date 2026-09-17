@@ -3,17 +3,21 @@ title: "A25: Alliance Lookup"
 lessonId: a25-alliance-lookup
 section: assignments
 group: collections
-groupLabel: "Track 3 — Collections"
+groupLabel: "Track 3: Collections"
 groupOrder: 3
 order: 25
 difficulty: intermediate
 duration: 75 min
-description: Three maps for three jobs — and the moment a key is a type you wrote, the equals and hashCode contract stops being trivia.
+description: "Use three maps for three jobs. When a key is a type you wrote, the equals and hashCode contract stops being trivia."
 ---
 
 **Topic:** `HashMap<K, V>`, `Map.Entry`, `computeIfAbsent`, `getOrDefault`, the `equals`/`hashCode` contract.
-**Cites:** [Sets and Maps](/java/java-ds-sets-maps), [Objects](/java/java-objects), [A18: Records](/assignments/a18-records).
-**Difficulty:** medium. **Estimated time:** 75 minutes.
+**Cites:** [Sets and Maps](/java/fundamentals/java-sets-and-maps), [Objects](/java/fundamentals/java-objects), [A18: Records](/java/assignments/a18-records).
+**Difficulty:** intermediate. **Estimated time:** 75 minutes.
+
+**Repository checkpoint:** Work in `assignments/a25-alliance-lookup/` inside the repository from [A00](/java/assignments/a00-practice-repository-setup). Keep every source and input file for
+this assignment there. After completing the checks and rubric, update the root
+`README.md`, commit with `Complete A25: Alliance Lookup`, and push to GitHub.
 
 ### Scenario
 
@@ -21,19 +25,19 @@ At a regional you are constantly answering questions keyed by something: "who is
 "which teams run swerve?", "what did red do in match 3?". A list answers the first one in
 O(n) and the last one badly. A map answers all three in O(1) and in less code.
 
-The interesting part is the third map. Its key is `(match number, alliance)` — two values
-that only mean something together — so the key has to be a type you wrote. That is where
+The interesting part is the third map. Its key is `(match number, alliance)`: two values
+that only mean something together, so the key has to be a type you wrote. That is where
 `equals` and `hashCode` stop being interview trivia and start being the difference
 between a lookup that works and one that silently returns nothing.
 
 ### What to build
 
-**`MatchKey`** — a record of `matchNumber` and `alliance`, whose compact constructor
+**`MatchKey`**: a record of `matchNumber` and `alliance`, whose compact constructor
 requires the alliance to be `RED` or `BLUE` in any case, and stores it upper case.
 
-**`MatchOutcome`** — a record of `score` and `won`.
+**`MatchOutcome`**: a record of `score` and `won`.
 
-**`AllianceData`** — three `private final` maps and eight methods:
+**`AllianceData`**: three `private final` maps and eight methods:
 
 <ContentTable
   headers={["Map", "Holds"]}
@@ -52,13 +56,13 @@ requires the alliance to be `RED` or `BLUE` in any case, and stores it upper cas
     ["<code>getTeam</code> / <code>outcomeFor</code>", "<code>Optional</code>, never <code>null</code>."],
     ["<code>teamsWith(String)</code>", "The teams on that drivetrain, in the order added. An empty list for a drivetrain nobody runs."],
     ["<code>countByDrivetrain()</code>", "A <em>fresh</em> map: drivetrain to how many teams run it."],
-    ["<code>averageScore()</code>", "The mean of every recorded score — and <code>0.0</code>, not <code>NaN</code>, when nothing has been recorded."]
+    ["<code>averageScore()</code>", "The mean of every recorded score. Return <code>0.0</code>, not <code>NaN</code>, when nothing has been recorded."]
   ]}
 />
 
 <RulesBox title="How the browser version differs" items={[
-  "Four files locally, one here, with only <code>MapLookupDemo</code> declared <code>public</code>. <code>TeamEntry</code> is cut down to team number, name and drivetrain — this assignment is about the maps, not the entry.",
-  "<code>main</code> prints every map <strong>in sorted order</strong> on purpose. Hash order is unspecified and has actually changed between Java releases, so a program that prints a <code>HashMap</code> directly is a program whose output nobody can check — including you, next week.",
+  "Four files locally, one here, with only <code>MapLookupDemo</code> declared <code>public</code>. <code>TeamEntry</code> is cut down to team number, name and drivetrain: this assignment is about the maps, not the entry.",
+  "<code>main</code> prints every map <strong>in sorted order</strong> on purpose. Hash order is unspecified and has changed between Java releases, so a program that prints a <code>HashMap</code> directly is a program whose output nobody can check, including you when you return to it later.",
   "Records are Java 16, and the editor runs Java 17, so <code>MatchKey</code> works here exactly as it does locally."
 ]} />
 
@@ -71,11 +75,11 @@ requires the alliance to be `RED` or `BLUE` in any case, and stores it upper cas
 <JavaPlayground id="a25-alliance-lookup" />
 
 <RulesBox title="Hints" items={[
-  "<strong>Why a record is the right shape for a key.</strong> A map finds an entry by hashing the key first and only then comparing. If two keys are <code>equals</code> but hash differently, the second one lands in a different bucket and <code>get</code> returns <code>null</code> for a key that <em>matches</em>. Records derive both from the same components, so they cannot disagree. Write the class by hand with only <code>equals</code> overridden and watch the lookup fail — it is worth seeing once.",
+  "<strong>Why a record is the right shape for a key.</strong> A map finds an entry by hashing the key first and only then comparing. If two keys are <code>equals</code> but hash differently, the second one lands in a different bucket and <code>get</code> returns <code>null</code> for a key that <em>matches</em>. Records derive both from the same components, so they cannot disagree. Write the class by hand with only <code>equals</code> overridden and watch the lookup fail. Seeing the failure once makes the contract concrete.",
   "<strong>Normalise in the compact constructor, not at the call site.</strong> If <code>MatchKey</code> upper-cases the alliance on the way in, then <code>outcomeFor(3, \"red\")</code> and <code>outcomeFor(3, \"RED\")</code> build equal keys and find the same value. Normalising at each call site instead means one forgotten call site is a bug you will not find until elimination matches.",
-  "<strong><code>computeIfAbsent</code> is the \"create the list if it is missing\" pattern.</strong> The <code>containsKey</code> / <code>if</code> / <code>put</code> version works, but this is the method that exists for it. Its second argument is a function from the key to a new value — look it up in the JavaDoc and work out what belongs in the lambda.",
+  "<strong><code>computeIfAbsent</code> is the \"create the list if it is missing\" pattern.</strong> The <code>containsKey</code> / <code>if</code> / <code>put</code> version works, but this is the method that exists for it. Its second argument is a function from the key to a new value: look it up in the JavaDoc and work out what belongs in the lambda.",
   "<strong><code>getOrDefault(key, 0) + 1</code> is the counter-map idiom.</strong> That is the whole body of <code>countByDrivetrain</code>'s loop.",
-  "<strong>Three ways to walk a map, and only one of them is right here.</strong> <code>keySet()</code> for keys, <code>values()</code> for values, <code>entrySet()</code> when you need both — which avoids a second lookup per key. Use <code>entrySet()</code> at least once."
+  "<strong>Three ways to walk a map, and only one of them is right here.</strong> <code>keySet()</code> for keys, <code>values()</code> for values, <code>entrySet()</code> when you need both; this avoids a second lookup per key. Use <code>entrySet()</code> at least once."
 ]} />
 
 ### Self-grading rubric
@@ -99,7 +103,7 @@ requires the alliance to be `RED` or `BLUE` in any case, and stores it upper cas
 - Add a `TreeMap` summary of total score by alliance colour. `TreeMap` sorts by the key's
   natural ordering, which for `String` means you get the sorted output for free.
 - Rewrite `countByDrivetrain` with `Collectors.groupingBy` and `Collectors.counting`, then
-  put the two versions side by side and pick one. [A26](/assignments/a26-stream-filter)
+  put the two versions side by side and pick one. [A26](/java/assignments/a26-stream-filter)
   is that argument at length.
 
 ### References
@@ -107,7 +111,7 @@ requires the alliance to be `RED` or `BLUE` in any case, and stores it upper cas
 - JavaDoc: [`java.util.HashMap<K,V>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html)
 - JavaDoc: [`Map.computeIfAbsent`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.html#computeIfAbsent(K,java.util.function.Function))
 - JavaDoc: [`Map.Entry<K,V>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.Entry.html)
-- JavaDoc: [`Object.hashCode`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#hashCode()) — the contract itself, worth reading once
+- JavaDoc: [`Object.hashCode`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#hashCode()): the contract itself, worth reading once
 - Wikipedia: [Hash table](https://en.wikipedia.org/wiki/Hash_table)
 
 <Sources items={[

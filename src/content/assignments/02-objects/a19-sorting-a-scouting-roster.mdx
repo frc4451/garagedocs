@@ -1,0 +1,102 @@
+---
+title: "A19: Sorting a Scouting Roster"
+lessonId: a19-sorting-a-scouting-roster
+section: assignments
+group: objects
+groupLabel: "Track 2: Objects"
+groupOrder: 2
+order: 19
+difficulty: intermediate
+duration: 75 min
+description: "Natural order belongs to the type; every other order is a comparator. Sort a pick list four ways."
+---
+
+**Topic:** `Comparable` for natural order, `Comparator` for everything else, stability.
+**Cites:** [Sorting](/java/fundamentals/java-sorting-algorithms), [Lambdas](/java/fundamentals/java-lambdas).
+**Difficulty:** intermediate. **Estimated time:** 75 minutes.
+
+**Repository checkpoint:** Work in `assignments/a19-sorting-a-scouting-roster/` inside the repository from [A00](/java/assignments/a00-practice-repository-setup). Keep every source and input file for
+this assignment there. After completing the checks and rubric, update the root
+`README.md`, commit with `Complete A19: Sorting a Scouting Roster`, and push to GitHub.
+
+### Scenario
+
+It is Friday night and you are building a pick list. The same 40 teams need to be seen
+by team number, by scoring average, by climb rate, and by whatever weighted formula
+your strategy lead believes in this week.
+
+One of those orderings belongs to the type itself. The rest are opinions, and opinions
+go in comparators.
+
+### What to build
+
+**`TeamEntry`** holding `teamNumber`, `teamName`, `averagePoints`, `climbRate` and
+`matchesObserved`. Validate in the constructor: team number `[1, 99999]`, climb rate
+`[0.0, 1.0]`, `matchesObserved` not negative.
+
+- Implement `Comparable<TeamEntry>` with **natural order = team number ascending**.
+  Team number is the stable, never-argued-about default
+- Add `static double pickScore(TeamEntry t)` returning
+  `averagePoints + climbRate * 25.0`
+
+That weighting is arbitrary on purpose. The point is that *you* decide it, and that
+deciding it is a strategy question rather than a programming one.
+
+**`RosterSorter`** sorts the same roster four ways: by team number using natural
+order and no comparator, by average points descending, by climb rate descending, and
+by pick score descending with team number as the tiebreaker, then demonstrates that
+sorting objects is **stable**.
+
+<RulesBox title="How the browser version differs" items={[
+  "The full assignment says \"a record or a class, your call\". The starter uses a <strong>class</strong> so the <code>toString</code> the checks rely on stays where you can see it. The editor runs Java 17, so rewriting it as a record is a stretch goal rather than an impossibility. See <a href=\"/java/assignments/a18-records\">A18</a>.",
+  "<code>main</code> is written for you, including the four comparators and the stability check. Implement <code>TeamEntry</code> above it.",
+  "The comparators are written as anonymous classes to keep the starter explicit about what a <code>Comparator</code> is. Rewrite them as lambdas once they work. That is what <a href=\"/java/fundamentals/java-lambdas\">Lambdas</a> is for."
+]} />
+
+
+<RulesBox title="Plan it as sessions" items={[
+  "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Natural order is team number ascending</em>, <em>A comparator orders by average points</em>, <em>pickScore weights climbing</em>.",
+  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Sorting objects is stable</em>, <em>The constructor validates</em>."
+]} />
+
+<JavaPlayground id="a19-sorting-a-scouting-roster" />
+
+<RulesBox title="Hints" items={[
+  "<strong>Never subtract to compare.</strong> <code>a.teamNumber() - b.teamNumber()</code> looks neat and overflows on large values. <code>Integer.compare</code> and <code>Double.compare</code> exist precisely for this, and <code>Double.compare</code> also handles the awkward cases that <code>&lt;</code> gets wrong.",
+  "<strong>Descending is ascending with the arguments swapped.</strong> <code>Double.compare(b.averagePoints(), a.averagePoints())</code>. Negating the result works too until the value is <code>Integer.MIN_VALUE</code>, so prefer the swap.",
+  "<strong>A tiebreaker is the next comparison.</strong> Compare on the first key; when the result is 0, return the comparison on the second. That is all <code>thenComparing</code> does under the hood.",
+  "<strong>Stability is a promise about ties.</strong> <code>Arrays.sort</code> on objects keeps equal elements in their original order: the merge sort behind it guarantees it, while the quicksort used for primitives does not. That is why the two overloads behave differently, and it is worth knowing before it surprises you."
+]} />
+
+### Self-grading rubric
+
+<ContentTable
+  headers={["Section", "Points", "What earns the points"]}
+  rows={[
+    ["Functionality", "60", "<code>Comparable</code> implemented with team number ascending. <code>pickScore</code> correct. All four orderings produce the right sequence, the last with its tiebreaker."],
+    ["Edge cases", "15", "Two teams tied on climb rate keep their input order. The constructor rejects a bad team number, a climb rate above 1.0 and a negative match count."],
+    ["Code quality", "20", "No subtraction-based comparisons. The original array is not mutated by the sorts that should leave it alone. <code>pickScore</code> lives on the type rather than being inlined into a comparator."],
+    ["Comments", "5", "Author header, and a note recording why you weighted a climb at 25 points."],
+    ["Total", "100", ""]
+  ]}
+/>
+
+### Stretch goals
+
+- Add a `minMatches` filter so a team seen twice cannot top the pick list on a fluke
+  average. Decide whether that belongs in the comparator or before the sort, and say why.
+- Rewrite all four comparators with `Comparator.comparing`, `reversed()` and
+  `thenComparing`. Compare the readability against the explicit versions.
+
+### References
+
+- JavaDoc: [`java.lang.Comparable`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Comparable.html)
+- JavaDoc: [`java.util.Comparator`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Comparator.html)
+- Wikipedia: [Sorting algorithm: stability](https://en.wikipedia.org/wiki/Sorting_algorithm#Stability)
+
+<Sources items={[
+  {"source": "csce146", "note": "Sorting."},
+  {"source": "java-api", "path": "java.base/java/util/Comparator.html", "note": "<code>comparing</code>, <code>thenComparing</code>, <code>reversed</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/Comparable.html", "note": "<code>Comparable</code>."},
+  {"source": "dev-java", "path": "api/collections-framework/lists/", "note": "Sorting a list."}
+]} />

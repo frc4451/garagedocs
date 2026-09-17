@@ -1,5 +1,5 @@
 /**
- * Extract LinkGrid entries from MDX files into src/data/resources.json.
+ * Refresh LinkGrid entries in src/data/resources.json while preserving manually curated entries.
  * Descriptions: overlay JSON > LinkGrid description > Mantik lesson intro > fallback.
  * Usage: node scripts/seed-resources-from-mdx.mjs
  */
@@ -12,6 +12,9 @@ const outPath = path.join(root, 'src/data/resources.json');
 const overlayPath = path.join(root, 'scripts/resource-description-overlays.json');
 
 const DESCRIPTION_OVERLAYS = JSON.parse(fs.readFileSync(overlayPath, 'utf8'));
+const existingCatalog = fs.existsSync(outPath)
+  ? JSON.parse(fs.readFileSync(outPath, 'utf8'))
+  : { version: 1, resources: [] };
 
 const SOURCES = [
   {
@@ -199,9 +202,9 @@ for (const src of SOURCES) {
   all.push(...parseLinkGrids(content, src.major, src.defaultMinor));
 }
 
-const resources = ensureUniqueIds(dedupeByUrl(all)).sort((a, b) =>
-  a.title.localeCompare(b.title),
-);
+// Parsed entries come first so updated lesson descriptions replace matching catalog entries.
+// Entries maintained directly in resources.json remain in the catalog after the refresh.
+const resources = ensureUniqueIds(dedupeByUrl([...all, ...existingCatalog.resources]));
 
 const catalog = { version: 1, resources };
 fs.mkdirSync(path.dirname(outPath), { recursive: true });

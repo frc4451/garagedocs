@@ -1,0 +1,262 @@
+---
+title: "Executors and Thread Pools"
+lessonId: java-executors-and-thread-pools
+section: java
+group: java-concurrency
+groupLabel: "Concurrency and Multithreading"
+groupOrder: 10
+order: 3
+difficulty: advanced
+duration: 30 min
+description: Submitting tasks to a managed pool instead of creating threads by hand, collecting results with Future, and shutting down cleanly.
+---
+
+### The problem with new Thread()
+
+Creating a thread is expensive: it allocates a stack and asks the operating system for a scheduling resource. Doing it per task wastes most of the time on setup:
+
+```java norun
+for (int i = 0; i < 1000; i++) {
+    new Thread(() -> handle(i)).start();     // 1000 threads: bad
+}
+```
+
+Beyond the cost, nothing limits how many exist at once. A thousand threads competing for a handful of processor cores mostly switch between each other rather than doing work, and memory use climbs sharply.
+
+An **executor** separates *what to run* from *how it is run*. You submit tasks; a small pool of reusable threads works through them.
+
+```java norun
+import java.util.concurrent.*;
+
+ExecutorService pool = Executors.newFixedThreadPool(4);
+
+for (int i = 0; i < 1000; i++) {
+    final int id = i;
+    pool.submit(() -> handle(id));
+}
+
+pool.shutdown();
+```
+
+Four threads handle all thousand tasks, reusing themselves as each finishes.
+
+### Choosing a pool
+
+<ContentTable
+  headers={["Factory method", "Behaviour", "Use when"]}
+  rows={[
+    ["<code>newFixedThreadPool(n)</code>", "Exactly <code>n</code> threads; extra tasks queue", "The usual default"],
+    ["<code>newSingleThreadExecutor()</code>", "One thread, tasks run in order", "Tasks must not overlap"],
+    ["<code>newCachedThreadPool()</code>", "Grows without bound, reuses idle threads", "Many short-lived tasks; risky under load"],
+    ["<code>newScheduledThreadPool(n)</code>", "Runs tasks after a delay or repeatedly", "Periodic work"],
+    ["<code>newVirtualThreadPerTaskExecutor()</code>", "A lightweight virtual thread per task", "Many tasks that mostly wait (Java 21+)"]
+  ]}
+/>
+
+For work that keeps the processor busy, a fixed pool sized near the core count is a sensible starting point:
+
+```java
+int cores = Runtime.getRuntime().availableProcessors();
+ExecutorService pool = Executors.newFixedThreadPool(cores);
+```
+
+For work that mostly *waits* (network calls, file reads), more threads than cores is fine, since most are idle.
+
+<RulesBox title="Be careful with cached pools">
+
+`newCachedThreadPool()` creates a new thread whenever no idle one is available, with no upper limit. Submit tasks faster than they complete and it will happily create thousands, which is the problem you were trying to avoid.
+
+Prefer a fixed pool unless you know the task rate is bounded.
+
+</RulesBox>
+
+### Getting results back
+
+`Runnable` returns nothing. `Callable<T>` returns a value, and `submit` hands you a `Future<T>` to collect it:
+
+```java norun
+ExecutorService pool = Executors.newFixedThreadPool(2);
+
+Future<Integer> future = pool.submit(() -> {
+    Thread.sleep(500);
+    return 42;
+});
+
+doSomethingElse();                    // runs while the task computes
+
+int result = future.get();            // blocks until the value is ready
+```
+
+`get()` waits for completion. Two exceptions to handle:
+
+```java norun
+try {
+    int result = future.get();
+} catch (InterruptedException e) {
+    Thread.currentThread().interrupt();
+} catch (ExecutionException e) {
+    Throwable cause = e.getCause();   // the exception the task actually threw
+}
+```
+
+`ExecutionException` wraps whatever the task threw. Calling `getCause()` is how you see the real problem; the wrapper alone tells you almost nothing.
+
+Use the timeout form to avoid waiting forever:
+
+```java norun
+int result = future.get(2, TimeUnit.SECONDS);   // throws TimeoutException
+```
+
+<RulesBox title="Exceptions in submitted tasks are swallowed">
+
+A task submitted with `submit()` that throws does **not** print a stack trace. The exception is stored in the `Future`, and if you never call `get()`, you never learn about it.
+
+This makes silently-failing background work a common and confusing bug. Either call `get()`, or wrap the task body in a try/catch that logs.
+
+`execute()` behaves differently: an exception there does surface on the default handler.
+
+</RulesBox>
+
+### Running many tasks
+
+`invokeAll` submits a batch and waits for all of them:
+
+```java norun
+List<Callable<Integer>> tasks = List.of(
+    () -> compute(1),
+    () -> compute(2),
+    () -> compute(3)
+);
+
+List<Future<Integer>> results = pool.invokeAll(tasks);   // blocks until all done
+
+for (Future<Integer> f : results) {
+    System.out.println(f.get());
+}
+```
+
+`invokeAny` returns as soon as *one* succeeds and cancels the rest, which is useful when several approaches could answer the same question.
+
+### Scheduled work
+
+```java norun
+ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+
+// once, after a delay
+scheduler.schedule(() -> System.out.println("later"), 5, TimeUnit.SECONDS);
+
+// repeatedly, every 100 ms
+scheduler.scheduleAtFixedRate(this::pollSensor, 0, 100, TimeUnit.MILLISECONDS);
+```
+
+`scheduleAtFixedRate` targets a fixed start-to-start interval; `scheduleWithFixedDelay` waits a fixed gap *after* each run finishes. If a task can overrun its period, the second is usually what you want.
+
+Note that if a repeating task throws, the repetition **stops silently**. Wrap the body in a try/catch if it must keep running.
+
+### Shutting down
+
+An executor's threads are non-daemon by default, so the program will not exit while a pool is alive.
+
+```java norun
+pool.shutdown();                       // no new tasks; finish what is queued
+
+try {
+    if (!pool.awaitTermination(10, TimeUnit.SECONDS)) {
+        pool.shutdownNow();            // interrupt what is still running
+    }
+} catch (InterruptedException e) {
+    pool.shutdownNow();
+    Thread.currentThread().interrupt();
+}
+```
+
+<ContentTable
+  headers={["Method", "Effect"]}
+  rows={[
+    ["<code>shutdown()</code>", "Rejects new tasks, completes queued ones"],
+    ["<code>shutdownNow()</code>", "Also interrupts running tasks, returns those never started"],
+    ["<code>awaitTermination(t, unit)</code>", "Waits up to a timeout for completion"],
+    ["<code>isShutdown()</code> / <code>isTerminated()</code>", "Whether shutdown began / finished"]
+  ]}
+/>
+
+`shutdownNow` only *interrupts*; a task ignoring interruption keeps going. Long-running loops should check `Thread.currentThread().isInterrupted()` and exit when set.
+
+### CompletableFuture
+
+For chaining work without blocking on `get()`:
+
+```java norun
+CompletableFuture
+    .supplyAsync(() -> fetchReading())
+    .thenApply(reading -> reading * 2)
+    .thenAccept(result -> System.out.println(result))
+    .exceptionally(error -> { error.printStackTrace(); return null; });
+```
+
+Each stage runs after the previous one completes, without a thread sitting idle waiting. Worth knowing exists; a fixed pool with `Future` covers most needs.
+
+<RulesBox title="Common mistakes">
+
+- **Never calling `shutdown()`**, so the program never exits.
+- **Ignoring the `Future`**, hiding exceptions entirely.
+- **`get()` immediately after `submit()`**, which makes the work sequential and adds executor overhead.
+- **Not unwrapping `ExecutionException`**, losing the real cause.
+- **An unbounded cached pool** under sustained load.
+- **A repeating scheduled task that throws**, stopping silently.
+- **Assuming `shutdownNow()` stops everything.** It interrupts; tasks must cooperate.
+
+</RulesBox>
+
+<JavaPlayground id="java-executors-and-thread-pools" />
+
+<ExerciseBox title="Practice">
+
+1. Submit 20 tasks that each sleep briefly to a fixed pool of 4, printing which thread ran each. Note that only four names appear.
+2. Submit a `Callable` returning a number and collect it with `get()`.
+3. Submit a task that throws, then confirm nothing is printed until you call `get()`.
+4. Use `invokeAll` to run three computations and sum the results.
+5. Schedule a task to run every 200 ms, let it run five times, then shut down cleanly.
+
+<details>
+<summary>Hints</summary>
+
+1. `Thread.currentThread().getName()`.
+2. `Future<Integer>` and handle both exceptions.
+3. This is the swallowed-exception trap, worth seeing once.
+4. `invokeAll` returns futures in the same order as the input.
+5. `scheduleAtFixedRate`, then `shutdown()` and `awaitTermination`.
+
+</details>
+
+</ExerciseBox>
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    { "label": "Concurrent Collections", "id": "java-concurrent-collections" }
+  ]}
+/>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "java-tutorial", "path": "essential/concurrency/executors.html", "note": "Executors."},
+  {"source": "java-tutorial", "path": "essential/concurrency/pools.html", "note": "Thread pools."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/ExecutorService.html", "note": "<code>submit</code>, <code>invokeAll</code>, <code>invokeAny</code>, <code>shutdown</code>."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/Executors.html", "note": "Factory methods."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/Future.html", "note": "<code>Future.get</code> and <code>ExecutionException</code>."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/Callable.html", "note": "<code>Callable</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/ExecutionException.html", "note": "<code>ExecutionException</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/Runnable.html", "note": "<code>Runnable</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Related"
+  section="java"
+  links={[
+    { "label": "Threads and Concurrency", "id": "java-threads-and-concurrency" },
+    { "label": "Race Conditions and Synchronization", "id": "java-race-conditions-and-synchronization" },
+    { "label": "Supplier and the Functional Interfaces", "id": "java-functional-interfaces" }
+  ]}
+/>

@@ -1,0 +1,211 @@
+---
+title: "Linked Lists"
+lessonId: java-linked-lists
+section: java
+group: java-data-structures
+groupLabel: "Data Structures"
+groupOrder: 5
+order: 3
+difficulty: intermediate
+duration: 25 min
+description: Storing elements as separate nodes joined by references, why that makes insertion cheap and indexing expensive, and when it is worth it.
+---
+
+### A different arrangement
+
+An array keeps its elements packed together in one block. A linked list does the opposite: each element lives in its own small object, and each object holds a reference to the next one.
+
+```java
+class Node {
+    int value;
+    Node next;         // reference to the following node, or null at the end
+
+    Node(int value) {
+        this.value = value;
+        this.next = null;
+    }
+}
+```
+
+A list of three values is three `Node` objects, each pointing at the next:
+
+```
+[10] -> [20] -> [30] -> null
+```
+
+You keep a reference to the first node, called the **head**. Everything else is reached by following `next` from there.
+
+This depends on understanding references. If `Node next` holding another object feels unclear, review [Objects and References](/java/fundamentals/java-objects-and-references#understanding-object-references) first.
+
+### Building one by hand
+
+```java
+Node head = new Node(10);
+head.next = new Node(20);
+head.next.next = new Node(30);
+
+// walk the list
+Node current = head;
+while (current != null) {
+    System.out.println(current.value);
+    current = current.next;
+}
+```
+
+The walking pattern (a `current` reference that advances until it hits `null`) is how every operation on a linked list works. It is worth writing out a few times until it is automatic.
+
+<RulesBox title="Use a separate variable to walk">
+
+```java norun
+Node current = head;
+while (current != null) { ... current = current.next; }
+```
+
+Advance `current`, never `head`. If you write `head = head.next` you lose the start of the list permanently, and there is no way to get it back, because nothing else refers to those earlier nodes.
+
+</RulesBox>
+
+### Why insertion is cheap
+
+To insert a value after a node you already have a reference to, you rearrange two references. Nothing moves.
+
+```java
+void insertAfter(Node node, int value) {
+    Node fresh = new Node(value);
+    fresh.next = node.next;      // new node points at what came next
+    node.next = fresh;           // previous node points at the new one
+}
+```
+
+The order matters. Setting `node.next = fresh` first would lose the reference to the rest of the list.
+
+Compare with an array, where inserting in the middle shifts every following element. Here it is two assignments regardless of how long the list is.
+
+Removing is similarly cheap: point around the node you want gone:
+
+```java
+void removeAfter(Node node) {
+    if (node.next != null) {
+        node.next = node.next.next;
+    }
+}
+```
+
+The removed node is no longer reachable, and Java's garbage collector reclaims it.
+
+### Why indexing is expensive
+
+There is no arithmetic that finds the fifth node. The nodes are scattered in memory, so the only way to reach index 5 is to start at the head and follow `next` five times.
+
+```java
+int get(Node head, int index) {
+    Node current = head;
+    for (int i = 0; i < index; i++) {
+        if (current == null) throw new IndexOutOfBoundsException();
+        current = current.next;
+    }
+    return current.value;
+}
+```
+
+This is the fundamental trade: arrays give instant indexing and expensive insertion, linked lists give cheap insertion and slow indexing.
+
+<ContentTable
+  title="Array versus linked list"
+  headers={["Operation", "Array / ArrayList", "Linked list"]}
+  rows={[
+    ["Read by index", "Instant", "Proportional to index"],
+    ["Insert at the front", "Proportional to size", "Instant"],
+    ["Insert after a known node", "Proportional to size", "Instant"],
+    ["Remove a known node", "Proportional to size", "Instant"],
+    ["Find a value", "Proportional to size", "Proportional to size"],
+    ["Memory per element", "Value only", "Value plus a reference"]
+  ]}
+/>
+
+### Java's LinkedList
+
+You rarely write your own. Java provides one, and it implements both `List` and `Deque`.
+
+```java
+import java.util.LinkedList;
+
+LinkedList<String> tasks = new LinkedList<>();
+tasks.add("intake");             // append
+tasks.addFirst("initialise");    // prepend: instant
+tasks.addLast("shoot");
+
+System.out.println(tasks.getFirst());   // initialise
+tasks.removeFirst();
+```
+
+Java's version is **doubly linked**: each node also holds a `previous` reference. That makes it possible to walk backwards and to remove from the end instantly.
+
+<RulesBox title="In practice, prefer ArrayList">
+
+This surprises people, so it is worth stating plainly: for most real programs `ArrayList` outperforms `LinkedList` even for operations where the table above favours linked lists.
+
+The reason is memory layout. An array's elements sit together, so the processor loads several at once into its cache. Linked-list nodes are scattered, so each hop may be a fresh trip to main memory. That penalty often outweighs the theoretical advantage.
+
+`LinkedList` earns its place when you are constantly adding and removing at **both ends**, and for that, use it through the `Deque` interface. See [Deques](/java/fundamentals/java-deques#which-implementation).
+
+</RulesBox>
+
+### Why learn it then
+
+Two reasons, both practical.
+
+The **node-and-reference idea** is the foundation for trees and graphs, which are the right tool for many problems. A tree is a node with several `next` references instead of one. If linked lists make sense, [Trees](/java/fundamentals/java-trees) will too.
+
+It also teaches you to reason about references: what happens when two variables point at the same object, and what it means for something to become unreachable.
+
+<RulesBox title="Common mistakes">
+
+- **Losing the head** by advancing it instead of a separate variable.
+- **Wrong assignment order** when inserting, which drops the rest of the list.
+- **Forgetting the `null` check** while walking, giving a `NullPointerException` at the end.
+- **Assuming `get(i)` is cheap.** A loop calling `get(i)` on a linked list re-walks from the head every time, turning a single pass into something far slower. Use a for-each loop or an iterator instead.
+- **Reaching for `LinkedList` by default.** `ArrayList` is usually faster.
+
+</RulesBox>
+
+<JavaPlayground id="java-linked-lists" />
+
+<ExerciseBox title="Practice" description="Use your own Node class for 1-4, then compare with java.util.LinkedList.">
+
+1. Build a linked list of the values 1 through 5 and print them in order.
+2. Write a method that counts the nodes in a list.
+3. Write a method that returns the largest value in a list.
+4. Write a method that reverses a linked list by rearranging references, without creating new nodes.
+5. Using `java.util.LinkedList`, add five task names and then print them in reverse order.
+
+<details>
+<summary>Hints</summary>
+
+1. Create the head, then chain with `next`, or loop and keep a `tail` reference so appending stays cheap.
+2. Walk with a counter.
+3. Walk, tracking a running maximum. Start it at the head's value.
+4. Keep three references: `previous`, `current`, `next`. On each step, save `current.next`, point `current.next` at `previous`, then shift all three forward. The new head is the final `previous`. Draw these changes on paper first so you can track each reference before changing it.
+5. `descendingIterator()`, or repeatedly `removeLast()`.
+
+</details>
+
+</ExerciseBox>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "dev-java", "path": "api/collections-framework/lists/", "note": "Lists."},
+  {"source": "java-api", "path": "java.base/java/util/LinkedList.html", "note": "Java's doubly linked list."},
+  {"source": "java-api", "path": "java.base/java/util/Deque.html", "note": "Using it through <code>Deque</code>."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    {"label":"Stacks","id":"java-stacks"},
+    {"label":"Queues","id":"java-queues"},
+    {"label":"Trees","id":"java-trees"}
+  ]}
+/>

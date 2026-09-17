@@ -1,0 +1,78 @@
+---
+title: "Autonomous Simulation"
+lessonId: autonomous-simulation
+section: frc
+group: frc-autonomous
+groupLabel: "Autonomous"
+groupOrder: 17
+order: 4
+difficulty: advanced
+duration: 20 min
+durationFixed: true
+description: "Running PathPlanner, Choreo and BLine routines against the simulated drivetrain (what a wrong pose looks like under each, the keys to plot, testing from both alliance sides) and the sim-to-real checklist FRC 4451 runs before a routine that passed on a laptop is allowed to move the robot."
+---
+
+An autonomous routine is a command, and the drivetrain it drives is the `ModuleIOSim` swerve from [Physics in the IO Layer](/frc/physics-in-the-io-layer#wpilibs-physics-classes). Nothing special is needed to run one: select it in the auto chooser (the Sim GUI's NetworkTables pane, or the dashboard), click **Autonomous** in Robot State, and the routine runs against the simulated chassis with the simulated pose feeding the path follower. With [vision simulated too](/frc/vision-simulation), the whole match (pose, cameras, paths, mechanisms) runs on a laptop, and that is where every routine at FRC 4451 is proven first.
+
+### The three tools in simulation
+
+They behave differently when something is wrong, and knowing which one you are watching tells you what the picture means:
+
+<ContentTable
+  headers={["", "PathPlanner", "Choreo", "BLine"]}
+  rows={[
+    ["Follows", "A pre-generated trajectory: where the robot should be at every instant", "A time-optimal trajectory: the same, at the drivetrain's physical limits", "A sequence of points, from wherever the robot actually is"],
+    ["In sim, a wrong pose shows as", "The robot chasing a ghost that is running away on schedule", "The same, faster, plus a large <code>PoseError</code> from the first sample if the robot configuration is wrong", "The robot heading for the wrong place, then correcting when the pose corrects"],
+    ["Keys to plot", "<code>Odometry/Trajectory</code> and <code>Odometry/TrajectorySetpoint</code> against <code>Odometry/Global</code>", "<code>Odometry/Choreo/Trajectory</code>, <code>Odometry/Choreo/Sample/Pose</code> as a Ghost, <code>Sample/PoseError</code> on a graph", "The path's waypoints and the active target against <code>Odometry/Global</code>"],
+    ["Lesson", "<a href=\"/frc/pathplanner#paths-autos-and-event-markers\">PathPlanner</a>", "<a href=\"/frc/choreo#watching-it\">Choreo</a>", "<a href=\"/frc/bline#points-not-time\">BLine</a>"]
+  ]}
+/>
+
+Run every auto in simulation from **both alliance sides**, with the pose estimator initialised to the real starting position. A path that mirrors wrong, an event marker that fires a command on the wrong subsystem, a routine that ends by parking on top of the alliance partner's spot: all of these are visible on the [2D Field](/tools/advantagescope-poses-on-the-field#the-2d-field-tab) in the first ten seconds, and each is a full field reset to discover on the robot.
+
+Because the drivetrain model is not the real drivetrain, timing will be a little off: the sim robot has no wheel scrub, a perfectly stiff chassis, and a battery that sags only as much as `BatterySim` says. Autos that are tight in simulation need margin on the field. Autos that are wrong in simulation are wrong everywhere.
+
+### The hand-off to the real robot
+
+Simulation passed. This checklist is FRC 4451's rule for anything (a mechanism, a vision change, an auto), but it is placed here because an autonomous routine is the most that simulation ever proves at once, and the most that can go wrong at once on the field. Before the robot moves:
+
+<StepsBox title="Sim-to-real checklist">
+
+1. **Same commit.** The build that passed in sim is the build that deploys; `RealMetadata/GitSHA` in the log should match. No "one small change" between.
+2. **Constants reviewed, not assumed.** CAN IDs, inversions and encoder offsets are not exercised by simulation at all. Read them against the wiring sheet.
+3. **Limits armed.** Soft limits, current limits, and the `simulateGravity` flag all had to be right in sim; on the robot, also confirm the hard-stop positions were measured, not copied from CAD.
+4. **Robot on blocks, mechanism clear, one person at the Driver Station.** First enable is in Test or with a low-voltage command, not the auto.
+5. **AdvantageScope connected to the robot** with the same layout you used in sim. The first thing to compare is the mechanism's response to the same step you graphed on the laptop: same shape, different numbers means a physics constant to update in the sim config; a different shape means something simulation could not model, usually mechanical.
+6. **The auto, on blocks first.** Run the routine with the drivetrain off the ground and watch the wheels and the mechanisms sequence; then on the floor with a clear field and a hand on the disable.
+7. **Update the sim constants** with what the robot taught you (MOI, gains, the robot configuration in Choreo) so the next person's simulation is closer. This is the step everyone skips, and it is why simulations drift from reality over a season.
+8. **Log it.** The first real run's `.wpilog` is the baseline for every comparison afterwards, and the input to [Log Replay](/frc/log-replay).
+
+</StepsBox>
+
+<RulesBox title="Common mistakes">
+
+- **Trusting sim timing for an auto.** Margins on the field; simulation proves geometry and order, not seconds.
+- **Skipping the other alliance.** Half the mirroring bugs only appear on the side you did not test.
+- **Starting the sim robot at the origin.** Every follower assumes the estimator knows where the robot is; reset it to the routine's start pose first, the way the routine itself does.
+- **Deploying a different commit than the one you simulated.** The whole guarantee evaporates.
+- **Never feeding the robot's numbers back into the sim.** The model is only as honest as its last update.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "SIM mode: NT4 publishing and <code>simulationPeriodic</code>."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "<code>Mode.SIM</code> selection."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOSim.java", "note": "The simulated swerve modules the autos run on; no wheel slip."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/autonomous/AutonomousManager.java", "note": "Selecting a routine from the dashboard in simulation."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/introduction.html", "note": "Running robot code in desktop simulation."},
+  {"source": "advantagescope", "path": "tab-reference/2d-field", "note": "Watching the planned and followed paths."}
+]} />
+
+<LinkGrid links={[
+  {"label":"PathPlanner","id":"pathplanner"},
+  {"label":"Choreo","id":"choreo"},
+  {"label":"BLine","id":"bline"},
+  {"label":"Vision Simulation","id":"vision-simulation"},
+  {"label":"Log Replay","id":"log-replay"},
+  {"label":"Simulation First","id":"simulation-first"}
+]} title="Next" section="frc" />

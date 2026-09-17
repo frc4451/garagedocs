@@ -1,0 +1,96 @@
+---
+title: "R13: Telemetry, Part 2: Pose and Field View"
+lessonId: r13-pose-and-field-view
+section: kit-bot
+group: kit-bot
+groupLabel: "Phase 4: Kit Bot Integration"
+groupOrder: 4
+order: 13.5
+duration: 30 min
+description: Track field position with odometry and show the robot pose in AdvantageScope.
+durationFixed: true
+---
+
+
+A **pose** contains the robot's position and rotation on the field. **Odometry** updates that pose from measured wheel travel and heading. A trustworthy pose supports repeatable autonomous movement, field-aware commands, and faster diagnosis when the robot does not follow the expected path.
+
+### Step 1: add heading to the IO inputs
+
+Add this field to `DriveIO.DriveInputs`:
+
+```java
+public Angle heading = Degrees.zero();
+```
+
+Add the matching imports. In `DriveIOSim.updateInputs`, add:
+
+```java
+inputs.heading = Degrees.of(sim.getHeading().getDegrees());
+```
+
+The stock real Kit Bot has no gyro in this curriculum. Leave the real heading at zero until a real heading sensor is installed and checked.
+
+### Step 2: update odometry
+
+Add this field to `Drive`:
+
+```java
+private final DifferentialDriveOdometry odometry =
+    new DifferentialDriveOdometry(Rotation2d.kZero, 0.0, 0.0);
+```
+
+After `io.updateInputs(inputs)` in `periodic()`, add:
+
+```java
+odometry.update(
+    Rotation2d.fromDegrees(inputs.heading.in(Degrees)),
+    inputs.leftPosition.in(Meters),
+    inputs.rightPosition.in(Meters));
+```
+
+Build before adding the publisher.
+
+### Step 3: publish the pose
+
+Open one pose publisher as a field on `Drive`:
+
+```java
+private final StructPublisher<Pose2d> posePublisher =
+    NetworkTableInstance.getDefault()
+        .getStructTopic("Drive/pose", Pose2d.struct)
+        .publish();
+```
+
+At the end of `periodic()`, publish the current pose:
+
+```java
+posePublisher.set(odometry.getPoseMeters());
+```
+
+`Pose2d.struct` describes the binary data so AdvantageScope can decode it as a pose instead of a collection of unrelated numbers.
+
+### Step 4: use the field view
+
+1. Run simulation and connect AdvantageScope.
+2. Add a 2D Field tab.
+3. Drag `Drive/pose` into the field's pose list.
+4. Drive forward, reverse, and turn.
+
+The icon should move and rotate with the simulated drivetrain.
+
+### What the real robot still needs
+
+Wheel distance can estimate forward motion. Rotation needs a trustworthy heading measurement. Until a gyro is connected through `DriveIOReal`, the real robot's published rotation remains zero and turns make its field pose incorrect. State this limitation whenever you show real-robot pose data.
+
+<RulesBox title="Done when">
+
+In simulation, `Drive/pose` moves and rotates on AdvantageScope's 2D field. You can name the three measurements used by odometry and explain why the real Kit Bot needs a gyro for trustworthy rotation.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/differential-drive-odometry.html", "note": "Differential-drive odometry inputs and updates."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/kinematics/DifferentialDriveOdometry.html", "note": "DifferentialDriveOdometry."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/networktables/StructPublisher.html", "note": "Publishing Pose2d as a struct."},
+  {"source": "advantagescope", "path": "tab-reference/2d-field/", "note": "Displaying Pose2d on the field."}
+]} />

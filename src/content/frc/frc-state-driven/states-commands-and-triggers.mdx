@@ -1,0 +1,149 @@
+---
+title: "States, Commands and Triggers"
+lessonId: states-commands-and-triggers
+section: frc
+group: frc-state-driven
+groupLabel: "State-Driven Robot Code"
+groupOrder: 18
+order: 4
+difficulty: advanced
+duration: 35 min
+description: "How state-driven code and the command scheduler share a robot: bindings that set intents, a default state instead of default commands, autonomous routines that set states and wait on sensors, readiness Triggers that read the current state, and the rules for which layer owns what."
+---
+
+Adding a superstructure does not remove the command scheduler. Buttons are still `Trigger`s, autos are still `Command` sequences, and the superstructure runs from `periodic()` like everything else. What changes is the division of labour: commands say *what the robot should want*, the state machine decides *what the robot does*, and triggers read *what the robot is doing*. This page draws those lines with FRC 2910's teleop bindings and autonomous routines.
+
+<RulesBox title="Before you start">
+
+[The Superstructure](/frc/superstructure) for the `WantedState`/`CurrentState` design, [RobotContainer and Bindings](/frc/robot-container-and-bindings) and [Command Groups](/frc/command-groups) for the command side, [Autonomous Simulation](/frc/autonomous-simulation) for how autos are tested.
+
+</RulesBox>
+
+### Bindings set intents
+
+A teleop binding in state-driven code is two `runOnce` commands: one on press that sets an intent, one on release that sets the default. From 2910's `RobotContainer`:
+
+```java
+controller
+    .rightBumper()
+    .onTrue(Commands.runOnce(() -> superStructure.setWantedStateCommand(SCORE_ON_MOVE)))
+    .onFalse(Commands.runOnce(() -> superStructure.setWantedStateCommand(DEFAULT_STATE)));
+```
+
+`runOnce` with no requirements finishes in the same loop, so the scheduler is not holding anything. The superstructure's `periodic()` sees the new wanted state on its next run. Three consequences follow.
+
+**No requirement conflicts.** In command-factory code, pressing "score" while "intake" runs is an interruption the scheduler arbitrates by requirements. Here, the second press overwrites the wanted state and the superstructure decides what "score while a piece is arriving" means, in one place, with the sensors in front of it.
+
+**No `whileTrue` on the mechanisms.** The button is not holding a command alive; it set a field. Releasing it sets another field. If the driver's controller disconnects mid-shot, the wanted state stays `SCORE_ON_MOVE` until something changes it, which is why the next section matters.
+
+**A wanted state that is not a subsystem state.** Some operator inputs adjust *how* an intent runs rather than which intent it is. 2910 keeps those beside the wanted state: `setIntakeWantedState(INTAKE)` on one button, `setIgnoreShootingTolerances(true)` on another, `setScoringKnownTranslation(LEFT_TRENCH)` on a fourth. They are parameters the state functions read; they do not change `CurrentState`.
+
+### The default state replaces default commands
+
+Command-based code gives a subsystem a default command that runs whenever nothing else requires it. State-driven code gives the *robot* a default state, and it is a complete behaviour, not an idle. 2910's `defaultState()` keeps the intake at whatever the operator last asked, runs the shooter at an RPM interpolated from the current distance to the hub so a shot is always close to ready, and hands the drivetrain to the driver unless a path is being followed (abridged):
+
+```java
+private void defaultState() {
+    intakeSubsystem.setWantedState(intakeWantedState);
+    shooterSubsystem.setWantedState(ShooterSubsystem.WantedState.RUN);
+    var rpm = container.getShooterInterpolation().getInterpolatedRPM(distanceToHub);
+    setShooterAndFeederShotConditions(rpm, 0.0);
+    if (!swerveSubsystem.isFollowingPath()
+            && swerveSubsystem.getWantedState() != SwerveSubsystem.WantedState.SEEK
+            && swerveSubsystem.getWantedState() != SwerveSubsystem.WantedState.ROTATION_LOCK) {
+        setSwerveToCalculatedState();
+    }
+}
+```
+
+Every `onFalse` returns here, so "release the button" has one meaning across the whole controller. That is also the answer to the disconnect case above: a watchdog that sets `DEFAULT_STATE` (or `STOPPED`) when the Driver Station reports disabled or the controller is gone is one line in the superstructure, because there is one place to put it.
+
+For Cobra, the drivetrain keeps its default command (`TeleopDrive` reads the sticks and does not belong inside a superstructure, as Kit Bot R11 says); the superstructure's default state covers the mechanisms. Mixing the two is normal.
+
+### Autonomous routines set states and wait on sensors
+
+This is where the pattern pays off most. An auto is a `Commands.sequence` whose steps are "set an intent, then wait until a sensor says the intent is done". 2910's stationary auto shot:
+
+```java
+Command scoreStationary() {
+    return Commands.runOnce(() -> robotContainer
+                    .getSuperStructure()
+                    .setWantedStateCommand(SuperStructure.WantedState.AUTO_SCORE_STATIONARY))
+            .alongWith(Commands.race(
+                    Commands.waitSeconds(4.0),
+                    Commands.sequence(
+                            Commands.waitUntil(robotContainer.getIntakeSubsystem()::isFullyRetracted),
+                            Commands.waitSeconds(0.6))));
+}
+```
+
+Set the intent; the superstructure aims, spins up and feeds when ready, exactly as in teleop. The command's only job is to know when to move on: when the intake reports retracted (the feed has happened) plus a settling time, or after four seconds as a backstop. And a drive step:
+
+```java
+Command driveToPoint(Pose2d point, double maxVelocity) {
+    return Commands.parallel(
+                    Commands.runOnce(() -> superStructure.setWantedStateCommand(DEFAULT_STATE)),
+                    Commands.runOnce(() -> superStructure.driveToPoint(point, maxVelocity)),
+                    Commands.waitUntil(() -> driveSubsystem.isAtDriveToPointSetpoint()))
+            .andThen(Commands.runOnce(() -> driveSubsystem.setWantedState(SwerveSubsystem.WantedState.IDLE)));
+}
+```
+
+A whole auto is a list of these, and it ends by setting `DEFAULT_STATE`. Read the routine and you read the match plan: intake along this sweep, drive here, score, repeat. Nothing in it says how to score.
+
+The difference from a command-only auto is what happens when hardware misbehaves. If the shooter never reaches speed, the superstructure never feeds, the four-second race fires, and the auto moves on with the piece still aboard, logged as `CurrentState = AUTO_SCORE_STATIONARY` for four seconds with `atShotConditions = false`. A command-only auto that sequenced "spin up 0.8 s, feed 0.4 s" would have fed into a slow wheel and logged nothing unusual.
+
+### Triggers read the current state
+
+The third leg. Anything that needs to react to what the robot is doing reads the *current* state, never the wanted one, and reads it through a `Trigger` the superstructure exposes:
+
+```java
+public Trigger isShooting() {
+  return new Trigger(() -> currentState == CurrentState.SHOOTING);
+}
+```
+
+Cobra already does this at the subsystem level (`Hood.isNearGoal`, `Shooter.isNearHubVelocity`, `Intake.isNearGoal`) and at the robot level through BobotState (`isNearTrench`, `shouldStopFeedingFuelToShooter`). A superstructure adds one more source of the same kind. Uses that fit: LED patterns, driver rumble, a dashboard readiness light, and the auto's `waitUntil`. Uses that do not fit: another subsystem changing its own behaviour because of the superstructure's state. That is coordination, and coordination goes through `applyStates()`, or the state machine has two brains.
+
+<RulesBox title="Which layer owns what">
+
+| Concern | Lives in |
+|---|---|
+| What the driver or the auto wants | A `WantedState`, set by `runOnce` |
+| What the mechanisms should do about it | `handleStateTransitions()` and `applyStates()` |
+| Interlocks between mechanisms | The state function, checked against subsystem readiness |
+| Sequencing in time (drive, then score, then drive) | A `Command` sequence that sets states and waits on sensors |
+| Reacting to what is happening (lights, rumble, readiness) | A `Trigger` on the current state |
+| Stick input to the drivetrain | The drivetrain's default command, unchanged |
+
+</RulesBox>
+
+### A Cobra binding, before and after
+
+Today, a shot on Cobra is a `runShooterToHub()` command factory bound with `whileTrue`, a hood state set by BobotState's zone triggers, and a feed binding that checks `isNearHubVelocity` and `shouldStopFeedingFuelToShooter`. With the superstructure from the previous page, the driver's button becomes:
+
+```java
+driver.rightTrigger()
+    .onTrue(Commands.runOnce(() -> superstructure.setWantedState(Superstructure.WantedState.SCORE)))
+    .onFalse(Commands.runOnce(() -> superstructure.setWantedState(Superstructure.WantedState.IDLE)));
+```
+
+and the readiness logic that was spread across the shooter trigger, the hood triggers and the feed binding is the `SCORE` row of `handleStateTransitions()`. The hood's zone logic still exists; it moved from four trigger bindings in `RobotContainer` into `hoodStateFor(distance)`, where the superstructure calls it. The autos in `AutonomousManager` keep their structure and swap `runShooterToHub()` for `setWantedState(SCORE)` plus a `waitUntil(superstructure.hasShot())`.
+
+<Sources items={[
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/RobotContainer.java", "note": "The two-runOnce bindings, the parameter setters beside the wanted state, and the swerve default command."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/SuperStructure.java", "note": "defaultState() as a full behaviour; the parameters the state functions read."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/autos/AutoFactory.java", "note": "scoreStationary, driveToPoint and the left neutral-zone routine: autos as sequences of intents and sensor waits."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "The current shot binding, hood zone triggers and feed conditions the Cobra example gathers."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "isNearTrench and shouldStopFeedingFuelToShooter: robot-level triggers of the kind a superstructure adds to."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/autonomous/AutonomousManager.java", "note": "Where Cobra's autos would swap command factories for intents."},
+  {"source": "wpilib", "path": "docs/software/commandbased/binding-commands-to-triggers.html", "note": "onTrue, onFalse, whileTrue and Trigger composition."},
+  {"source": "wpilib", "path": "docs/software/commandbased/command-scheduler.html", "note": "Why a requirement-free runOnce finishes in the same loop."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Transition Graphs","id":"transition-graphs"},
+  {"label":"The Superstructure","id":"superstructure"},
+  {"label":"RobotContainer and Bindings","id":"robot-container-and-bindings"},
+  {"label":"Autonomous Simulation","id":"autonomous-simulation"}
+]} title="Next" section="frc" />

@@ -1,0 +1,260 @@
+---
+title: "The Superstructure"
+lessonId: superstructure
+section: frc
+group: frc-state-driven
+groupLabel: "State-Driven Robot Code"
+groupOrder: 18
+order: 3
+difficulty: advanced
+duration: 40 min
+description: "One object that owns what the whole robot is doing: FRC 2910's two-layer superstructure (a WantedState set by commands and autos, a CurrentState computed every loop, and an applyStates that drives every subsystem), read from the 2026 code, then rebuilt at Cobra's scale with an intake, a hood and a shooter."
+---
+
+A subsystem state machine answers "what is this mechanism doing". A **superstructure** answers "what is the robot doing", and drives the mechanisms from that answer. It is the layer where the intake, the hood, the shooter and the drivetrain are made to agree, and it is the layer Cobra does not yet have. This page reads FRC 2910's 2026 superstructure and then builds one the size of Cobra.
+
+<RulesBox title="Before you start">
+
+[Subsystem State Machines](/frc/subsystem-state-machines): the superstructure sets wanted states on subsystems built that way. [BobotState](/frc/bobot-state) and [VARC](/frc/varc), because the superstructure reads pose and aiming answers rather than computing them.
+
+</RulesBox>
+
+### The shape
+
+2910's `SuperStructure` describes itself in its class comment: it "operates as a state machine with two layers: a `WantedState` set by commands or auto routines, and an internal `CurrentState` that reflects what the robot is actually doing each cycle. Each state drives various subsystems to their appropriate behaviors."
+
+Its `periodic()` is the whole design in fifteen lines (abridged):
+
+```java
+@Override
+public void periodic() {
+    // Cache values once per cycle to avoid repeated lookups
+    currentRobotPose = robotState.getFieldToRobotPose();
+    currentChassisSpeeds = robotState.getMeasuredFieldRelativeChassisSpeeds();
+    distanceToHub = currentRobotPose.getTranslation().getDistance(targetHub);
+
+    currentState = handleStateTransitions();
+
+    Logger.recordOutput("SuperStructure/CurrentState", currentState);
+    Logger.recordOutput("SuperStructure/WantedState", wantedState);
+    Logger.recordOutput("SuperStructure/DistanceToHub", distanceToHub);
+
+    applyStates();
+}
+```
+
+Read it against the hopper from the previous page: the same three steps, inputs then decide then act, one level up. The inputs are the robot's pose and speeds from `RobotState` (2910's equivalent of BobotState). The decision maps a request to a current state. The action pushes wanted states down to subsystems.
+
+### The two enums
+
+```java
+public enum WantedState {
+    STOPPED, DEFAULT_STATE, HOME,
+    SCORE_ON_MOVE, SCORE_WITHOUT_OBSERVATION, SCORE_KNOWN_TRANSLATION,
+    PASS, PASS_MANUAL_ROT,
+    AUTO_PASS, AUTO_SCORE, AUTO_SCORE_STATIONARY,
+    SYS_ID,
+}
+
+private enum CurrentState {
+    STOPPED, DEFAULT_STATE, HOMING,
+    SCORING_ON_THE_MOVE, SCORING_WITHOUT_OBSERVATION, SCORING_KNOWN_TRANSLATION,
+    PASSING, PASSING_MANUAL_SHOT,
+    AUTO_PASSING, AUTO_SCORING, AUTO_SCORE_STATIONARY,
+    SYS_ID,
+}
+```
+
+Two things to notice. The wanted states are *intents* in the driver's and the auto's vocabulary: score while moving, pass, home, characterise. And the auto intents are separate values (`AUTO_SCORE` rather than reusing `SCORE_ON_MOVE`), because an auto wants slightly different behaviour (no driver input to honour, a known place to stand) and the superstructure is where that difference lives, not in the auto command.
+
+The transition is a table:
+
+```java
+private CurrentState handleStateTransitions() {
+    return switch (wantedState) {
+        case STOPPED -> CurrentState.STOPPED;
+        case DEFAULT_STATE -> CurrentState.DEFAULT_STATE;
+        case HOME -> CurrentState.HOMING;
+        case SCORE_ON_MOVE -> CurrentState.SCORING_ON_THE_MOVE;
+        case PASS -> CurrentState.PASSING;
+        case AUTO_SCORE -> CurrentState.AUTO_SCORING;
+        // ...
+    };
+}
+```
+
+In 2910's case it is close to one-to-one, because their guards live inside the state functions. The hopper's transition method had a guard in it; a superstructure's may or may not, and either is fine as long as the guard is in one place.
+
+### applyStates: one function per state
+
+```java
+private void applyStates() {
+    switch (currentState) {
+        case STOPPED -> stopped();
+        case DEFAULT_STATE -> defaultState();
+        case HOMING -> homing();
+        case SCORING_ON_THE_MOVE -> scoringOnTheMove(true);
+        case SCORING_WITHOUT_OBSERVATION -> scoringOnTheMove(false);
+        case PASSING -> passing();
+        case AUTO_SCORING -> autoScoring();
+        case AUTO_SCORE_STATIONARY -> autoScoreStationary();
+        case SYS_ID -> {}
+        // ...
+    }
+}
+```
+
+Each state function is the coordination logic for that intent, and it only ever *sets wanted states* and *setpoints* on subsystems. The stopped state is the simplest:
+
+```java
+private void stopped() {
+    intakeSubsystem.setWantedState(IntakeSubsystem.WantedState.DEPLOY);
+    shooterSubsystem.setWantedState(ShooterSubsystem.WantedState.OFF);
+    hopperSubsystem.setWantedState(HopperSubsystem.WantedState.DEFAULT);
+    swerveSubsystem.setWantedState(SwerveSubsystem.WantedState.IDLE);
+}
+```
+
+Four subsystems, four requests, nothing else. A stationary auto shot is the richest one worth reading in full, because it shows a guard on the *outputs* rather than on the transition:
+
+```java
+private void autoScoreStationary() {
+    var targetRotation = targetHub.minus(currentRobotPose.getTranslation()).getAngle();
+    var rpm = container.getShooterInterpolation().getInterpolatedRPM(distanceToHub);
+    var angle = container.getShooterInterpolation().getInterpolatedHoodAngle(distanceToHub);
+    setShooterAndFeederShotConditions(rpm, angle);
+    setIntakeShootingState();
+
+    shooterSubsystem.setWantedState(ShooterSubsystem.WantedState.RUN);
+    setSwerveToCalculatedState(targetRotation, SOTM_TRANSLATION_SCALAR);
+
+    if (shooterSubsystem.isAtShotConditions() && swerveSubsystem.isAtDesiredRotation()) {
+        hopperSubsystem.setWantedState(HopperSubsystem.WantedState.SHOOT);
+        intakeSubsystem.setWantedState(IntakeSubsystem.WantedState.RETRACT);
+    } else {
+        hopperSubsystem.setWantedState(HopperSubsystem.WantedState.DEFAULT);
+        intakeSubsystem.setWantedState(IntakeSubsystem.WantedState.DEPLOY);
+    }
+}
+```
+
+Aim the drivetrain at the hub, look up the shot from distance, spin the shooter, and feed only when the shooter reports it is at speed *and* the swerve reports it is on heading. That `if` is the interlock between three subsystems, and it is written once. Compare it with the Cobra shooter's `runShooterToHub()` command plus a readiness `Trigger` plus a feed binding: the same logic, in three files.
+
+### Setting the wanted state
+
+The setter is a plain field write, and `RobotContainer` binds it like this:
+
+```java
+controller
+    .rightBumper()
+    .onTrue(Commands.runOnce(() -> superStructure.setWantedStateCommand(SCORE_ON_MOVE)))
+    .onFalse(Commands.runOnce(() -> superStructure.setWantedStateCommand(DEFAULT_STATE)));
+
+controller
+    .rightTrigger()
+    .onTrue(Commands.runOnce(() -> superStructure.setWantedStateCommand(PASS)))
+    .onFalse(Commands.runOnce(() -> superStructure.setWantedStateCommand(DEFAULT_STATE)));
+```
+
+Every binding is two `runOnce` calls: enter an intent on press, return to `DEFAULT_STATE` on release. `DEFAULT_STATE` is itself a full behaviour (2910's default keeps the shooter spinning at a distance-based RPM and lets the driver drive), so "release" never means "do nothing"; it means "do the default". The next page is about that relationship between states and commands.
+
+### Rebuilding it at Cobra's scale
+
+Cobra has an intake with an end effector, a hood, a shooter flywheel, and BobotState with a `HubVARC` that already knows the heading and distance to the hub. A superstructure for it needs four intents to start:
+
+```java
+public class Superstructure extends SubsystemBase {
+  public enum WantedState { IDLE, INTAKE, SCORE, EJECT }
+  private enum CurrentState { IDLE, INTAKING, PREPARING_SHOT, SHOOTING, EJECTING }
+
+  private final Intake intake;
+  private final Hood hood;
+  private final Shooter shooter;
+  private WantedState wantedState = WantedState.IDLE;
+  private CurrentState currentState = CurrentState.IDLE;
+
+  @Override
+  public void periodic() {
+    Distance distanceToHub = BobotState.getHubVARC().getDistance();
+    Rotation2d headingError = BobotState.getGlobalPose().getRotation()
+        .minus(BobotState.getShooterAlignmentVARC().getRotationTarget());
+    boolean aimed = Math.abs(headingError.getDegrees()) < 3.0;
+    boolean atSpeed = shooter.isNearHubVelocity(RotationsPerSecond.of(2.0)).getAsBoolean();
+    boolean hoodReady = hood.isNearGoal(Degrees.of(1.0)).getAsBoolean();
+
+    currentState = handleStateTransitions(aimed && atSpeed && hoodReady);
+    Logger.recordOutput("Superstructure/WantedState", wantedState);
+    Logger.recordOutput("Superstructure/CurrentState", currentState);
+
+    applyStates(distanceToHub);
+  }
+
+  private CurrentState handleStateTransitions(boolean readyToShoot) {
+    return switch (wantedState) {
+      case IDLE -> CurrentState.IDLE;
+      case INTAKE -> CurrentState.INTAKING;
+      case EJECT -> CurrentState.EJECTING;
+      case SCORE -> readyToShoot ? CurrentState.SHOOTING : CurrentState.PREPARING_SHOT;
+    };
+  }
+
+  private void applyStates(Distance distanceToHub) {
+    switch (currentState) {
+      case IDLE -> {
+        intake.setWantedState(Intake.WantedState.STOW);
+        shooter.setWantedState(Shooter.WantedState.IDLE);
+      }
+      case INTAKING -> {
+        intake.setWantedState(Intake.WantedState.INTAKE);
+        shooter.setWantedState(Shooter.WantedState.IDLE);
+      }
+      case PREPARING_SHOT -> {
+        intake.setWantedState(Intake.WantedState.DEPLOY);
+        hood.setWantedState(hoodStateFor(distanceToHub));
+        shooter.setWantedState(Shooter.WantedState.SPIN_UP);
+      }
+      case SHOOTING -> {
+        hood.setWantedState(hoodStateFor(distanceToHub));
+        shooter.setWantedState(Shooter.WantedState.SPIN_UP);
+        intake.setWantedState(Intake.WantedState.FEED);
+      }
+      case EJECTING -> intake.setWantedState(Intake.WantedState.EJECT);
+    }
+  }
+
+  public void setWantedState(WantedState state) { wantedState = state; }
+  public Trigger isShooting() { return new Trigger(() -> currentState == CurrentState.SHOOTING); }
+}
+```
+
+What is real and what is proposed: `BobotState.getHubVARC()`, `getShooterAlignmentVARC()` and its `getRotationTarget()`, `BobotState.getGlobalPose()`, `shooter.isNearHubVelocity(...)` and `hood.isNearGoal(...)` exist in Cobra today. `Intake.WantedState`, `Shooter.WantedState` and `hood.setWantedState` do not; they are the previous page's pattern applied to those three subsystems, and `hoodStateFor(distance)` is the zone logic currently written as BobotState triggers in `RobotContainer`, moved into one function. The `SCORE` row is the whole reason to build this: preparing and shooting are two current states behind one intent, and the interlock (`aimed && atSpeed && hoodReady`) is written once.
+
+<RulesBox title="What the superstructure never does">
+
+- **Talk to hardware.** It sets wanted states and setpoints on subsystems. Motor calls stay in the subsystems, behind their IO layers.
+- **Compute geometry.** Distance and heading come from BobotState's VARCs, exactly as today. The superstructure consumes answers.
+- **Sequence with timers.** "Spin up, then wait 0.5 s, then feed" is a smell. Feed when the shooter *reports* it is at speed. If a step has no sensor to confirm it, that is a hardware gap to fix before the state machine papers over it.
+
+</RulesBox>
+
+### Where it runs
+
+2910's superstructure `extends SubsystemBase`, so the scheduler runs its `periodic()` and it is constructed in `RobotContainer` with references to every other subsystem. It declares no requirements and no command ever requires it; it is a subsystem only to get a periodic call. FRC 4451 has a cleaner home for that: a [VirtualSubsystem](/frc/virtual-subsystem), which is exactly "a heartbeat without the scheduler", and it should run *after* BobotState has updated its VARCs in the same loop. The [last page of this group](/frc/superstructure-for-cobra) settles the ordering.
+
+<Sources items={[
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/SuperStructure.java", "note": "The class comment, WantedState and CurrentState enums, periodic, handleStateTransitions, applyStates, stopped, autoScoreStationary and setWantedStateCommand quoted above."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/RobotContainer.java", "note": "The two-runOnce binding shape: an intent on press, DEFAULT_STATE on release."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/hopper/HopperSubsystem.java", "note": "The subsystem the superstructure drives with setWantedState."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "The VARCs the Cobra example reads instead of computing geometry."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "runShooterToHub and the isNearHubVelocity trigger: the logic the SCORE state gathers into one place."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/Hood.java", "note": "isNearGoal, and the zone-driven hood states the example folds into hoodStateFor."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "The BobotState zone bindings that set the hood today."},
+  {"source": "advantagekit", "path": "data-flow/recording-outputs/", "note": "Logging both layers each cycle."}
+]} />
+
+<LinkGrid links={[
+  {"label":"States, Commands and Triggers","id":"states-commands-and-triggers"},
+  {"label":"Subsystem State Machines","id":"subsystem-state-machines"},
+  {"label":"VARC","id":"varc"},
+  {"label":"VirtualSubsystem","id":"virtual-subsystem"}
+]} title="Next" section="frc" />

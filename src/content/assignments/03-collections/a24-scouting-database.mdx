@@ -3,44 +3,48 @@ title: "A24: Scouting Database"
 lessonId: a24-scouting-database
 section: assignments
 group: collections
-groupLabel: "Track 3 — Collections"
+groupLabel: "Track 3: Collections"
 groupOrder: 3
 order: 24
 difficulty: intermediate
 duration: 90 min
-description: Move scouting data off arrays and onto an ArrayList — add, remove, filter, sort, and hand callers a view they cannot break.
+description: "Move scouting data off arrays and onto an ArrayList: add, remove, filter, sort, and hand callers a view they cannot break."
 ---
 
 **Topic:** `ArrayList<T>`, the `List<T>` interface, `removeIf`, `Optional`, unmodifiable views.
-**Cites:** [ArrayLists](/java/java-ds-arraylists), [Lambdas](/java/java-fn-lambdas), [Arrays](/java/java-arrays).
-**Difficulty:** medium. **Estimated time:** 90 minutes.
+**Cites:** [ArrayLists](/java/fundamentals/java-arraylists), [Lambdas](/java/fundamentals/java-lambdas), [Arrays](/java/fundamentals/java-arrays).
+**Difficulty:** intermediate. **Estimated time:** 90 minutes.
+
+**Repository checkpoint:** Work in `assignments/a24-scouting-database/` inside the repository from [A00](/java/assignments/a00-practice-repository-setup). Keep every source and input file for
+this assignment there. After completing the checks and rubric, update the root
+`README.md`, commit with `Complete A24: Scouting Database`, and push to GitHub.
 
 ### Scenario
 
-In [A21](/assignments/a21-scouting-csv) you moved scouting rows around in arrays. Arrays
+In [A21](/java/assignments/a21-scouting-csv) you moved scouting rows around in arrays. Arrays
 are the right tool when you know the size up front. They are the wrong one the moment
 entries arrive over the course of a weekend, get filtered, get ranked, and get deleted
 because someone typed the wrong team number.
 
 `ArrayList<T>` is the everyday list. This assignment is the small database you will
-actually reach for at a competition — and one design decision that separates a class
+use at a competition. You will also make one design decision that separates a class
 you can trust from one you cannot.
 
 ### What to build
 
-**`TeamEntry`** — a record holding `teamNumber`, `teamName`, `drivetrain`, `avgPoints`
+**`TeamEntry`**: a record holding `teamNumber`, `teamName`, `drivetrain`, `avgPoints`
 and `climbsHigh`, with a compact constructor that validates: team number 1 to 99999,
 name not blank, `drivetrain` one of `TANK` / `MECANUM` / `SWERVE` / `OTHER`, `avgPoints`
 not negative. `pickScore()` is `avgPoints`, plus 25 when the team climbs high.
 
-**`ScoutingDatabase`** — one `ArrayList<TeamEntry>` field and nothing else:
+**`ScoutingDatabase`**: one `ArrayList<TeamEntry>` field and nothing else:
 
 <ContentTable
   headers={["Method", "What it does"]}
   rows={[
     ["<code>add(TeamEntry)</code>", "Append. Validation already happened in the record."],
     ["<code>removeByTeamNumber(int)</code>", "Returns whether anything was removed."],
-    ["<code>findByTeamNumber(int)</code>", "<code>Optional&lt;TeamEntry&gt;</code> — empty, never <code>null</code>."],
+    ["<code>findByTeamNumber(int)</code>", "<code>Optional&lt;TeamEntry&gt;</code>: empty, never <code>null</code>."],
     ["<code>filter(Predicate&lt;TeamEntry&gt;)</code>", "The matching entries, in insertion order. This is the bridge from the list to lambdas."],
     ["<code>filterByDrivetrain(String)</code>", "Should be one line, expressed in terms of <code>filter</code>."],
     ["<code>sortedByPickScore()</code>", "A sorted <em>copy</em>, highest first. The database itself must come back unchanged."],
@@ -51,7 +55,7 @@ not negative. `pickScore()` is `avgPoints`, plus 25 when the team climbs high.
 ### The one that matters
 
 `all()` is the decision worth arguing about. Returning the internal list directly lets
-any caller add to your database — or clear it — without going through a single line of
+any caller add to your database or clear it without going through a single line of
 your validation. `Collections.unmodifiableList(entries)` returns a wrapper that reads
 straight through to your data and throws on any attempt to write.
 
@@ -61,7 +65,7 @@ you are getting.
 
 <RulesBox title="How the browser version differs" items={[
   "Two files locally, one here, with only <code>ScoutingCLI</code> declared <code>public</code>.",
-  "The full assignment prompts field by field when you add a team. Here each command is <strong>one line</strong>: the letter, then its argument — so a session can be pasted into the input box. <code>a 5000,New Team,TANK,30.0,false</code> adds a row.",
+  "The full assignment prompts field by field when you add a team. Here each command is <strong>one line</strong>: the letter, then its argument, so a session can be pasted into the input box. <code>a 5000,New Team,TANK,30.0,false</code> adds a row.",
   "<code>main</code> seeds six teams so every command has something to work on. It and its helpers are written for you."
 ]} />
 
@@ -73,7 +77,7 @@ you are getting.
     ["<code>f 1339</code>", "Find one team by number"],
     ["<code>r 2468</code>", "Remove one team by number"],
     ["<code>d SWERVE</code>", "Filter by drivetrain"],
-    ["<code>h</code>", "The teams that climb high — via a lambda"],
+    ["<code>h</code>", "The teams that climb high: via a lambda"],
     ["<code>u</code>", "Check that <code>all()</code> really is unmodifiable"],
     ["<code>a 5000,New Team,TANK,30.0,false</code>", "Add one entry"],
     ["<code>q</code>", "Quit"]
@@ -89,7 +93,7 @@ you are getting.
 <JavaPlayground id="a24-scouting-database" />
 
 <RulesBox title="Hints" items={[
-  "<strong>Do not remove inside a for-each.</strong> Mutating a list while iterating it throws <code>ConcurrentModificationException</code>. <code>removeIf</code> takes a predicate, does it safely, and returns a <code>boolean</code> — which is exactly the value <code>removeByTeamNumber</code> owes its caller. The whole method is one line.",
+  "<strong>Do not remove inside a for-each.</strong> Mutating a list while iterating it throws <code>ConcurrentModificationException</code>. <code>removeIf</code> takes a predicate, does it safely, and returns a <code>boolean</code>. That is exactly the value <code>removeByTeamNumber</code> owes its caller. The whole method is one line.",
   "<strong><code>Optional</code> is not a null with extra steps.</strong> It changes who is responsible for the missing case. <code>findByTeamNumber(n).map(...).orElse(...)</code> forces the caller to say what happens when the team is not there, at compile time rather than at the competition.",
   "<strong>Sort a copy.</strong> <code>new ArrayList&lt;&gt;(entries)</code> then <code>.sort(...)</code> gives you a sorted list without reordering the database. A check compares the list immediately after a sort for exactly this reason.",
   "<strong>Descending is <code>reversed()</code>, not a negated comparison.</strong> <code>Comparator.comparingDouble(TeamEntry::pickScore).reversed()</code> says what it means; swapping the operands inside a hand-written comparator says it too, but quietly.",
@@ -114,7 +118,7 @@ you are getting.
 - Add `top(int k)` returning the k best by pick score. Write it once with `sorted` +
   `limit` and once by sorting and taking a sublist, then decide which you would rather
   read at 11pm in a pit.
-- Wire this to `CsvIO` from [A21](/assignments/a21-scouting-csv): `load(String)` and
+- Wire this to `CsvIO` from [A21](/java/assignments/a21-scouting-csv): `load(String)` and
   `save(String)` commands that round-trip the whole database to disk.
 - Give `filter` a sibling that takes two predicates and ands them. Then notice that
   `Predicate` already has `and`, and delete it again.

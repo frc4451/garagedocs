@@ -1,0 +1,252 @@
+---
+title: "Trees"
+lessonId: java-trees
+section: java
+group: java-data-structures
+groupLabel: "Data Structures"
+groupOrder: 5
+order: 8
+difficulty: intermediate
+duration: 25 min
+description: Storing data hierarchically with nodes that have several children, walking a tree recursively, and how binary search trees keep lookups fast.
+---
+
+### Branching instead of chaining
+
+A [linked list](/java/fundamentals/java-linked-lists#a-different-arrangement) node points at one other node. A tree node points at several. That single change gives you a structure for anything hierarchical.
+
+```java
+class TreeNode {
+    int value;
+    TreeNode left;
+    TreeNode right;
+
+    TreeNode(int value) {
+        this.value = value;
+    }
+}
+```
+
+This is a **binary** tree: at most two children per node. Trees can have any number; two is the most common and the easiest to reason about.
+
+Some vocabulary, all of which appears in real code:
+
+<ContentTable
+  headers={["Term", "Meaning"]}
+  rows={[
+    ["Root", "The single node at the top, with no parent"],
+    ["Child", "A node directly below another"],
+    ["Parent", "The node directly above"],
+    ["Leaf", "A node with no children"],
+    ["Subtree", "A node together with everything below it"],
+    ["Height", "The longest path from the root down to a leaf"],
+    ["Depth", "How far a given node is from the root"]
+  ]}
+/>
+
+### Things that are naturally trees
+
+- A file system: folders containing folders containing files
+- An organisation chart
+- The HTML structure of a web page
+- A robot's subsystem hierarchy, where a drivetrain contains modules which contain motors
+- Any decision process where each answer leads to further questions
+
+If a problem has parents and children, or containment, it is probably a tree.
+
+### Walking a tree
+
+Because each subtree is itself a tree, recursion fits naturally. The method calls itself on each child and the structure handles the rest.
+
+```java
+static void printAll(TreeNode node) {
+    if (node == null) return;        // base case: nothing here
+
+    printAll(node.left);             // everything on the left
+    System.out.println(node.value);  // this node
+    printAll(node.right);            // everything on the right
+}
+```
+
+The `if (node == null) return;` is what stops the recursion. Every tree method needs it, and forgetting it gives a `NullPointerException` at the first leaf.
+
+Moving the `println` changes the order you visit things:
+
+<ContentTable
+  title="Traversal orders"
+  headers={["Order", "Visit sequence", "Useful for"]}
+  rows={[
+    ["Pre-order", "node, left, right", "Copying a tree; printing structure"],
+    ["In-order", "left, node, right", "Reading a binary search tree in sorted order"],
+    ["Post-order", "left, right, node", "Deleting; computing sizes from the bottom up"],
+    ["Level-order", "row by row from the top", "Finding the shallowest match"]
+  ]}
+/>
+
+Level-order is the odd one out; it needs a [queue](/java/fundamentals/java-queues#using-one) rather than recursion:
+
+```java
+static void printByLevel(TreeNode root) {
+    if (root == null) return;
+
+    Queue<TreeNode> queue = new ArrayDeque<>();
+    queue.offer(root);
+
+    while (!queue.isEmpty()) {
+        TreeNode node = queue.poll();
+        System.out.println(node.value);
+        if (node.left != null)  queue.offer(node.left);
+        if (node.right != null) queue.offer(node.right);
+    }
+}
+```
+
+### Recursive measurements
+
+Most tree questions have the same shape: combine the answers from the children.
+
+```java
+static int countNodes(TreeNode node) {
+    if (node == null) return 0;
+    return 1 + countNodes(node.left) + countNodes(node.right);
+}
+
+static int height(TreeNode node) {
+    if (node == null) return 0;
+    return 1 + Math.max(height(node.left), height(node.right));
+}
+
+static int sum(TreeNode node) {
+    if (node == null) return 0;
+    return node.value + sum(node.left) + sum(node.right);
+}
+```
+
+All three follow one template: return a base value for `null`, otherwise combine this node with the results from both children. Once you see the pattern, most tree problems become a matter of choosing how to combine.
+
+### Binary search trees
+
+A binary tree becomes useful for searching when you impose a rule: everything in the left subtree is smaller than the node, and everything in the right subtree is larger.
+
+```java
+static TreeNode insert(TreeNode node, int value) {
+    if (node == null) return new TreeNode(value);
+
+    if (value < node.value) {
+        node.left = insert(node.left, value);
+    } else if (value > node.value) {
+        node.right = insert(node.right, value);
+    }
+    return node;                     // equal values ignored
+}
+
+static boolean contains(TreeNode node, int value) {
+    if (node == null) return false;
+    if (value == node.value) return true;
+    return value < node.value
+        ? contains(node.left, value)
+        : contains(node.right, value);
+}
+```
+
+Each comparison discards half the remaining tree, so searching a balanced tree with a million nodes takes about 20 comparisons rather than a million.
+
+<RulesBox title="Balance is the catch">
+
+That speed depends on the tree being reasonably balanced. Insert values in sorted order and every node ends up in the right subtree:
+
+```java
+// inserting 1, 2, 3, 4, 5 in order gives:
+// 1 -> 2 -> 3 -> 4 -> 5
+```
+
+The tree has degenerated into a linked list, and searching is back to checking every element. Real libraries use self-balancing trees that rearrange themselves to prevent this.
+
+</RulesBox>
+
+### Use the library
+
+You will rarely write a search tree in production. Java provides balanced ones:
+
+```java
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+TreeSet<Integer> values = new TreeSet<>();
+values.add(50);
+values.add(10);
+values.add(30);
+
+System.out.println(values);              // [10, 30, 50]: always sorted
+System.out.println(values.first());      // 10
+System.out.println(values.last());       // 50
+System.out.println(values.ceiling(20));  // 30: smallest value >= 20
+System.out.println(values.floor(20));    // 10: largest value <= 20
+```
+
+`ceiling` and `floor` are the reason to choose `TreeSet` over `HashSet`. A hash set answers "is this present"; a tree set also answers "what is the nearest value to this", which a hash set cannot do at any speed.
+
+`TreeMap` does the same for key-value pairs, keeping keys sorted.
+
+<RulesBox title="Common mistakes">
+
+- **Missing the `null` base case**, giving a `NullPointerException`.
+- **Not reassigning the result of a recursive insert.** `insert(node.left, value)` returns the new subtree; you must store it with `node.left = ...`.
+- **Assuming a hand-written search tree stays balanced.**
+- **Recursing too deeply.** A tree with hundreds of thousands of nodes in a chain can overflow the call stack. Level-order with a queue avoids this.
+- **Expecting `HashSet` to be ordered.** It is not; use `TreeSet` when order matters.
+
+</RulesBox>
+
+<JavaPlayground id="java-trees" />
+
+<ExerciseBox title="Practice" description="Use your own TreeNode for 1-4.">
+
+1. Build a small binary tree by hand and print it in all three recursive orders. Confirm the sequences differ.
+2. Write a method that counts the leaf nodes.
+3. Write a method that returns the largest value in a binary tree, without assuming search-tree ordering.
+4. Write `insert` and `contains` for a binary search tree, then insert ten values and search for a few.
+5. Using `TreeSet<Integer>`, add ten random values, then print the smallest, largest, and the nearest value at or above 50.
+
+<details>
+<summary>Hints</summary>
+
+1. Same recursion, with the `println` moved.
+2. A leaf has both children `null`. Return 0 for a `null` node, 1 for a leaf, otherwise the sum from both sides.
+3. You must check every node since there is no ordering to exploit. Combine this node's value with the maximum of both subtrees, and pick a base value for `null` that cannot win; `Integer.MIN_VALUE` works.
+4. As written above. Remember to reassign the returned subtree.
+5. `first()`, `last()`, `ceiling(50)`.
+
+</details>
+
+</ExerciseBox>
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    {"label":"Graphs","id":"java-graphs"}
+  ]}
+/>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"url": "https://en.wikipedia.org/wiki/Binary_tree", "label": "Wikipedia: Binary tree", "note": "Terminology."},
+  {"url": "https://en.wikipedia.org/wiki/Binary_search_tree", "label": "Wikipedia: Binary search tree", "note": "The ordering rule."},
+  {"source": "java-api", "path": "java.base/java/util/TreeSet.html", "note": "The library BST."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/lang/NullPointerException.html", "note": "<code>NullPointerException</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/HashSet.html", "note": "<code>HashSet</code> API reference."},
+  {"source": "java-api", "path": "java.base/java/util/TreeMap.html", "note": "<code>TreeMap</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Related"
+  section="java"
+  links={[
+    {"label":"Linked Lists","id":"java-linked-lists"},
+    {"label":"Queues","id":"java-queues"},
+    {"label":"Classes","id":"java-classes"}
+  ]}
+/>

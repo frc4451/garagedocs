@@ -1,21 +1,15 @@
 ---
-title: Subsystems
+title: "Subsystems"
 lessonId: subsystems
 section: frc
 group: frc-command-based
-groupLabel: Command-Based Programming
-groupOrder: 3
+groupLabel: "Command-Based Programming"
+groupOrder: 5
 order: 2
 difficulty: beginner
 duration: 20 min
 description: "Encapsulating hardware in a subsystem: configuration that cannot fail silently, logging from a single annotation, and command factories."
 ---
-
-<RulesBox title="You have done this in Kit Bot">
-
-Kit Bot's [R04](/kit-bot/r04-subsystems) built a subsystem from scratch and [R07](/kit-bot/r07-launcher-io) put an IO behind it. This lesson is what changes at competition scale: configuration that can fail, setters that log what they set, command factories, and the thin-wrapper shape Cobra uses over the ROBOTZ Garage library.
-
-</RulesBox>
 
 ### Keep hardware logic in one place
 
@@ -35,7 +29,7 @@ Subsystems encapsulate hardware (motors, sensors) and provide methods to control
 
 <CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot.subsystems.intake;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.ctre.phoenix6.hardware.TalonFX;\nimport com.ctre.phoenix6.configs.TalonFXConfiguration;\nimport com.ctre.phoenix6.signals.NeutralModeValue;\nimport frc.robot.util.PhoenixUtil;\n\nimport static frc.robot.Constants.IntakeConstants.*;\n\npublic class Intake extends SubsystemBase {\n    TalonFX motor = new TalonFX(INTAKE_MOTOR_PORT);\n    TalonFXConfiguration config = new TalonFXConfiguration();\n\n    public Intake() {\n        config.MotorOutput.NeutralMode = NeutralModeValue.Coast;\n        config.CurrentLimits.StatorCurrentLimitEnable = true;\n        config.CurrentLimits.SupplyCurrentLimitEnable = true;\n        config.CurrentLimits.StatorCurrentLimit = 60;\n        config.CurrentLimits.SupplyCurrentLimit = 40;\n\n        PhoenixUtil.tryUntilOk(5, () -> motor.getConfigurator().apply(config));\n    }\n\n    public double setIntakeDutyCycle(double dc) {\n        motor.set(dc);\n        return dc;\n    }\n\n    public double getIntakeVelocity() {\n        return motor.getVelocity().getValueAsDouble();\n    }\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot.subsystems.intake;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\nimport com.revrobotics.spark.config.SparkMaxConfig;\nimport com.revrobotics.spark.config.SparkBaseConfig.IdleMode;\nimport com.revrobotics.spark.SparkBase.ResetMode;\nimport com.revrobotics.spark.SparkBase.PersistMode;\n\nimport static frc.robot.Constants.IntakeConstants.*;\n\npublic class Intake extends SubsystemBase {\n    SparkMax motor = new SparkMax(INTAKE_MOTOR_PORT, MotorType.kBrushless);\n\n    public Intake() {\n        SparkMaxConfig config = new SparkMaxConfig();\n        config.idleMode(IdleMode.kCoast);\n        config.smartCurrentLimit(40);\n        config.secondaryCurrentLimit(60);\n\n        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n    }\n\n    public double setIntakeDutyCycle(double dc) {\n        motor.set(dc);\n        return dc;\n    }\n\n    public double getIntakeVelocity() {\n        return motor.getEncoder().getVelocity();\n    }\n}","language":"java"}]} />
 
-The `Slot0` gains in that configuration (`kP`, `kS`, `kV`…) are the closed-loop and feedforward constants. What they mean and how they are found is [Control Theory](/frc/frc-pid-control), two groups on. For now they are numbers the config carries; the subsystem's job is to apply them, not to understand them.
+The `Slot0` gains in that configuration (`kP`, `kS`, `kV`…) are the closed-loop and feedforward constants. What they mean and how they are found is [Control Theory](/frc/pid-control), two groups on. For now they are numbers the config carries; the subsystem's job is to apply them, not to understand them.
 
 ### Configuration Can Fail Silently
 
@@ -49,7 +43,7 @@ Retry it:
 PhoenixUtil.tryUntilOk(5, () -> motor.getConfigurator().apply(config));
 ```
 
-Five attempts cost nothing and remove the failure mode. The helper itself is about ten lines; see [Motor Configuration](/frc/motor-controller-configuration#applying-configuration-can-fail).
+Five attempts cost nothing and remove the failure mode. The helper itself is about ten lines; see [Motor Controller Configuration](/frc/motor-controller-configuration#applying-configuration-can-fail).
 
 ### Keep the Config as a Field
 
@@ -95,7 +89,7 @@ public double getIntakeVelocity() {
 
 `@AutoLogOutput` records **the return value of the method**. A `void` setter has nothing to record, so the value you commanded never reaches the log, and tuning then means guessing at half the picture.
 
-With both sides logged, the commanded value and the measured result can be dragged onto the same graph. See [AdvantageKit](/frc/advantagekit#autologoutput) for the annotation and [AdvantageScope](/frc/advantagescope#where-the-record-comes-from) for reading the result.
+With both sides logged, the commanded value and the measured result can be dragged onto the same graph. See [AdvantageKit](/frc/advantagekit#autologoutput) for the annotation and [AdvantageScope](/frc/reading-a-match-log#where-the-record-comes-from) for reading the result.
 
 <RulesBox title="What to log on a new subsystem" subtitle="At minimum:">
 
@@ -146,7 +140,7 @@ Without a default command, the last value stays applied and the roller keeps spi
 <RulesBox title="Common mistakes">
 
 - **Applying configuration without a retry**, so a failure is silent.
-- **Setting only one current limit.** Stator protects the motor; supply protects the battery. See [Current Limiting](/frc/motor-current-limiting#types-of-limits).
+- **Setting only one current limit.** Stator protects the motor; supply protects the battery. See [Current Limiting](/frc/current-limiting#types-of-limits).
 - **`void` setters**, so commanded values never reach the log.
 - **Logic in `periodic()`** that belongs in a command.
 - **Blocking loops in a subsystem.** A `while` loop waiting on a mechanism stalls the entire scheduler. Every other subsystem stops updating, including the sensor the loop is waiting on. Use `Commands.waitUntil` instead.
@@ -166,4 +160,4 @@ Without a default command, the last value stays applied and the roller keeps spi
   {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "Mode-dependent IO choice."}
 ]} />
 
-<LinkGrid links={[{"label":"Commands","id":"commands"},{"label":"Hardware Abstraction with IO Layers","id":"io-layer"},{"label":"Intake Example","id":"intake-command-based"},{"label":"WPILib Subsystems Documentation","url":"https://docs.wpilib.org/en/stable/docs/software/commandbased/subsystems.html"}]} title="Resources" section="frc" />
+<LinkGrid links={[{"label":"Commands","id":"commands"},{"label":"IO Layers","id":"io-layers"},{"label":"Intake Example","id":"command-based-intake"},{"label":"WPILib Subsystems Documentation","url":"https://docs.wpilib.org/en/stable/docs/software/commandbased/subsystems.html"}]} title="Resources" section="frc" />

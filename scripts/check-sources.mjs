@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const CONTENT = join(ROOT, 'src', 'content');
-const REQUIRED_SECTIONS = ['frc', 'tools', 'kit-bot', 'assignments', 'java'];
+const REQUIRED_SECTIONS = ['frc', 'tools', 'kit-bot', 'assignments', 'java', 'badges'];
 const quiet = process.argv.includes('--quiet');
 
 // Pull the registry out of the TypeScript source without a TS loader: it is a plain

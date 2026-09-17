@@ -3,7 +3,7 @@ import type { JavaPlaygroundExercise } from '../types';
 
 export const CONCURRENCY: JavaPlaygroundExercise[] = [
   pg(
-    'java-threads-basics',
+    'java-threads-and-concurrency',
     'Practice: threads',
     `Start a thread that prints worker. Join it, then print done.
 
@@ -25,7 +25,7 @@ done`,
     [{ name: 'Join worker', stdout: 'worker\ndone' }],
   ),
   pg(
-    'java-race-conditions',
+    'java-race-conditions-and-synchronization',
     'Practice: synchronized',
     `Two threads should each call inc() 1000 times on the same Counter. Make inc() safe (synchronized). Join both, then print the total.
 
@@ -64,7 +64,7 @@ public class Main {
     [{ name: 'Two threads, 2000', stdout: '2000' }],
   ),
   pg(
-    'java-executors',
+    'java-executors-and-thread-pools',
     'Practice: executor',
     `Submit a task that prints pool. After shutdown and wait, print done.
 

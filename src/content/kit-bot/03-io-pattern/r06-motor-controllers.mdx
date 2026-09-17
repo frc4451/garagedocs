@@ -7,196 +7,141 @@ groupLabel: "Phase 3: Hardware via IO"
 groupOrder: 3
 order: 6
 duration: 20 min
-description: "Voltage versus percent output, encoders, current limits and gear ratios: the concepts a motor controller API is built on."
----
-This module is concept-only. No code goes into your project. The goal is to know enough about how a SparkMax + NEO combination works that the IO-interface modules (R07, R08) describe shapes and choices, not magic.
-
+description: Learn the four motor-controller ideas used by the launcher and drivetrain lessons.
 ---
 
-### What a motor controller does
 
-A motor on its own takes raw current and spins. A motor *controller* sits between the battery and the motor and decides how much energy reaches the motor each instant. Your robot code talks to the controller, not the motor directly.
+Robot code does not power a motor directly. It sends a request to a **motor controller**. The controller switches battery power, protects the motor, and reports sensor measurements.
 
-Three jobs every controller does:
+The Kit Bot uses REV Robotics SparkMax controllers with NEO brushless motors. Focus on four ideas: CAN IDs, voltage commands, current limits, and encoder readings.
 
-1. **Switch power on and off, fast.** Modern controllers do this tens of thousands of times a second (PWM at ~20 kHz). The duty cycle (what fraction of each cycle the motor is energized) is what determines speed.
-2. **Limit current** to protect the motor. A stalled motor would otherwise pull dangerous current; the controller caps it.
-3. **Report sensor readings**. Encoders (built into the NEO), bus voltage, applied voltage, output current.
+### 1. CAN IDs identify devices
 
-You command the controller using a high-level API (set a voltage, set a percent). The controller translates that into the PWM duty cycle and reports back.
-
----
-
-### SparkMax and NEO: the Kit Bot's pair
-
-The Kit Bot uses **REV Robotics SparkMax** motor controllers paired with **NEO** brushless motors. SparkMax is the only motor controller this curriculum covers; if your team is using TalonFX (CTRE), the *shape* of everything below is the same: only the class names change.
-
-A few specifics worth knowing:
-
-- **Brushless.** The NEO is a brushless DC motor. Brushless motors need electronic commutation, which is why a SparkMax has to know what *kind* of motor it's driving: `MotorType.kBrushless`.
-- **CAN bus.** SparkMax talks to the roboRIO over a CAN bus: a two-wire network shared by every motor controller on the robot. Each controller has a unique numeric **CAN ID** in the range 1–62. Two devices with the same CAN ID is a common, hard-to-debug failure.
-- **Encoder built in.** The NEO has a Hall-effect rotor sensor. You get position (rotations) and velocity (RPM) for free, with no extra wiring.
-
----
-
-### Voltage vs percent
-
-You can command a SparkMax two ways:
-
-| Method | Argument | What it means |
-|---|---|---|
-| `motor.set(percent)` | `-1.0` to `+1.0` | "Drive at this fraction of bus voltage." If the battery is at 12.4 V, `set(0.5)` produces 6.2 V at the motor. As the battery sags, output sags with it. |
-| `motor.setVoltage(volts)` | typically `-12.0` to `+12.0` | "Drive at exactly this many volts." The controller compensates for bus voltage: `setVoltage(6.0)` produces 6.0 V whether the battery is at 12.6 V or 11.2 V. |
-
-**Prefer `setVoltage` everywhere.** It's more predictable, and the math you'll do in sim is in volts, not percents. The only reason to use `set` is a habit from old code; in 2026 there's no reason to start there.
-
-Both methods above take a plain `double`, that's REVLib's own API, and REVLib doesn't use WPILib's Units library. [R03](/kit-bot/r03-constants) introduced that library; R07 and R08 are where you'll see it wrap every voltage, RPM, and current that crosses the boundary between REVLib and your own subsystem code. This module describes REVLib as it actually is, `double` in, `double` out, so you recognize the raw shape underneath the typed wrapper.
-
----
-
-### Smart current limiting
-
-A stalled NEO will draw ~100 A briefly. That's fine for a moment but cooks the motor over seconds. The fix is one line of config:
+The **controller area network (CAN)** bus is a shared two-wire network. Each device needs its own numeric CAN ID so robot code can address the correct controller.
 
 ```java
-config.smartCurrentLimit(60);   // amps
+SparkMax leftLeader = new SparkMax(40, MotorType.kBrushless);
 ```
 
-`smartCurrentLimit` enables the SparkMax's internal current-limiting algorithm. The single-argument form used above applies that number as a flat cap at every RPM. REVLib also supports a two-tier form: a *stall* limit that applies at 0 RPM, and a separate, **lower** free-speed limit that the cap linearly ramps down to as RPM climbs. That direction makes sense physically: a spinning motor is already held in check by its own back-EMF, so it needs less help from the controller than a stalled one does. The flat, single-argument form is fine for the Kit Bot.
+The `40` must match the ID configured on that physical controller. If two devices share an ID, communication becomes unreliable. If the code uses the wrong ID, it may control a different device or find no device at all.
 
-Practical numbers:
-
-- **Drivetrain NEOs**: 60 A is the Kit Bot default. Higher means more power off the line but risks blown breakers and burned motors.
-- **Launcher NEOs**: 40 A is the Kit Bot default. The launcher spins a much lighter load than the drivetrain, so it needs less current headroom.
-- **NEO 550** (a smaller motor some teams use on intakes or other light mechanisms, not part of the stock Kit Bot): 30 to 40 A. The 550 is much smaller and heats faster.
-
-The 120 A main breaker on the robot also caps total draw: if all four drive motors plus a launcher are at limit at the same time, you'll trip it. We won't worry about that yet; the Kit Bot's defaults are well within budget.
-
----
-
-### Encoders and what they report
-
-The NEO's built-in encoder gives you two values:
+Store IDs in the mechanism's constants class. Name the device as well as its number:
 
 ```java
-double rotations = motor.getEncoder().getPosition();   // motor rotations since boot
-double rpm       = motor.getEncoder().getVelocity();   // motor RPM (revolutions/minute)
+public static final int LEFT_LEADER_CAN_ID = 40;
 ```
 
-Two things to remember:
+### 2. Voltage controls motor effort
 
-1. **Position is in motor rotations**, not wheel rotations and not meters. You convert. (Coming up.)
-2. **Position is relative**. It starts at 0 at boot. There's no absolute zero. If you need to track total distance, store the value periodically and don't reset.
+The two common SparkMax output methods are:
 
-You can reset with `motor.getEncoder().setPosition(0)`, usually called once in your subsystem constructor so position is zero-referenced at boot.
+| Call | Meaning |
+|---|---|
+| `motor.set(0.5)` | Request half of the available bus voltage. |
+| `motor.setVoltage(6.0)` | Request six volts. |
 
-Both `getPosition()` and `getVelocity()` return bare `double`s, motor rotations and motor RPM respectively, with no unit information attached beyond the method name. R07 and R08 wrap these readings into typed `Distance`, `LinearVelocity`, and `AngularVelocity` measures the moment they cross into your IO implementation, so nothing above the IO layer has to remember "this one's RPM" by convention.
+This curriculum uses `setVoltage` because the request stays in volts when battery voltage changes. A voltage request describes motor effort. It does not guarantee a particular speed.
 
----
+REVLib accepts a bare `double`:
 
-### Gear ratios and units
-
-The motor turns fast; the wheel turns slow. The Kit Bot's drive gearbox has a ratio of about 10.71:1. The motor turns 10.71 times for every one wheel turn. Going from motor revolutions to wheel revolutions is one division:
-
-```
-wheelRotations = motorRotations / gearRatio
+```java
+motor.setVoltage(voltage.in(Volts));
 ```
 
-From wheel rotations to distance:
+The subsystem uses a typed `Voltage`. The IO implementation converts it to the raw number REVLib expects.
 
+### 3. Current limits protect hardware
+
+Current rises when a motor works hard or cannot turn. A current limit tells the controller to reduce output before sustained current overheats a motor or trips a breaker.
+
+```java
+SparkMaxConfig config = new SparkMaxConfig();
+config.smartCurrentLimit(60);
 ```
-distanceMeters = wheelRotations × π × wheelDiameterMeters
+
+The correct limit depends on the motor, mechanism, wiring, breaker, and team rules. Use the value approved for the robot's hardware configuration. Treat the Kit Bot values in later lessons as configuration for that documented build, not universal defaults.
+
+### 4. Encoders measure motion
+
+The NEO includes a relative encoder. It reports motor-shaft position and velocity:
+
+```java
+double motorRotations = motor.getEncoder().getPosition();
+double motorRpm = motor.getEncoder().getVelocity();
 ```
 
-For RPM the same idea, plus a unit conversion:
+Position starts from a reference established by the program or controller. It does not tell you an absolute wheel or arm position after power-up.
 
+The drivetrain needs wheel distance rather than motor rotations. The gearbox and wheel size provide the conversion:
+
+```text
+wheel rotations = motor rotations / gear ratio
+distance = wheel rotations × π × wheel diameter
 ```
-wheelMetersPerSecond = (motorRPM / gearRatio) × (π × wheelDiameter) / 60.0
-```
 
-These conversions live in the IO implementation (R08), not scattered across the codebase. The subsystem above the IO sees clean meters and meters-per-second.
+R07 keeps this conversion inside `DriveIOReal`, so the rest of the program reads meters and meters per second.
 
----
+### Leaders and followers
 
-### Follower mode
-
-Every multi-motor mechanism on the Kit Bot (both drivetrain sides, and the launcher) wires its motors as a *leader* and a *follower*. The leader receives the speed/voltage command. The follower watches the leader over the CAN bus and mirrors its output automatically. Your code only commands the leaders.
-
-The follower configuration is one line of config:
+Each Kit Bot drivetrain side has two motors. Code commands the leader, and the follower mirrors it over CAN. This pattern applies to the drivetrain only. The feeder and intake-launcher motors in R08 perform different jobs and receive separate commands.
 
 ```java
 SparkMaxConfig followerConfig = new SparkMaxConfig();
 followerConfig.follow(leaderCanId);
-follower.configure(followerConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
 ```
 
-There's a second argument for "follow inverted", useful if a follower happens to be mounted backwards relative to its leader.
+Follower inversion depends on how the motors are mounted and how the leader is configured. Verify direction with the robot supported safely before driving on the floor.
 
----
+### Configuration happens once
 
-### The SparkMax setup shape
-
-Modern REVLib (2025+) configures a SparkMax with a fluent `SparkMaxConfig` object, applied once. You don't reconfigure every tick; you configure once, then call `setVoltage` in your loop.
+Create and apply motor configuration when the IO implementation is constructed. Do not reconfigure a controller every 20 ms.
 
 ```java
-import com.revrobotics.spark.SparkMax;
-import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.spark.SparkBase.ResetMode;
-import com.revrobotics.spark.SparkBase.PersistMode;
-import com.revrobotics.spark.config.SparkMaxConfig;
-import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+SparkMaxConfig config = new SparkMaxConfig();
+config.idleMode(IdleMode.kBrake)
+      .smartCurrentLimit(60)
+      .inverted(false);
 
-SparkMax motor = new SparkMax(40, MotorType.kBrushless);   // CAN ID 40, NEO
-
-SparkMaxConfig cfg = new SparkMaxConfig();
-cfg.idleMode(IdleMode.kBrake)        // brake when not commanded; alternative: kCoast
-   .inverted(false)
-   .smartCurrentLimit(60);
-
-motor.configure(cfg,
-    ResetMode.kResetSafeParameters,  // reset to defaults first
-    PersistMode.kPersistParameters); // save to flash so it survives a reboot
+motor.configure(
+    config,
+    ResetMode.kResetSafeParameters,
+    PersistMode.kPersistParameters);
 ```
 
-The four lines after the constructor are essentially the same on every motor in your robot. The differences are CAN ID, inversion, and current limit. The IO modules (R07, R08) build small helpers around this so you don't repeat the config boilerplate.
+`kBrake` makes a stopped drivetrain resist motion. `kCoast` lets a mechanism spin down more freely. Choose the mode for the mechanism's intended behavior.
 
-`IdleMode.kBrake` makes the motor resist movement when commanded to 0. `kCoast` lets it spin freely. Brake is right for a drivetrain you want to stop crisply; coast is right for a launcher you want to spin down gently.
+### See how teams laid out the hardware
 
----
+Before entering a CAN ID, trace that controller on the physical robot. Find its power wires, the two CAN wires, and the motor cable. A label on the controller should agree with the constant in code.
 
-### Why every motor goes through an IO interface
+These photo-rich build threads show several workable layouts. Compare them to your robot instead of copying a wire position from a photo.
 
-Every paragraph above is about *how a SparkMax works*. None of it is about *what your subsystem wants the motor to do*. Mixing them is how robot code becomes a knot: the drivetrain subsystem ends up importing REVLib types directly, the launcher imports them again, the unit conversions get scattered, and swapping for a sim requires editing every file.
+<LinkGrid title="Electrical layout examples" links={[
+  {"label":"YETI Robotics KitBot","url":"https://www.chiefdelphi.com/t/frc-3506-yeti-robotics-2026-build-thread/511666","description":"Photos of a wired KitBot plus shooter tests and motor-speed evidence."},
+  {"label":"Robocubs KitBot","url":"https://www.chiefdelphi.com/t/frc-1701-robocubs-2026-build-thread-open-alliance/511402?page=2","description":"Chassis, electrical-board, and programming progress photos."},
+  {"label":"Garage Gang KitBot","url":"https://www.chiefdelphi.com/t/frc-11025-garage-gang-2026-build-thread-open-alliance/510259","description":"Assembly photos and notes from diagnosing CAN communication."}
+]} />
 
-The IO pattern from [A17](/assignments/a17-io-interface) is the cure. One small interface per mechanism. One implementation per environment (real, sim). Subsystems talk only to the interface.
+For your own robot, take one clear overhead photo before the first powered test. Mark each controller's CAN ID on a copy of the photo. A mentor should still inspect the real wiring before power is applied.
 
-The next two modules apply the pattern. R07 to the launcher (a leader/follower pair driving one output, conceptually simplest since there's only one voltage to command); R08 to the drivetrain (two leader/follower pairs, four motors total; more wiring but the same shape).
+### Why the next lessons use an IO interface
 
----
+REVLib types belong in the real IO implementation. Simulation types belong in the simulation implementation. The subsystem calls the small interface shared by both. This keeps motor configuration, unit conversion, and sensor reads in one place.
 
-<RulesBox title="Evaluate in simulation">
+<RulesBox title="Done when">
 
-This module has no simulation step; it is the reading behind R07. You can state what a NEO's encoder reports, what a gear ratio does to it, and why the SparkMax configuration lives in one place.
+You can explain what a CAN ID identifies, why a voltage request is not a speed guarantee, what a current limit protects, and what the NEO encoder reports. No project file changes are required.
 
 </RulesBox>
 
-### References
-
-- WPILib: [Joysticks, Drive Train Motors](https://docs.wpilib.org/en/stable/docs/software/hardware-apis/motors/index.html)
-- WPILib: [Bus Utilization (CAN)](https://docs.wpilib.org/en/stable/docs/software/can-devices/can-addressing.html)
-- REV: [SparkMax software setup](https://docs.revrobotics.com/brushless/spark-max/gs)
-- REV: [SparkMax + REVLib API](https://docs.revrobotics.com/revlib/)
-- REV: [NEO motor specs](https://www.revrobotics.com/rev-21-1650/)
-- REV JavaDoc: [`SparkMax`](https://codedocs.revrobotics.com/java/com/revrobotics/spark/SparkMax.html)
-- REV JavaDoc: [`SparkMaxConfig`](https://codedocs.revrobotics.com/java/com/revrobotics/spark/config/SparkMaxConfig.html)
-- [A17: IO Interface Technique](/assignments/a17-io-interface), the pattern this module sets up
-
 <Sources items={[
   {"source": "wpilib", "path": "docs/software/hardware-apis/motors/index.html", "note": "Motor controllers in WPILib."},
-  {"source": "wpilib", "path": "docs/software/can-devices/can-addressing.html", "note": "CAN IDs."},
-  {"source": "rev", "path": "brushless/spark-max/gs", "note": "SPARK MAX getting started: firmware, IDs, the Hardware Client."},
-  {"source": "rev", "path": "revlib/", "note": "REVLib."},
-  {"source": "revlib", "path": "com/revrobotics/spark/SparkMax.html", "note": "<code>SparkMax</code>."},
-  {"source": "revlib", "path": "com/revrobotics/spark/config/SparkMaxConfig.html", "note": "<code>SparkMaxConfig</code>."},
-  {"url": "https://www.revrobotics.com/rev-21-1650/", "label": "REV SPARK MAX product page", "note": "The controller in the kit."}
+  {"source": "wpilib", "path": "docs/software/can-devices/can-addressing.html", "note": "CAN addressing."},
+  {"source": "rev", "path": "brushless/spark-max/gs", "note": "SparkMax setup and device configuration."},
+  {"source": "revlib", "path": "com/revrobotics/spark/SparkMax.html", "note": "SparkMax output and encoder access."},
+  {"source": "revlib", "path": "com/revrobotics/spark/config/SparkMaxConfig.html", "note": "Current limit, idle mode, inversion, and follower configuration."},
+  {"url": "https://www.chiefdelphi.com/t/frc-3506-yeti-robotics-2026-build-thread/511666", "label": "YETI Robotics 2026 build thread", "note": "Photo-rich KitBot wiring and launcher testing examples."},
+  {"url": "https://www.chiefdelphi.com/t/frc-1701-robocubs-2026-build-thread-open-alliance/511402?page=2", "label": "Robocubs 2026 build thread", "note": "KitBot electrical-board and chassis examples."},
+  {"url": "https://www.chiefdelphi.com/t/frc-11025-garage-gang-2026-build-thread-open-alliance/510259", "label": "Garage Gang 2026 build thread", "note": "Assembly and CAN troubleshooting examples."}
 ]} />
+

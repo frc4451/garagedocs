@@ -9,9 +9,11 @@ order: 12
 duration: 15 min
 description: "RobotBase.isReal() picks the IO implementation at runtime, and the subsystem code does not change."
 ---
+
+
 R07 and R08 left a TODO: `new DriveIOSim()` is hard-coded in `RobotContainer`. That's fine for development but useless on a real robot. This module finishes the IO pattern: the runtime decision of which implementation to construct.
 
-It's a tiny module. The decision is one `if`. The lesson is *where* the `if` lives.
+The decision uses one `if`. Its location matters because the rest of the project should depend on the IO interfaces rather than the runtime environment.
 
 ---
 
@@ -40,7 +42,6 @@ package frc.robot;
 
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 
 import frc.robot.Constants.OperatorConstants;
@@ -53,7 +54,6 @@ import frc.robot.subsystems.launcher.Launcher;
 import frc.robot.subsystems.launcher.LauncherIO;
 import frc.robot.subsystems.launcher.LauncherIOReal;
 import frc.robot.subsystems.launcher.LauncherIOSim;
-import frc.robot.subsystems.launcher.LauncherConstants;
 
 public class RobotContainer {
 
@@ -86,11 +86,9 @@ public class RobotContainer {
             () -> -driver.getLeftY(),
             () -> -driver.getRightX()));
 
-        driver.rightBumper().whileTrue(
-            Commands.startEnd(
-                () -> launcher.runAt(LauncherConstants.SHOOT_VOLTAGE),
-                () -> launcher.stop(),
-                launcher));
+        driver.rightBumper().whileTrue(launcher.launchFuel());
+        driver.leftBumper().whileTrue(launcher.intakeFuel());
+        driver.a().whileTrue(launcher.ejectFuel());
     }
 
     public Command getAutonomousCommand() {
@@ -103,7 +101,7 @@ A few things worth pointing out:
 
 - **`Drive drive` is still `final`**. `final` means "assigned exactly once". The assignment happens inside the constructor, not at the field declaration site. That's perfectly legal.
 - **The `if` is at one place**. Not inside `Drive`, not inside `DriveIOReal`. The subsystem and the IO impls have no idea where they got picked. That's the whole point of the pattern.
-- **The branches are symmetric**. Each one assigns both IOs. If you add a third subsystem in R14, you add a third pair of assignments here. The pairs are visible in one place and stay in sync.
+- **The branches are symmetric**. Each one assigns both IOs. If you later add another mechanism, add its real and simulation IO assignments here. The pairs are visible in one place and stay in sync.
 
 ---
 
@@ -131,26 +129,36 @@ Same logic, slightly less clutter at the call site. Either form is fine architec
 
 ---
 
+### See the simulation layers
+
+Mechanical Advantage's FRC Championship presentation shows how robot code, a physics model, visualization, and logs fit together. You do not need AdvantageKit for this curriculum. Watch for the boundary between the IO implementation and the rest of the robot code, which is the same boundary you just built.
+
+<YouTubeEmbed id="BrzPw6ngx4o" title="FRC log replay and simulation presentation by Mechanical Advantage" />
+
+<LinkGrid title="Read the architecture" links={[
+  {"label":"Mechanical Advantage simulation answer","url":"https://www.chiefdelphi.com/t/custom-made-robot-simulator/432112/3","description":"A concise explanation of the roles of robot code, physics simulation, and AdvantageScope."},
+  {"label":"AdvantageKit IO interfaces","url":"https://docs.advantagekit.org/data-flow/recording-inputs/io-interfaces/","description":"The optional logging framework's version of the same hardware boundary."},
+  {"label":"Differential-drive template","url":"https://docs.advantagekit.org/getting-started/template-projects/diff-drive-template/","description":"A larger reference project with real and simulated drivetrain IO."}
+]} />
+
 ### Try it
 
 Confirm both modes work.
 
 1. **Sim**: press `F5` to launch the sim. The console doesn't say which IO it picked; add `System.out.println("IO: " + (RobotBase.isReal() ? "real" : "sim"))` to the constructor if you want confirmation. Drive around. Same behaviour as R11.
-2. **Real**: deploy to a Kit Bot with the actual SparkMax wiring (`Ctrl+Shift+P` then `WPILib: Deploy Robot Code`). Drive should work, identically. Stick math feels the same. The only difference: real motors, real wheels.
+2. **Real (with a mentor)**: use a Kit Bot that has passed its electrical inspection, then deploy with `Ctrl+Shift+P` and `WPILib: Deploy Robot Code`. Drive should work identically. Stick math feels the same. The only difference is real motors and real wheels.
 
 If both work, the IO pattern is paying off. If sim works but real doesn't, the bug is in `DriveIOReal`: CAN IDs, inversion, or current limit. The subsystem code didn't change.
 
 ---
 
-### Why this is the last piece of the pattern, not the first
+### Why runtime selection comes after both implementations
 
-A reasonable question: "why didn't we set up real-vs-sim in R07 or R08, when we wrote the IO implementations?"
+R07 and R08 kept the simulation implementation selected while you built and tested both sides of the interface. Adding runtime selection earlier would have introduced the interface, two implementations, and the selector at the same time. By keeping the IO hard-coded to sim through R07–R11, you got to focus on:
 
-Because doing so would have asked you to reason about two implementations and a runtime selector simultaneously. By keeping the IO hard-coded to sim through R07–R11, you got to focus on:
-
-- The interface shape (R07).
-- The implementation pair (R07, R08).
-- How the subsystem consumes the interface (R07, R08).
+- The first interface and implementation pair on the drivetrain (R07).
+- Repeating the pattern for the launcher (R08).
+- How each subsystem consumes its interface (R07 and R08).
 - How commands consume the subsystem (R11).
 
 Now that all those layers are concrete, the runtime selection lands in a place where you can clearly see what it changes (the IO impl chosen) and what it doesn't (everything else).
@@ -159,7 +167,7 @@ This is also why we held off on telemetry until R13. Same kind of thing. One con
 
 ---
 
-<RulesBox title="Evaluate in simulation">
+<RulesBox title="Done when">
 
 The console reports `IO: sim` on the laptop. Reading `RobotContainer`, you can point at the single `if (RobotBase.isReal())` and state what changes on each side. You can also state that nothing else in the project depends on the mode, which is the more important claim. The real-robot branch is deployed only when a Kit Bot is available, and only after this passes.
 
@@ -167,8 +175,8 @@ The console reports `IO: sim` on the laptop. Reading `RobotContainer`, you can p
 
 ### References
 
-- [A17 (IO Interface Technique)](/assignments/a17-io-interface), the assignment that built this pattern in miniature
-- [R07 (LauncherIO)](/kit-bot/r07-launcher-io), [R08 (DriveIO)](/kit-bot/r08-drive-io): the IO implementations being selected here
+- [A17 (IO Interface Technique)](/java/assignments/a17-io-interface), the assignment that built this pattern in miniature
+- [R07 (DriveIO)](/kit-bot/r07-drive-io), [R08 (LauncherIO)](/kit-bot/r08-launcher-io): the IO implementations being selected here
 - WPILib JavaDoc: [`RobotBase.isReal`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/RobotBase.html#isReal())
 - WPILib JavaDoc: [`RobotBase.isSimulation`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/RobotBase.html#isSimulation())
 - WPILib: [Simulating Robot Code](https://docs.wpilib.org/en/stable/docs/software/wpilib-tools/robot-simulation/introduction.html)
@@ -177,5 +185,9 @@ The console reports `IO: sim` on the laptop. Reading `RobotContainer`, you can p
   {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/RobotBase.html", "note": "<code>RobotBase.isReal()</code> / <code>isSimulation()</code>."},
   {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/introduction.html", "note": "Simulation."},
   {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "FRC 4451's <code>Mode</code> enum, the same idea with a replay mode."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "IO chosen by mode."}
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "IO chosen by mode."},
+  {"url": "https://www.youtube.com/watch?v=BrzPw6ngx4o", "label": "FRC Log Replay and Simulation", "note": "Mechanical Advantage presentation on simulation, visualization, and replay architecture."},
+  {"url": "https://www.chiefdelphi.com/t/custom-made-robot-simulator/432112/3", "label": "Mechanical Advantage simulation explanation", "note": "Distinguishes physics simulation, robot code, and AdvantageScope visualization."},
+  {"url": "https://docs.advantagekit.org/data-flow/recording-inputs/io-interfaces/", "label": "AdvantageKit IO interfaces", "note": "Optional framework documentation for the hardware abstraction pattern."},
+  {"url": "https://docs.advantagekit.org/getting-started/template-projects/diff-drive-template/", "label": "AdvantageKit differential-drive template", "note": "A larger real-and-simulation IO example."}
 ]} />

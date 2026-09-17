@@ -1,0 +1,272 @@
+---
+title: "Factory Methods"
+lessonId: java-factory-methods
+section: java
+group: java-design-patterns
+groupLabel: "Design Patterns"
+groupOrder: 9
+order: 1
+difficulty: intermediate
+duration: 30 min
+description: Using a named method instead of a constructor to create objects, why that reads better, and how it lets you hide which class you return.
+---
+
+### What constructors cannot do
+
+A constructor has to be named after its class. That is fine until you need two ways of building the same thing:
+
+```java norun
+class Angle {
+    private final double radians;
+
+    Angle(double radians) { this.radians = radians; }
+    Angle(double degrees) { ... }      // will not compile
+}
+```
+
+Both take a `double`, so they have the same signature. Java cannot distinguish them, and no amount of [overloading](/java/fundamentals/java-overloading#constructor-overloading) helps.
+
+A factory method solves it by using a name instead:
+
+```java
+class Angle {
+    private final double radians;
+
+    private Angle(double radians) {          // private: not called directly
+        this.radians = radians;
+    }
+
+    static Angle ofRadians(double radians) {
+        return new Angle(radians);
+    }
+
+    static Angle ofDegrees(double degrees) {
+        return new Angle(Math.toRadians(degrees));
+    }
+}
+```
+
+Now the call says what it means:
+
+```java
+Angle a = Angle.ofDegrees(90);
+Angle b = Angle.ofRadians(Math.PI / 2);
+```
+
+Compare that with `new Angle(90)`, where a reader has to check the constructor to learn which unit is expected. Unit confusion is a real source of robot bugs, and naming the method removes the ambiguity.
+
+<RulesBox title="Making the constructor private">
+
+Marking the constructor `private` forces everyone through the factory methods. That is what gives you control: you can validate, cache, or change what you return without breaking any caller.
+
+If you leave the constructor public, both routes exist and the guarantees weaken. Make it private unless you have a reason not to.
+
+</RulesBox>
+
+### Static factory versus instance factory
+
+Both are called factory methods, and the difference is what they belong to.
+
+A **static factory** belongs to the class being created, as above. `Angle.ofDegrees(90)`.
+
+An **instance factory method** belongs to some other object, and that object's state influences what gets built:
+
+```java norun
+class MotorFactory {
+    private final boolean inverted;
+    private final double maxOutput;
+
+    MotorFactory(boolean inverted, double maxOutput) {
+        this.inverted = inverted;
+        this.maxOutput = maxOutput;
+    }
+
+    Motor create(int port) {
+        Motor m = new Motor(port);
+        m.setInverted(inverted);
+        m.setMaxOutput(maxOutput);
+        return m;
+    }
+}
+```
+
+```java norun
+MotorFactory driveMotors = new MotorFactory(true, 0.8);
+
+Motor left  = driveMotors.create(1);
+Motor right = driveMotors.create(2);
+```
+
+The shared configuration lives in the factory, so you set it once rather than repeating it at every creation site. Add a third motor later and it is automatically configured the same way.
+
+This is the form that pairs with [dependency injection](/java/fundamentals/java-dependency-injection#injecting-an-interface): you pass a factory to code that needs to create things without deciding how they are configured.
+
+### Returning a subtype
+
+The consequence that matters most: a factory can return something more specific than it promises.
+
+```java norun
+abstract class Drivetrain {
+    abstract void drive(double speed, double rotation);
+}
+
+class TankDrive extends Drivetrain { ... }
+class SwerveDrive extends Drivetrain { ... }
+
+class DrivetrainFactory {
+    static Drivetrain forRobot(String config) {
+        if (config.equals("swerve")) {
+            return new SwerveDrive();
+        }
+        return new TankDrive();
+    }
+}
+```
+
+Callers get a `Drivetrain` and never learn which kind:
+
+```java norun
+Drivetrain drive = DrivetrainFactory.forRobot(config);
+drive.drive(0.5, 0.0);            // whichever implementation, same call
+```
+
+[Runtime polymorphism](/java/fundamentals/java-runtime-polymorphism#a-worked-example) does the dispatch. The decision about which class to build is made in exactly one place, and every user of `Drivetrain` is unaffected by it.
+
+### Other things factories can do
+
+**Validate before constructing.** A constructor that throws leaves callers with an awkward failure; a factory can return an `Optional` or a sensible fallback.
+
+```java norun
+static Optional<Angle> parse(String text) {
+    try {
+        return Optional.of(ofDegrees(Double.parseDouble(text)));
+    } catch (NumberFormatException e) {
+        return Optional.empty();
+    }
+}
+```
+
+**Reuse instances.** A constructor must produce a new object every time. A factory may hand back a cached one:
+
+```java
+class Angle {
+    static final Angle ZERO = new Angle(0);
+    private final double radians;
+
+    private Angle(double radians) { this.radians = radians; }
+
+    static Angle ofRadians(double radians) {
+        if (radians == 0) return ZERO;         // no new object
+        return new Angle(radians);
+    }
+}
+
+System.out.println(Angle.ofRadians(0) == Angle.ZERO);      // true: the same object
+System.out.println(Angle.ofRadians(1.5) == Angle.ZERO);    // false
+```
+
+This is why `Integer.valueOf(5)` is preferred over `new Integer(5)`: the factory caches small values, and the constructor cannot.
+
+**Hide generic clutter.**
+
+```java
+// the standard library does exactly this
+List<String> names = List.of("a", "b", "c");
+Map<String, Integer> ports = Map.of("intake", 3);
+```
+
+<ContentTable
+  title="Constructor or factory"
+  headers={["Situation", "Use"]}
+  rows={[
+    ["Direct construction", "Constructor"],
+    ["Several ways with the same parameter types", "Static factories with distinct names"],
+    ["The units or meaning need naming", "Static factory"],
+    ["You may return a subclass", "Static factory"],
+    ["You may reuse instances", "Static factory"],
+    ["Creation depends on shared configuration", "Instance factory"],
+    ["Creation can fail without an exception", "Static factory returning <code>Optional</code>"]
+  ]}
+/>
+
+### Naming conventions
+
+The standard library is consistent, and following it makes your code predictable:
+
+<ContentTable
+  headers={["Name", "Meaning", "Example"]}
+  rows={[
+    ["<code>of</code>", "Build from the given components", "<code>List.of(...)</code>"],
+    ["<code>from</code> / <code>valueOf</code>", "Convert from another type", "<code>Integer.valueOf(\"5\")</code>"],
+    ["<code>getInstance</code>", "Return an instance, possibly shared", "<code>Calendar.getInstance()</code>"],
+    ["<code>create</code> / <code>newInstance</code>", "Always a fresh object", "&mdash;"],
+    ["<code>copyOf</code>", "A copy of the argument", "<code>List.copyOf(...)</code>"]
+  ]}
+/>
+
+<RulesBox title="Do not overuse it">
+
+A factory adds overhead when a class has one clear constructor. `new Point(3, 4)` already shows what the code creates. Wrapping it in `Point.of(3, 4)` adds another method without clarifying the call.
+
+Add a factory when you have a concrete reason from the table above: naming, subtype choice, validation, or reuse. "Factories are good practice" is not a reason.
+
+</RulesBox>
+
+<RulesBox title="Common mistakes">
+
+- **Leaving the constructor public**, so the factory can be bypassed.
+- **Unclear names.** `Angle.make(90)` says nothing that `new Angle(90)` did not.
+- **Forgetting `static`** on a static factory, making it impossible to call without an instance.
+- **A factory returning the concrete type** when the point was to hide it. Return the abstract type.
+- **Mutable cached instances.** Only share objects that cannot be changed after creation, or callers will interfere with each other.
+
+</RulesBox>
+
+<JavaPlayground id="java-factory-methods" />
+
+<ExerciseBox title="Practice">
+
+1. Write an `Angle` class with a private constructor and `ofDegrees` / `ofRadians` factories, plus a `getDegrees()` method. Confirm both routes agree.
+2. Add a `ZERO` constant and make `ofRadians(0)` return it. Verify with `==` that you get the same object twice.
+3. Write a `Temperature` class with `fromCelsius` and `fromFahrenheit` factories.
+4. Write an abstract `Sensor` with two subclasses, and a static factory choosing between them from a `String`. Confirm the caller only ever sees `Sensor`.
+5. Write a `MotorFactory` holding shared configuration and creating configured `Motor` objects from a port number.
+
+<details>
+<summary>Hints</summary>
+
+1. Store radians internally; convert on the way in and out.
+2. A `static final` field, returned when the argument is 0.
+3. Same shape as `Angle`. Pick one internal unit and convert at the boundary.
+4. Return the abstract type from the factory. Try calling a subclass-only method on the result and note the compile error; that is the encapsulation working.
+5. Constructor takes the configuration; `create(int port)` applies it.
+
+</details>
+
+</ExerciseBox>
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    {"label":"Dependency Injection","id":"java-dependency-injection"},
+    {"label":"Command Pattern","id":"java-command-pattern"}
+  ]}
+/>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"url": "https://en.wikipedia.org/wiki/Factory_method_pattern", "label": "Wikipedia: Factory method pattern", "note": "The pattern."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer.valueOf</code> caching."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List.of</code>."},
+  {"source": "java-api", "path": "java.base/java/util/Optional.html", "note": "<code>Optional</code> API reference."}
+]} />
+
+<LinkGrid
+  title="Related"
+  section="java"
+  links={[
+    {"label":"Runtime Polymorphism","id":"java-runtime-polymorphism"},
+    {"label":"Overloading","id":"java-overloading"}
+  ]}
+/>

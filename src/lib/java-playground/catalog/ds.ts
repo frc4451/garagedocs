@@ -3,7 +3,7 @@ import type { JavaPlaygroundExercise } from '../types';
 
 export const DATA_STRUCTURES: JavaPlaygroundExercise[] = [
   pg(
-    'java-ds-arrays',
+    'java-arrays-and-their-trade-offs',
     'Practice: array order',
     `Print the array values from last index to first, each on its own line.
 
@@ -17,7 +17,7 @@ Expected:
     [{ name: 'Reverse order', stdout: '9\n7\n3' }],
   ),
   pg(
-    'java-ds-arraylists',
+    'java-arraylists',
     'Practice: ArrayList',
     `Add "intake", "arm", and "shooter" to the list. Print size, then the last element.
 
@@ -37,7 +37,7 @@ public class Main {
     [{ name: 'Size and last', stdout: '3\nshooter' }],
   ),
   pg(
-    'java-ds-linked-lists',
+    'java-linked-lists',
     'Practice: linked list',
     `The starter builds 10 -> 20 -> 30. Walk from head and print each value.
 
@@ -67,7 +67,7 @@ public class Main {
     [{ name: 'Walk the list', stdout: '10\n20\n30' }],
   ),
   pg(
-    'java-ds-stacks',
+    'java-stacks',
     'Practice: stack',
     `Push 1, then 2, then 3 on an ArrayDeque used as a stack. Pop and print until empty (last in first).
 
@@ -89,7 +89,7 @@ public class Main {
     [{ name: 'LIFO', stdout: '3\n2\n1' }],
   ),
   pg(
-    'java-ds-queues',
+    'java-queues',
     'Practice: queue',
     `Offer 1, then 2, then 3 on an ArrayDeque used as a Queue. Poll and print until empty (first in first).
 
@@ -111,7 +111,7 @@ public class Main {
     [{ name: 'FIFO', stdout: '1\n2\n3' }],
   ),
   pg(
-    'java-ds-deques',
+    'java-deques',
     'Practice: deque',
     `addFirst(1), then addLast(2). Print pollFirst, then pollLast.
 
@@ -132,7 +132,7 @@ public class Main {
     [{ name: 'Both ends', stdout: '1\n2' }],
   ),
   pg(
-    'java-ds-sets-maps',
+    'java-sets-and-maps',
     'Practice: map',
     `Put "kP" -> 4. Print get("kP"), then print getOrDefault("kI", 0) for a missing key.
 
@@ -153,7 +153,7 @@ public class Main {
     [{ name: 'Get and missing key', stdout: '4\n0' }],
   ),
   pg(
-    'java-ds-trees',
+    'java-trees',
     'Practice: binary tree',
     `Print an inorder walk of the starter tree (left, node, right).
 
@@ -188,7 +188,7 @@ public class Main {
     [{ name: 'Inorder', stdout: '1\n2\n3' }],
   ),
   pg(
-    'java-ds-graphs',
+    'java-graphs',
     'Practice: adjacency list',
     `Print every neighbor of node 0, each on its own line.
 

@@ -9,7 +9,9 @@ order: 11
 duration: 10 min
 description: "The default-command pattern that turns stick input into drivetrain output."
 ---
-You have a `Drive` subsystem (R08) and stick math that conditions raw input (R10). This module is where they meet: a proper teleop default command, two button-bound conveniences, and the driving experience all the previous batches were building toward.
+
+
+You have a `Drive` subsystem (R07) and stick math that conditions raw input (R10). This module is where they meet: a proper teleop default command, two button-bound conveniences, and the driving experience all the previous batches were building toward.
 
 ---
 
@@ -69,11 +71,11 @@ public class TeleopDrive extends Command {
 }
 ```
 
-Notice `shape` is called with `1.0` as the max output, not `DriveConstants.MAX_DRIVE_PERCENT`. `arcadeDrive` (R08) already multiplies by `MAX_DRIVE_PERCENT` internally, since it's documented to take `speed`/`rotation` in the full `[-1, 1]` range. Passing `MAX_DRIVE_PERCENT` into `shape` too would cap twice, leaving you well under the 85% you'd expect at full stick. One cap, one place: `arcadeDrive` owns it.
+Notice `shape` is called with `1.0` as the max output, not `DriveConstants.MAX_DRIVE_PERCENT`. `arcadeDrive` (R07) already multiplies by `MAX_DRIVE_PERCENT` internally, since it's documented to take `speed`/`rotation` in the full `[-1, 1]` range. Passing `MAX_DRIVE_PERCENT` into `shape` too would cap twice, leaving you well under the 85% you'd expect at full stick. One cap, one place: `arcadeDrive` owns it.
 
 Two things to absorb from this shape:
 
-- **The constructor takes `DoubleSupplier`s, not raw doubles**. Same trick as your assignment work in [A22](/assignments/a22-command-binding). The command doesn't capture a snapshot; it captures *how to get the current value*. Each tick, it asks the supplier for a fresh value. That's how `() -> -driver.getLeftY()` keeps reflecting the *current* stick position.
+- **The constructor takes `DoubleSupplier`s instead of raw numbers.** A raw number would capture one old stick reading. A supplier tells the command how to request the current reading on every tick. That is why `() -> -driver.getLeftY()` keeps following the stick.
 - **`addRequirements(drive)` in the constructor**. This is how the command says "I need the drivetrain." The scheduler then ensures no other command can use it at the same time.
 
 ---
@@ -92,15 +94,13 @@ private void configureBindings() {
         )
     );
 
-    driver.b().onTrue(
-        Commands.runOnce(drive::stop, drive)
-    );
+    driver.b().onTrue(drive.stopCommand());
 }
 ```
 
 The two `() -> ...` lambdas are `DoubleSupplier` instances. They close over the `driver` controller, so every time the command's `execute()` asks for `forwardSupplier.getAsDouble()`, the driver's current stick position flows in.
 
-`drive::stop` is a method reference: the same as `() -> drive.stop()` but shorter. The `B` button binds a `Commands.runOnce` that calls it.
+The `B` button binds directly to `drive.stopCommand()`. The action operates only the drivetrain, so `Drive` owns the command factory and supplies its requirement. The controller-specific `TeleopDrive` class stays separate because `Drive` should not know about joysticks.
 
 ---
 
@@ -113,7 +113,7 @@ In the snippet above the rotation supplier is `() -> -driver.getRightX()`. You m
 | "Right stick right = robot turns right" (most common) | `() -> -driver.getRightX()` (or `+`; flip until it feels right) |
 | "Right stick right = field-right turn" (less common) | depends on orientation; usually fine to leave as the previous |
 
-Don't agonise over this. Plug in a controller, push the stick right, and confirm the robot rotates the way the driver expects. Flip the sign if not.
+Test the convention in simulation. Push the stick right and observe the robot. If it turns opposite the intended direction, change the sign and test again.
 
 ---
 
@@ -135,7 +135,7 @@ If any of these aren't true, suspect the `TELEOP_DEADBAND` and `MAX_DRIVE_PERCEN
 
 ---
 
-### A note on what is NOT in this module
+### Features to add later
 
 Three things you'll see in other curricula at this stage; we're skipping them on purpose for the compressed plan.
 
@@ -147,7 +147,13 @@ The default command above is intentionally minimal. It does one thing well; you'
 
 ---
 
-<RulesBox title="Evaluate in simulation">
+<RulesBox title="On the real robot">
+
+Complete [R12 Part 2: First Deploy](/kit-bot/r12-first-deploy) first. Check forward, reverse, and turn on blocks before placing the robot on the floor. If one side runs backward, correct that side's inversion in `DriveIOReal` or its constants. On the floor, release the sticks and verify the deadband prevents creep before increasing the drive cap.
+
+</RulesBox>
+
+<RulesBox title="Done when">
 
 With the default command in its own class, enabling in teleop drives with no button pressed, disabling stops it, and no other command has to be scheduled for the robot to respond to the sticks. The console shows nothing; the robot moving under a default command is the check.
 
@@ -155,7 +161,7 @@ With the default command in its own class, enabling in teleop drives with no but
 
 ### References
 
-- [A22: Command-Binding Lab](/assignments/a22-command-binding): `DoubleSupplier` as command input
+- [A22: Command-Binding Lab](/java/assignments/a22-command-binding): `DoubleSupplier` as command input
 - [R05: Commands and triggers](/kit-bot/r05-commands-and-triggers): `setDefaultCommand` and the scheduler
 - [R10: Joysticks and stick math](/kit-bot/r10-joysticks-and-stick-math): where `StickCurve` came from
 - [R14: Time-based autonomous](/kit-bot/r14-time-based-autonomous): the composition patterns referenced above

@@ -3,7 +3,7 @@ import type { JavaPlaygroundExercise } from '../types';
 
 export const DESIGN_PATTERNS: JavaPlaygroundExercise[] = [
   pg(
-    'java-dp-factory-method',
+    'java-factory-methods',
     'Practice: factory method',
     `Motor.neo() should return a Motor whose type is neo. Print Motor.neo().type
 
@@ -29,7 +29,7 @@ public class Main {
     [{ name: 'Factory', stdout: 'neo' }],
   ),
   pg(
-    'java-dp-dependency-injection',
+    'java-dependency-injection',
     'Practice: dependency injection',
     `Drive should receive a Motor in its constructor. Print drive.motor.id
 
@@ -62,7 +62,7 @@ public class Main {
     [{ name: 'Injected motor', stdout: 'falcon' }],
   ),
   pg(
-    'java-dp-command',
+    'java-command-pattern',
     'Practice: command',
     `Store a Cmd in a variable, then run it later. Print go.
 

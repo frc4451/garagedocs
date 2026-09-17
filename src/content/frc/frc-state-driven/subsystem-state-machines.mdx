@@ -1,0 +1,210 @@
+---
+title: "Subsystem State Machines"
+lessonId: subsystem-state-machines
+section: frc
+group: frc-state-driven
+groupLabel: "State-Driven Robot Code"
+groupOrder: 18
+order: 2
+difficulty: intermediate
+duration: 30 min
+description: "The wanted-state and system-state pattern inside one subsystem, read line by line from FRC 2910's hopper; how Cobra's Hood, Intake and Flywheel already use states three different ways; and the rules that keep a subsystem state machine from growing into the tangle Chief Delphi warns about."
+---
+
+A subsystem state machine owns one mechanism. It takes a **wanted state** from outside (a command, a trigger, the superstructure), works out a **system state** from the wanted state and its sensors, and applies that system state to its motors. Three parts, in that order, every loop. This page reads a real one, then looks at the three ways Cobra's subsystems hold state today and which of them is the pattern.
+
+<RulesBox title="Before you start">
+
+[Why State Machines](/frc/why-state-machines) for the vocabulary, [IO Layers](/frc/io-layers) because every example below sits on an `IO` interface, [Subsystems](/frc/subsystems) for the command-factory shape this extends.
+
+</RulesBox>
+
+### 2910's hopper, line by line
+
+FRC 2910's 2026 `HopperSubsystem` moves fuel from a hopper to the shooter's feeder. Two range sensors: one sees the hopper, one sees the feeder. The whole state machine is 40 lines.
+
+The two enums:
+
+```java
+public enum WantedState {
+    DEFAULT,
+    SHOOT,
+}
+
+private enum SystemState {
+    OFF,
+    PRELOADING,
+    SHOOTING,
+}
+```
+
+`WantedState` is public: it is the vocabulary the rest of the robot uses to ask for things, and it is small on purpose. `SystemState` is private: it is what the subsystem is actually doing, and it has one more value than the request, because `PRELOADING` is something the subsystem decides on its own.
+
+The loop:
+
+```java
+@Override
+public void periodic() {
+    super.periodic();
+    hopperRangeIO.updateInputs(hopperRangeInputs);
+    feederRangeIO.updateInputs(feederRangeInputs);
+    isHopperFull = debouncer.calculate(hopperRangeInputs.isTripped);
+
+    systemState = handleStateTransition();
+    Logger.recordOutput("Feeder/WantedState", wantedState);
+    Logger.recordOutput("Feeder/SystemState", systemState);
+    applyStates();
+}
+```
+
+Inputs first, then decide, then log, then act. The debouncer is part of "inputs": a range sensor flickers, and the state machine should see a clean boolean.
+
+The decision:
+
+```java
+private SystemState handleStateTransition() {
+    return switch (wantedState) {
+        case DEFAULT -> {
+            if (isHopperFull && !feederRangeInputs.isTripped) {
+                yield SystemState.PRELOADING;
+            }
+            yield SystemState.OFF;
+        }
+        case SHOOT -> SystemState.SHOOTING;
+    };
+}
+```
+
+This is the method to study. It has no side effects and reads only the wanted state and the inputs. Asked for `DEFAULT`, the hopper stays off unless the hopper is full and the feeder is empty, in which case it preloads a piece toward the shooter so the next shot is ready. Nobody outside the subsystem asks for preloading; it is the subsystem's own idea of what `DEFAULT` means, and that is the point of having a separate `SystemState`.
+
+The action:
+
+```java
+private void applyStates() {
+    switch (systemState) {
+        case OFF -> setHopperDutyCycle(0.0);
+        case PRELOADING -> setHopperDutyCycle(0.07);
+        case SHOOTING -> setHopperDutyCycle(1.0);
+    }
+}
+```
+
+One output per state, nothing else. And the setter the outside world calls:
+
+```java
+public void setWantedState(WantedState wantedState) {
+    this.wantedState = wantedState;
+}
+```
+
+A plain setter, no scheduling, no requirements. Whoever calls it (a `Commands.runOnce` bound to a button, or the superstructure on the next page) is stating a request; the subsystem decides what to do with it on its next `periodic()`.
+
+### The three rules that keep it small
+
+Chief Delphi's "Should you have state in subsystems?" thread opens with a shooter whose state enum grew "a complex chain of logic within the subsystem that was hard to control". The hopper avoids that with three habits worth copying as rules.
+
+1. **The wanted state is a request, not a plan.** `SHOOT` says what the caller wants. It does not say "spin up, wait for speed, then feed". Sequencing belongs one level up, in the superstructure or a command, never inside a subsystem's transition method.
+2. **The transition method is pure.** It reads fields and returns a value. No motor calls, no logging, no timers started. That is what makes it testable and what stops it from becoming a place where side effects hide.
+3. **One mechanism per machine.** The hopper does not know the shooter exists. When two mechanisms have to agree, that agreement is the superstructure's job ([The Superstructure](/frc/superstructure)), and putting it in one subsystem is the first step toward the tangle.
+
+### Cobra's three kinds of state
+
+Cobra's subsystems hold state in three different ways. Two are useful; one is the pattern above in all but name.
+
+**Commanded state: `Hood`.** `HoodState {DOWN, MID, UP}` is set by a command factory that also sends the goal:
+
+```java
+public Command setHoodState(HoodState state) {
+  return runOnce(() -> {
+    currentState = state;
+    double angle = switch (state) {
+      case DOWN -> angleDown.get();
+      case MID -> angleMid.get();
+      case UP -> angleUp.get();
+    };
+    hood.setGoal(Degrees.of(angle));
+  });
+}
+```
+
+and `periodic()` logs `Hood/State`. What sets it is worth noticing: not a button, but `BobotState`'s field-zone triggers in `RobotContainer`, so the hood angle is a function of where the robot is. That is a state machine driven by pose, with the transition table written as four `Trigger` bindings. It works because there are three states and no guards. If a fourth state needed "only when the flywheel is stopped", the bindings would each need an `.and()`, and the hood would be a candidate for the hopper's shape.
+
+**Observed state: `Flywheel`.** `FlywheelState {IDLE, SPINNING}` is computed from the measured velocity every loop and logged as `FlywheelState`. Nobody sets it. It is a derived value, useful in a log and as a `Trigger` source, and it is not a state machine because nothing transitions on it. Keep the distinction: an observed state describes; a wanted state requests.
+
+**The one that started and stopped: `Intake`.** `EndeffectorState {STARTING, DEPLOYED, LIFTED, SQUEEZE}` carries an angle per value, `setCurrentState()` exists, and `periodic()` contains a commented-out `switch (currentState)` that would have applied each state to the pivot. FRC 4451 began a subsystem state machine and finished the season on command factories instead. Both work; the commented switch is the shape this page describes, one `handleStateTransition()` short of the hopper.
+
+### Writing one for a Cobra mechanism
+
+The ROBOTZ Garage library's `SingleRoller` mechanisms (`Flywheel`, `Pivot`) already own the IO, the goal and the telemetry. A subsystem state machine sits on top of them and replaces a set of command factories with two enums and three methods. For the intake end effector:
+
+```java
+public class Intake extends SubsystemBase {
+  public enum WantedState { STOW, DEPLOY, INTAKE, EJECT }
+  private enum SystemState { STOWED, DEPLOYED, INTAKING, HOLDING, EJECTING }
+
+  private final Flywheel rollers;
+  private final Pivot endeffector;
+  private WantedState wantedState = WantedState.STOW;
+  private SystemState systemState = SystemState.STOWED;
+
+  @Override
+  public void periodic() {
+    rollers.periodic();
+    endeffector.periodic();
+
+    systemState = handleStateTransition();
+    Logger.recordOutput(name + "/WantedState", wantedState);
+    Logger.recordOutput(name + "/SystemState", systemState);
+    applyState();
+  }
+
+  private SystemState handleStateTransition() {
+    boolean hasPiece = pieceDetected(); // whatever sensor the robot has; see the note below
+    return switch (wantedState) {
+      case STOW -> SystemState.STOWED;
+      case DEPLOY -> SystemState.DEPLOYED;
+      case INTAKE -> hasPiece ? SystemState.HOLDING : SystemState.INTAKING;
+      case EJECT -> SystemState.EJECTING;
+    };
+  }
+
+  private void applyState() {
+    switch (systemState) {
+      case STOWED -> { endeffector.setGoal(Degrees.of(endeffectorStart.get())); rollers.stop(); }
+      case DEPLOYED -> { endeffector.setGoal(Degrees.of(endeffectorDeploy.get())); rollers.stop(); }
+      case INTAKING -> { endeffector.setGoal(Degrees.of(endeffectorDeploy.get())); rollers.runPercentOutput(intakePercent.get()); }
+      case HOLDING -> { endeffector.setGoal(Degrees.of(endeffectorLift.get())); rollers.runPercentOutput(holdPercent.get()); }
+      case EJECTING -> { endeffector.setGoal(Degrees.of(endeffectorDeploy.get())); rollers.runPercentOutput(-intakePercent.get()); }
+    }
+  }
+
+  public void setWantedState(WantedState state) { wantedState = state; }
+  public Trigger isHolding() { return new Trigger(() -> systemState == SystemState.HOLDING); }
+}
+```
+
+`pieceDetected()` stands in for whatever the robot can sense (a beam break, a current spike on the rollers, a range sensor); Cobra's intake has no such guard today, and the condition belongs wherever the sensor is. `endeffectorStart`, `endeffectorDeploy`, `endeffectorLift` and `intakePercent` are the tunable numbers the real `Intake` already declares. What to copy is the shape: the request enum is what `RobotContainer` and autos speak, the system enum is what the log shows, the `Trigger` at the bottom is how the rest of the robot reacts to the state without reaching inside.
+
+<RulesBox title="Keep the command factories">
+
+A subsystem state machine does not mean deleting `runShooterToHub()` and its siblings. Cobra's shooter command factories are fine for a mechanism whose behaviour is "run at this setpoint until told otherwise". Convert a subsystem only when its behaviour depends on a sensor and a request together, or when the superstructure on the next page needs to drive it by state. A robot with some state-driven subsystems and some command-factory subsystems is normal; 2910's swerve takes wanted states and their autos still run as commands.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/hopper/HopperSubsystem.java", "note": "The complete subsystem read above: WantedState {DEFAULT, SHOOT}, SystemState {OFF, PRELOADING, SHOOTING}, the debounced range inputs, handleStateTransition, applyStates, setWantedState."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/SuperStructure.java", "note": "Where the hopper's wanted state is set from, and the same shape one level up."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/Hood.java", "note": "HoodState set by a command factory that also sends the goal; the state logged each loop."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "The BobotState zone triggers that drive the hood's state."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "EndeffectorState with an angle per value, setCurrentState, and the commented-out state switch in periodic."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/flywheel/Flywheel.java", "note": "FlywheelState derived from measured velocity: an observed state, not a machine."},
+  {"url": "https://www.chiefdelphi.com/t/should-you-have-state-in-subsystems-java/467543", "label": "Chief Delphi: Should you have State in Subsystems? (Java)", "note": "The shooter that grew a tangled state enum, and why the three rules exist."},
+  {"source": "advantagekit", "path": "data-flow/recording-outputs/", "note": "Logger.recordOutput for the two state fields."}
+]} />
+
+<LinkGrid links={[
+  {"label":"The Superstructure","id":"superstructure"},
+  {"label":"Why State Machines","id":"why-state-machines"},
+  {"label":"Subsystems","id":"subsystems"},
+  {"label":"IO Layers","id":"io-layers"}
+]} title="Next" section="frc" />

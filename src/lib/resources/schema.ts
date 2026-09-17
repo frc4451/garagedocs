@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const resourceMajorSchema = z.enum(['java', 'frc', 'general']);
+export const resourceMajorSchema = z.enum(['java', 'hardware', 'frc', 'general']);
 
 export const resourceEntrySchema = z.object({
   id: z
@@ -29,12 +29,14 @@ export type ResourcesCatalog = z.infer<typeof resourcesCatalogSchema>;
 /** Majors shown in filter UI */
 export const RESOURCE_MAJOR_LABELS: Record<ResourceMajor, string> = {
   java: 'Java',
+  hardware: 'Hardware',
   frc: 'FRC',
   general: 'General',
 };
 
-/** Minors available in submit form (extend as catalog grows) */
+/** Known resource topics (extend as the catalog grows) */
 export const RESOURCE_MINOR_OPTIONS = [
+  'GarageDocs Site',
   'Environment Setup',
   'Getting Started',
   'Command-Based',
@@ -44,6 +46,7 @@ export const RESOURCE_MINOR_OPTIONS = [
   'Advanced Tools',
   'Version Control',
   'Training & Tutorials',
+  'Programming Math',
   'OnBot Java Setup',
   'TeleOp Programming',
   'Autonomous Programming',

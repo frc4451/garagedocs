@@ -1,0 +1,34 @@
+---
+import LessonLayout from '@/layouts/LessonLayout.astro';
+import { getSectionLessons, getJavaSidebarGroups, getAdjacentFromGroups } from '@/lib/content';
+import { render } from 'astro:content';
+import { components } from '@/mdx-components';
+
+export async function getStaticPaths() {
+  const lessons = await getSectionLessons('java');
+  return lessons
+    .filter((lesson) => !lesson.data.isOverview && !lesson.data.unlisted)
+    .map((lesson) => ({ params: { lessonId: lesson.data.lessonId }, props: { lesson } }));
+}
+
+const { lessonId } = Astro.params;
+const { lesson } = Astro.props;
+const sidebarGroups = await getJavaSidebarGroups();
+const { prev, next } = getAdjacentFromGroups(sidebarGroups, lessonId!);
+const { Content } = await render(lesson);
+---
+
+<LessonLayout
+  title={lesson.data.title}
+  description={lesson.data.description}
+  currentPath={`/java/fundamentals/${lessonId}`}
+  sidebarGroups={sidebarGroups}
+  prev={prev}
+  next={next}
+  difficulty={lesson.data.difficulty}
+  duration={lesson.data.duration}
+  unlisted={lesson.data.unlisted}
+  javaExamples={true}
+>
+  <Content components={components} />
+</LessonLayout>

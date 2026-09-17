@@ -455,7 +455,7 @@ public class RobotLoop {
 
 export const FSC_OBJECTS: JavaPlaygroundExercise[] = [
   {
-    id: 'a11-robot-class',
+    id: 'a11-simple-robot-class',
     title: 'A11: Simple Robot Class',
     entryClass: 'RobotTester',
     showStdin: false,
@@ -507,7 +507,7 @@ main is written for you — leave it alone.`,
   },
 
   {
-    id: 'a13-reference-semantics',
+    id: 'a13-reference-semantics-lab',
     title: 'A13: Reference-Semantics Lab',
     entryClass: 'ReferenceLab',
     showStdin: false,
@@ -546,7 +546,7 @@ the actual assignment, and only you can mark those.`,
   },
 
   {
-    id: 'a14-robot-and-battery',
+    id: 'a14-robot-and-battery-composition',
     title: 'A14: Composition — Robot and Battery',
     entryClass: 'RobotPlusBatteryTester',
     showStdin: false,
@@ -592,7 +592,7 @@ main is written for you — leave it alone.`,
   },
 
   {
-    id: 'a15-match-phase-enum',
+    id: 'a15-matchphase-enum',
     title: 'A15: MatchPhase Enum with Fields',
     entryClass: 'MatchPhaseTester',
     showStdin: false,
@@ -634,7 +634,7 @@ main is written for you — leave it alone.`,
   },
 
   {
-    id: 'a16-subsystem-fleet',
+    id: 'a16-subsystem-family',
     title: 'A16: Subsystem Family',
     entryClass: 'RobotLoop',
     showStdin: false,
@@ -984,7 +984,7 @@ public class RecordsTester {
   },
 
   {
-    id: 'a19-sort-roster',
+    id: 'a19-sorting-a-scouting-roster',
     title: 'A19: Sorting a Scouting Roster',
     entryClass: 'RosterSorter',
     showStdin: false,

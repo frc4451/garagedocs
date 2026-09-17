@@ -52,7 +52,7 @@ Expected output:
     [{ name: 'doubleIt(21)', stdout: '42' }],
   ),
   pg(
-    'java-control',
+    'java-control-structures',
     'Practice: control flow',
     `Write zone(int distance) so it returns:
 - FAR if distance is greater than 20

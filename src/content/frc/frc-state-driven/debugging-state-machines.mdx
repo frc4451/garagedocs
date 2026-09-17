@@ -1,0 +1,123 @@
+---
+title: "Debugging State Machines"
+lessonId: debugging-state-machines
+section: frc
+group: frc-state-driven
+groupLabel: "State-Driven Robot Code"
+groupOrder: 18
+order: 6
+difficulty: intermediate
+duration: 30 min
+description: "Reading wanted and current states side by side in a match log, the four ways a state machine fails (stuck, flapping, never entered, wrong branch) and what each looks like on the graph, unit tests for a transition method with no scheduler, and the logging keys that make all of it possible."
+---
+
+The reason to write states down is that they can be read back. This page is the reading: what a state machine looks like in AdvantageScope when it is working, the four shapes it makes when it is not, and the two-minute unit test that catches most of the four before the robot is powered.
+
+<RulesBox title="Before you start">
+
+[Reading a Match Log](/frc/reading-a-match-log) for the AdvantageScope tabs, [Log Replay](/frc/log-replay), and [Unit Tests in Simulation](/frc/unit-tests-in-simulation) for the JUnit setup Cobra already has. The examples use the superstructure from [The Superstructure](/frc/superstructure).
+
+</RulesBox>
+
+### Log both layers, every loop
+
+Everything on this page depends on two lines that 2910 puts in every state machine's `periodic()`:
+
+```java
+Logger.recordOutput("Superstructure/WantedState", wantedState);
+Logger.recordOutput("Superstructure/CurrentState", currentState);
+```
+
+AdvantageKit logs an enum as its name, so the field is a string that changes only when the state changes. Keep the keys under one prefix per machine (`Superstructure/…`, `Intake/…`, `Feeder/…` in 2910's case) so the log's tree groups them, and log the inputs the transition method reads beside them (`Superstructure/DistanceToHub`, `Feeder/hopperRange/isTripped`). A state with its inputs is explainable; a state alone is a fact.
+
+### What healthy looks like
+
+Open a match log and drag `Superstructure/WantedState` and `Superstructure/CurrentState` onto the same **Line Graph** as discrete fields, or onto the **Table** tab. Healthy is: the wanted state changes on button edges (short, clean steps), the current state follows it within one or two loops, and where they differ for longer it is a *transient* state that the design expects (`PREPARING_SHOT` between `SCORE` being wanted and `SHOOTING` being current). Put the subsystem states below (`Intake/SystemState`, `Shooter/SystemState`) and you see the superstructure's decisions propagate down one loop later.
+
+Add the readiness inputs to the same view (`Shooter/AtSpeed`, `Hood/AtGoal`, `Superstructure/Aimed`). The moment they all go true should be the moment `CurrentState` steps from `PREPARING_SHOT` to `SHOOTING`. If it is, the machine is doing what the page before this one said it would.
+
+### The four failure shapes
+
+**Stuck.** `WantedState` says `SCORE`, `CurrentState` sits in `PREPARING_SHOT` for the rest of the match, and the drivers report "it wouldn't shoot". Look at the readiness inputs: one of them never went true. The state machine is not broken; it is refusing correctly, and the log names the sensor. Common causes: a tolerance tighter than the mechanism can hold (`isNearGoal(Degrees.of(0.5))` on a hood that settles to 0.8°), an alignment condition that cannot be met while moving, a sensor that reads stale in simulation. The fix is in the guard or the hardware, and the log tells you which.
+
+**Flapping.** `CurrentState` alternates between two values every loop, or every few loops. The transition method is reading a boundary condition: a piece sensor that flickers at the edge of detection, a velocity that hovers at the tolerance, a distance right on a zone boundary. 2910's hopper puts a `Debouncer` on its range sensor for exactly this reason. Fixes, in order of preference: debounce the input, add hysteresis (enter at one threshold, leave at another), or make the state sticky (once `SHOOTING`, stay until the piece is gone rather than until speed drops).
+
+**Never entered.** `WantedState` changes but `CurrentState` never reflects it; or a state exists in the enum and no log ever shows it. Either the transition table has no row that reaches it (a `switch` arm that returns the wrong value, easy to see once you look), or the setter is never called (the binding is on a button that is also bound elsewhere, and the other binding wins). Search the log for the state name; if it is absent across a whole practice session, the table is the suspect.
+
+**Wrong branch.** `CurrentState` goes somewhere legal but unexpected: `EJECTING` when the driver asked to intake. A wanted-state setter is being called from a place you forgot, usually an auto routine's final `runOnce` that fires after the auto was interrupted, or a trigger that still exists from an experiment. Log the caller: a `Superstructure/WantedStateSetBy` string set alongside the state costs nothing and ends the search.
+
+<RulesBox title="Read the wanted state before blaming the current one">
+
+Three of the four shapes start with "what was wanted, and who wanted it". If `WantedState` is right and `CurrentState` is wrong, the bug is in the transition method or a guard. If `WantedState` is wrong, the bug is in a binding or an auto, and the state machine is doing as told. Deciding which layer before reading code halves the search.
+
+</RulesBox>
+
+### Testing the transition method
+
+Because `handleStateTransitions()` reads fields and returns a value, it can be tested with no robot, no scheduler and no simulation. Give it its inputs as parameters (which is a good design anyway) and it becomes a pure function:
+
+```java
+static CurrentState decide(WantedState wanted, boolean readyToShoot) {
+  return switch (wanted) {
+    case IDLE -> CurrentState.IDLE;
+    case INTAKE -> CurrentState.INTAKING;
+    case EJECT -> CurrentState.EJECTING;
+    case SCORE -> readyToShoot ? CurrentState.SHOOTING : CurrentState.PREPARING_SHOT;
+  };
+}
+```
+
+and the tests are a table:
+
+```java
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+
+class SuperstructureTransitionsTest {
+  @Test
+  void scoreWaitsUntilReady() {
+    assertEquals(CurrentState.PREPARING_SHOT, Superstructure.decide(WantedState.SCORE, false));
+    assertEquals(CurrentState.SHOOTING, Superstructure.decide(WantedState.SCORE, true));
+  }
+
+  @Test
+  void readinessNeverMattersOutsideScoring() {
+    for (boolean ready : new boolean[] {false, true}) {
+      assertEquals(CurrentState.IDLE, Superstructure.decide(WantedState.IDLE, ready));
+      assertEquals(CurrentState.INTAKING, Superstructure.decide(WantedState.INTAKE, ready));
+      assertEquals(CurrentState.EJECTING, Superstructure.decide(WantedState.EJECT, ready));
+    }
+  }
+
+  @Test
+  void everyWantedStateHasARow() {
+    for (WantedState wanted : WantedState.values()) {
+      Superstructure.decide(wanted, false); // an exhaustive switch makes a missing row a compile error
+    }
+  }
+}
+```
+
+The first test is the interlock. The second is "never entered" and "wrong branch" in one loop. The third documents that the `switch` is exhaustive; Java refuses to compile a switch expression over an enum that misses a value, so the test exists to make the property visible to the next reader. These run in under a second with `./gradlew test`, the same way the [Unit Tests in Simulation](/frc/unit-tests-in-simulation) page's pure-logic test does.
+
+For `applyStates()`, which has side effects, test at the next level up: construct the superstructure with subsystems built on simulation IO, set a wanted state, call `periodic()` a few times, and assert the subsystems' wanted states. That is the "mechanism in the loop" test from the same page, and it is where the interlock between three mechanisms gets exercised for real.
+
+### Replay finds the rest
+
+A failure shape that only appears on the field (a flap at a zone boundary the practice space never reaches, a stuck state under match-speed driving) is what [Log Replay](/frc/log-replay) is for. Replay the match log with a print in `handleStateTransitions()`, or with a changed guard, and watch whether `CurrentState` now does what you intended at the same timestamp. Because the transition method reads only logged inputs, replay reproduces its decisions exactly; a state machine that computes from unlogged values (a `Timer` read inside the switch, a random) breaks that guarantee, which is one more reason to keep the method pure.
+
+<Sources items={[
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/SuperStructure.java", "note": "The two recordOutput lines per cycle and the input values logged beside them."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/hopper/HopperSubsystem.java", "note": "The Debouncer on the range sensor: the flapping fix at the input."},
+  {"source": "advantagekit", "path": "data-flow/recording-outputs/", "note": "recordOutput and how enums are logged."},
+  {"source": "advantagescope", "path": "tab-reference/line-graph/", "note": "Discrete fields on the line graph."},
+  {"source": "cobra", "path": "build.gradle", "note": "JUnit 5 and useJUnitPlatform, already wired for the transition tests."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/filter/Debouncer.html", "note": "Debouncer and its rising/falling types."}
+]} />
+
+<LinkGrid links={[
+  {"label":"A Superstructure for Cobra","id":"superstructure-for-cobra"},
+  {"label":"Transition Graphs","id":"transition-graphs"},
+  {"label":"Reading a Match Log","id":"reading-a-match-log"},
+  {"label":"Unit Tests in Simulation","id":"unit-tests-in-simulation"}
+]} title="Next" section="frc" />

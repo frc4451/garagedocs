@@ -32,9 +32,24 @@ export const sourceRegistry = {
     base: 'https://github.com/frc4451/Cobra2026Private/blob/main/',
     version: 'main',
   },
+  finn: {
+    name: 'FRC 4864 Finn2025',
+    base: 'https://github.com/frc4451/Finn2025/blob/main/',
+    version: 'main',
+  },
   riptide: {
     name: 'FRC 4451 Riptide2025',
     base: 'https://github.com/frc4451/Riptide2025/blob/main/',
+    version: 'main',
+  },
+  frc2910: {
+    name: 'FRC 2910 2026CompetitionRobot-Public',
+    base: 'https://github.com/FRCTeam2910/2026CompetitionRobot-Public/blob/main/',
+    version: 'main',
+  },
+  frc254: {
+    name: 'FRC 254 FRC-2025-Public',
+    base: 'https://github.com/Team254/FRC-2025-Public/blob/main/',
     version: 'main',
   },
   ember: {
@@ -42,10 +57,30 @@ export const sourceRegistry = {
     base: 'https://github.com/frc4451/Ember2024/blob/main/',
     version: 'main',
   },
+  scorpion: {
+    name: 'FRC 4864 Scorpion2026',
+    base: 'https://github.com/frc4451/Scorpion2026/blob/main/',
+    version: 'main',
+  },
+  'mech-adv-2024': {
+    name: 'Team 6328 RobotCode2024Public',
+    base: 'https://github.com/Mechanical-Advantage/RobotCode2024Public/blob/main/',
+    version: 'main',
+  },
   'mech-adv': {
     name: 'Team 6328 RobotCode2025Public',
     base: 'https://github.com/Mechanical-Advantage/RobotCode2025Public/blob/main/',
     version: 'main',
+  },
+  'mech-adv-2026': {
+    name: 'Team 6328 RobotCode2026Public',
+    base: 'https://github.com/Mechanical-Advantage/RobotCode2026Public/blob/main/',
+    version: 'main',
+  },
+  gompeilib: {
+    name: 'Team 190 GompeiLib',
+    base: 'https://github.com/Team-190/GompeiLib/blob/main/',
+    version: 'main, WPILib 2027 alpha 6',
   },
   wpilib: {
     name: 'WPILib docs',
@@ -187,6 +222,11 @@ export const sourceRegistry = {
     base: 'https://adoptium.net/',
     version: 'Temurin 25',
   },
+  frcelectrical: {
+    name: 'FRCElectrical.org',
+    base: 'https://frcelectrical.org/',
+    version: '2026',
+  },
   'first-manual': {
     name: 'FIRST game and season materials',
     base: 'https://www.firstinspires.org/',
@@ -195,3 +235,4 @@ export const sourceRegistry = {
 } as const satisfies Record<string, SourceDefinition>;
 
 export type SourceId = keyof typeof sourceRegistry;
+

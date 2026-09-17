@@ -1,0 +1,398 @@
+---
+title: "Composing Mechanism Subsystems"
+lessonId: composing-mechanism-subsystems
+section: frc
+group: frc-examples
+groupLabel: "Mechanism Components"
+groupOrder: 11
+order: 7
+difficulty: intermediate
+duration: 30 min
+description: "Compose reusable pivots, flywheels, rollers, and elevators into turreted-shooter, feeder, intake, and climber subsystems."
+---
+
+A robot subsystem should represent one responsibility that the command scheduler must coordinate. A reusable mechanism component represents one controlled piece of hardware inside that responsibility.
+
+For a turreted shooter, this leads to two subsystems:
+
+```text
+TurretedShooter subsystem
+  ├─ turret: Pivot       angle around the robot, kG = 0
+  ├─ hood: Pivot         launch angle, cosine kG
+  └─ shooter: Flywheel   wheel velocity
+
+Feeder subsystem
+  ├─ tower: Roller       moves pieces upward
+  └─ kicker: Roller      transfers a piece into the flywheel
+
+Intake subsystem
+  ├─ pivot: Pivot         deploys and stows the intake
+  └─ roller: Roller       pulls game pieces into the robot
+
+Climber subsystem
+  └─ carriage: Elevator   extends the hook and lifts the robot
+```
+
+The turret, hood, and shooter wheel belong together because one shot solution produces all three goals. The feeder stays separate because it handles game pieces and should wait until the aiming subsystem reports that the shot is ready. The intake owns the two components that collect a game piece. The climber owns an elevator because its public goal is a linear hook or carriage position.
+
+### Why the components are plain objects
+
+WPILib commands declare requirements on subsystems. If every motor wrapper extends `SubsystemBase`, a command that needs the complete shooter must collect three separate requirements. It also becomes easy to schedule one command for the hood and another for the turret while a third command assumes it owns the whole shooter.
+
+GompeiLib avoids that problem by passing the parent `Subsystem` into its components. The parent remains the scheduler boundary. GarageDocs follows the same ownership rule: components are plain objects, and commands come from the parent subsystem.
+
+### Build the aiming subsystem
+
+```java
+public final class TurretedShooter extends SubsystemBase {
+  public record ShotGoal(Angle turretAngle, Angle hoodAngle, AngularVelocity wheelSpeed) {}
+
+  private final Pivot turret;
+  private final Pivot hood;
+  private final Flywheel shooter;
+
+  public TurretedShooter(PivotIO turretIO, PivotIO hoodIO, FlywheelIO shooterIO) {
+    turret = new Pivot(
+        turretIO,
+        "TurretedShooter/Turret",
+        Degrees.of(-170),
+        Degrees.of(170),
+        Degrees.of(1.0));
+
+    hood = new Pivot(
+        hoodIO,
+        "TurretedShooter/Hood",
+        Degrees.of(12),
+        Degrees.of(58),
+        Degrees.of(0.75));
+
+    shooter = new Flywheel(
+        shooterIO,
+        "TurretedShooter/Flywheel",
+        RotationsPerSecond.of(1.5));
+  }
+
+  @Override
+  public void periodic() {
+    turret.periodic();
+    hood.periodic();
+    shooter.periodic();
+  }
+
+  public void applyGoal(ShotGoal goal) {
+    turret.setGoal(goal.turretAngle());
+    hood.setGoal(goal.hoodAngle());
+    shooter.setVelocity(goal.wheelSpeed());
+  }
+
+  public boolean readyToShoot() {
+    return turret.atGoal() && hood.atGoal() && shooter.atVelocityGoal();
+  }
+
+  public Trigger readyTrigger() {
+    return new Trigger(this::readyToShoot);
+  }
+
+  public Command aim(Supplier<ShotGoal> goalSupplier) {
+    return run(() -> applyGoal(goalSupplier.get()));
+  }
+
+  public Command stopShooter() {
+    return runOnce(shooter::stop);
+  }
+}
+```
+
+`aim(...)` reads the supplier every scheduler loop. A shot planner can update turret angle, hood angle, and wheel speed while the robot moves. The subsystem applies the three values as one shot goal.
+
+The `readyToShoot()` method uses measured position and velocity from all three components. A timer cannot replace these checks because battery voltage, starting position, and disturbances change how long each mechanism takes.
+
+### Configure the two pivots for different physics
+
+Both rotating mechanisms use the same `Pivot` API. Their hardware IO configurations differ:
+
+- **Turret:** position control, `kG = 0`, limited or wrap-aware travel, cable protection.
+- **Hood:** position control, nonzero `kG`, `Arm_Cosine` gravity type, hard and soft limits.
+
+The flywheel uses velocity control and coast mode. It has no position goal and does not need gravity compensation.
+
+This is the value of components: the subsystem reads as turret, hood, and flywheel behavior. CTRE configuration remains in the three IO implementations.
+
+### Build the feeder subsystem
+
+```java
+public final class Feeder extends SubsystemBase {
+  private final Roller tower;
+  private final Roller kicker;
+
+  public Feeder(RollerIO towerIO, RollerIO kickerIO) {
+    tower = new Roller(towerIO, "Feeder/Tower");
+    kicker = new Roller(kickerIO, "Feeder/Kicker");
+  }
+
+  @Override
+  public void periodic() {
+    tower.periodic();
+    kicker.periodic();
+  }
+
+  public Command feed() {
+    return startEnd(
+        () -> {
+          tower.runTorqueCurrent(Amps.of(18));
+          kicker.runVoltage(Volts.of(8));
+        },
+        () -> {
+          tower.stop();
+          kicker.stop();
+        });
+  }
+
+  public Command reverse() {
+    return startEnd(
+        () -> {
+          tower.runVoltage(Volts.of(-4));
+          kicker.runVoltage(Volts.of(-4));
+        },
+        () -> {
+          tower.stop();
+          kicker.stop();
+        });
+  }
+}
+```
+
+The tower and kicker do not receive RPM goals. They push pieces while the command runs. Their logged velocity and current can still support jam detection later.
+
+### Build a pivoting intake
+
+Cobra's `Intake` owns two library mechanisms: a pivot called `endeffector` and a roller mechanism called `rollers`. Its command factories deploy, lift, squeeze, or stow the pivot and run the rollers with torque current. The parent calls both mechanism `periodic()` methods.
+
+The example below keeps that structure while using the `Pivot` and `Roller` components from the previous lessons:
+
+```java
+public final class Intake extends SubsystemBase {
+  private static final Angle STOWED = Degrees.of(90);
+  private static final Angle DEPLOYED = Degrees.of(0);
+  private static final Angle LIFTED = Degrees.of(20);
+  private static final Angle SQUEEZE = Degrees.of(80);
+
+  private final Pivot pivot;
+  private final Roller roller;
+
+  public Intake(PivotIO pivotIO, RollerIO rollerIO) {
+    pivot = new Pivot(
+        pivotIO,
+        "Intake/Pivot",
+        Degrees.of(0),
+        Degrees.of(90),
+        Degrees.of(1));
+    roller = new Roller(rollerIO, "Intake/Roller");
+  }
+
+  @Override
+  public void periodic() {
+    pivot.periodic();
+    roller.periodic();
+  }
+
+  public Command stow() {
+    return runOnce(() -> {
+      roller.stop();
+      pivot.setGoal(STOWED);
+    });
+  }
+
+  public Command deploy() {
+    return runOnce(() -> pivot.setGoal(DEPLOYED));
+  }
+
+  public Command collect() {
+    return startEnd(
+        () -> {
+          pivot.setGoal(DEPLOYED);
+          roller.runTorqueCurrent(Amps.of(30));
+        },
+        roller::stop);
+  }
+
+  public Command liftPiece() {
+    return runOnce(() -> pivot.setGoal(LIFTED));
+  }
+
+  public Command squeezeAndHold() {
+    return runOnce(() -> {
+      pivot.setGoal(SQUEEZE);
+      roller.runTorqueCurrent(Amps.of(8));
+    });
+  }
+
+  public Trigger pivotAtGoal() {
+    return new Trigger(pivot::atGoal);
+  }
+}
+```
+
+The angles and currents are illustrative. Measure the actual intake's travel and tune its current before enabling it on hardware.
+
+`collect()` sets both component goals in one command that requires the `Intake` subsystem. It does not create parallel commands for the pivot and roller. Two commands from the same parent would carry the same subsystem requirement and cannot run in parallel.
+
+The pivot keeps its last position goal after `deploy()` or `liftPiece()` ends because `Intake.periodic()` continues to call `pivot.periodic()`. The roller stops in the end action when `collect()` is interrupted. A sensor can later end the command when a game piece reaches the correct location.
+
+### Build an elevator climber
+
+A climber that raises and lowers a hook or carriage is an elevator mechanism. Its public API uses `Distance`, even when the motor controller measures rotor rotations.
+
+```java
+public final class Climber extends SubsystemBase {
+  private static final Distance STOWED = Inches.of(1);
+  private static final Distance HOOK_EXTENDED = Inches.of(24);
+  private static final Distance ROBOT_LIFTED = Inches.of(8);
+
+  private final Elevator carriage;
+
+  public Climber(ElevatorIO carriageIO) {
+    carriage = new Elevator(
+        carriageIO,
+        "Climber/Carriage",
+        Inches.of(0),
+        Inches.of(26),
+        Inches.of(0.25));
+  }
+
+  @Override
+  public void periodic() {
+    carriage.periodic();
+  }
+
+  private Command moveTo(Distance goal) {
+    return runOnce(() -> carriage.setGoal(goal))
+        .andThen(Commands.waitUntil(carriage::atGoal));
+  }
+
+  public Command stow() {
+    return moveTo(STOWED);
+  }
+
+  public Command extendHook() {
+    return moveTo(HOOK_EXTENDED);
+  }
+
+  public Command pullRobotUp() {
+    return moveTo(ROBOT_LIFTED);
+  }
+
+  public Trigger atGoal() {
+    return new Trigger(carriage::atGoal);
+  }
+}
+```
+
+Extending moves the hook upward. Pulling the robot up commands a lower carriage position after the hook is attached. Keep those as separate commands until the robot has a trustworthy way to confirm attachment. Driver confirmation is better than an automatic delay when no load sensor exists.
+
+The climber's elevator IO should configure:
+
+- brake mode and current limits suitable for the mechanism
+- constant elevator gravity compensation
+- minimum and maximum travel limits
+- a profile that avoids slamming the hook or frame
+- a reliable zero reference, such as a limit switch or absolute sensor
+
+`moveTo()` ends when measured distance enters the component's tolerance. The parent subsystem remains required for the entire sequence, including the wait.
+
+### Coordinate the subsystems
+
+The scoring command owns both subsystems. The aiming command continues to update the shot goal while the feeder waits.
+
+```java
+public Command score(
+    TurretedShooter shooter,
+    Feeder feeder,
+    Supplier<TurretedShooter.ShotGoal> shotGoal) {
+  return shooter.aim(shotGoal)
+      .alongWith(
+          Commands.waitUntil(shooter::readyToShoot)
+              .andThen(feeder.feed()))
+      .finallyDo(() -> {
+        shooter.stopShooter();
+      });
+}
+```
+
+`feeder.feed()` already requires the `Feeder` subsystem. `shooter.aim()` requires `TurretedShooter`. The command group therefore prevents other commands from taking either responsibility during the shot.
+
+For a state-driven robot, the same component methods can be called from the subsystem's `applyState()` method. The ownership does not change. Commands or a superstructure set the wanted behavior, and each subsystem applies goals to its components.
+
+### Simulation and logging
+
+Each component should have a real IO, a simulation IO, and an empty replay IO when the robot uses AdvantageKit. Use one log path per component:
+
+```text
+TurretedShooter/Turret/Position
+TurretedShooter/Turret/PositionGoal
+TurretedShooter/Hood/Position
+TurretedShooter/Hood/PositionGoal
+TurretedShooter/Flywheel/Velocity
+TurretedShooter/Flywheel/VelocityGoal
+Feeder/Tower/TorqueCurrent
+Feeder/Kicker/AppliedVoltage
+Intake/Pivot/Position
+Intake/Pivot/PositionGoal
+Intake/Roller/TorqueCurrent
+Climber/Carriage/Position
+Climber/Carriage/PositionGoal
+TurretedShooter/Ready
+```
+
+Graph goals beside measurements. The readiness signal should become true only after the turret and hood enter tolerance and the flywheel reaches speed. Feeding before that transition points to a command-group or readiness error.
+
+### Decide subsystem boundaries from behavior
+
+Keep components together when they share one goal, must move as one unit, or should be locked by the same command requirement. Split them when they perform separate jobs or need to run concurrently.
+
+For this example:
+
+- The shot planner returns one goal for turret, hood, and flywheel, so they share `TurretedShooter`.
+- The feeder waits for shooter readiness and then runs independently, so it gets its own subsystem.
+- The intake pivot and roller collect one game piece together, so they share `Intake`.
+- The climber contains one elevator component and owns every command that changes the robot's climbing height.
+- A robot-wide superstructure may coordinate these subsystems without owning their motors directly.
+
+<RulesBox title="Common mistakes">
+
+- Call every component's `periodic()` exactly once from its parent subsystem.
+- Give every component a unique log path.
+- Create commands from the parent subsystem so WPILib requirements match ownership.
+- Stop rollers in the command's end action.
+- Base readiness on measured state and a documented tolerance.
+- Keep shot planning outside the low-level flywheel, roller, and pivot components.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/generic/flywheel/GenericFlywheel.java", "note": "A component receives its parent subsystem and owns velocity behavior without becoming another subsystem."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/generic/roller/GenericRoller.java", "note": "A small roller component that a larger subsystem can compose."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/arm/Arm.java", "note": "Multiple indexed angular components can share one parent subsystem and unique log paths."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/elevator/Elevator.java", "note": "The typed linear-position component adapted for the climber example."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/elevator/ElevatorIO.java", "note": "Distance measurements and position requests used by the climber."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "FRC 4451 subsystem composition: a roller mechanism and a pivot mechanism owned by one subsystem."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/IntakeConstants.java", "note": "Cobra's pivot states, roller current control, limits, and mechanism configuration."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "FRC 4451's distance conversion, travel clamping, and elevator simulation model."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/feeder/Feeder.java", "note": "FRC 4451 subsystem composition with multiple game-piece-moving components."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "Command factories and flywheel readiness checks in a competition subsystem."},
+  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "Subsystem requirements and command factories."},
+  {"source": "wpilib", "path": "docs/software/commandbased/command-compositions.html", "note": "Waiting for readiness while another command continues to run."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Flywheels","id":"shooter-example"},
+  {"label":"Rollers","id":"roller-example"},
+  {"label":"Elevators","id":"elevator-example"},
+  {"label":"Pivots","id":"pivot-example"},
+  {"label":"Linear Rails","id":"linear-rail-example"},
+  {"label":"Subsystems","id":"subsystems"},
+  {"label":"Commands","id":"commands"},
+  {"label":"Command Groups","id":"command-groups"},
+  {"label":"Superstructure","id":"superstructure"},
+  {"label":"States, Commands, and Triggers","id":"states-commands-and-triggers"}
+]} />

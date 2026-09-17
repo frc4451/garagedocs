@@ -1,0 +1,220 @@
+---
+title: "Recursion"
+lessonId: java-recursion
+section: java
+group: java-algorithms
+groupLabel: "Common Algorithms"
+groupOrder: 7
+order: 1
+difficulty: intermediate
+duration: 30 min
+description: A method that calls itself, how the call stack makes that work, and how to write one that terminates.
+---
+
+### The idea
+
+A recursive method solves a problem by calling itself on a smaller version of the same problem, until the problem is small enough to answer directly.
+
+```java
+static int factorial(int n) {
+    if (n <= 1) return 1;             // base case
+    return n * factorial(n - 1);      // recursive case
+}
+```
+
+`factorial(4)` cannot answer immediately, so it asks for `factorial(3)`, which asks for `factorial(2)`, and so on. Once `factorial(1)` returns `1`, the answers multiply back up the chain.
+
+Every recursive method needs both parts:
+
+<ContentTable
+  headers={["Part", "Purpose", "Missing it causes"]}
+  rows={[
+    ["Base case", "A size small enough to answer directly", "Infinite recursion &rarr; <code>StackOverflowError</code>"],
+    ["Recursive case", "Reduce the problem and call again", "Never progresses"],
+    ["Progress toward the base", "Each call must get closer", "Infinite recursion"]
+  ]}
+/>
+
+The third is the one people forget. A base case is useless if the recursive call does not move toward it.
+
+### Tracing it
+
+Working a small case by hand is the fastest way to build intuition. For `factorial(4)`:
+
+```
+factorial(4) = 4 * factorial(3)
+             = 4 * (3 * factorial(2))
+             = 4 * (3 * (2 * factorial(1)))
+             = 4 * (3 * (2 * 1))
+             = 24
+```
+
+Notice the multiplications happen on the way *back up*. Nothing is computed until the base case is reached; the calls stack up first, then resolve in reverse.
+
+### The call stack
+
+Each call gets its own copy of the parameters and local variables, stored in a stack frame. That is why `n` is different in each call even though they share a name.
+
+```
+factorial(1)   <- top, returns first
+factorial(2)
+factorial(3)
+factorial(4)   <- bottom, returns last
+```
+
+This is a literal [stack](/java/fundamentals/java-stacks#last-in-first-out), the same last-in-first-out structure, which is why running out of space is a `StackOverflowError`.
+
+<RulesBox title="Java's recursion depth limit">
+
+Java's default stack holds somewhere around ten to twenty thousand frames. Exceed that and you get:
+
+```
+Exception in thread "main" java.lang.StackOverflowError
+```
+
+For most recursion on trees or small inputs this is nowhere close. It becomes a real concern when the depth scales with a large input; recursing once per element of a 200,000-item list will overflow.
+
+Two fixes: rewrite as a loop, or run on a thread with a bigger stack:
+
+```java norun
+public static void main(String[] args) {
+    new Thread(null, Main::solve, "main", 1 << 26).start();   // 64 MB stack
+}
+```
+
+The loop removes the limit; the thread trick only raises it.
+
+</RulesBox>
+
+### Recursion versus iteration
+
+Anything recursive can be written as a loop, and vice versa. The question is which is clearer.
+
+```java
+// iterative: better here
+static int factorialLoop(int n) {
+    int result = 1;
+    for (int i = 2; i <= n; i++) {
+        result *= i;
+    }
+    return result;
+}
+```
+
+For factorial, the loop is simpler and uses no stack. Recursion earns its place when the *problem itself* branches.
+
+<RulesBox title="When recursion is the right choice">
+
+- **The data structure is recursive.** A [tree](/java/fundamentals/java-trees#recursive-measurements) node contains subtrees, which are trees. Recursion mirrors the shape.
+- **The problem splits into several sub-problems.** Exploring both branches of a decision, or all four directions on a grid.
+- **You do not know the depth in advance.** Nested folders, or a search whose length depends on input.
+
+When the problem repeats one step in a straight line, use a loop.
+
+</RulesBox>
+
+### A case where recursion is clearly better
+
+Summing a tree with a loop requires managing your own stack. Recursively it is three lines:
+
+```java norun
+static int sum(TreeNode node) {
+    if (node == null) return 0;                       // base case
+    return node.value + sum(node.left) + sum(node.right);
+}
+```
+
+Two recursive calls, and the structure handles the bookkeeping. Most tree and graph work looks like this; see [Tree Traversals](/java/fundamentals/java-tree-traversals#four-orders) and [Depth-First Search](/java/fundamentals/java-depth-first-search#going-deep-first).
+
+### Watch out for accidental exponential work
+
+Some innocent-looking recursion does enormous amounts of repeated work:
+
+```java
+static int fib(int n) {
+    if (n <= 1) return n;
+    return fib(n - 1) + fib(n - 2);
+}
+```
+
+This is correct but recomputes the same values constantly; `fib(40)` makes over a billion calls. The fix is to remember results you have already computed, covered in [Memoization and Dynamic Programming](/java/fundamentals/java-memoization-and-dynamic-programming#memoization).
+
+Correct and fast are separate questions. Recursive code can produce the correct answer and still run too slowly to use.
+
+### Helper methods
+
+Often the natural recursion needs extra parameters the caller should not supply. Use a wrapper:
+
+```java
+static int countMatches(int[] values, int target) {
+    return countFrom(values, target, 0);       // caller-friendly
+}
+
+private static int countFrom(int[] values, int target, int index) {
+    if (index == values.length) return 0;
+    int here = (values[index] == target) ? 1 : 0;
+    return here + countFrom(values, target, index + 1);
+}
+```
+
+The public method has a clean signature; the private one carries the position. This pattern appears constantly.
+
+<RulesBox title="Common mistakes">
+
+- **No base case**, or one that is unreachable.
+- **Not reducing the problem**, so it recurses forever with the same argument.
+- **Forgetting to return the recursive call's result.** Calling `factorial(n - 1)` without using the value discards the work.
+- **Modifying shared state without undoing it.** See [Backtracking](/java/fundamentals/java-backtracking#choose-recurse-undo).
+- **Assuming recursion is free.** Each call costs a stack frame.
+- **Recomputing the same sub-problem** exponentially.
+
+</RulesBox>
+
+<JavaPlayground id="java-recursion" />
+
+<ExerciseBox title="Practice" description="Write each recursively first, then decide whether a loop would be clearer.">
+
+1. Sum the integers from 1 to `n`.
+2. Reverse a `String`.
+3. Count the digits in a positive integer.
+4. Compute the greatest common divisor of two numbers.
+5. Print every subset of an `int[]`.
+
+<details>
+<summary>Hints</summary>
+
+1. Base case `n <= 0` returns 0; otherwise `n + sumTo(n - 1)`.
+2. Base case: a string shorter than 2 is its own reverse. Otherwise the reverse of everything after the first character, plus that character at the end.
+3. Base case `n < 10` returns 1; otherwise `1 + countDigits(n / 10)`.
+4. `gcd(a, b)` is `a` when `b` is 0, otherwise `gcd(b, a % b)`. Two lines, and it terminates because the remainder always shrinks.
+5. At each index you either include the element or skip it: two recursive calls. This is the shape behind backtracking.
+
+</details>
+
+</ExerciseBox>
+
+<LinkGrid
+  title="Next"
+  section="java"
+  links={[
+    {"label":"Tree Traversals","id":"java-tree-traversals"},
+    {"label":"Depth-First Search","id":"java-depth-first-search"},
+    {"label":"Backtracking","id":"java-backtracking"}
+  ]}
+/>
+
+<Sources items={[
+  {"source": "csce146", "note": "The course whose structure this lesson follows."},
+  {"source": "jls", "path": "jls-15.html", "note": "Method invocation and the call stack (section 15.12)."},
+  {"source": "java-api", "path": "java.base/java/lang/StackOverflowError.html", "note": "<code>StackOverflowError</code>."},
+  {"url": "https://en.wikipedia.org/wiki/Recursion_(computer_science)", "label": "Wikipedia: Recursion", "note": "Base cases and structure."}
+]} />
+
+<LinkGrid
+  title="Related"
+  section="java"
+  links={[
+    {"label":"Stacks","id":"java-stacks"},
+    {"label":"Methods","id":"java-methods"}
+  ]}
+/>
