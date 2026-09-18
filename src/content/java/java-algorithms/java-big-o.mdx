@@ -4,8 +4,8 @@ lessonId: java-big-o
 section: java
 group: java-algorithms
 groupLabel: "Common Algorithms"
-groupOrder: 7
-order: 10
+groupOrder: 8
+order: 2
 difficulty: intermediate
 duration: 35 min
 description: "How to look at a loop and know whether it will still be fast with ten times the data: the handful of shapes that cover almost every piece of code you will write."
@@ -22,12 +22,12 @@ description: "How to look at a loop and know whether it will still be fast with 
   contain
 />
 
-Two methods both take a millisecond on today's data. One will take ten milliseconds on ten times the data; the other will take a hundred. Big-O is the notation for *which one you have*, and it is the difference between code that survives the season and code that mysteriously gets slower every event.
+Big-O describes an upper bound on how work grows with input size. A linear scan examines up to n values; a pairwise comparison may examine about n squared pairs. These growth rates help compare algorithms, but do not specify a time in milliseconds.
 
 The notation describes how running time **grows** as the input size `n` grows. It ignores constants (a loop that does three things per element and a loop that does thirty are both O(n)) because past a certain `n`, the growth shape dominates any constant.
 
 <ContentTable
-  headers={["Shape", "Name", "Doubling n does what to the time", "Typical source"]}
+  headers={["Shape", "Name", "Doubling n does what to the work model", "Typical source"]}
   rows={[
     ["O(1)", "Constant", "Nothing", "Array index, hash lookup, arithmetic"],
     ["O(log n)", "Logarithmic", "Adds one step", "Halving: binary search, balanced trees"],
@@ -38,7 +38,7 @@ The notation describes how running time **grows** as the input size `n` grows. I
   ]}
 />
 
-That third column is the practical one. If you can measure a method at two sizes, you can usually tell which row it is on.
+The table compares growth models. Measurements can illustrate them, but two timings cannot identify or prove an algorithm’s complexity. Inspect its loops, recursive calls, and library operations.
 
 ### Reading the shapes
 
@@ -48,7 +48,7 @@ The skill is looking at five lines and recognising the shape without counting an
 
 ```java
 public class Main {
-    static int endsSum(int[] arr) {
+    public static int endsSum(int[] arr) {
         return arr[0] + arr[arr.length - 1];
     }
 
@@ -62,7 +62,7 @@ public class Main {
 
 ```java
 public class Main {
-    static int sum(int[] arr) {
+    public static int sum(int[] arr) {
         int total = 0;
         for (int x : arr) total += x;
         return total;
@@ -78,7 +78,7 @@ public class Main {
 
 ```java
 public class Main {
-    static int halvings(int n) {
+    public static int halvings(int n) {
         int count = 0;
         while (n > 1) {
             n /= 2;
@@ -98,7 +98,7 @@ public class Main {
 
 ```java
 public class Main {
-    static int pairs(int[] arr) {
+    public static int pairs(int[] arr) {
         int count = 0;
         for (int i = 0; i < arr.length; i++)
             for (int j = i + 1; j < arr.length; j++)
@@ -117,7 +117,7 @@ public class Main {
 
 ```java
 public class Main {
-    static int mixed(int n) {
+    public static int mixed(int n) {
         int total = 0;
         for (int k = 0; k < n; k++)
             for (int j = 1; j < n; j *= 2)
@@ -131,11 +131,11 @@ public class Main {
 }
 ```
 
-**Branching recursion: O(2ⁿ).** Each call makes two more. `fib(30)` makes over a million calls; `fib(40)` makes over a billion. [Memoization](/java/fundamentals/java-memoization-and-dynamic-programming#the-repeated-work-problem) is the fix.
+**Branching recursion: O(2ⁿ).** Each call makes two more. `fib(30)` makes over a million calls; `fib(40)` makes hundreds of millions of calls. [Memoization](/java/fundamentals/java-memoization-and-dynamic-programming#the-repeated-work-problem) is the fix.
 
 ```java
 public class Main {
-    static int fib(int n) {
+    public static int fib(int n) {
         if (n <= 1) return n;
         return fib(n - 1) + fib(n - 2);
     }
@@ -158,7 +158,7 @@ import java.util.Set;
 
 public class Main {
 
-    static List<Integer> distinctSlow(int[] arr) {
+    public static List<Integer> distinctSlow(int[] arr) {
         List<Integer> result = new ArrayList<>();
         for (int x : arr) {
             if (!result.contains(x)) result.add(x);   // contains walks the whole list
@@ -166,7 +166,7 @@ public class Main {
         return result;
     }
 
-    static List<Integer> distinctFast(int[] arr) {
+    public static List<Integer> distinctFast(int[] arr) {
         List<Integer> result = new ArrayList<>();
         Set<Integer> seen = new HashSet<>();
         for (int x : arr) {
@@ -191,9 +191,9 @@ The programs return the same answer and have a similar shape on the page. Their 
   title="Costs worth memorising"
   headers={["Operation", "Cost", "Why"]}
   rows={[
-    ["<code>array[i]</code>, <code>list.get(i)</code>", "O(1)", "Direct index"],
+    ["<code>array[i]</code>, <code>arrayList.get(i)</code>", "O(1)", "Direct index"],
     ["<code>list.contains(x)</code>, <code>list.indexOf(x)</code>", "O(n)", "Walks until it finds it"],
-    ["<code>set.contains(x)</code>, <code>map.get(k)</code>", "O(1) average", "Hash lookup"],
+    ["<code>hashSet.contains(x)</code>, <code>hashMap.get(k)</code>", "O(1) average", "Hash lookup"],
     ["<code>list.add(x)</code> at the end", "O(1) amortised", "Occasionally copies everything; averages out"],
     ["<code>list.add(0, x)</code>", "O(n)", "Shifts every element right"],
     ["<code>Collections.sort</code>, <code>Arrays.sort</code>", "O(n log n)", "Merge sort / dual-pivot quicksort"],
@@ -211,11 +211,11 @@ For most code the three cases are the same and you do not mention them. Say so w
 
 ### Checking a guess with a stopwatch
 
-Tags are cheap to get wrong. The check is empirical: time the method at two sizes and compare the ratio with the table's third column.
+First justify the complexity from the algorithm. Then time several input sizes to compare measured growth with that reasoning.
 
 ```java
 public class Main {
-    static int pairs(int[] arr) {
+    public static int pairs(int[] arr) {
         int count = 0;
         for (int i = 0; i < arr.length; i++)
             for (int j = i + 1; j < arr.length; j++)
@@ -223,9 +223,9 @@ public class Main {
         return count;
     }
 
-    static long[] samples = new long[5];
+    public static long[] samples = new long[5];
 
-    static long medianMicros(Runnable task) {
+    public static long medianMicros(Runnable task) {
         for (int i = 0; i < samples.length; i++) {
             long start = System.nanoTime();
             task.run();
@@ -248,13 +248,13 @@ public class Main {
 }
 ```
 
-Take the **median** of several runs instead of trusting one reading. **Warm up first** because the first call to a method is slower while the just-in-time (JIT) compiler processes it. Other work on the computer can also disturb a single measurement.
+Take the median of several runs. Warm up before collecting samples because class loading and just-in-time compilation can affect early runs. Garbage collection and other computer activity can affect any run; the first measurement is not guaranteed to be the slowest.
 
 Without the warm-up line above, the small input receives the slow first call and may produce a misleading ratio. After warming up, doubling the input should produce a ratio near 4 for O(n²) work and near 2 for O(n) work.
 
 <RulesBox title="What this looks like on a robot">
 
-`periodic()` runs every 20 ms. Anything O(n²) over a growing collection inside it is a bug that has not happened yet: fine with 50 samples, 25 ms with 1,000, and the symptom is loop-overrun warnings in the driver station log, never a stack trace.
+A periodic task has a time budget. A growing quadratic calculation may eventually exceed it. Measure the real workload and check timing diagnostics; complexity alone cannot tell you how many milliseconds it will take.
 
 The usual fixes are the ones above: a `HashSet` instead of `List.contains`, a ring buffer instead of `remove(0)`, or doing the expensive part once outside the loop and reading the result inside it.
 
@@ -317,3 +317,5 @@ The usual fixes are the ones above: a `HashSet` instead of `List.contains`, a ri
     {"label":"A28: Big-O Reading","url":"/java/assignments/a28-big-o-reading"}
   ]}
 />
+
+<LinkGrid title="Next lesson" section="java" links={[{"label": "Searching", "id": "java-searching"}]} />

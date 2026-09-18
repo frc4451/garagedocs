@@ -4,7 +4,7 @@ lessonId: java-recursion
 section: java
 group: java-algorithms
 groupLabel: "Common Algorithms"
-groupOrder: 7
+groupOrder: 8
 order: 1
 difficulty: intermediate
 duration: 30 min
@@ -16,7 +16,7 @@ description: A method that calls itself, how the call stack makes that work, and
 A recursive method solves a problem by calling itself on a smaller version of the same problem, until the problem is small enough to answer directly.
 
 ```java
-static int factorial(int n) {
+public static int factorial(int n) {
     if (n <= 1) return 1;             // base case
     return n * factorial(n - 1);      // recursive case
 }
@@ -66,23 +66,14 @@ This is a literal [stack](/java/fundamentals/java-stacks#last-in-first-out), the
 
 <RulesBox title="Java's recursion depth limit">
 
-Java's default stack holds somewhere around ten to twenty thousand frames. Exceed that and you get:
+Java does not specify one maximum recursion depth. The available stack size and the size of each call frame determine when a program runs out of stack space:
 
 ```
 Exception in thread "main" java.lang.StackOverflowError
 ```
 
-For most recursion on trees or small inputs this is nowhere close. It becomes a real concern when the depth scales with a large input; recursing once per element of a 200,000-item list will overflow.
+Deep recursion can throw StackOverflowError. Use small inputs while learning. For a task that can grow deeply, use an iterative algorithm, with an explicit stack if needed. Iteration avoids a growing chain of method calls, but the program still has memory limits.
 
-Two fixes: rewrite as a loop, or run on a thread with a bigger stack:
-
-```java norun
-public static void main(String[] args) {
-    new Thread(null, Main::solve, "main", 1 << 26).start();   // 64 MB stack
-}
-```
-
-The loop removes the limit; the thread trick only raises it.
 
 </RulesBox>
 
@@ -92,7 +83,7 @@ Anything recursive can be written as a loop, and vice versa. The question is whi
 
 ```java
 // iterative: better here
-static int factorialLoop(int n) {
+public static int factorialLoop(int n) {
     int result = 1;
     for (int i = 2; i <= n; i++) {
         result *= i;
@@ -101,7 +92,7 @@ static int factorialLoop(int n) {
 }
 ```
 
-For factorial, the loop is simpler and uses no stack. Recursion earns its place when the *problem itself* branches.
+For factorial, the loop is simpler and does not add a new stack frame per iteration. Recursion earns its place when the *problem itself* branches.
 
 <RulesBox title="When recursion is the right choice">
 
@@ -113,31 +104,34 @@ When the problem repeats one step in a straight line, use a loop.
 
 </RulesBox>
 
-### A case where recursion is clearly better
+### Sum an array recursively
 
-Summing a tree with a loop requires managing your own stack. Recursively it is three lines:
-
-```java norun
-static int sum(TreeNode node) {
-    if (node == null) return 0;                       // base case
-    return node.value + sum(node.left) + sum(node.right);
+```java
+public static int sumFrom(int[] values, int index) {
+    if (index == values.length) return 0;
+    return values[index] + sumFrom(values, index + 1);
 }
 ```
 
-Two recursive calls, and the structure handles the bookkeeping. Most tree and graph work looks like this; see [Tree Traversals](/java/fundamentals/java-tree-traversals#four-orders) and [Depth-First Search](/java/fundamentals/java-depth-first-search#going-deep-first).
+Call `sumFrom(new int[] {2, 4, 6}, 0)`. It returns `12`. Each call handles one value, then delegates the rest of the array. The base case represents an empty remaining range.
+
+This example assumes `0 <= index && index <= values.length`. A loop uses less call-stack space for a long array. [Tree Traversals](/java/fundamentals/java-tree-traversals) applies recursion to branching data.
+
+<span id="a-case-where-recursion-is-clearly-better"></span>
+
 
 ### Watch out for accidental exponential work
 
 Some innocent-looking recursion does enormous amounts of repeated work:
 
 ```java
-static int fib(int n) {
+public static int fib(int n) {
     if (n <= 1) return n;
     return fib(n - 1) + fib(n - 2);
 }
 ```
 
-This is correct but recomputes the same values constantly; `fib(40)` makes over a billion calls. The fix is to remember results you have already computed, covered in [Memoization and Dynamic Programming](/java/fundamentals/java-memoization-and-dynamic-programming#memoization).
+This is correct but recomputes the same values constantly; `fib(40)` makes hundreds of millions of calls. The fix is to remember results you have already computed, covered in [Memoization and Dynamic Programming](/java/fundamentals/java-memoization-and-dynamic-programming#memoization).
 
 Correct and fast are separate questions. Recursive code can produce the correct answer and still run too slowly to use.
 
@@ -146,7 +140,7 @@ Correct and fast are separate questions. Recursive code can produce the correct 
 Often the natural recursion needs extra parameters the caller should not supply. Use a wrapper:
 
 ```java
-static int countMatches(int[] values, int target) {
+public static int countMatches(int[] values, int target) {
     return countFrom(values, target, 0);       // caller-friendly
 }
 
@@ -194,7 +188,7 @@ The public method has a clean signature; the private one carries the position. T
 </ExerciseBox>
 
 <LinkGrid
-  title="Next"
+  title="Related"
   section="java"
   links={[
     {"label":"Tree Traversals","id":"java-tree-traversals"},
@@ -218,3 +212,5 @@ The public method has a clean signature; the private one carries the position. T
     {"label":"Methods","id":"java-methods"}
   ]}
 />
+
+<LinkGrid title="Next lesson" section="java" links={[{"label": "Big-O", "id": "java-big-o"}]} />

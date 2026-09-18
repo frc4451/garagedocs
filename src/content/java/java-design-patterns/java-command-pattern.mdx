@@ -24,8 +24,8 @@ description: "Wrapping an action in an object so it can be stored, scheduled, un
 Everything in this module has been building toward this. A command is an object whose purpose is to represent *something to be done*, rather than doing it immediately.
 
 ```java
-interface Command {
-    void execute();
+public interface Command {
+    public void execute();
 }
 ```
 
@@ -61,24 +61,24 @@ It earns its place when you need one of these:
 A single `execute()` is enough for instant actions, but most real work takes several cycles: driving to a position, spinning a flywheel up to speed. That needs a richer shape:
 
 ```java
-interface Command {
-    default void initialize() {}          // once, at the start
-    void execute();                        // repeatedly, each cycle
-    default boolean isFinished() {         // when should it stop?
+public interface Command {
+    public default void initialize() {}          // once, at the start
+    public void execute();                        // repeatedly, each cycle
+    public default boolean isFinished() {         // when should it stop?
         return false;
     }
-    default void end(boolean interrupted) {}  // once, at the end
+    public default void end(boolean interrupted) {}  // once, at the end
 }
 ```
 
 `default` methods let an implementation override only what it cares about. A command that needs no lifecycle hooks supplies `execute` and nothing else.
 
 ```java norun
-class SpinUpShooter implements Command {
+public class SpinUpShooter implements Command {
     private final Shooter shooter;
     private final double targetRpm;
 
-    SpinUpShooter(Shooter shooter, double targetRpm) {
+    public SpinUpShooter(Shooter shooter, double targetRpm) {
         this.shooter = shooter;
         this.targetRpm = targetRpm;
     }
@@ -116,15 +116,15 @@ Passing `interrupted` lets one method handle both without the caller needing two
 Something has to run these. The loop is short:
 
 ```java
-class Scheduler {
+public class Scheduler {
     private final List<Command> running = new ArrayList<>();
 
-    void schedule(Command command) {
+    public void schedule(Command command) {
         command.initialize();
         running.add(command);
     }
 
-    void run() {
+    public void run() {
         Iterator<Command> it = running.iterator();
         while (it.hasNext()) {
             Command c = it.next();
@@ -136,7 +136,7 @@ class Scheduler {
         }
     }
 
-    void cancelAll() {
+    public void cancelAll() {
         for (Command c : running) {
             c.end(true);              // interrupted
         }
@@ -154,11 +154,11 @@ Call `run()` once per cycle and every scheduled command advances one step.
 Because commands are objects, you can build commands out of other commands. This is where the pattern pays for itself: a whole routine becomes one object.
 
 ```java
-class SequentialCommand implements Command {
+public class SequentialCommand implements Command {
     private final List<Command> steps;
     private int index = 0;
 
-    SequentialCommand(Command... steps) {
+    public SequentialCommand(Command... steps) {
         this.steps = List.of(steps);
     }
 
@@ -221,17 +221,17 @@ The pattern here is the foundation; the framework is this plus safety.
 Where the pattern is used for editing rather than scheduling, add a reverse operation:
 
 ```java norun
-interface UndoableCommand {
-    void execute();
-    void undo();
+public interface UndoableCommand {
+    public void execute();
+    public void undo();
 }
 
-class SetPosition implements UndoableCommand {
+public class SetPosition implements UndoableCommand {
     private final Arm arm;
     private final double target;
     private double previous;
 
-    SetPosition(Arm arm, double target) {
+    public SetPosition(Arm arm, double target) {
         this.arm = arm;
         this.target = target;
     }
@@ -313,3 +313,5 @@ Push executed commands onto a [stack](/java/fundamentals/java-stacks#where-stack
     {"label":"Command Groups","id":"command-groups"}
   ]}
 />
+
+<LinkGrid title="Next lesson" section="java" links={[{"label": "Threads and Concurrency", "id": "java-threads-and-concurrency"}]} />

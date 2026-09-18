@@ -2,10 +2,10 @@
 title: "Packages and Project Layout"
 lessonId: java-packages-and-project-layout
 section: java
-group: java-basics
-groupLabel: "Java Basics"
-groupOrder: 1
-order: 8
+group: java-oop
+groupLabel: "Object-Oriented Programming"
+groupOrder: 4
+order: 11
 difficulty: beginner
 duration: 20 min
 description: Why Java files live in folders that match their package name, what import does, and the layout every robot project shares.
@@ -13,7 +13,7 @@ description: Why Java files live in folders that match their package name, what 
 
 ### One file is not a project
 
-Everything so far has been a single file with a single class. A real program is dozens of files, and Java needs two things from you to keep them straight: a **package** that says which group a class belongs to, and a **folder** on disk that matches it.
+A package groups related Java types and gives them a shared name prefix. In the project layout used here, source folders match the package name beneath the source root.
 
 ```java norun
 // File: src/main/java/frc/robot/subsystems/Drive.java
@@ -24,7 +24,9 @@ public class Drive {
 }
 ```
 
-The first line of the file names its package. The path of the file must match it, dot for slash, underneath the source root. Get those out of step and the compiler refuses: *class Drive is public, should be declared in a file named Drive.java* or *package frc.robot.subsystems does not match the directory*.
+The package declaration determines the type’s full name. Keep its folder path aligned with that package so VS Code and the build tools can find it consistently.
+
+A public top-level class also needs a matching filename. A folder mismatch and a filename mismatch are different problems; javac can compile an explicitly supplied source file from a different folder.
 
 <ContentTable
   headers={["In the file", "On disk"]}
@@ -32,7 +34,7 @@ The first line of the file names its package. The path of the file must match it
     ["<code>package frc.robot;</code>", "<code>src/main/java/frc/robot/</code>"],
     ["<code>package frc.robot.subsystems;</code>", "<code>src/main/java/frc/robot/subsystems/</code>"],
     ["<code>public class Drive</code>", "<code>Drive.java</code>, exactly, case included"],
-    ["No <code>package</code> line", "The <em>default package</em>: fine for one file, unusable past that"]
+    ["No <code>package</code> line", "The <em>default package</em>: usable for small exercises; use named packages to organize larger projects"]
   ]}
 />
 
@@ -67,7 +69,7 @@ Two things you do not import: anything in `java.lang` (`String`, `Math`, `System
 
 ### What the layout looks like
 
-Every Gradle-based Java project, which includes every WPILib project, uses the same tree. Learn it once and you can find your way around any team's repository:
+This is the standard Gradle Java source layout used by WPILib projects. Build configuration can customize it; check the source-root settings if another project differs:
 
 ```
 my-robot/
@@ -104,23 +106,26 @@ The convention exists so that any two projects in the world can be combined with
 
 ### Visibility follows packages
 
-You have used `public` and `private`. There is a third option you get by writing nothing at all, **package-private**, and it is exactly what it sounds like:
+Use explicit visibility in GarageDocs examples: public for types and methods other classes need, and private for internal fields and helpers.
 
-```java norun
+```java
 package frc.robot.subsystems;
 
-public class Drive {                 // visible everywhere
-    private double leftOutput;       // visible only inside Drive
-    double lastCommandedSpeed;       // no modifier: visible inside frc.robot.subsystems only
-    public void arcadeDrive(double speed, double rotation) { /* ... */ }
+public class Drive {
+    private double lastCommandedSpeed;
+
+    public void arcadeDrive(double speed) {
+        lastCommandedSpeed = speed;
+    }
 }
 ```
 
-A class in `frc.robot.commands` can call `arcadeDrive` but cannot see `lastCommandedSpeed`. A class in the same `subsystems` package can. Package-private is a useful middle setting for helpers that a package's classes share but the rest of the program should not touch.
+Another class can call arcadeDrive but cannot read lastCommandedSpeed directly. Java also supports package-private access when a modifier is omitted. Recognize it in outside code; the examples here state their intended access explicitly.
+
 
 <RulesBox title="Common mistakes">
 
-- **File in the wrong folder for its package**, or the wrong package for its folder. The compiler's message names the mismatch; believe it.
+- **File in the wrong folder for its package**, or the wrong package for its folder. Check the source root and package declaration as well as the message from your editor or build tool.
 - **Filename that does not match the public class**, including case: `drive.java` holding `class Drive` fails.
 - **Editing files under `build/`.** They are overwritten on the next build.
 - **Forgetting the `import`** and reading "cannot find symbol" as if the class were missing. The class exists, but the compiler was not told where to look.
@@ -131,22 +136,13 @@ A class in `frc.robot.commands` can call `arcadeDrive` but cannot see `lastComma
 
 <ExerciseBox title="Practice">
 
-1. On your own machine, create `src/main/java/team/util/Clamp.java` in package `team.util` with a static `clamp` method, and `src/main/java/team/Main.java` in package `team` that imports and calls it. Compile from the project root with `javac -d out $(find src -name "*.java")` and run with `java -cp out team.Main`.
-2. Move `Clamp.java` up one folder without changing its `package` line. Read the error, then fix it by moving it back.
-3. Rename the file to `clamp.java`. Read that error too.
-4. Add a package-private field to `Clamp` and try to read it from `Main`. Then move `Main` into `team.util` and try again.
-5. Open any WPILib project and, without running anything, write down which package each of `Robot`, `RobotContainer` and the subsystems live in and why that split makes sense.
+1. Create `src/main/java/team/util/Clamp.java` with package `team.util` and a public static clamp method. Create `src/main/java/team/Main.java` with package `team` and a public static main that imports and calls Clamp.
+2. From the project root, run `javac -d out src/main/java/team/util/Clamp.java src/main/java/team/Main.java`. Then run `java -cp out team.Main`. These commands work in PowerShell and bash.
+3. Test clamp with a value below, inside, and above its range. Print the three results.
+4. Add a private field to Clamp. Try to read it from Main, identify the access error, then remove that invalid access.
+5. Open a WPILib project and identify the source root and the packages containing Robot, RobotContainer, and its subsystems.
 
-<details>
-<summary>Hints</summary>
-
-1. `-d out` tells `javac` where to put the compiled tree; it recreates the package folders under `out/`.
-2. "package team.util does not match the directory", or a *cannot find symbol* from `Main`, depending on which the compiler hits first.
-3. "class Clamp is public, should be declared in a file named Clamp.java".
-4. From `team`: *not visible*. From `team.util`: compiles. That is the whole rule.
-5. [R01: Project Anatomy](/kit-bot/r01-project-anatomy#the-two-packages-you-create) is the answer key.
-
-</details>
+The -d out option puts compiled classes in an output folder with the appropriate package structure. Keep source files in folders matching their package declarations.
 
 </ExerciseBox>
 
@@ -161,7 +157,7 @@ A class in `frc.robot.commands` can call `arcadeDrive` but cannot see `lastComma
 ]} />
 
 <LinkGrid
-  title="Next"
+  title="Related"
   section="java"
   links={[
     {"label":"Setting Up","id":"java-setup"},
@@ -169,3 +165,5 @@ A class in `frc.robot.commands` can call `arcadeDrive` but cannot see `lastComma
     {"label":"R01: Project Anatomy","url":"/kit-bot/r01-project-anatomy"}
   ]}
 />
+
+<LinkGrid title="Next lesson" section="java" links={[{"label": "Arrays and Their Trade-offs", "id": "java-arrays-and-their-trade-offs"}]} />

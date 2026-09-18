@@ -8,20 +8,14 @@ groupOrder: 3
 order: 1
 difficulty: beginner
 duration: 10 min
-description: "Creating and commanding Talon FX and SPARK MAX motors from Robot.java, the lifecycle methods involved, and running more than one."
+description: "Create and command Talon FX, SPARK MAX, SPARK Flex, and Thrifty Nova motor controllers from Robot.java."
 ---
 
 ### How code reaches a motor
 
-This page shows how to create CTRE Talon FX and REV SPARK MAX motor-controller objects in `Robot.java`, set their output from the robot lifecycle, reverse direction, and stop them.
+This page shows how to create CTRE Talon FX, REV SPARK MAX, REV SPARK Flex, and Thrifty Nova motor-controller objects in `Robot.java`, set their output from the robot lifecycle, reverse direction, and stop them.
 
-Both vendors appear throughout this curriculum, in tabbed code samples so you can compare them. The Talon FX tab comes first because the examples in later lessons build on a Phoenix 6 robot (Talon FX controllers, a Pigeon 2 gyro, CANcoders). Learn the REV side too; plenty of teams and offseason projects run it.
-
-### Robot.java lifecycle
-
-**robotInit():** Runs once at startup. Create your motors here.
-
-**teleopPeriodic():** Runs repeatedly during driver control. Update motor outputs here.
+The tabbed examples let you compare the vendor APIs. Choose the class and library that match the controller physically installed on the robot.
 
 ### CTRE: Talon FX
 
@@ -46,9 +40,9 @@ import com.ctre.phoenix6.controls.DutyCycleOut;
 
 public class Robot extends TimedRobot {
     // Create motor instance with CAN ID 1
-    private TalonFX m_motor = new TalonFX(1);
+    private final TalonFX m_motor = new TalonFX(1);
     // Create control request for duty cycle output
-    private DutyCycleOut m_output = new DutyCycleOut(0);
+    private final DutyCycleOut m_output = new DutyCycleOut(0);
     
     @Override
     public void teleopPeriodic() {
@@ -81,12 +75,54 @@ import com.revrobotics.spark.SparkLowLevel.MotorType;
 
 public class Robot extends TimedRobot {
     // Create motor instance: CAN ID 1, Brushless motor type
-    private SparkMax m_motor = new SparkMax(1, MotorType.kBrushless);
+    private final SparkMax m_motor = new SparkMax(1, MotorType.kBrushless);
     
     @Override
     public void teleopPeriodic() {
         // Set motor to 50% speed forward (range: -1.0 to 1.0)
         m_motor.set(0.5);
+    }
+}
+```
+
+### REV: SPARK Flex
+
+The SPARK Flex is a separate brushless motor controller. It can dock directly to a NEO Vortex, and REVLib gives it its own `SparkFlex` class. Do not create a `SparkMax` object for a physical SPARK Flex.
+
+```java
+package frc.robot;
+
+import com.revrobotics.spark.SparkFlex;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import edu.wpi.first.wpilibj.TimedRobot;
+
+public class Robot extends TimedRobot {
+    private final SparkFlex m_motor =
+            new SparkFlex(1, MotorType.kBrushless);
+
+    @Override
+    public void teleopPeriodic() {
+        m_motor.set(0.5);
+    }
+}
+```
+
+### Thrifty Bot: Thrifty Nova
+
+The Thrifty Nova is a separate brushless motor controller supported by ThriftyLib. Its percent-output method is `setPercent()`. Confirm the connected motor type in Thrifty Config before running the motor.
+
+```java
+package frc.robot;
+
+import com.thethriftybot.devices.ThriftyNova;
+import edu.wpi.first.wpilibj.TimedRobot;
+
+public class Robot extends TimedRobot {
+    private final ThriftyNova m_motor = new ThriftyNova(1);
+
+    @Override
+    public void teleopPeriodic() {
+        m_motor.setPercent(0.5);
     }
 }
 ```
@@ -99,14 +135,15 @@ public class Robot extends TimedRobot {
 
 ### Multiple Motors
 
-<CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot;\n\nimport edu.wpi.first.wpilibj.TimedRobot;\nimport com.ctre.phoenix6.hardware.TalonFX;\nimport com.ctre.phoenix6.controls.DutyCycleOut;\n\npublic class Robot extends TimedRobot {\n    // Create left and right motors with different CAN IDs\n    private TalonFX m_left = new TalonFX(1);\n    private TalonFX m_right = new TalonFX(2);\n    private DutyCycleOut m_output = new DutyCycleOut(0);\n    \n    @Override\n    public void teleopPeriodic() {\n        // Set both motors to 50% speed\n        m_left.setControl(m_output.withOutput(0.5));\n        m_right.setControl(m_output.withOutput(0.5));\n    }\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot;\n\nimport edu.wpi.first.wpilibj.TimedRobot;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\n\npublic class Robot extends TimedRobot {\n    // Create left and right motors with different CAN IDs\n    private SparkMax m_left = new SparkMax(1, MotorType.kBrushless);\n    private SparkMax m_right = new SparkMax(2, MotorType.kBrushless);\n    \n    @Override\n    public void teleopPeriodic() {\n        // Set both motors to 50% speed\n        m_left.set(0.5);\n        m_right.set(0.5);\n    }\n}","language":"java"}]} />
+<CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot;\n\nimport edu.wpi.first.wpilibj.TimedRobot;\nimport com.ctre.phoenix6.hardware.TalonFX;\nimport com.ctre.phoenix6.controls.DutyCycleOut;\n\npublic class Robot extends TimedRobot {\n    // Create left and right motors with different CAN IDs\n    private final TalonFX m_left = new TalonFX(1);\n    private final TalonFX m_right = new TalonFX(2);\n    private final DutyCycleOut m_output = new DutyCycleOut(0);\n    \n    @Override\n    public void teleopPeriodic() {\n        // Set both motors to 50% output\n        m_left.setControl(m_output.withOutput(0.5));\n        m_right.setControl(m_output.withOutput(0.5));\n    }\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot;\n\nimport edu.wpi.first.wpilibj.TimedRobot;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\n\npublic class Robot extends TimedRobot {\n    // Create left and right motors with different CAN IDs\n    private final SparkMax m_left = new SparkMax(1, MotorType.kBrushless);\n    private final SparkMax m_right = new SparkMax(2, MotorType.kBrushless);\n    \n    @Override\n    public void teleopPeriodic() {\n        // Set both motors to 50% output\n        m_left.set(0.5);\n        m_right.set(0.5);\n    }\n}","language":"java"},{"label":"SPARK Flex","code":"package frc.robot;\n\nimport edu.wpi.first.wpilibj.TimedRobot;\nimport com.revrobotics.spark.SparkFlex;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\n\npublic class Robot extends TimedRobot {\n    private final SparkFlex m_left = new SparkFlex(1, MotorType.kBrushless);\n    private final SparkFlex m_right = new SparkFlex(2, MotorType.kBrushless);\n\n    @Override\n    public void teleopPeriodic() {\n        m_left.set(0.5);\n        m_right.set(0.5);\n    }\n}","language":"java"},{"label":"Thrifty Nova","code":"package frc.robot;\n\nimport com.thethriftybot.devices.ThriftyNova;\nimport edu.wpi.first.wpilibj.TimedRobot;\n\npublic class Robot extends TimedRobot {\n    private final ThriftyNova m_left = new ThriftyNova(1);\n    private final ThriftyNova m_right = new ThriftyNova(2);\n\n    @Override\n    public void teleopPeriodic() {\n        m_left.setPercent(0.5);\n        m_right.setPercent(0.5);\n    }\n}","language":"java"}]} />
 
 <RulesBox title="Key Points" subtitle="Remember:">
 
 - Create motors as private fields.
 - Use unique CAN IDs.
 - Talon FX uses `setControl`.
-- SPARK MAX uses `set`.
+- SPARK MAX and SPARK Flex use `set` for this introductory percent-output example.
+- Thrifty Nova uses `setPercent`.
 - Range is -1.0 to 1.0.
 
 </RulesBox>
@@ -118,8 +155,11 @@ public class Robot extends TimedRobot {
   {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/open-loop-requests.html", "note": "<code>DutyCycleOut</code> for the first motor."},
   {"source": "rev", "path": "brushless/spark-max/gs", "note": "SPARK MAX getting started."},
   {"source": "rev", "path": "revlib/", "note": "REVLib and <code>SparkMax</code>."},
+  {"source": "rev", "path": "revlib/spark/max-vs-flex", "note": "Separate <code>SparkMax</code> and <code>SparkFlex</code> classes and the SPARK Flex constructor."},
   {"source": "rev", "path": "brushless/neo/v1.1", "note": "The NEO brushless motor."},
+  {"source": "thrifty", "path": "thrifty-nova/software-resources/getting-started-with-code", "note": "ThriftyLib installation, <code>ThriftyNova</code> construction, and percent output."},
+  {"source": "thrifty", "path": "thrifty-nova/software-resources/set-output", "note": "The <code>setPercent</code> output range and other supported control modes."},
   {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "The <code>TimedRobot</code> lifecycle methods the examples fill in."}
 ]} />
 
-<LinkGrid links={[{"label":"Controllers and Inputs","id":"controllers-and-inputs"},{"label":"CTRE Setup","id":"ctre-hardware-setup"},{"label":"REV Setup","id":"rev-hardware-setup"}]} title="Resources" section="frc" />
+<LinkGrid links={[{"label":"Controllers and Inputs","id":"controllers-and-inputs"},{"label":"CTRE Setup","id":"ctre-hardware-setup"},{"label":"REV Setup","id":"rev-hardware-setup"},{"label":"SPARK Flex and NEO Vortex","url":"/hardware/rev-spark-flex-and-neo-vortex"},{"label":"Thrifty Nova and Motor Choices","url":"/hardware/thrifty-nova-and-motors"}]} title="Resources" section="frc" />

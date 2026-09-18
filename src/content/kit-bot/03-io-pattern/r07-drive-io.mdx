@@ -14,7 +14,9 @@ durationFixed: true
 
 The Kit Bot drivetrain uses four SparkMax controllers in two leader/follower pairs. This lesson builds its IO interface, real implementation, and 2D physics simulation. Part 2 adds the `Drive` subsystem and gets the robot moving.
 
-By the end of the module a simulated robot drives on a virtual field from joystick input; no hardware required.
+At the end of Part 1, four drivetrain files compile. Part 2 adds driving. The field display is added in R13.
+
+**Refresher:** [Interfaces](/java/fundamentals/java-interfaces). An IO interface lists the methods shared by the real and simulation implementations. **IO** means input/output: sensor readings come in, and voltage requests go out.
 
 ---
 
@@ -44,13 +46,13 @@ Left side                  Right side
 
 Two motors per side. Only the leaders take voltage commands; the followers mirror them via the SparkMax follower mode (covered in [R06](/kit-bot/r06-motor-controllers)). The right side is mounted backwards relative to the left, so both right motors are inverted in software.
 
-That's the entire hardware story. The IO interface hides it from everything above.
+The subsystem calls the IO methods without needing to know which motor-controller objects are behind them.
 
 ---
 
 ### Step 1: create the interface
 
-Create `DriveIO.java`. This is a **complete file**.
+Create `src/main/java/frc/robot/subsystems/drive/DriveIO.java`. This is a **complete file**.
 
 ```java
 package frc.robot.subsystems.drive;
@@ -91,7 +93,7 @@ The interface has one output method, one input method, and one inputs class. Eac
 Two design choices worth naming:
 
 - **`Distance`/`LinearVelocity`, not rotations.** The IO converts motor rotations → wheel distance internally. Everything above the IO works in real physical units, not motor-shaft rotations. This decision is small; not making it means every consumer has to repeat the conversion, and repeat the chance to get it wrong.
-- **Per-side voltages, not arcade speed.** The IO is intentionally low-level. Arcade-drive math (turn the stick inputs into per-side voltages) lives on the subsystem. That keeps the IO trivially substitutable.
+- **Per-side voltages, not arcade speed.** The IO is intentionally low-level. Arcade-drive math (turn the stick inputs into per-side voltages) lives on the subsystem. Both implementations accept the same voltage requests.
 
 ---
 
@@ -139,15 +141,15 @@ This is the exact `DriveConstants` [R03](/kit-bot/r03-constants) already showed 
 
 ### Step 3: create the real implementation
 
-Create `DriveIOReal.java`. This is a **complete file**. It compiles on the laptop, but do not operate real motors yet.
+Create `src/main/java/frc/robot/subsystems/drive/DriveIOReal.java`. This is a **complete file**. It compiles on the laptop, but do not operate real motors yet.
 
 ```java
 package frc.robot.subsystems.drive;
 
 import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.spark.SparkBase.ResetMode;
-import com.revrobotics.spark.SparkBase.PersistMode;
+import com.revrobotics.ResetMode;
+import com.revrobotics.PersistMode;
 import com.revrobotics.spark.config.SparkMaxConfig;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import edu.wpi.first.units.measure.Current;
@@ -251,11 +253,11 @@ public class DriveIOReal implements DriveIO {
 }
 ```
 
-Three things worth lingering on:
+Read these four details:
 
-1. **The two `Config` helpers** (`leaderConfig`, `followerConfig`) eat the SparkMax boilerplate. Without them, the constructor would be 30+ lines of repeated config, exactly the sort of thing the IO pattern lets you contain.
+1. **Configuration helpers** (`leaderConfig` and `followerConfig`) return settings shared by several controllers. This avoids writing the same setup repeatedly.
 2. **Right side inverted at the leader.** The leader is `inverted(true)`. The follower uses `follow(leaderCanId, false)`, "mirror the leader exactly", which propagates the inversion. If your right side ends up spinning the wrong way, this is the line to flip.
-3. **Combined current per side.** `leftCurrent` sums both left motors. That's what your breaker math cares about.
+3. **Combined current per side.** `leftCurrent` adds the two left motors for a side-total measurement. Each motor still has its own current limit and power circuit.
 4. **Units become measures at the IO boundary.** `motorRotationsToMeters` and `motorRpmToMetersPerSecond` return `double` values because REVLib returns primitive sensor values. `Meters.of(...)` and `MetersPerSecond.of(...)` immediately wrap those results before they leave the IO implementation.
 
 ---
@@ -264,7 +266,7 @@ Build again before adding simulation.
 
 ### Step 4: create the simulation implementation
 
-Create `DriveIOSim.java`. This is a **complete file**. WPILib ships a [`DifferentialDrivetrainSim`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html) with a `createKitbotSim` factory that pre-configures the geometry for the standard Kit Bot. We use it directly.
+Create `src/main/java/frc/robot/subsystems/drive/DriveIOSim.java`. This is a **complete file**. WPILib ships a [`DifferentialDrivetrainSim`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html) with a `createKitbotSim` factory that pre-configures the geometry for the standard Kit Bot. We use it directly.
 
 ```java
 package frc.robot.subsystems.drive;
@@ -275,6 +277,8 @@ import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotMotor;
 import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotGearing;
 import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotWheelSize;
 import static edu.wpi.first.units.Units.Meters;
+import static edu.wpi.first.units.Units.MetersPerSecond;
+import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.Volts;
 
 public class DriveIOSim implements DriveIO {
@@ -324,7 +328,7 @@ public class DriveIOSim implements DriveIO {
 
 <RulesBox title="Done when">
 
-The drive files build with `DriveIOSim` beside `DriveIOReal`, and the subsystem compiles against `DriveIO` only. The running check is in Part 2.
+`DriveConstants`, `DriveIO`, `DriveIOReal`, and `DriveIOSim` build. Point to the method that sends voltage and the method that updates sensor readings. The `Drive` subsystem and running check belong to Part 2.
 
 </RulesBox>
 

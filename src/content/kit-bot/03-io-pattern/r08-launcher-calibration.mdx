@@ -12,7 +12,7 @@ durationFixed: true
 ---
 
 
-A competition launcher must score from more than one place on the field. A calibration table stores tested settings for known distances and fills the gaps between them. Use simulation values until a mentor is present for real launcher testing.
+A distance table chooses a launcher setting from a requested distance. **Interpolation** estimates a value between two known entries. Use simulation values until a mentor is present for real launcher testing.
 
 For this first version, the table maps distance in meters to voltage. The values below are examples for simulation. They are not measurements from a real Kit Bot.
 
@@ -45,13 +45,13 @@ public Command launchAtDistance(Distance distance) {
 }
 ```
 
-Import `Command` and `Distance`, then statically import `Meters`. This factory belongs on `Launcher` because the subsystem owns both fuel-path motors. It reuses the two-phase launch helper from Part 2, so the distance table changes the intake-launcher voltage while the feeder still waits through spin-up and then feeds.
+Keep the existing `Command` and `Voltage` imports. Add `edu.wpi.first.units.measure.Distance` and static imports for `Meters` and `Volts` from `edu.wpi.first.units.Units`. This factory belongs on `Launcher` because the subsystem owns both fuel-path motors. It reuses the two-phase launch helper from Part 2, so the distance table changes the intake-launcher voltage while the feeder still waits through spin-up and then feeds.
 
-The map sorts its distance keys. A request for `2.5` meters returns a value between the entries for `2.0` and `3.0`. A request outside the table uses the nearest end value.
+The map sorts its distance keys. A request for `2.5` meters is halfway between `2.0` and `3.0`, so it returns halfway between 8 V and 10 V: 9 V. A request outside the table uses the nearest end value.
 
 ### Add two test bindings
 
-Add temporary bindings in `RobotContainer`:
+Add these bindings inside `RobotContainer.configureBindings()` and statically import `Meters` there too. Keep the D-pad bindings for the capstone distance check:
 
 ```java
 driver.povUp().whileTrue(

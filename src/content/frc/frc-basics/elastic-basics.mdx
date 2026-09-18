@@ -8,74 +8,49 @@ groupOrder: 3
 order: 6
 difficulty: beginner
 duration: 15 min
-description: "Elastic, the browser dashboard: installing it, sending values from robot code over NetworkTables, widgets, and interactive controls with an arm example."
+description: "Launch the Elastic desktop dashboard, connect it to a robot or simulation, add NetworkTables widgets, and save a driver layout."
 ---
 
-### Put robot data on Elastic
+Elastic is a desktop dashboard for an FRC robot. It reads NetworkTables data, displays that data through widgets, and can serve as the dashboard beside the Driver Station during a match. Use it to show the driver a few values that affect decisions, such as match time, mechanism readiness, selected autonomous routine, and robot pose.
 
-Elastic is a web-based dashboard for FRC robots, offering real-time data visualization and control. It connects via NetworkTables and runs in a browser, allowing access from multiple devices simultaneously.
+Use [AdvantageScope](/frc/reading-a-match-log) when you need detailed graphs or log replay. Use Elastic when the driver or operator needs a clear live display.
 
-**Resources:**
+<ReferenceImage
+  src="/media/frc/elastic-empty-tabs.png"
+  alt="Elastic desktop application opened with empty Teleoperated and Autonomous tabs, a widget grid, and NetworkTables connection status"
+  caption="Elastic starts with separate Teleoperated and Autonomous tabs on an empty grid. Screenshot courtesy of"
+  sourceUrl="https://frc-elastic.gitbook.io/docs/getting-started/app-navigation"
+  sourceLabel="the official Elastic documentation"
+/>
 
-[WPILib Documentation](https://docs.wpilib.org/en/stable/docs/software/dashboards/elastic.html)
+### Launch Elastic
 
-[Official Elastic Documentation](https://frc-elastic.gitbook.io/docs)
+The WPILib installer includes Elastic. Launch the installed desktop application from VS Code:
 
-<RulesBox title="Features" subtitle="Elastic allows you to:">
+1. Press `Ctrl+Shift+P` to open the Command Palette.
+2. Run **WPILib: Start Tool**.
+3. Select **Elastic**.
 
-- View sensor data and robot state in real-time.
-- Create custom layouts with drag-and-drop widgets.
-- Monitor motor stats (speed, current, temp).
-- Visualize robot pose on a 2D field.
-- Plot data with interactive graphs.
-- Access from multiple devices.
-- Create responsive layouts.
+On Windows, the WPILib installer also places a shortcut in the current year's WPILib Tools folder. You do not need to open a website to run Elastic.
 
-</RulesBox>
+### Connect to the robot
 
-### Installation & Launch
+Start the robot program or WPILib simulation before checking the connection.
 
-**Installation:** Elastic is installed by the WPILib installer, alongside AdvantageScope. Launch it from *WPILib: Start Tool* → *Elastic* in VS Code or from `wpilib/2026/tools`. A newer WPILib release updates it; the [WPILib releases page](https://github.com/wpilibsuite/allwpilib/releases) lists them.
+Elastic can retrieve the robot address from the Driver Station. If the connection indicator stays disconnected, check these items in order:
 
-**Launch:**
+1. Confirm that the Driver Station or simulation is running.
+2. Confirm that the project and Driver Station use the correct team number.
+3. Confirm that the laptop is connected to the robot network when using real hardware.
+4. Use [Robot Network Troubleshooting](/frc/robot-network-troubleshooting) if the Driver Station also cannot reach the roboRIO.
 
-1. Run your robot code.
+A disconnected Elastic window does not identify the cause by itself. The Driver Station connection indicators show whether the problem affects the whole robot connection or only the dashboard.
 
-2. Open a browser on a connected device.
+### Publish a value
 
-3. Navigate to `https://gold872.github.io/elastic-dashboard/` or use the desktop app.
+Elastic reads NetworkTables topics. `SmartDashboard` provides a short way to publish values to those topics.
 
-**Configuration:** Ensure your team number is set in the project settings for correct IP resolution.
-
-### Interface
-
-**Components:**
-
-- **Canvas:** Main area for widgets.
-
-- **Library:** Available widgets.
-
-- **Configuration:** Widget settings.
-
-- **Toolbar:** Layout tools.
-
-**Widgets:**
-
-- **Basic:** Numbers, text, booleans.
-
-- **Charts:** Line/bar charts, gauges.
-
-- **Field:** 2D robot visualization.
-
-- **Controls:** Buttons, sliders, inputs.
-
-- **Media:** Camera streams.
-
-### Displaying Data
-
-Elastic uses NetworkTables. The easiest method is via the SmartDashboard compatibility layer.
-
-### Sending Data (SmartDashboard)
+This complete `Robot.java` example publishes three values. Run it in simulation, open Elastic, and look for the entries under `SmartDashboard`.
 
 ```java
 package frc.robot;
@@ -83,139 +58,135 @@ package frc.robot;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
-public class Robot extends TimedRobot {
-    private double motorSpeed = 0.5;
-    private String status = "Running";
-    
+public final class Robot extends TimedRobot {
+    private static final String STATUS_KEY = "Robot Status";
+    private static final String READY_KEY = "Launcher Ready";
+    private static final String TARGET_RPS_KEY = "Launcher Target RPS";
+
     @Override
     public void robotPeriodic() {
-        // Send data to SmartDashboard (visible in Elastic)
-        SmartDashboard.putNumber("Motor Speed", motorSpeed);
-        SmartDashboard.putString("Robot Status", status);
-        SmartDashboard.putBoolean("Enabled", true);
+        SmartDashboard.putString(STATUS_KEY, "Running");
+        SmartDashboard.putBoolean(READY_KEY, false);
+        SmartDashboard.putNumber(TARGET_RPS_KEY, 45.0);
     }
 }
 ```
 
-### Widgets
+The key becomes the topic name and widget label. Publishing the same key again updates the existing value.
 
-**Adding:** Click the "Add Widget" (+) button, find your data in the NetworkTables list, and drag it to the grid.
+Choose names that describe what the number represents. `Launcher Target RPS` distinguishes a requested velocity from a measured velocity. Publish the measured value under a separate key such as `Launcher Measured RPS`.
 
-**Editing:** Right-click a widget to edit properties (title, type, settings) or remove it.
+### Add and arrange widgets
 
-**Cameras:** Start automatic capture in `robotInit()` (`CameraServer.startAutomaticCapture();`), then add the stream from the `CameraPublisher` table.
+1. Select **Add Widget**.
+2. Find the topic in the NetworkTables list.
+3. Drag a compatible widget onto the active tab.
+4. Resize the widget and edit its title, range, or display type.
+5. Save the layout with **File → Save** or `Ctrl+S`.
 
-### Interactive Controls
+<ReferenceImage
+  src="/media/frc/elastic-add-widget.png"
+  alt="Elastic desktop application with the Add Widget dialog open over a driver dashboard"
+  caption="The Add Widget dialog lists available NetworkTables topics and compatible widgets. Screenshot courtesy of"
+  sourceUrl="https://frc-elastic.gitbook.io/docs/customizing-your-dashboard/adding-and-customizing-widgets"
+  sourceLabel="the official Elastic documentation"
+/>
 
-Create buttons, sliders, or inputs in Elastic to control the robot.
+Right-click a widget and select **Edit Properties** to change its settings. A number might use a text display, gauge, or graph depending on what the driver needs to notice.
 
-**Reading Values:** Use `SmartDashboard.get` methods.
+<ReferenceImage
+  src="/media/frc/elastic-widget-properties.png"
+  alt="Elastic Edit Properties dialog showing a widget title, display type, range, NetworkTables topic, and update period"
+  caption="Widget properties control the label, display type, range, topic, and update period. Screenshot courtesy of"
+  sourceUrl="https://frc-elastic.gitbook.io/docs/customizing-your-dashboard/adding-and-customizing-widgets"
+  sourceLabel="the official Elastic documentation"
+/>
 
-- `getNumber("key", default)`
+### Build a driver layout
 
-- `getString("key", default)`
+Keep the competition layout focused on information the drive team can act on. A useful first layout can include:
 
-- `getBoolean("key", default)`
+- match time;
+- robot connection and battery state;
+- selected autonomous routine;
+- launcher or mechanism readiness;
+- one camera stream;
+- warnings that require a driver response.
 
-### Reading Data
+Place related widgets together. Use separate tabs for competition, testing, and mechanism setup when one screen becomes crowded.
+
+Lock the layout after arranging it. **Edit → Lock Layout** prevents a drag on a control from moving or deleting a widget. Export the finished layout to a JSON file so another Driver Station laptop can import the same arrangement.
+
+### Display robot pose
+
+Elastic can display a `Field2d` object. The robot code must already calculate a `Pose2d`; the dashboard does not create a pose estimate.
+
+The following partial snippet belongs in the class that publishes dashboard data. Call `publishRobotPose` with the field-relative pose produced by the drivetrain or pose estimator.
 
 ```java
-package frc.robot;
+private final Field2d field = new Field2d();
 
-import edu.wpi.first.wpilibj.TimedRobot;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+public void initializeDashboard() {
+    SmartDashboard.putData("Field", field);
+}
 
-public class Robot extends TimedRobot {
-    @Override
-    public void robotPeriodic() {
-        // Read values from SmartDashboard (set by Elastic widgets)
-        // Second parameter is default value if key doesn't exist
-        double speed = SmartDashboard.getNumber("Target Speed", 0.0);
-        boolean enable = SmartDashboard.getBoolean("Enable", false);
-        
-        if (enable) {
-            setMotorSpeed(speed);
-        }
-    }
-    
-    private void setMotorSpeed(double speed) {
-        // Motor control logic here
-    }
+public void publishRobotPose(Pose2d fieldToRobot) {
+    field.setRobotPose(fieldToRobot);
 }
 ```
 
-### Arm Example
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot;\n\nimport edu.wpi.first.wpilibj.TimedRobot;\nimport edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;\nimport com.ctre.phoenix6.hardware.TalonFX;\nimport com.ctre.phoenix6.controls.DutyCycleOut;\n\npublic class Robot extends TimedRobot {\n    // Arm motor on CAN ID 3\n    private final TalonFX m_motor = new TalonFX(3);\n    private final DutyCycleOut m_output = new DutyCycleOut(0);\n    \n    @Override\n    public void robotInit() {\n        // Initialize dashboard value (creates widget in Elastic)\n        SmartDashboard.putNumber(\"Arm Target\", 0.0);\n    }\n    \n    @Override\n    public void robotPeriodic() {\n        // Read target from dashboard (set by user in Elastic)\n        double target = SmartDashboard.getNumber(\"Arm Target\", 0.0);\n        \n        // Send current position to dashboard (displayed in Elastic)\n        SmartDashboard.putNumber(\"Arm Pos\", m_motor.getPosition().getValueAsDouble());\n        \n        // Control logic here (e.g., PID to reach target)\n        // For now, just set motor to target value\n        m_motor.setControl(m_output.withOutput(target));\n    }\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot;\n\nimport edu.wpi.first.wpilibj.TimedRobot;\nimport edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\n\npublic class Robot extends TimedRobot {\n    // Arm motor on CAN ID 3\n    private final SparkMax m_motor = new SparkMax(3, MotorType.kBrushless);\n    \n    @Override\n    public void robotInit() {\n        // Initialize dashboard value (creates widget in Elastic)\n        SmartDashboard.putNumber(\"Arm Target\", 0.0);\n    }\n    \n    @Override\n    public void robotPeriodic() {\n        // Read target from dashboard (set by user in Elastic)\n        double target = SmartDashboard.getNumber(\"Arm Target\", 0.0);\n        \n        // Send current position to dashboard (displayed in Elastic)\n        SmartDashboard.putNumber(\"Arm Pos\", m_motor.getEncoder().getPosition());\n        \n        // Control logic here (e.g., PID to reach target)\n        // For now, just set motor to target value\n        m_motor.set(target);\n    }\n}","language":"java"}]} />
-
-### Advanced Features
-
-**Charts:** Visualize data over time (e.g., PID tuning).
-
-**Field:** 2D field view (requires odometry).
-
-**Command Widgets:** Monitor command and subsystem states.
-
-**Custom:** Elastic supports custom widgets.
-
-### Field Visualization
-
-**Setup:**
-
-1. Add a Field widget.
-
-2. Configure the field image.
-
-3. Send `Pose2d` data via `Field2d` object.
-
-### Field Pose Example
+The snippet needs these imports:
 
 ```java
-package frc.robot;
-
-import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.math.geometry.Pose2d;
+```
 
-public class Robot extends TimedRobot {
-    // Field visualization object
-    private final Field2d m_field = new Field2d();
-    
-    @Override
-    public void robotInit() {
-        // Add field widget to SmartDashboard (visible in Elastic)
-        SmartDashboard.putData("Field", m_field);
-    }
-    
-    @Override
-    public void robotPeriodic() {
-        // Update robot pose on field visualization
-        Pose2d currentPose = getOdometryPose();
-        m_field.setRobotPose(currentPose);
-    }
-    
-    private Pose2d getOdometryPose() {
-        // Return current robot pose from odometry
-        return new Pose2d(); // Placeholder
-    }
+After publishing the object, add its field widget in Elastic. If the robot icon remains at the origin, inspect the pose value in robot code before changing the dashboard layout.
+
+### Read a dashboard value
+
+Elastic controls can write values back through NetworkTables. Robot code can read them with `SmartDashboard.getNumber`, `getBoolean`, or the matching method for another type.
+
+Treat a dashboard value as a request. The subsystem still applies its limits, enabled-state rules, and other safety checks. Do not use a dashboard control to bypass the commands and subsystem methods that normally control hardware.
+
+```java
+private static final String TEST_OUTPUT_KEY = "Test Output";
+
+public void initializeTestOutput() {
+    SmartDashboard.setDefaultNumber(TEST_OUTPUT_KEY, 0.0);
+}
+
+public double getRequestedTestOutput() {
+    return SmartDashboard.getNumber(TEST_OUTPUT_KEY, 0.0);
 }
 ```
 
-### Considerations
+`setDefaultNumber` supplies an initial value without replacing a value already stored in NetworkTables. Keep test controls on a testing tab and confirm that the robot is in the intended mode before applying the request.
 
-**Multi-Device:** Multiple browsers can connect. Useful for separate driver/operator views.
+### Check your work
 
-**Performance:** Manage bandwidth. Update non-critical data less frequently (5-20 Hz).
+You are finished when you can:
+
+1. Launch Elastic as a WPILib desktop tool.
+2. Connect it to simulation or a robot.
+3. Publish a named value and add its widget.
+4. Save and lock the layout.
+5. Explain which values belong on the driver tab and which belong on a testing tab.
 
 <Sources items={[
-  {"source": "mantik", "path": "src/content/frc/frc-basics/elastic-basics.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
-  {"source": "wpilib", "path": "docs/software/dashboards/elastic.html", "note": "Elastic in the WPILib installer and docs."},
-  {"url": "https://frc-elastic.gitbook.io/docs", "label": "Elastic docs", "note": "Layouts, widgets, connecting to the robot."},
-  {"url": "https://github.com/Gold872/elastic-dashboard", "label": "Elastic repository", "note": "Releases."},
-  {"source": "wpilib", "path": "docs/zero-to-robot/step-2/wpilib-setup.html", "note": "The installer that ships Elastic and AdvantageScope."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "What Cobra publishes for the dashboard."}
+  {"source": "wpilib", "path": "docs/software/dashboards/elastic.html", "note": "Elastic's purpose, WPILib installation, VS Code launch path, and dashboard capabilities."},
+  {"url": "https://frc-elastic.gitbook.io/docs/getting-started/app-navigation", "label": "Elastic: App Navigation", "note": "Tabs, saving and exporting layouts, layout locking, and the empty-dashboard screenshot."},
+  {"url": "https://frc-elastic.gitbook.io/docs/getting-started/connecting-to-your-robot", "label": "Elastic: Connecting to Your Robot", "note": "NetworkTables connection behavior and robot-address setup."},
+  {"url": "https://frc-elastic.gitbook.io/docs/customizing-your-dashboard/adding-and-customizing-widgets", "label": "Elastic: Adding and Customizing Widgets", "note": "Widget selection, placement, properties, and the widget screenshots."},
+  {"source": "wpilib", "path": "docs/software/dashboards/smartdashboard/displaying-expressions.html", "note": "Publishing numbers, strings, and booleans through SmartDashboard."},
+  {"source": "wpilib", "path": "docs/software/dashboards/glass/field2d-widget.html", "note": "Publishing a Field2d object and updating its robot pose."}
 ]} />
 
-<LinkGrid links={[{"label":"Introduction to Command-Based","id":"introduction-to-command-based"},{"label":"Elastic Documentation","url":"https://frc-elastic.gitbook.io/docs"}]} title="Resources" section="frc" />
-
+<LinkGrid links={[
+  {"label":"Robot Network Troubleshooting","id":"robot-network-troubleshooting"},
+  {"label":"Reading a Match Log","id":"reading-a-match-log"},
+  {"label":"Introduction to Pose Estimation","id":"introduction-to-pose-estimation"},
+  {"label":"Elastic Documentation","url":"https://frc-elastic.gitbook.io/docs"}
+]} title="Resources" section="frc" />

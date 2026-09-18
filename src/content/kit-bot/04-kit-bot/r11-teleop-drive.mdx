@@ -11,17 +11,20 @@ description: "The default-command pattern that turns stick input into drivetrain
 ---
 
 
-You have a `Drive` subsystem (R07) and stick math that conditions raw input (R10). This module is where they meet: a proper teleop default command, two button-bound conveniences, and the driving experience all the previous batches were building toward.
+Use the `Drive` subsystem from R07 and `StickCurve` from R10 to create a command that reads the driver's sticks on each robot tick.
+
+**Refreshers:** [Commands and triggers](/kit-bot/r05-commands-and-triggers) and [Functional Interfaces](/java/fundamentals/java-functional-interfaces).
 
 ---
 
 ### The default command, in its own class
 
-Up to now the default command has been a lambda inside `configureBindings`. That works, but once a command grows past three lines it's worth a class. Extracting also makes the command reusable from autonomous later.
+Create `src/main/java/frc/robot/commands/TeleopDrive.java` with this complete file. It moves the existing stick-reading code into one named class. Autonomous routines will use `Drive.driveAt` instead of reading the controller.
 
 ```java
 package frc.robot.commands;
 
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.DriveConstants;
@@ -46,6 +49,11 @@ public class TeleopDrive extends Command {
 
     @Override
     public void execute() {
+        if (!DriverStation.isTeleopEnabled()) {
+            drive.stop();
+            return;
+        }
+
         double speed = StickCurve.shape(
             forwardSupplier.getAsDouble(),
             DriveConstants.TELEOP_DEADBAND,
@@ -82,7 +90,7 @@ Two things to absorb from this shape:
 
 ### Wiring it in
 
-In `RobotContainer`:
+In `RobotContainer`, import `frc.robot.commands.TeleopDrive`. Replace only the drive default-command call. Keep the launcher, D-pad, X, and Y bindings. The partial snippet shows a B-button demonstration; remove the old heartbeat B binding first.
 
 ```java
 private void configureBindings() {
@@ -90,7 +98,7 @@ private void configureBindings() {
         new TeleopDrive(
             drive,
             () -> -driver.getLeftY(),     // forward = up on stick = negative Y
-            () -> -driver.getRightX()     // turn = right on stick = negative X (convention varies)
+            () -> driver.getRightX()     // right stick right = positive X = right turn
         )
     );
 
@@ -106,14 +114,18 @@ The `B` button binds directly to `drive.stopCommand()`. The action operates only
 
 ### The two stick conventions
 
-In the snippet above the rotation supplier is `() -> -driver.getRightX()`. You may want to drop the negative depending on which way "turn right" feels right to your driver:
+For the `arcadeDrive` equations in this course:
 
-| Style | `rotationSupplier` |
-|---|---|
-| "Right stick right = robot turns right" (most common) | `() -> -driver.getRightX()` (or `+`; flip until it feels right) |
-| "Right stick right = field-right turn" (less common) | depends on orientation; usually fine to leave as the previous |
+| Input | Read it as | Expected result |
+|---|---|---|
+| Left stick forward | `-driver.getLeftY()` | Both sides move forward |
+| Right stick right | `driver.getRightX()` | Left side forward, right side backward |
 
-Test the convention in simulation. Push the stick right and observe the robot. If it turns opposite the intended direction, change the sign and test again.
+Check those signs in simulation. This is a robot-relative right turn; it does not depend on where the robot sits on the field.
+
+The mode check in `execute()` matters: a default command can be scheduled whenever its subsystem is free, including in autonomous. `isTeleopEnabled()` prevents this command from reading the sticks in another mode.
+
+`stopCommand()` stops once, then ends. The default command can resume and read the sticks again. **B is not an emergency stop or a latched stop.** Use Driver Station Disable to stop normal robot operation.
 
 ---
 
@@ -137,15 +149,7 @@ If any of these aren't true, suspect the `TELEOP_DEADBAND` and `MAX_DRIVE_PERCEN
 
 ### Features to add later
 
-Three things you'll see in other curricula at this stage; we're skipping them on purpose for the compressed plan.
-
-- **Slew-rate limiting.** A `SlewRateLimiter` smooths step changes in the commanded value, useful at competitions for not browning out the battery. Worth adding once the rest of the robot works. WPILib has [`SlewRateLimiter`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/filter/SlewRateLimiter.html) built in.
-- **Cheesy/curvature drive.** A more advanced control scheme. Beyond Kit Bot scope.
-- **Trigger-based throttling.** "Hold left trigger to go slow." A nice driver-comfort feature. Add it if and when you want it: it's a multiplier on the `MAX_DRIVE_PERCENT` cap.
-
-The default command above is intentionally minimal. It does one thing well; you'll add things on top of it through composition later, the same `.andThen` / `.withTimeout` decorators [R14](/kit-bot/r14-time-based-autonomous) uses to build autonomous routines out of small commands.
-
----
+Keep this version working before experimenting with another drive style. [R15](/kit-bot/r15-where-to-next) helps you choose a follow-up from a behavior you want to improve.
 
 <RulesBox title="On the real robot">
 
@@ -155,7 +159,7 @@ Complete [R12 Part 2: First Deploy](/kit-bot/r12-first-deploy) first. Check forw
 
 <RulesBox title="Done when">
 
-With the default command in its own class, enabling in teleop drives with no button pressed, disabling stops it, and no other command has to be scheduled for the robot to respond to the sticks. The console shows nothing; the robot moving under a default command is the check.
+With the default command in its own class, enabling in teleop drives with no button pressed, disabling stops it, and no other command has to be scheduled for the robot to respond to the sticks. In autonomous with no drive routine selected, moving the sticks produces no drive request. Use the distance-reading check from R07 until the field display is added in R13.
 
 </RulesBox>
 

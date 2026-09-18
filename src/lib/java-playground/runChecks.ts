@@ -1,4 +1,3 @@
-import { compileAndRunCases } from './cheerpjRunner';
 import { outputMatchesPattern, outputsMatch } from './compareOutput';
 import type { CheckResult, HiddenTest, StatusFn } from './types';
 
@@ -14,6 +13,7 @@ export async function runHiddenTests(
   onStatus?: StatusFn,
   entryClass = 'Main',
 ): Promise<CheckResult> {
+  const { compileAndRunCases } = await import('./cheerpjRunner');
   const results = await compileAndRunCases(
     source,
     tests.map((test) => test.stdin ?? ''),

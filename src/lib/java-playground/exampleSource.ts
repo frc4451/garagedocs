@@ -1,4 +1,4 @@
-import { hasMainMethod, publicClassName, withoutComments } from './sourceChecks';
+import { hasMainMethod, withoutComments } from './sourceChecks';
 
 export interface WrappedExample {
   source: string;
@@ -228,10 +228,6 @@ interface TypeDecl {
   index: number;
 }
 
-function findTypeDeclaration(source: string): TypeDecl | null {
-  return collectTypeSpans(source)[0]?.decl ?? null;
-}
-
 interface TypeSpan {
   decl: TypeDecl;
   /** Exclusive index after the type's closing brace. */
@@ -293,10 +289,17 @@ function isAnnotationOnly(text: string): boolean {
 /** Lesson snippets often mix types with a demo. Java allows only one public type per file. */
 /** `static class X` is a nested-class habit; at the top level of a unit it is an error. */
 function stripTopLevelStatic(source: string): string {
-  return source.replace(
-    /(^|\n)([ \t]*)((?:public\s+)?)static\s+((?:(?:abstract|final|strictfp)\s+)*)(class|interface|enum|record)\b/g,
-    '$1$2$3$4$5',
-  );
+  let result = source;
+  for (const span of collectTypeSpans(source).reverse()) {
+    const start = span.decl.index;
+    result =
+      result.slice(0, start) +
+      result.slice(start).replace(
+        /^([ \t]*)(public\s+)?static\s+/,
+        '$1$2',
+      );
+  }
+  return result;
 }
 
 function demotePublicTypes(source: string): string {
@@ -643,13 +646,26 @@ function wrapExampleSourceAlone(raw: string): WrappedExample {
 
     const unit = joinParts(preamble, stripTopLevelStatic(typeBlock)) + (source.endsWith('\n') ? '\n' : '');
     const withImports = ensureCommonImports(unit.endsWith('\n') ? unit : `${unit}\n`);
-    const publicName = publicClassName(withImports);
-    const entryClass = publicName ?? first.decl.name;
-    const kind = findTypeDeclaration(withImports)?.kind ?? first.decl.kind;
+    const unitSpans = collectTypeSpans(withImports);
+    const mainType = unitSpans.find(
+      (span) => span.decl.kind === 'class' && hasMainMethod(withImports.slice(span.decl.index, span.end)),
+    );
+    const entryClass = mainType?.decl.name ?? unitSpans.find((span) => span.decl.isPublic)?.decl.name ?? first.decl.name;
+    const kind = unitSpans.find((span) => span.decl.name === entryClass)?.decl.kind ?? first.decl.kind;
+    let compiledSource = withImports;
+    // Preserve the authored declarations; only the single-file compiler copy needs
+    // package access for sibling types. Nested public types keep their visibility.
+    for (const span of [...unitSpans].reverse()) {
+      if (!span.decl.isPublic || span.decl.name === entryClass) continue;
+      const start = span.decl.index;
+      compiledSource =
+        compiledSource.slice(0, start) +
+        compiledSource.slice(start).replace(/^([ \t]*)public\s+/, '$1');
+    }
     return {
-      source: withImports,
+      source: compiledSource,
       entryClass,
-      hasMain: kind === 'class' && hasMainMethod(withImports),
+      hasMain: kind === 'class' && hasMainMethod(compiledSource),
       wrapped: Boolean(maskComments(leading).trim()),
     };
   }

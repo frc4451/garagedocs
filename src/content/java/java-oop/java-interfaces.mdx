@@ -16,22 +16,22 @@ description: Declaring a capability that any class can claim, implementing sever
 An interface lists methods a class promises to provide, without saying how.
 
 ```java
-interface Stoppable {
-    void stop();
+public interface Stoppable {
+    public void stop();
 }
 ```
 
 Any class can claim that capability, regardless of what else it is:
 
 ```java norun
-class Intake extends Subsystem implements Stoppable {
+public class Intake extends Subsystem implements Stoppable {
     @Override
     public void stop() {
         motor.set(0);
     }
 }
 
-class Camera implements Stoppable {          // unrelated to Subsystem
+public class Camera implements Stoppable {          // unrelated to Subsystem
     @Override
     public void stop() {
         stopRecording();
@@ -53,10 +53,10 @@ That is the thing [inheritance](/java/fundamentals/java-inheritance#java-has-sin
 ### Implementing several
 
 ```java norun
-interface Stoppable  { void stop(); }
-interface Loggable   { String toLogLine(); }
+public interface Stoppable  { public void stop(); }
+public interface Loggable   { public String toLogLine(); }
 
-class Intake extends Subsystem implements Stoppable, Loggable {
+public class Intake extends Subsystem implements Stoppable, Loggable {
     @Override public void stop() { motor.set(0); }
     @Override public String toLogLine() { return "intake: " + motor.get(); }
 }
@@ -66,11 +66,11 @@ class Intake extends Subsystem implements Stoppable, Loggable {
 
 <RulesBox title="Interface methods are public">
 
-Methods declared in an interface are implicitly `public`, so implementations must be `public` too. Writing:
+The abstract interface methods shown here are public, and their implementations must be public too. Interfaces can also contain private helper methods with bodies. A private implementation of a public requirement is invalid:
 
 ```java norun
 @Override
-void stop() { }              // package-private: will not compile
+private void stop() { }             // weaker access: will not compile
 ```
 
 fails with "attempting to assign weaker access privileges". Java will not let an implementation be less visible than the interface promises. Always write `public` on interface implementations.
@@ -82,10 +82,10 @@ fails with "attempting to assign weaker access privileges". Java will not let an
 Originally every interface method was abstract. Modern Java lets an interface supply a body with `default`:
 
 ```java
-interface Stoppable {
-    void stop();
+public interface Stoppable {
+    public void stop();
 
-    default void emergencyStop() {
+    public default void emergencyStop() {
         System.out.println("emergency stop requested");
         stop();                              // may call abstract methods
     }
@@ -94,11 +94,11 @@ interface Stoppable {
 
 Implementations get `emergencyStop` for free and may override it if they want something different.
 
-The reason `default` exists is practical: adding a method to an interface used to break every existing implementation. A `default` method can be added without breaking anything, which is how the standard library gained things like `List.sort` and `Collection.removeIf` without invalidating existing code.
+A default method supplies behavior that an implementation can inherit. It can let an interface gain an operation without requiring each class to implement it. Conflicting inherited defaults can still require an explicit override.
 
 <RulesBox title="Do not treat default methods as a replacement for abstract classes">
 
-A `default` method cannot use instance fields, because interfaces have no instance state. It can only call other interface methods.
+An interface has no instance fields of its own. A default method can use parameters, call other methods, and access interface constants.
 
 When shared behaviour needs shared *data*, you still want an [abstract class](/java/fundamentals/java-abstract-classes#abstract-class-or-interface).
 
@@ -109,10 +109,10 @@ When shared behaviour needs shared *data*, you still want an [abstract class](/j
 An interface may also hold static helpers:
 
 ```java norun
-interface Stoppable {
-    void stop();
+public interface Stoppable {
+    public void stop();
 
-    static void stopAll(List<Stoppable> items) {
+    public static void stopAll(List<Stoppable> items) {
         for (Stoppable s : items) s.stop();
     }
 }
@@ -129,8 +129,8 @@ Private interface methods also exist, purely so several `default` methods can sh
 Fields in an interface are implicitly `public static final`:
 
 ```java
-interface RobotLimits {
-    double MAX_SPEED = 4.5;              // public static final
+public interface RobotLimits {
+    public static final double MAX_SPEED = 4.5;              // public static final
 }
 ```
 
@@ -142,8 +142,8 @@ An interface with exactly one abstract method can be implemented by a [lambda](/
 
 ```java
 @FunctionalInterface
-interface ReadingTest {
-    boolean matches(int reading);
+public interface ReadingTest {
+    public boolean matches(int reading);
 }
 
 ReadingTest above100 = r -> r > 100;      // no class needed
@@ -225,7 +225,7 @@ The same reasoning drives [dependency injection](/java/fundamentals/java-depende
 </ExerciseBox>
 
 <LinkGrid
-  title="Next"
+  title="Related"
   section="java"
   links={[
     { "label": "Runtime Polymorphism", "id": "java-runtime-polymorphism" },
@@ -254,3 +254,5 @@ The same reasoning drives [dependency injection](/java/fundamentals/java-depende
     { "label": "Dependency Injection", "id": "java-dependency-injection" }
   ]}
 />
+
+<LinkGrid title="Next lesson" section="java" links={[{"label": "Runtime Polymorphism", "id": "java-runtime-polymorphism"}]} />

@@ -4,8 +4,8 @@ lessonId: java-memoization-and-dynamic-programming
 section: java
 group: java-algorithms
 groupLabel: "Common Algorithms"
-groupOrder: 7
-order: 9
+groupOrder: 8
+order: 12
 difficulty: advanced
 duration: 30 min
 description: Remembering results you have already computed so a recursion stops repeating itself, and building the same answers bottom-up with a table.
@@ -16,13 +16,13 @@ description: Remembering results you have already computed so a recursion stops 
 This recursion is correct and unusably slow:
 
 ```java
-static int fib(int n) {
+public static int fib(int n) {
     if (n <= 1) return n;
     return fib(n - 1) + fib(n - 2);
 }
 ```
 
-Trace `fib(5)` and the reason appears. `fib(3)` is computed twice, `fib(2)` three times, `fib(1)` five times. The tree of calls roughly doubles at each level, so `fib(40)` makes over a billion calls, nearly all of them recomputing values already known.
+Trace fib(5): fib(3) is computed twice, fib(2) three times, and fib(1) five times. Larger inputs repeat more work; fib(40) makes hundreds of millions of calls.
 
 Nothing is wrong with the logic. The problem is that it has no memory.
 
@@ -31,9 +31,9 @@ Nothing is wrong with the logic. The problem is that it has no memory.
 Store each result the first time you compute it, and return the stored value afterwards.
 
 ```java
-static long[] memo;
+private static long[] memo;
 
-static long fib(int n) {
+public static long fib(int n) {
     if (n <= 1) return n;
     if (memo[n] != 0) return memo[n];      // already computed
     memo[n] = fib(n - 1) + fib(n - 2);     // compute once, remember
@@ -45,7 +45,7 @@ memo = new long[50];
 System.out.println(fib(45));
 ```
 
-Each value is now computed exactly once, so `fib(45)` takes 45 steps instead of billions. The change is three lines.
+With a cache, each distinct Fibonacci value is calculated once. The work grows linearly with n, with additional calls returning cached values.
 
 <RulesBox title="Choose a sentinel that cannot be a real answer">
 
@@ -68,24 +68,24 @@ Note the `long`. Fibonacci exceeds `int` around `fib(47)`, and overflow gives a 
 
 ### When memoization applies
 
-Two conditions, both required:
+<RulesBox title="When caching helps">
 
-<RulesBox title="The two properties">
+**Repeated inputs:** several calls request the same subproblem. Reusing its result can avoid repeated work.
 
-**Overlapping sub-problems.** The same sub-problem is solved more than once. If every call is unique, caching stores a lot and never gets a hit.
+**Reusable results:** the stored result remains valid for those inputs. If a result also depends on changing state, include that state in the key or clear the cache when it changes.
 
-**Optimal substructure.** The answer to a problem can be built from answers to smaller versions of it. If solving a piece optimally does not help solve the whole, caching pieces is useless.
-
-Fibonacci has both. Sorting has neither in a useful way, which is why you never memoise a sort.
+Dynamic programming combines related subproblem results. Optimization problems often require optimal substructure; counting problems such as Fibonacci use a recurrence without choosing an optimal solution.
 
 </RulesBox>
+
+
 
 ### Tabulation: the same thing bottom-up
 
 Instead of recursing down and caching on the way back, fill a table from the smallest case upward.
 
 ```java
-static long fibTable(int n) {
+public static long fibTable(int n) {
     if (n <= 1) return n;
 
     long[] table = new long[n + 1];
@@ -120,7 +120,7 @@ Write the recursion first, add memoisation to make it fast, and convert to a tab
 Once tabulated, you often see that only the last few entries are ever used:
 
 ```java
-static long fibTwoVars(int n) {
+public static long fibTwoVars(int n) {
     if (n <= 1) return n;
 
     long previous = 0, current = 1;
@@ -142,7 +142,7 @@ The table is gone entirely. This only works because each value depends on exactl
 The recurrence follows from the last step taken: it was 1, 2, or 3 steps, so the total is the sum of the ways to reach each of those positions.
 
 ```java
-static long countWays(int n) {
+public static long countWays(int n) {
     long[] ways = new long[Math.max(n + 1, 4)];
     ways[0] = 1;                          // one way to stand still
     ways[1] = 1;
@@ -162,7 +162,7 @@ Setting `ways[0] = 1` is the part that looks odd and matters most. There is exac
 *How many routes from the top-left to the bottom-right of a grid, moving only right or down, avoiding blocked cells?*
 
 ```java
-static long countPaths(char[][] grid) {
+public static long countPaths(char[][] grid) {
     int rows = grid.length, cols = grid[0].length;
     long[][] paths = new long[rows][cols];
 
@@ -197,7 +197,7 @@ The code is rarely the hard part. Working out the recurrence is.
 4. **Determine the fill order.** Everything a state depends on must already be computed.
 5. **Check a small case by hand** before trusting the code.
 
-Step 5 catches most errors. If `dp[3]` disagrees with what you counted on paper, the recurrence is wrong, not the code.
+Step 5 catches most errors. If `dp[3]` disagrees with what you counted on paper, check both the recurrence and its implementation.
 
 </RulesBox>
 
@@ -207,7 +207,7 @@ Step 5 catches most errors. If `dp[3]` disagrees with what you counted on paper,
 - **Wrong base case.** `ways[0] = 0` instead of `1` makes every answer zero.
 - **Wrong fill order**, reading entries not yet computed.
 - **Off-by-one in the table size.** For values up to `n`, you need `n + 1` slots.
-- **`int` overflow.** Counting problems grow fast; use `long`.
+- **`int` overflow.** Counting problems grow fast; use `long` where it fits, and check its range too.
 - **Memoising something without overlapping sub-problems**, adding overhead for nothing.
 - **Forgetting to reset the cache** between independent test cases.
 
@@ -261,3 +261,5 @@ Step 5 catches most errors. If `dp[3]` disagrees with what you counted on paper,
     {"label":"A27: Recursion Warmups","url":"/java/assignments/a27-recursion-warmups"}
   ]}
 />
+
+<LinkGrid title="Next lesson" section="java" links={[{"label": "Factory Methods", "id": "java-factory-methods"}]} />

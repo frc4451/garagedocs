@@ -1,0 +1,72 @@
+---
+interface Props {
+  sourcePath?: string;
+}
+
+const { sourcePath } = Astro.props;
+const editEndpoint = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/__garagedocs/open-in-vscode`;
+---
+
+{import.meta.env.DEV && sourcePath && (
+  <>
+    <button
+      class="dev-edit-link"
+      type="button"
+      data-edit-source={sourcePath}
+      data-edit-endpoint={editEndpoint}
+      aria-label="Open this page's source file in the Visual Studio Code window running GarageDocs"
+      title="Edit this page in VS Code"
+    >
+      <span class="dev-edit-icon" aria-hidden="true">&#9998;</span>
+      <span class="visually-hidden" data-edit-status aria-live="polite">Edit this page in VS Code</span>
+    </button>
+
+    <script is:inline>
+      (() => {
+        if (document.documentElement.dataset.devEditLinkReady === 'true') return;
+        document.documentElement.dataset.devEditLinkReady = 'true';
+
+        document.addEventListener('click', async (event) => {
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+
+          const button = target.closest('[data-edit-source]');
+          if (!(button instanceof HTMLButtonElement) || button.disabled) return;
+
+          const sourcePath = button.dataset.editSource;
+          const endpoint = button.dataset.editEndpoint;
+          if (!sourcePath || !endpoint) return;
+
+          const status = button.querySelector('[data-edit-status]');
+          const setStatus = (message, state) => {
+            if (status) status.textContent = message;
+            button.setAttribute('aria-label', message);
+            button.title = message;
+            button.dataset.editState = state;
+          };
+
+          button.disabled = true;
+          setStatus('Opening this page in VS Code', 'opening');
+
+          try {
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sourcePath }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Unable to open this page in VS Code.');
+            setStatus('Opened this page in VS Code', 'opened');
+          } catch (error) {
+            setStatus(error instanceof Error ? error.message : 'Unable to open this page in VS Code', 'error');
+          }
+
+          window.setTimeout(() => {
+            setStatus('Edit this page in VS Code', 'idle');
+            button.disabled = false;
+          }, 3000);
+        });
+      })();
+    </script>
+  </>
+)}

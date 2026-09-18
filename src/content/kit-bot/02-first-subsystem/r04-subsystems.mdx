@@ -11,7 +11,7 @@ description: "SubsystemBase, periodic(), and a counter subsystem with no hardwar
 ---
 
 
-A **subsystem** is one mechanism on the robot: the drivetrain, the launcher, the intake. Each one is a Java class that owns its hardware, manages its own state, and exposes a small public API.
+A **subsystem** is a Java class responsible for one robot capability. This Kit Bot has a drivetrain subsystem and a launcher subsystem that also handles intake. Its **state** is the information it remembers in fields. Its **public API** is the set of methods other code can call.
 
 A subsystem is a Java class, so the class owns its fields and methods. WPILib's `SubsystemBase` adds the connection to the command scheduler. If inheritance is new, read [Inheritance](/java/fundamentals/java-inheritance#sharing-what-is-common) before continuing. [A16](/java/assignments/a16-subsystem-family) provides extra practice with the same shape.
 
@@ -42,7 +42,7 @@ By extending [`SubsystemBase`](https://github.wpilib.org/allwpilib/docs/release/
 1. **`periodic()` is called every scheduler tick** (every 20 ms). You override it to do per-tick work.
 2. **The scheduler tracks "requirements"**. When a command says it requires this subsystem, the scheduler ensures only one command at a time owns it.
 3. **Default-command support**. You can register a "this is what to do when nothing else is happening" command, like "drive with sticks" for the drivetrain. The scheduler runs it automatically.
-4. **Sendable hooks for telemetry**. `SubsystemBase` implements [`Sendable`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/util/sendable/Sendable.html), which is how dashboard tools introspect an object automatically. This curriculum doesn't lean on that path: R13 publishes telemetry by hand through NetworkTables instead, since we're using AdvantageScope rather than a Sendable-driven dashboard.
+4. **Sendable hooks for telemetry**. `SubsystemBase` implements [`Sendable`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/util/sendable/Sendable.html), which lets dashboard tools display information about the subsystem. R13 shows how to publish the measurements we want to graph in AdvantageScope.
 
 You will write one class per mechanism. Each class extends `SubsystemBase`. That's the entire pattern.
 
@@ -64,7 +64,7 @@ What it does **not** do:
 - Decide when a command should run. Triggers and autonomous routines schedule the commands.
 - Talk directly to other subsystems. Commands that coordinate several mechanisms compose their subsystem commands outside the subsystems.
 
-This separation is what lets you swap hardware (next batch, R07 / R08), test in isolation, and reason about one mechanism without dragging in the rest of the robot. R05 adds command-returning methods to `Heartbeat`; R08 uses the same pattern for `Launcher.launchFuel()`.
+This separation is what lets you change the hardware implementation in R07 and R08 and test one mechanism at a time. R05 adds command-returning methods to `Heartbeat`; R08 uses the same pattern for `Launcher.launchFuel()`.
 
 ---
 
@@ -103,11 +103,11 @@ public class Heartbeat extends SubsystemBase {
 
 It has the three jobs:
 
-- **Owns state**: the `tickCount` field. (No hardware yet, we'll add that in the next batch.)
+- **Owns state**: the `tickCount` field. 
 - **Public API**: `getTickCount()` and `reset()`.
 - **Periodic work**: increments the counter every tick.
 
-Now wire it into `RobotContainer.java`:
+Replace `src/main/java/frc/robot/RobotContainer.java` with this complete file. It removes the template example bindings. Remove unused `ExampleCommand.java` and `ExampleSubsystem.java` only after confirming nothing refers to them.
 
 ```java
 package frc.robot;
@@ -141,7 +141,7 @@ Two things to notice:
 
 ### Run it
 
-Build and simulate (`F5`). Enable the robot in teleop. After about one second of being enabled, the console should start printing:
+Build and start simulation. Leave it disabled at first. After about one second, the console should start printing:
 
 ```
 heartbeat: 50 ticks
@@ -158,51 +158,21 @@ If the prints don't start at all, the most common cause is the subsystem isn't b
 
 ### What a real subsystem will look like
 
-Sneak peek of where this is going. By R07 your `Drive` subsystem will look roughly like:
+R07 adds a `DriveIO` field to a drivetrain subsystem. `DriveIO` is an **interface**: a list of methods the subsystem can call. One implementation talks to real controllers; another talks to a simulation.
 
-```java
-public class Drive extends SubsystemBase {
-
-    private final DriveIO io;                                // hardware-facing interface
-    private Voltage leftVoltage  = Volts.of(0);
-    private Voltage rightVoltage = Volts.of(0);
-
-    public Drive(DriveIO io) {
-        this.io = io;
-    }
-
-    @Override
-    public void periodic() {
-        io.setVoltages(leftVoltage, rightVoltage);
-        // ... telemetry publishing, see R13
-    }
-
-    public void arcadeDrive(double speed, double rotation) {
-        leftVoltage  = Volts.of((speed + rotation) * 12.0);
-        rightVoltage = Volts.of((speed - rotation) * 12.0);
-    }
-}
-```
-
-Three additions to today's heartbeat:
-
-1. A `DriveIO` field: the IO interface from A17. `Drive` doesn't know whether the IO talks to real motors or a sim.
-2. State variables (`leftVoltage`, `rightVoltage`): the desired output, updated by the public API. Typed as `Voltage`, not `double`, using [WPILib's Units library](/kit-bot/r03-constants) you'll see everywhere from R07 onward.
-3. A meaningful public method, `arcadeDrive(speed, rotation)`, that commands call. `speed`/`rotation` stay plain `double`: dimensionless joystick fractions, not a physical quantity.
-
-Everything else is the same shape as `Heartbeat`. We get there in R07, then repeat the pattern in R08, the next batch after this one.
+Keep the `Heartbeat` project working for now. No drivetrain code is needed in this lesson.
 
 ---
 
 ### Why subsystems are classes
 
-A common question is why the motor variables cannot live in `RobotContainer` without the wrapper.
+A subsystem groups the fields and methods for one capability.
 
-Three reasons:
+1. The scheduler tracks the actual subsystem object. Two commands that require that object cannot run together.
+2. Private fields keep other classes from changing the mechanism's settings or outputs directly.
+3. An IO interface lets the same subsystem logic use real or simulated hardware.
 
-1. **The scheduler needs to know about them**. The requirements system, "no two commands can use the drivetrain at once", works by name-matching subsystems. Without subsystem objects, no requirements, no safety.
-2. **Encapsulation** ([Classes: Instance Variables and Encapsulation](/java/fundamentals/java-classes#instance-variables-and-encapsulation)). The drivetrain has invariants (max voltage, current limit). The subsystem class is where those get enforced. Public field access bypasses them.
-3. **Swappability**. With the IO pattern (coming up in R07), you can swap real hardware for a sim implementation. That swap happens at subsystem construction time. Without a class, there's nothing to swap.
+Requirements organize command access. They do not replace electrical protection, physical guarding, or a person ready to disable the robot.
 
 ---
 
@@ -235,7 +205,7 @@ That's the shape every subsystem will follow.
 
 <RulesBox title="Done when">
 
-Simulate, enable in teleop, and the `Heartbeat` subsystem's tick count rises in the console at 50 Hz. Disable and it keeps ticking, because `periodic` runs regardless of mode. That observation is the point of this module.
+The counter increases about 50 times per second but prints only once every 50 counts, about once per second. It keeps counting while disabled. Show increasing values and explain the difference between updating the counter and printing it.
 
 </RulesBox>
 

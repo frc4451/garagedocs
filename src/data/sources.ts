@@ -155,7 +155,7 @@ export const sourceRegistry = {
   bline: {
     name: 'BLine docs',
     base: 'https://bline-docs.pages.dev/',
-    version: 'BLine-Lib 0.8.4',
+    version: 'BLine-Lib 0.9.1',
   },
   'maple-sim': {
     name: 'maple-sim docs',
@@ -235,4 +235,3 @@ export const sourceRegistry = {
 } as const satisfies Record<string, SourceDefinition>;
 
 export type SourceId = keyof typeof sourceRegistry;
-

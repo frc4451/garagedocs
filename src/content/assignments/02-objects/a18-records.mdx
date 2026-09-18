@@ -13,6 +13,7 @@ description: "Let the compiler write the boilerplate: records, compact construct
 
 **Topic:** records, compact constructors, `Comparable<T>`, immutable data carriers.
 **Cites:** [Classes](/java/fundamentals/java-classes), [Objects](/java/fundamentals/java-objects), [Sorting](/java/fundamentals/java-sorting-algorithms).
+**Also review:** [Enums and Records](/java/fundamentals/java-enums-and-records), [Generics](/java/fundamentals/java-generics).
 **Difficulty:** intermediate. **Estimated time:** 75 minutes.
 
 **Repository checkpoint:** Work in `assignments/a18-records/` inside the repository from [A00](/java/assignments/a00-practice-repository-setup). Keep every source and input file for
@@ -21,17 +22,9 @@ this assignment there. After completing the checks and rubric, update the root
 
 ### Scenario
 
-Look back at [A11](/java/assignments/a11-simple-robot-class). Four fields cost you a constructor,
-four getters, a `toString` and an `equals`: perhaps eighty lines, of which maybe six
-carried a decision. Every one of those lines is somewhere a typo can hide.
+Use records to group related values. Java supplies component accessors, equals, hashCode, and toString. Add validation and methods for the behavior the assignment needs.
 
-A **record** is a class whose whole job is to carry values. You declare the components;
-Java writes the constructor, the accessors, `equals`, `hashCode` and `toString`. What
-is left is exactly the part that needed thought.
-
-Vision measurements and elevator setpoints are the clearest case in robot code: they
-are values, they arrive by the hundred, and nothing should ever mutate one after the
-fact.
+The examples store a vision result and a position setpoint. Records can have methods; choose them when their named components describe the value you want to represent.
 
 ### What to build
 
@@ -53,7 +46,7 @@ fact.
 
 ### The compact constructor
 
-This is the one piece of record syntax worth staring at. It has **no parameter list**:
+A compact constructor uses the record name with **no parameter list**:
 
 ```java
 record Setpoint(String name, double valueMeters, double toleranceMeters) {
@@ -66,10 +59,9 @@ record Setpoint(String name, double valueMeters, double toleranceMeters) {
 }
 ```
 
-Assigning to `name` there is not pointless: the compact constructor runs *before* the
+The compact constructor can normalize its parameters before the
 fields are assigned, so whatever the parameters hold at the end is what the record
-keeps. That is how a record validates and normalises without you writing a
-constructor at all.
+keeps. That is how a record validates and normalises without repeating the component parameter list and field assignments.
 
 <RulesBox title="This assignment needs Java 17" items={[
   "Records arrived in Java 16. The in-page editor runs <strong>Java 17</strong>, so everything here compiles and runs in the browser exactly as it does locally on Java 25.",
@@ -88,7 +80,7 @@ constructor at all.
   "<strong>You get more than you think.</strong> Accessors are named after the components with no <code>get</code> prefix: <code>result.confidence()</code>, not <code>getConfidence()</code>. <code>equals</code> compares every component, <code>hashCode</code> agrees with it, and <code>toString</code> prints them all. You do not write, or override, any of those.",
   "<strong>Validate in the compact constructor, not in a factory.</strong> If validation lives in a static <code>of(...)</code> method, somebody can still call <code>new</code> and skip it. The compact constructor is the only door.",
   "<strong>A record is shallowly immutable.</strong> Components cannot be reassigned after construction, but a record holding an array still shares that array with whoever passed it. Worth knowing before you put a <code>double[]</code> in one.",
-  "<strong><code>compareTo</code> is yours to write.</strong> Records generate <code>equals</code>, not ordering. Use <code>Long.compare</code> for the timestamps rather than subtracting, which overflows.",
+  "<strong><code>compareTo</code> is yours to write.</strong> Records generate <code>equals</code>, not ordering. Use <code>Long.compare</code> for the timestamps rather than subtracting, which can overflow.",
   "<strong>Mind what &quot;recent&quot; means at the boundary.</strong> <code>now - timestamp &lt;= maxAgeMs</code> includes a result exactly <code>maxAgeMs</code> old. Decide deliberately, because the checks test a window where it matters."
 ]} />
 
@@ -99,7 +91,7 @@ constructor at all.
   rows={[
     ["Functionality", "60", "Both types declared as records with the listed components. Compact constructors validate. <code>compareTo</code>, <code>recent</code> and <code>isReached</code> behave as specified."],
     ["Edge cases", "15", "A confidence of exactly 0.0 and 1.0 is accepted; 1.5 is not. A blank or padded name is handled. A value exactly on the tolerance counts as reached."],
-    ["Code quality", "20", "No hand-written constructor, accessors, <code>equals</code>, <code>hashCode</code> or <code>toString</code>: if you wrote one, ask what the record was for. Normalisation happens in the compact constructor, not at every call site."],
+    ["Code quality", "20", "No duplicated full constructor, accessors, <code>equals</code>, <code>hashCode</code> or <code>toString</code>: use the generated members for this exercise. Normalisation happens in the compact constructor, not at every call site."],
     ["Comments", "5", "Author header, and a note on why these two types are records while <code>Robot</code> from A11 is not."],
     ["Total", "100", ""]
   ]}
@@ -113,8 +105,7 @@ constructor at all.
   else unchanged. That is how you "modify" an immutable value, and it is why
   `Setpoint` needs no setters.
 - Write down which of the classes you built in this track *should* have been records,
-  and which should not. The test is whether the type has behavior or only
-  data.
+  and which should not. Consider whether named, fixed components represent the value. Records can include behavior.
 
 ### References
 

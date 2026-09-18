@@ -1,0 +1,132 @@
+---
+title: "SPARK Flex and NEO Vortex"
+lessonId: rev-spark-flex-and-neo-vortex
+section: hardware
+group: rev-electronics
+groupLabel: REV Electronics
+groupOrder: 5
+order: 3
+difficulty: beginner
+description: "Identify, assemble, configure, and test a SPARK Flex with a NEO Vortex, using Riptide's swerve drive as a team example."
+---
+
+### Treat the controller and motor as a pair
+
+The **SPARK Flex** is the motor controller. It decides how much electrical power to send and can control voltage, velocity, position, or current. The **NEO Vortex** is the brushless motor that produces torque. Its integrated sensor reports rotor motion to the controller.
+
+The NEO Vortex can dock directly to a SPARK Flex. The docking interface connects the three motor phases and the motor sensors without separate motor cables between the two devices. Four screws hold the electrical connection together.
+
+<div className="reference-image-grid">
+  <ReferenceImage
+    src="/media/hardware/rev-spark-flex.png"
+    alt="REV SPARK Flex motor controller with its power and CAN wires"
+    caption="The SPARK Flex is the motor controller. Its curved docking face attaches directly to a NEO Vortex. Product photo from"
+    sourceUrl="https://docs.revrobotics.com/brushless/spark-flex/overview"
+    sourceLabel="REV Robotics"
+    width={1280}
+    height={1280}
+    contain={true}
+  />
+  <ReferenceImage
+    src="/media/hardware/rev-neo-vortex.png"
+    alt="REV NEO Vortex brushless motor with its docking interface visible at the base"
+    caption="The NEO Vortex is the brushless motor. The interface at its base carries the motor phases and sensor signals to a docked SPARK Flex. Product photo from"
+    sourceUrl="https://docs.revrobotics.com/brushless/neo/vortex"
+    sourceLabel="REV Robotics"
+    width={1280}
+    height={1280}
+    contain={true}
+  />
+</div>
+
+| Part | Job |
+|---|---|
+| SPARK Flex | Receives CAN commands, applies the configured limits, and controls motor output |
+| NEO Vortex | Produces torque and reports rotor motion and temperature |
+| Docking interface | Connects the motor phases and sensors between the controller and motor |
+| Power leads | Connect the SPARK Flex to a protected 12 V robot circuit |
+| CAN leads | Connect the controller to the robot's CAN bus |
+| USB-C port | Connects the controller to REV Hardware Client 2 for setup and testing |
+
+REV lists up to 7,168 encoder counts per motor revolution when the NEO Vortex uses a SPARK Flex with current firmware. The same motor reports 42 counts per revolution through a SPARK MAX. Code still needs conversion factors to turn motor rotations into mechanism units such as wheel radians or meters.
+
+### Dock the motor and controller
+
+Disconnect robot power before handling motor or controller connections.
+
+1. Inspect the three phase contacts and both docking faces for damage or debris.
+2. Align the motor and controller, then press the docking faces together evenly.
+3. Install all four included `M3 x 25 mm` screws.
+4. Tighten the screws in a crossing pattern so the two faces remain even. REV specifies `1.3 ± 0.1 N·m` (`11.5 ± 0.9 in-lb`) when a torque tool is available.
+5. Mount the assembly before running it. A mounting screw may enter a SPARK Flex mounting hole by no more than `0.25 in`.
+6. Connect power and CAN only after the assembly is secure.
+
+<RulesBox title="Do not run a loose dock">
+
+REV requires all four docking screws before the motor runs. Motor vibration can separate an unsecured electrical connection and damage the controller or motor.
+
+</RulesBox>
+
+### Configure it before robot code
+
+Use [REV Hardware Client 2](/hardware/rev-hardware-setup) to identify and test one controller before installing the full mechanism.
+
+| Setting or check | Starting action |
+|---|---|
+| CAN ID | Assign a unique ID and label the controller with that number |
+| Motor type | Select `REV NEO Brushless` for a NEO Vortex |
+| Sensor | Select the motor's Hall-effect sensor |
+| Current limit | Choose the value for the motor and mechanism, then record it with the robot constants |
+| Idle mode | Choose coast or brake from the mechanism's behavior and safety needs |
+| Direction | Run at low output and confirm both motor and encoder directions |
+| Persistence | Save required settings, power-cycle, and verify them again |
+
+REV's initial setup guide uses an `80 A` current limit for a NEO Vortex. Riptide used `60 A` for each swerve drive motor. These are application settings, not identifiers for the motor. Use the electrical and mechanical design for the current robot when choosing a limit.
+
+### How Riptide used the pair
+
+Riptide's `ModuleIOSpark` and `DriveConstants` show how the SPARK Flex and NEO Vortex fit into a complete swerve module.
+
+| Riptide choice | What it teaches |
+|---|---|
+| SPARK Flex and NEO Vortex for wheel drive | The higher-power drive motor and its controller form one drive unit |
+| SPARK MAX and NEO 550 for steering | One swerve module can use different motor systems for driving and steering |
+| A `60 A` drive limit | The current limit belongs to the mechanism design |
+| Brake idle mode and 12 V voltage compensation | Controller settings should match the expected stopped and powered behavior |
+| Converted encoder units | Riptide reports wheel radians and radians per second instead of motor rotations and RPM |
+| Closed-loop velocity control with `kS` and `kV` | The controller corrects wheel speed while feedforward supplies voltage for friction and motion |
+| Position, velocity, voltage, current, and connection telemetry | Logs need enough evidence to separate an electrical, sensor, controller, or mechanism problem |
+
+Riptide's gear reduction, current limit, and tuning values belong to that drivetrain. Record and calculate those values for the mechanism being built rather than copying Riptide's numbers.
+
+### Check the result before enabling the mechanism
+
+1. Confirm REV Hardware Client 2 reports the expected SPARK Flex, firmware, and unique CAN ID.
+2. Power-cycle the controller and verify the saved motor type, sensor, current limit, and idle mode.
+3. Secure the mechanism and clear its motion path.
+4. Command a low voltage and confirm motor direction.
+5. Turn the mechanism by hand while disabled and confirm encoder position changes in the expected direction.
+6. Confirm the displayed position and velocity use the mechanism's units.
+7. Watch bus voltage, output current, motor temperature, and controller faults during the first powered test.
+
+<RulesBox title="Done when">
+
+The motor and controller are secured with all docking screws. The SPARK Flex has the intended CAN ID, current limit, idle mode, and current firmware. Low-voltage testing produces the expected motor direction, and the encoder reports the correct mechanism units and direction.
+
+</RulesBox>
+
+<Sources items={[
+  {"source":"rev","path":"brushless/spark-flex/overview","note":"SPARK Flex connections, supported control modes, USB-C, CAN, and the NEO Vortex docking interface."},
+  {"source":"rev","path":"brushless/neo/vortex","note":"NEO Vortex sensor, calibration memory, docking options, and encoder resolution with SPARK Flex and SPARK MAX."},
+  {"source":"rev","path":"brushless/neo/vortex/docking-flex","note":"Docking alignment, four-screw requirement, fastener size, and tightening pattern and torque."},
+  {"source":"rev","path":"brushless/spark-flex/gs/wiring","note":"Power, CAN, mounting depth, secure test setup, and disconnected-power precautions."},
+  {"source":"rev","path":"brushless/spark-flex/gs/make-it-spin","note":"CAN identity, NEO brushless motor and Hall-effect sensor selection, current limit, persistence, and low-output testing."},
+  {"source":"riptide","path":"src/main/java/frc/robot/subsystems/drive/ModuleIOSpark.java","note":"Riptide's SPARK Flex drive construction, configuration, conversions, velocity control, feedforward, and telemetry."},
+  {"source":"riptide","path":"src/main/java/frc/robot/subsystems/drive/DriveConstants.java","note":"Riptide's NEO Vortex simulation model, 60 A drive limit, drive reduction, encoder conversions, and feedforward constants."}
+]} />
+
+<LinkGrid links={[
+  {"label":"REV Hardware Client 2","id":"rev-hardware-setup"},
+  {"label":"SPARK MAX and Motor Choices","id":"rev-spark-max-and-motors"},
+  {"label":"Motor Configuration Basics","url":"/frc/motor-configuration-basics"}
+]} title="Related lessons" section="hardware" />

@@ -8,73 +8,140 @@ groupOrder: 3
 order: 3
 difficulty: beginner
 duration: 10 min
-description: "Motor configuration objects for CTRE and REV (inversion, idle mode, current limits) and the order to apply them in either template."
+description: "Configure inversion, idle mode, and current limits for Talon FX, SPARK MAX, SPARK Flex, and Thrifty Nova controllers."
 ---
 
-### Template Project
+### Configure the controller before moving the mechanism
 
-This lesson applies to both **Timed Robot** and **Command Robot** templates. For Timed Robot, configure motors in `robotInit()`. For Command Robot, configure motors in subsystem constructors.
+Motor configuration connects software assumptions to the physical robot. This lesson covers four controller families used by FRC 4451:
 
-### Configure motor-controller behavior
+| Controller | Configuration API |
+|---|---|
+| CTRE Talon FX | `TalonFXConfiguration` applied through the device configurator |
+| REV SPARK MAX | `SparkMaxConfig` passed to `configure()` |
+| REV SPARK Flex | `SparkFlexConfig` passed to `configure()` |
+| Thrifty Nova | Configuration methods called on the `ThriftyNova` object |
 
-Proper configuration ensures motors operate safely and correctly. We'll configure three essential settings: inversion, idle mode, and current limits. Each setting serves a specific purpose for safe and predictable motor behavior.
+In a command-based project, configure a controller in the constructor of the subsystem that owns it. In a Timed Robot project, configure it during robot initialization. Do not send motor output until configuration finishes.
 
-<RulesBox title="Key Settings" subtitle="Configure these for every motor:">
+### Decide each setting from the mechanism
 
-- **Inversion:** Ensure positive output moves the mechanism forward.
-- **Idle Mode:** Choose between Brake (hold position) or Coast (free spin).
-- **Current Limit:** Protect hardware from over-current damage.
+| Setting | What it changes | How to verify it |
+|---|---|---|
+| Inversion | Which physical direction counts as positive output | Command a small positive output and observe the mechanism and encoder |
+| Idle mode | Whether the motor resists motion or coasts at zero output | Stop the motor and observe how quickly the mechanism slows |
+| Current limit | How much electrical current the controller permits | Watch current and voltage while applying a controlled load |
+
+Brake mode resists motion when motor output is zero. It does not command the mechanism to hold a position. An elevator or arm that must hold a position needs closed-loop control and a safe plan for gravity.
+
+Current limits are mechanism settings. Choose them from the motor data, controller documentation, wiring and breaker protection, expected load, gearing, and test results. The values below demonstrate API structure and are not defaults for every robot.
+
+### CTRE Talon FX
+
+The Talon FX collects settings in a `TalonFXConfiguration`, then applies the complete object through the controller's configurator.
+
+```java
+TalonFXConfiguration config = new TalonFXConfiguration();
+
+config.MotorOutput.Inverted = InvertedValue.CounterClockwise_Positive;
+config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+
+config.CurrentLimits.SupplyCurrentLimitEnable = true;
+config.CurrentLimits.SupplyCurrentLimit = 40.0; // Example only
+
+m_motor.getConfigurator().apply(config);
+```
+
+CTRE identifies inversion by the positive rotor direction: clockwise or counterclockwise when viewed from the motor shaft. Confirm the installed orientation before choosing the enum value.
+
+### REV SPARK MAX
+
+Use `SparkMaxConfig` for a physical SPARK MAX. The motor type is selected separately when the `SparkMax` object is constructed.
+
+```java
+SparkMaxConfig config = new SparkMaxConfig();
+
+config
+        .inverted(false)
+        .idleMode(IdleMode.kBrake)
+        .smartCurrentLimit(40); // Example only
+
+m_motor.configure(
+        config,
+        ResetMode.kResetSafeParameters,
+        PersistMode.kPersistParameters);
+```
+
+`ResetMode.kResetSafeParameters` starts from known safe parameters before applying this configuration. `PersistMode.kPersistParameters` saves the settings through a power cycle. Apply persistent configuration during startup rather than repeatedly in a periodic method.
+
+### REV SPARK Flex
+
+Use `SparkFlexConfig` for a physical SPARK Flex. The configuration pattern resembles SPARK MAX, but the controller class and configuration class must match the hardware.
+
+```java
+SparkFlexConfig config = new SparkFlexConfig();
+
+config
+        .inverted(false)
+        .idleMode(IdleMode.kBrake)
+        .smartCurrentLimit(60); // Example only
+
+m_motor.configure(
+        config,
+        ResetMode.kResetSafeParameters,
+        PersistMode.kPersistParameters);
+```
+
+A SPARK Flex connected to a NEO Vortex still needs a limit selected for the mechanism. Riptide used a `60 A` smart current limit for each swerve drive motor. That value describes Riptide's drivetrain and should not be copied to a different mechanism without reviewing its design.
+
+### Thrifty Nova
+
+Thrifty Nova configuration methods return the same controller object, so related settings can be chained together. Current ThriftyLib distinguishes **supply current**, drawn from the robot power system, from **stator current**, flowing through the motor phases and producing torque.
+
+```java
+m_motor
+        .setInversion(false)
+        .setBrakeMode(true)
+        .setMaxCurrent(CurrentType.SUPPLY, 40.0) // Example only
+        .setMaxCurrent(CurrentType.STATOR, 60.0); // Example only
+```
+
+After configuration, inspect `m_motor.getErrors()`. A requested setting is not confirmed until the controller reports that it accepted the setting.
+
+The Nova can operate several supported brushless motors. Confirm the motor selection in Thrifty Config, especially when switching between REV-style motors and the WCP Minion. The Minion requires its documented motor-type setting because its phase-wire colors differ.
+
+### Test one setting at a time
+
+1. Secure the robot and clear the mechanism's motion path.
+2. Confirm the CAN ID and controller type in the vendor tool.
+3. Apply a small positive output, such as `0.2`, and confirm direction.
+4. Stop the motor and confirm the chosen brake or coast behavior.
+5. Watch supply voltage and current while adding a controlled load.
+6. Check controller faults and temperatures.
+7. Power-cycle the robot and confirm settings that should persist.
+
+<RulesBox title="Done when">
+
+Positive output moves the mechanism in its documented positive direction. The idle mode produces the expected stopping behavior. Current remains within the mechanism's approved limits, and the vendor tool shows no unexplained configuration or hardware fault.
 
 </RulesBox>
 
-### Step 1: Create Configuration Object
-
-Start by creating a configuration object. This object holds all the settings we'll apply to the motor. We create it, set properties, then apply it to the motor.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"// In robotInit() or constructor\nTalonFXConfiguration config = new TalonFXConfiguration();\n// We'll add settings here\nm_motor.getConfigurator().apply(config);","language":"java"},{"label":"SPARK MAX","code":"// In constructor or configuration method\nSparkMaxConfig config = new SparkMaxConfig();\n// We'll add settings here\nm_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);","language":"java"}]} />
-
-### Step 2: Configure Inversion
-
-Inversion controls which direction is "positive." Set this so that positive software values match the physical "forward" direction of your mechanism. Test by applying small positive power (0.2). If it moves backward, enable inversion.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"TalonFXConfiguration config = new TalonFXConfiguration();\n// Set motor direction (adjust based on your mechanism)\nconfig.MotorOutput.Inverted = InvertedValue.CounterClockwise_Positive;\n// Alternative: InvertedValue.Clockwise_Positive\nm_motor.getConfigurator().apply(config);","language":"java"},{"label":"SPARK MAX","code":"SparkMaxConfig config = new SparkMaxConfig();\n// Set motor direction (true = inverted, false = normal)\nconfig.inverted(true);\n// Alternative: config.inverted(false)\nm_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);","language":"java"}]} />
-
-### Step 3: Configure Idle Mode
-
-Idle mode determines motor behavior when output is zero. **Brake** mode makes the motor resist motion when stopped. Use this for elevators, arms, and drivetrains where you want to hold position. **Coast** mode allows free spinning when stopped. Use this for flywheels and intakes.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"TalonFXConfiguration config = new TalonFXConfiguration();\n// Brake: Motor resists motion when stopped (good for elevators, arms)\nconfig.MotorOutput.NeutralMode = NeutralModeValue.Brake;\n// Coast: Motor spins freely when stopped (good for flywheels, intakes)\n// Alternative: NeutralModeValue.Coast\nm_motor.getConfigurator().apply(config);","language":"java"},{"label":"SPARK MAX","code":"SparkMaxConfig config = new SparkMaxConfig();\n// Brake: Motor resists motion when stopped (good for elevators, arms)\nconfig.idleMode(IdleMode.kBrake);\n// Coast: Motor spins freely when stopped (good for flywheels, intakes)\n// Alternative: IdleMode.kCoast\nm_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);","language":"java"}]} />
-
-### Step 4: Configure Current Limits
-
-Current limiting prevents motor burnout and system brownouts by capping the maximum amperage. Recommended values: 20-40A for small motors, 40-60A for drive motors. Adjust based on your motor specifications and mechanical load.
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"TalonFXConfiguration config = new TalonFXConfiguration();\n// Enable current limiting to protect motor from overheating\nconfig.CurrentLimits.StatorCurrentLimitEnable = true;\n// Set limit to 40A (adjust based on motor and application)\nconfig.CurrentLimits.StatorCurrentLimit = 40.0;\nm_motor.getConfigurator().apply(config);","language":"java"},{"label":"SPARK MAX","code":"SparkMaxConfig config = new SparkMaxConfig();\n// Set smart current limit to 40A (adjust based on motor and application)\n// This protects the motor from overheating\nconfig.smartCurrentLimit(40);\nm_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);","language":"java"}]} />
-
-### Combining All Settings
-
-In practice, you configure all three settings together in one configuration object. Here's how they work together to create a complete motor configuration.
-
-### Full Configuration Example
-
-<CodeTabs tabs={[{"label":"Talon FX","code":"// In robotInit() or constructor\nTalonFXConfiguration config = new TalonFXConfiguration();\n\n// Step 1: Set inversion (ensure positive = forward direction)\nconfig.MotorOutput.Inverted = InvertedValue.CounterClockwise_Positive;\n\n// Step 2: Set idle mode (Brake for elevators/arms, Coast for flywheels/intakes)\nconfig.MotorOutput.NeutralMode = NeutralModeValue.Brake;\n\n// Step 3: Enable current limiting\nconfig.CurrentLimits.StatorCurrentLimitEnable = true;\nconfig.CurrentLimits.StatorCurrentLimit = 40.0;\n\n// Apply all settings at once\nm_motor.getConfigurator().apply(config);","language":"java"},{"label":"SPARK MAX","code":"// In constructor or configuration method\nSparkMaxConfig config = new SparkMaxConfig();\n\n// Step 1: Set inversion (true = inverted, false = normal)\nconfig.inverted(false);\n\n// Step 2: Set idle mode (kBrake for elevators/arms, kCoast for flywheels/intakes)\nconfig.idleMode(IdleMode.kBrake);\n\n// Step 3: Set current limit\nconfig.smartCurrentLimit(40);\n\n// Apply all settings at once\nm_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);","language":"java"}]} />
-
-### Configuration Order
-
-The order of settings in the configuration object doesn't matter. All settings are applied together when you call `apply()` or `configure()`. However, always apply the configuration to the motor after setting all properties.
-
-### Testing Your Configuration
-
-After configuring, test each setting: **Inversion:** Apply 0.2 power, verify direction. **Idle Mode:** Stop motor, check if it holds or spins freely. **Current Limit:** Monitor current draw during operation to ensure it's within limits.
-
 <Sources items={[
   {"source": "mantik", "path": "src/content/frc/frc-basics/motor-config.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
-  {"source": "ctre", "path": "docs/api-reference/api-usage/configuration.html", "note": "<code>TalonFXConfiguration</code>, inversion, neutral mode, applying a config."},
-  {"source": "ctre", "path": "docs/hardware-reference/talonfx/improving-performance-with-current-limits.html", "note": "Current limits."},
-  {"source": "rev", "path": "revlib/spark/configuring-a-spark", "note": "<code>SparkMaxConfig</code>, <code>inverted</code>, <code>idleMode</code>, <code>smartCurrentLimit</code>, <code>configure</code>."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "The mechanism the configuration is written for."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "Configuration in <code>robotInit()</code>."}
+  {"source": "ctre", "path": "docs/api-reference/api-usage/configuration.html", "note": "Applying <code>TalonFXConfiguration</code>, inversion, and neutral mode."},
+  {"source": "ctre", "path": "docs/hardware-reference/talonfx/improving-performance-with-current-limits.html", "note": "Supply and stator current limits and their purposes."},
+  {"source": "rev", "path": "revlib/spark/configuring-a-spark", "note": "SPARK configuration objects, motor type, reset mode, persistence mode, inversion, idle mode, and smart current limits."},
+  {"source": "rev", "path": "revlib/spark/max-vs-flex", "note": "The separate SPARK MAX and SPARK Flex device and configuration classes."},
+  {"source": "thrifty", "path": "thrifty-nova/software-resources/configure-controller-settings", "note": "Chained Nova configuration, inversion, brake mode, and configuration error reporting."},
+  {"source": "thrifty", "path": "thrifty-nova/software-resources/configure-controller-settings/motor-type-minion-setting", "note": "The Nova motor-type selection required for the WCP Minion."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIONova.java", "note": "FRC 4451's Nova inversion, brake mode, supply limit, stator limit, and error-checking pattern."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOSpark.java", "note": "Riptide's SPARK Flex configuration and 60 A drive-motor current limit."}
 ]} />
 
-<LinkGrid links={[{"label":"Intake Example","id":"basic-intake-example"},{"label":"Advanced Configuration","id":"motor-controller-configuration"}]} title="Resources" section="frc" />
-
+<LinkGrid links={[
+  {"label":"Introduction to Motors","id":"introduction-to-motors"},
+  {"label":"Current Limiting","id":"current-limiting"},
+  {"label":"Advanced Configuration","id":"motor-controller-configuration"},
+  {"label":"SPARK Flex and NEO Vortex","url":"/hardware/rev-spark-flex-and-neo-vortex"},
+  {"label":"Thrifty Nova and Motor Choices","url":"/hardware/thrifty-nova-and-motors"}
+]} title="Continue learning" section="frc" />

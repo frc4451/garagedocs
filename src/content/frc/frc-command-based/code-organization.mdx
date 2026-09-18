@@ -9,7 +9,6 @@ order: 7
 difficulty: intermediate
 duration: 20 min
 description: Package layout, constants, and naming conventions for a command-based project that stays readable through a season.
-unlisted: true
 ---
 
 ### Command-Based Structure
@@ -68,17 +67,21 @@ The `commands/` package holds only commands that coordinate several subsystems a
 
 ### Constants
 
-Use a `Constants` class so no CAN ID or setpoint is ever typed twice. Organize it with one nested class per subsystem.
+Use a `Constants` class so no CAN ID or setpoint is ever typed twice. Organize it with one nested class per subsystem. This partial `Constants.java` example shows the layout:
 
 ```java
 package frc.robot;
 
 public final class Constants {
-    // Runtime mode; see Simulation First
-    public static final Mode currentMode = RobotBase.isReal() ? Mode.REAL : simMode;
-    public static final boolean tuningMode = true;
+    private Constants() {}
 
-    public static class IntakeConstants {
+    // Runtime mode; see Simulation First
+    public static final Mode CURRENT_MODE = RobotBase.isReal() ? Mode.REAL : SIM_MODE;
+    public static final boolean TUNING_MODE = true;
+
+    public static final class IntakeConstants {
+        private IntakeConstants() {}
+
         public static final int FRONT_INTAKE_RIGHT_MOTOR_PORT = 21;
         public static final int FRONT_INTAKE_LEFT_MOTOR_PORT = 22;
         public static final int INTAKE_PIVOT_MOTOR_PORT = 23;
@@ -91,13 +94,22 @@ public final class Constants {
         public static final double INTAKE_PIVOT_KG = 0.35;
     }
 
-    public static class ShooterConstants {
+    public static final class ShooterConstants {
+        private ShooterConstants() {}
+
         public static final int RIGHT_SHOOTER_PORT = 31;
         public static final int LEFT_SHOOTER_PORT = 32;
     }
 
-    public static class FieldConstants { /* field geometry, tag layout */ }
-    public static class PathPlannerConstants { /* robot mass, MOI, auto gains */ }
+    public static final class FieldConstants {
+        private FieldConstants() {}
+        /* field geometry and AprilTag layout */
+    }
+
+    public static final class PathPlannerConstants {
+        private PathPlannerConstants() {}
+        /* robot mass, moment of inertia, and autonomous gains */
+    }
 }
 ```
 
@@ -107,7 +119,7 @@ Pull them into a subsystem with a **static import**, so each constant is used by
 import static frc.robot.Constants.IntakeConstants.*;
 
 public class Intake extends SubsystemBase {
-    TalonFX pivot = new TalonFX(INTAKE_PIVOT_MOTOR_PORT);
+    private final TalonFX pivot = new TalonFX(INTAKE_PIVOT_MOTOR_PORT);
 ```
 
 Not `Constants.IntakeConstants.INTAKE_PIVOT_MOTOR_PORT` on every line. The static import is what makes the short form legal, and it is also why constant names should be long and specific. `INTAKE_PIVOT_MOTOR_PORT` is unambiguous once imported into a file; `PORT` would not be.
@@ -147,8 +159,8 @@ package frc.robot.subsystems.conveyor;
 import static frc.robot.Constants.ConveyorConstants.*;
 
 public class Conveyor extends SubsystemBase {
-  TalonFX conveyor = new TalonFX(CONVEYOR_MOTOR_PORT);
-  TalonFXConfiguration config = new TalonFXConfiguration();
+  private final TalonFX conveyor = new TalonFX(CONVEYOR_MOTOR_PORT);
+  private final TalonFXConfiguration config = new TalonFXConfiguration();
 
   public Conveyor() {
     config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
@@ -209,8 +221,8 @@ Log viewers such as AdvantageScope build their tree from the slashes, so `Intake
 public class RobotContainer {
     // Subsystems
     private final Drive drive;
-    Intake intake;
-    Shooter shooter;
+    private final Intake intake;
+    private final Shooter shooter;
 
     // Controllers
     private final CommandPS5Controller controller = new CommandPS5Controller(0);
@@ -249,7 +261,7 @@ public class RobotContainer {
 
 - **Group by function:** separate methods for bindings, named commands, and auto setup.
 - **No loop logic.** Configuration only; behaviour belongs in commands.
-- **Every subsystem gets a default command,** or it never stops.
+- **Use a default command for continuous behavior,** such as reading drive sticks. Commands that drive an output also stop it when they end.
 - **Bind factories directly.** `intake.deployAndIntakeCommand()` reads better than `new DeployAndIntakeCommand(intake)`.
 - **Provide `getAutonomousCommand()`.**
 
@@ -262,7 +274,9 @@ Helpers belong in `util/`. A few earn their place on almost every robot:
 ```java
 package frc.robot.util;
 
-public class PhoenixUtil {
+public final class PhoenixUtil {
+    private PhoenixUtil() {}
+
     /** Attempts to run the command until no error is produced. */
     public static void tryUntilOk(int maxAttempts, Supplier<StatusCode> command) {
         for (int i = 0; i < maxAttempts; i++) {

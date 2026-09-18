@@ -16,14 +16,14 @@ description: How two threads corrupt shared data, what synchronized and volatile
 This program looks correct and is not:
 
 ```java
-class Counter {
+public class Counter {
     private int count = 0;
 
-    void increment() {
+    public void increment() {
         count++;
     }
 
-    int get() { return count; }
+    public int get() { return count; }
 }
 ```
 
@@ -39,7 +39,7 @@ a.join();  b.join();
 System.out.println(counter.get());     // expected 200000; usually less
 ```
 
-Run it and you get some number below 200,000, different each time.
+The result may be below 200,000, or it may be exactly 200,000. Run it several times. A correct result on one run does not prove that the updates are coordinated.
 
 ### Why
 
@@ -77,17 +77,17 @@ Assume any operation touching shared mutable data needs protection unless you ca
 
 ### synchronized
 
-Marking a method `synchronized` means only one thread may be inside it at a time, for a given object:
+A synchronized instance method acquires its object’s lock before entering. Other synchronized methods or blocks using that same lock wait until it is released.
 
 ```java
-class Counter {
+public class Counter {
     private int count = 0;
 
-    synchronized void increment() {
+    public synchronized void increment() {
         count++;
     }
 
-    synchronized int get() { return count; }
+    public synchronized int get() { return count; }
 }
 ```
 
@@ -95,16 +95,16 @@ Now the total is 200,000 every time.
 
 Every Java object has an intrinsic lock. A `synchronized` instance method acquires that object's lock on entry and releases it on exit, including when an exception is thrown.
 
-**`get()` must be synchronized too.** Locking only the writer still leaves readers able to see a stale or half-written value. Both sides of shared state need protection.
+Both increment and get use the same object lock here. Locking only the writer leaves the reader without that visibility guarantee. A single int read is atomic, but it can still see a stale value without coordination.
 
 You can also lock a smaller region:
 
 ```java norun
-class Tracker {
+public class Tracker {
     private final Object lock = new Object();
     private int count = 0;
 
-    void record() {
+    public void record() {
         expensiveWorkNeedingNoLock();
 
         synchronized (lock) {         // only this part is protected
@@ -123,12 +123,12 @@ Holding a lock for less time lets more work proceed in parallel. Using a dedicat
 Without it, one thread's write may never become visible to another. The compiler and processor are allowed to cache values in registers, so this loop can run forever even after `running` becomes false:
 
 ```java norun
-class Worker {
+public class Worker {
     private boolean running = true;         // BUG: not volatile
 
-    void stop() { running = false; }
+    public void stop() { running = false; }
 
-    void run() {
+    public void run() {
         while (running) {                   // may never see the change
             doWork();
         }
@@ -136,7 +136,7 @@ class Worker {
 }
 ```
 
-Adding `volatile` forces reads and writes to go to main memory:
+Declaring the flag volatile makes writes visible to subsequent reads of that flag according to Java’s memory model:
 
 ```java
 private volatile boolean running = true;
@@ -147,12 +147,12 @@ private volatile boolean running = true;
 ```java
 private volatile int count = 0;
 
-void increment() {
+public void increment() {
     count++;                       // STILL a race condition
 }
 ```
 
-`volatile` guarantees each read sees the latest write. It does nothing about the read-modify-write gap, so `count++` is still broken.
+A volatile read and write provide visibility and ordering guarantees. They do not combine the read, addition, and write in `count++` into one atomic operation.
 
 Use `volatile` for a single flag written by one thread and read by others. For anything read-then-modified, you need `synchronized` or an atomic type.
 
@@ -165,11 +165,11 @@ For counters and similar, `java.util.concurrent.atomic` is simpler and faster th
 ```java
 import java.util.concurrent.atomic.AtomicInteger;
 
-class Counter {
+public class Counter {
     private final AtomicInteger count = new AtomicInteger();
 
-    void increment() { count.incrementAndGet(); }
-    int get()        { return count.get(); }
+    public void increment() { count.incrementAndGet(); }
+    public int get()        { return count.get(); }
 }
 ```
 
@@ -271,7 +271,7 @@ That is why the design-level advice above matters more than the locking mechanic
 </ExerciseBox>
 
 <LinkGrid
-  title="Next"
+  title="Related"
   section="java"
   links={[
     { "label": "Executors and Thread Pools", "id": "java-executors-and-thread-pools" },
@@ -298,3 +298,5 @@ That is why the design-level advice above matters more than the locking mechanic
     { "label": "Objects and References", "id": "java-objects-and-references" }
   ]}
 />
+
+<LinkGrid title="Next lesson" section="java" links={[{"label": "Executors and Thread Pools", "id": "java-executors-and-thread-pools"}]} />

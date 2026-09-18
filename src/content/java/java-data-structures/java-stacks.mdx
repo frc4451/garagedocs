@@ -5,7 +5,7 @@ section: java
 group: java-data-structures
 groupLabel: "Data Structures"
 groupOrder: 5
-order: 4
+order: 5
 difficulty: intermediate
 duration: 25 min
 description: A structure where the last item added is the first one removed, why that fits undo history and expression checking, and which Java class to use.
@@ -37,7 +37,7 @@ Three operations define it:
   ]}
 />
 
-The restriction is the point. Because there are only three things you can do, code using a stack has few states to reason about.
+Stack-style code uses push, pop, and peek. A Java Deque also exposes operations at the other end; use the stack operations consistently when that is the behavior you intend.
 
 ### Which class to use
 
@@ -61,12 +61,10 @@ System.out.println(history.size());   // 1
 
 <RulesBox title="Why not java.util.Stack?">
 
-`Stack` is one of Java's oldest classes and carries two problems:
+Java's Deque documentation recommends using Deque for stack operations in place of the older Stack class. ArrayDeque has no built-in synchronization; use it when one thread owns the stack.
 
-- Every method is synchronized, which costs speed you almost never need.
-- It extends `Vector`, so it also exposes indexed access like `get(0)`, breaking the restriction that makes a stack useful.
+Deque also has queue operations. Declaring a variable as Deque does not prevent callers from using those methods.
 
-`ArrayDeque` is faster and only offers stack-appropriate methods when you declare it as a `Deque`. Java's own documentation points to it as the better choice.
 
 One caveat: `ArrayDeque` does not accept `null` elements. That is usually a feature, since a `null` on a stack is rarely intentional.
 
@@ -74,7 +72,7 @@ One caveat: `ArrayDeque` does not accept `null` elements. That is usually a feat
 
 ### Checking for empty
 
-`pop` and `peek` on an empty `ArrayDeque` throw `NoSuchElementException`. Always check first.
+On an empty ArrayDeque, `pop()` throws `NoSuchElementException`, while `peek()` returns `null`. Check `isEmpty()` before popping when an empty stack is expected.
 
 ```java norun
 while (!history.isEmpty()) {
@@ -96,7 +94,7 @@ String look = history.peekFirst();
 **Matching brackets.** Push each opening bracket; on a closing bracket, pop and check it matches.
 
 ```java
-static boolean isBalanced(String s) {
+public static boolean isBalanced(String s) {
     Deque<Character> stack = new ArrayDeque<>();
 
     for (char c : s.toCharArray()) {
@@ -135,32 +133,32 @@ That connection is worth holding onto: a recursive method and an explicit stack 
 Worth doing once, to see there is nothing mysterious inside.
 
 ```java
-class IntStack {
+public class IntStack {
     private int[] data = new int[16];
     private int size = 0;
 
-    void push(int value) {
+    public void push(int value) {
         if (size == data.length) {
             data = java.util.Arrays.copyOf(data, size * 2);   // grow
         }
         data[size++] = value;
     }
 
-    int pop() {
+    public int pop() {
         if (size == 0) throw new IllegalStateException("stack is empty");
         return data[--size];
     }
 
-    int peek() {
+    public int peek() {
         if (size == 0) throw new IllegalStateException("stack is empty");
         return data[size - 1];
     }
 
-    boolean isEmpty() { return size == 0; }
+    public boolean isEmpty() { return size == 0; }
 }
 ```
 
-All three operations touch only the last slot, so all three are instant. Growing happens rarely, exactly as in [ArrayLists](/java/fundamentals/java-arraylists#how-it-grows).
+The implementation below grows its array when needed. Reading and removing the top take constant time; pushing takes amortized constant time because an occasional resize copies the elements.
 
 <RulesBox title="Common mistakes">
 
@@ -207,10 +205,12 @@ All three operations touch only the last slot, so all three are instant. Growing
 ]} />
 
 <LinkGrid
-  title="Next"
+  title="Related"
   section="java"
   links={[
     {"label":"Queues","id":"java-queues"},
     {"label":"Deques","id":"java-deques"}
   ]}
 />
+
+<LinkGrid title="Next lesson" section="java" links={[{"label": "Queues", "id": "java-queues"}]} />

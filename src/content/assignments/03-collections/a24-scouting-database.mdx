@@ -13,6 +13,7 @@ description: "Move scouting data off arrays and onto an ArrayList: add, remove, 
 
 **Topic:** `ArrayList<T>`, the `List<T>` interface, `removeIf`, `Optional`, unmodifiable views.
 **Cites:** [ArrayLists](/java/fundamentals/java-arraylists), [Lambdas](/java/fundamentals/java-lambdas), [Arrays](/java/fundamentals/java-arrays).
+**Also review:** [Enums and Records](/java/fundamentals/java-enums-and-records), [Streams](/java/fundamentals/java-streams).
 **Difficulty:** intermediate. **Estimated time:** 90 minutes.
 
 **Repository checkpoint:** Work in `assignments/a24-scouting-database/` inside the repository from [A00](/java/assignments/a00-practice-repository-setup). Keep every source and input file for
@@ -21,14 +22,9 @@ this assignment there. After completing the checks and rubric, update the root
 
 ### Scenario
 
-In [A21](/java/assignments/a21-scouting-csv) you moved scouting rows around in arrays. Arrays
-are the right tool when you know the size up front. They are the wrong one the moment
-entries arrive over the course of a weekend, get filtered, get ranked, and get deleted
-because someone typed the wrong team number.
+Use an ArrayList to hold a changing collection of scouting entries. Add, remove, search, filter, and sort the entries through methods on ScoutingDatabase.
 
-`ArrayList<T>` is the everyday list. This assignment is the small database you will
-use at a competition. You will also make one design decision that separates a class
-you can trust from one you cannot.
+Return an unmodifiable view from all() so callers can read the list without adding or removing entries through that view.
 
 ### What to build
 
@@ -93,8 +89,8 @@ you are getting.
 <JavaPlayground id="a24-scouting-database" />
 
 <RulesBox title="Hints" items={[
-  "<strong>Do not remove inside a for-each.</strong> Mutating a list while iterating it throws <code>ConcurrentModificationException</code>. <code>removeIf</code> takes a predicate, does it safely, and returns a <code>boolean</code>. That is exactly the value <code>removeByTeamNumber</code> owes its caller. The whole method is one line.",
-  "<strong><code>Optional</code> is not a null with extra steps.</strong> It changes who is responsible for the missing case. <code>findByTeamNumber(n).map(...).orElse(...)</code> forces the caller to say what happens when the team is not there, at compile time rather than at the competition.",
+  "<strong>Remove through removeIf.</strong> Adding or removing directly from an ArrayList during a for-each can invalidate its iterator. removeIf performs the removal and returns whether it removed anything.",
+  "<strong>Handle a missing result.</strong> Optional represents either one value or no value. Use map and orElse to handle both cases. Calling get on an empty Optional can still throw; the compiler does not force safe handling.",
   "<strong>Sort a copy.</strong> <code>new ArrayList&lt;&gt;(entries)</code> then <code>.sort(...)</code> gives you a sorted list without reordering the database. A check compares the list immediately after a sort for exactly this reason.",
   "<strong>Descending is <code>reversed()</code>, not a negated comparison.</strong> <code>Comparator.comparingDouble(TeamEntry::pickScore).reversed()</code> says what it means; swapping the operands inside a hand-written comparator says it too, but quietly.",
   "<strong>Write <code>filterByDrivetrain</code> last.</strong> Once <code>filter</code> takes a predicate, the drivetrain version is that method called with one lambda. If you find yourself writing a second loop, you have written the same method twice."
@@ -117,7 +113,7 @@ you are getting.
 
 - Add `top(int k)` returning the k best by pick score. Write it once with `sorted` +
   `limit` and once by sorting and taking a sublist, then decide which you would rather
-  read at 11pm in a pit.
+  read during a code review.
 - Wire this to `CsvIO` from [A21](/java/assignments/a21-scouting-csv): `load(String)` and
   `save(String)` commands that round-trip the whole database to disk.
 - Give `filter` a sibling that takes two predicates and ands them. Then notice that

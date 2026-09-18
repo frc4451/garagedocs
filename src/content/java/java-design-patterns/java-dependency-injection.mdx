@@ -16,14 +16,14 @@ description: Passing a class the things it needs instead of letting it build the
 Here is a class that creates what it depends on:
 
 ```java norun
-class Shooter {
+public class Shooter {
     private final Motor motor;
 
-    Shooter() {
+    public Shooter() {
         this.motor = new Motor(5);      // decides for itself
     }
 
-    void spinUp() {
+    public void spinUp() {
         motor.set(0.9);
     }
 }
@@ -38,14 +38,14 @@ The class made a decision that was not really its business.
 ### Passing it in instead
 
 ```java norun
-class Shooter {
+public class Shooter {
     private final Motor motor;
 
-    Shooter(Motor motor) {              // told, not decided
+    public Shooter(Motor motor) {              // told, not decided
         this.motor = motor;
     }
 
-    void spinUp() {
+    public void spinUp() {
         motor.set(0.9);
     }
 }
@@ -71,7 +71,7 @@ Passing dependencies through the constructor is the best of the three options:
 Shooter(Motor motor) { this.motor = motor; }
 
 // setter injection: object exists in an incomplete state first
-void setMotor(Motor motor) { this.motor = motor; }
+public void setMotor(Motor motor) { this.motor = motor; }
 
 // field injection via a framework: hidden, hard to follow
 ```
@@ -87,20 +87,20 @@ Use a setter only for optional dependencies.
 The full benefit arrives when the parameter is an interface rather than a concrete class.
 
 ```java
-interface MotorController {
-    void set(double output);
-    void stop();
+public interface MotorController {
+    public void set(double output);
+    public void stop();
 }
 
-class Shooter {
+public class Shooter {
     private final MotorController motor;
 
-    Shooter(MotorController motor) {
+    public Shooter(MotorController motor) {
         this.motor = motor;
     }
 
-    void spinUp() { motor.set(0.9); }
-    void stop()   { motor.stop(); }
+    public void spinUp() { motor.set(0.9); }
+    public void stop()   { motor.stop(); }
 }
 ```
 
@@ -111,9 +111,9 @@ class Shooter {
 This is the payoff that convinces most people.
 
 ```java
-class FakeMotor implements MotorController {
-    double lastOutput = 0;
-    boolean stopped = false;
+public class FakeMotor implements MotorController {
+    public double lastOutput = 0;
+    public boolean stopped = false;
 
     @Override public void set(double output) { lastOutput = output; }
     @Override public void stop() { stopped = true; }
@@ -138,18 +138,18 @@ This test runs the shooter logic on a laptop. The original version cannot run th
 The same reasoning applies to plain values and to [suppliers](/java/fundamentals/java-functional-interfaces#lazy-and-expensive-work).
 
 ```java norun
-class DriveCommand {
+public class DriveCommand {
     private final Drivetrain drive;
     private final DoubleSupplier forward;
     private final DoubleSupplier rotation;
 
-    DriveCommand(Drivetrain drive, DoubleSupplier forward, DoubleSupplier rotation) {
+    public DriveCommand(Drivetrain drive, DoubleSupplier forward, DoubleSupplier rotation) {
         this.drive = drive;
         this.forward = forward;
         this.rotation = rotation;
     }
 
-    void execute() {
+    public void execute() {
         drive.arcadeDrive(forward.getAsDouble(), rotation.getAsDouble());
     }
 }
@@ -174,7 +174,7 @@ new DriveCommand(fakeDrive, () -> 0.5, () -> 0.0);
 If every class receives its dependencies, something must eventually create the real objects. That job collects in one place, often called the composition root.
 
 ```java norun
-class RobotContainer {
+public class RobotContainer {
     private final MotorController shooterMotor = new Motor(5);
     private final MotorController intakeMotor  = new Motor(6);
 
@@ -243,7 +243,7 @@ The last row is the honest cost. Constructors get longer, and wiring code appear
 </ExerciseBox>
 
 <LinkGrid
-  title="Next"
+  title="Related"
   section="java"
   links={[
     {"label":"Command Pattern","id":"java-command-pattern"}
@@ -266,3 +266,5 @@ The last row is the honest cost. Constructors get longer, and wiring code appear
     {"label":"Runtime Polymorphism","id":"java-runtime-polymorphism"}
   ]}
 />
+
+<LinkGrid title="Next lesson" section="java" links={[{"label": "Command Pattern", "id": "java-command-pattern"}]} />

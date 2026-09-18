@@ -11,9 +11,11 @@ description: "TimedRobot, the 20 ms tick, the state matrix of init and periodic 
 ---
 
 
-Your robot is not running one program. It's running one program **fifty times a second**, every second, with state transitions when the driver hits Enable, Disable, or switches modes on the driver station. This module is how that machinery works.
+The robot program starts once. While it runs, WPILib repeatedly calls methods that read inputs and update outputs. The default interval is 20 milliseconds, or about 50 calls each second.
 
-[While Loops](/java/fundamentals/java-while-loops#while-loops-with-conditions) covered loops that run until something tells them to stop. A robot program is one of those, running fifty times a second for the whole match. This module is that loop, made concrete.
+**Teleop** is driver-controlled operation. **Autonomous** runs programmed actions. **Disabled** stops normal motor output while the program continues running.
+
+**Refresher:** [While Loops](/java/fundamentals/java-while-loops#while-loops-with-conditions). WPILib supplies this repeating loop, so you do not add your own infinite loop.
 
 ---
 
@@ -90,13 +92,13 @@ Every 20 ms, this:
 4. Calls `end()` on commands that finished during this tick (their `isFinished()` returned `true`).
 5. Schedules default commands on idle subsystems.
 
-If this line is missing or mis-spelled, *nothing in the command framework works*. No buttons. No subsystems. No autonomous. Triple-check it exists.
+If buttons or subsystem updates do nothing, confirm that this line remains in `robotPeriodic()`.
 
 ---
 
 ### A typical `Robot.java`
 
-This is roughly what the template gives you. Your edits will be small.
+This is a complete example of `src/main/java/frc/robot/Robot.java`. Compare it with your generated file; keep the generated version if it already performs these jobs.
 
 ```java
 package frc.robot;
@@ -148,7 +150,7 @@ Read the file in your project. Trace what runs when you click Enable in autonomo
 
 - **No `Thread.sleep`** in periodic code. Sleeping freezes the whole robot.
 - **No while-loops that wait for hardware**. Same problem.
-- **One iteration per tick**. If you want to count from 1 to 100, you don't do `for (i = 0; i < 100; i++)` in `periodic`. You increment a counter once per tick: 100 ticks = 2 seconds.
+- **Spread timed work across ticks.** A `for` loop can process a short list in one call. To count elapsed robot ticks, increase a field once per call instead. About 100 ticks take two seconds.
 
 Periodic code does a small amount of work, saves its state, and returns before the next tick. Later commands use the same pattern without blocking the robot loop.
 
@@ -156,17 +158,27 @@ Periodic code does a small amount of work, saves its state, and returns before t
 
 ### Try it
 
-Open `Robot.java`. Add a `System.out.println("teleop tick")` inside `teleopPeriodic`. Run the sim (`F5`), enable in teleop, and watch the console.
+1. Open `Robot.java`.
+2. Inside `teleopPeriodic()`, add `System.out.println("teleop tick");`. If that method is absent, add this partial snippet inside the `Robot` class:
 
-Count the lines that appear in two seconds. You should see about 100. (Actually closer to 50 lines per second × 2 = 100, but the sim slows down a touch when you have lots of `println`, which is one of several reasons you don't want to leave debug prints in periodic code.)
+```java
+@Override
+public void teleopPeriodic() {
+    System.out.println("teleop tick");
+}
+```
 
-Remove the print before moving on.
+3. Save, then run **WPILib: Simulate Robot Code**.
+4. Select Teleoperated and enable. The message repeats in the terminal.
+5. Disable. The teleop message stops, although `robotPeriodic()` continues.
+6. Select Autonomous and enable. The teleop message stays absent.
+7. Disable, stop simulation, and remove the temporary print.
 
----
+The default rate is about 50 lines per second. You do not need to count a fast-scrolling terminal to pass this check.
 
 <RulesBox title="Done when">
 
-With the `teleop tick` print in place, enable in teleop for two seconds and read the console: about 100 lines. Disable: the lines stop. Switch to Autonomous: `autonomousPeriodic` runs instead. Remove the print afterwards. The evidence is that you observed the rate; the print itself does not stay in the project.
+The message repeats while teleop is enabled and stops when disabled or in autonomous. Explain why `robotPeriodic()` still runs in those other modes. Remove the temporary print and build again.
 
 </RulesBox>
 

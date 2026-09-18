@@ -13,11 +13,13 @@ durationFixed: true
 
 <RulesBox title="Before you start">
 
-Complete [R07 Part 2](/kit-bot/r07-drive-io-part-2) and [R08 Part 3](/kit-bot/r08-launcher-calibration). Review [methods](/java/fundamentals/java-methods), [arrays](/java/fundamentals/java-arrays), and [commands](/kit-bot/r05-commands-and-triggers). Run real-hardware tests only with a mentor.
+Work through the first test with a mentor. Start in simulation with the drivetrain and launcher working. Real-hardware tests also require a mentor-approved voltage range, test area, and robot support.
 
 </RulesBox>
 
-Characterization measures how much voltage a mechanism needs to move at a steady speed. The Kit Bot drivetrain and launcher are both rotating mechanisms. For this lesson, both use the same model:
+**Refreshers:** [Methods](/java/fundamentals/java-methods), [Arrays](/java/fundamentals/java-arrays), and [Commands](/kit-bot/r05-commands-and-triggers).
+
+Characterization measures how much voltage a mechanism needs to move at a steady speed. The Kit Bot drivetrain and launcher are both rotating mechanisms. For positive motion at a steady speed, both use the same model:
 
 ```text
 voltage = kS + kV × velocity
@@ -30,9 +32,11 @@ This Kit Bot exercise does not use the SysId application. You will collect the s
 
 ### Why this test uses fixed steps
 
-The test applies a fixed voltage, waits for the mechanism to settle, and then records velocity. At a settled speed, acceleration is approximately zero. That removes the `kA × acceleration` term from the model and leaves the two values this exercise needs.
+The test requests a fixed voltage, waits 1.5 seconds, then records velocity. That wait is a starting assumption, not a measurement that the speed has settled. At a settled speed, acceleration is approximately zero. That removes the `kA × acceleration` term from the model and leaves the two values this exercise needs.
 
-A continuous ramp is faster, but every sample is taken while the mechanism is accelerating. The Cobra and Scorpion roller library includes both approaches. This lesson uses its stepped steady-state approach because the data matches the two-term equation more directly.
+Use this stepped test to practice the relationship between voltage and speed. With your mentor, repeat a test with a longer settle time if the measured speeds are still changing. Keep the voltage list the same so you can compare the results.
+
+The code records **requested voltage**. In simulation that matches the model input within its voltage limit. A real controller may apply less voltage because of battery sag or current limiting. Do not label these as measured hardware gains without checking the applied voltage and settled speed.
 
 ### Safety before a real test
 
@@ -169,10 +173,14 @@ public final class SteadyStateCharacterization {
 }
 ```
 
+Read the file in three parts: the voltage list, `run` (which builds the test), and `printResults` (which does the calculation). Part 2 works through the calculation on paper. You may use a calculator and the equations.
+
 The utility accepts two functions from a subsystem:
 
 - `outputVolts` applies a requested voltage.
 - `velocity` returns the current measured speed as a `double` in a named unit.
+
+`DoubleConsumer.accept(value)` sends a number to a function. `DoubleSupplier.getAsDouble()` asks a function for its current number. The subsystem supplies both functions; the test utility does not know how a motor is connected.
 
 The command requires the supplied subsystem. Its `finallyDo` action sends zero volts after normal completion or interruption.
 
@@ -241,7 +249,7 @@ driver.y().whileTrue(drive.characterizeFeedforward());
 driver.x().whileTrue(launcher.characterizeFeedforward());
 ```
 
-Hold Y for the full drivetrain test or X for the full launcher test. Releasing the button interrupts the sequence and sends zero volts. Run one test at a time.
+Hold Y for the full drivetrain test or X for the full launcher test. Releasing the button interrupts the sequence and sends zero volts. Run one test at a time. Keep the sticks centered: when the drivetrain test ends, its default joystick command can resume.
 
 ### Run the simulation tests
 
@@ -250,7 +258,7 @@ Hold Y for the full drivetrain test or X for the full launcher test. Releasing t
 3. Hold Y until the drivetrain result prints.
 4. Disable, then enable again.
 5. Hold X until the launcher result prints.
-6. Save both sample lists and result lines.
+6. Save both sample lists and result lines in a text file in your Kit Bot repository. Label them **simulation**, with the date and velocity unit.
 
 Simulation results describe the WPILib physics models. They are useful for checking the code and the math. They are not measurements of the real Kit Bot.
 

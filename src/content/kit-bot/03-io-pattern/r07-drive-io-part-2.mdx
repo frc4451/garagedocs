@@ -16,7 +16,7 @@ durationFixed: true
 
 ### Step 1: create the subsystem
 
-Create `Drive.java`. This is a **complete file**.
+Create `src/main/java/frc/robot/subsystems/drive/Drive.java`. This is a **complete file**.
 
 ```java
 package frc.robot.subsystems.drive;
@@ -48,11 +48,13 @@ public class Drive extends SubsystemBase {
 
     /** Standard arcade-drive math: speed in [-1,1], rotation in [-1,1] (dimensionless, not units). */
     public void arcadeDrive(double speed, double rotation) {
-        double left  = (speed + rotation) * 12.0 * DriveConstants.MAX_DRIVE_PERCENT;
-        double right = (speed - rotation) * 12.0 * DriveConstants.MAX_DRIVE_PERCENT;
+        double left = speed + rotation;
+        double right = speed - rotation;
+        double scale = Math.max(1.0, Math.max(Math.abs(left), Math.abs(right)));
+        double maxVolts = 12.0 * DriveConstants.MAX_DRIVE_PERCENT;
 
-        leftVoltage  = Volts.of(Math.max(-12.0, Math.min(12.0, left)));
-        rightVoltage = Volts.of(Math.max(-12.0, Math.min(12.0, right)));
+        leftVoltage = Volts.of(left / scale * maxVolts);
+        rightVoltage = Volts.of(right / scale * maxVolts);
     }
 
     public void stop() {
@@ -90,6 +92,8 @@ public class Drive extends SubsystemBase {
 
 `arcadeDrive(speed, rotation)` turns forward and turning requests into left and right voltages. `driveAt` wraps that action in a command for fixed-output moves, and `stopCommand` exposes a one-shot stop. These command factories belong in the subsystem because they operate only `Drive` and automatically require it. The IO receives voltage requests and does not read joysticks.
 
+If driving and turning together would put either side above 1.0, `scale` reduces both sides by the same factor. This preserves their ratio and keeps each request within the voltage cap.
+
 `speed` and `rotation` remain `double` values because they are fractions of full input. They have no physical unit. [R03](/kit-bot/r03-constants) made the same distinction between `Distance` and `MAX_DRIVE_PERCENT`.
 
 The teleop deadband and stick scaling are *not* here either. They belong to the command that reads the joystick (R10). The subsystem only does drive math, not driver-input math.
@@ -97,6 +101,10 @@ The teleop deadband and stick scaling are *not* here either. They belong to the 
 ---
 
 ### Step 2: wire it in `RobotContainer`
+
+This is a partial snippet. Add the `drive` field and replace the existing `configureBindings()` method. Keep the existing `driver` field; the listing shows it for context. Remove the heartbeat field and bindings when replacing this practice subsystem. Keep the constructor and `getAutonomousCommand()`.
+
+Add imports for `frc.robot.subsystems.drive.Drive`, `frc.robot.subsystems.drive.DriveIOSim`, and `edu.wpi.first.wpilibj2.command.Commands`.
 
 ```java
 private final Drive drive = new Drive(new DriveIOSim());
@@ -107,7 +115,7 @@ private final CommandXboxController driver =
 private void configureBindings() {
     drive.setDefaultCommand(
         Commands.run(
-            () -> drive.arcadeDrive(-driver.getLeftY(), -driver.getRightX()),
+            () -> drive.arcadeDrive(-driver.getLeftY(), driver.getRightX()),
             drive
         )
     );
@@ -116,20 +124,30 @@ private void configureBindings() {
 
 Two new patterns:
 
-- **Default command** on `drive`. While no other command requires `drive`, this one runs every tick, reading the sticks and calling `arcadeDrive`. The `-` on both axes is the FRC convention (Xbox stick Y is positive *down*; X depends on left vs right).
+- **Default command** on `drive`. While no other command requires `drive`, this one runs every tick, reading the sticks and calling `arcadeDrive`. Negating left Y makes forward positive. Right X stays positive for a right turn because our `arcadeDrive` adds rotation to the left side and subtracts it from the right.
 - **One simulated subsystem** is constructed at the top. R08 will add the launcher beside it, and R12 will select real or simulation IO for both mechanisms.
 
 ---
 
 ### Step 3: run it
 
-Build (`F5`). Plug in an Xbox controller or use the sim keyboard. Enable in teleop.
+1. Add `import static edu.wpi.first.units.Units.Meters;` to `Drive.java`.
+2. Add this temporary partial snippet at the end of `Drive.periodic()`:
 
-Push the left stick forward. The console doesn't print anything (we don't have telemetry yet; that's R13), but if you add a temporary `System.out.println(drive.leftPosition().in(Meters))` to `Drive.periodic()` (needs `import static edu.wpi.first.units.Units.Meters;`) you should see the left position growing while you're driving forward.
+```java
+System.out.printf("left=%.2f m, right=%.2f m%n",
+    leftPosition().in(Meters), rightPosition().in(Meters));
+```
 
-Push left stick fully forward and hold for 2 seconds. The Kit Bot's max speed at 85% drive cap is about 3 m/s, so you should accumulate ~6 m of distance. If you see 60 m, your gear ratio division is missing somewhere. If you see 0.6 m, you have an extra factor of 10.
+3. Build and start simulation. Assign your controller to Joystick 0, then enable teleop.
+4. Push the left stick forward with the right stick centered. Both distance values should increase.
+5. Push backward. Both values should decrease.
+6. Center the left stick and push the right stick right. The left distance should increase and the right distance decrease.
+7. Release the sticks, disable, and remove the temporary print after saving your observations.
 
-Push right stick to the right and the robot turns. The left side accelerates forward, right side backward.
+Compare changes from the starting readings. The distances are totals since simulation began, not a new measurement for each stick movement. Acceleration and model settings affect the distance traveled; an exact distance in two seconds is not a pass condition.
+
+If the signs disagree, inspect the stick sign and the left/right arithmetic before changing a gear ratio. If the scale looks wrong, check meters, wheel diameter, and motor-to-wheel conversion separately.
 
 ---
 
@@ -146,7 +164,7 @@ R08 repeats the IO pattern with the launcher. Phase 4 then adds real stick math 
 
 <RulesBox title="Done when">
 
-Full stick forward for two seconds accumulates about six metres of left and right position; right stick turns the sides in opposite directions. A number about ten times too large usually points to a units error in the sim's conversion; finding it is part of the module.
+Forward increases both distance readings; reverse decreases both; a right turn increases the left reading and decreases the right. Release and disable stop the voltage request. Save the observed signs and remove the temporary print.
 
 </RulesBox>
 

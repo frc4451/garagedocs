@@ -17,11 +17,11 @@ You have already used arrays to store values. This lesson looks at them as one o
 
 Every other structure in this module exists because arrays fall short in some particular way. Understanding exactly where they fall short is what makes the rest make sense.
 
-If you need a refresher on the syntax first, see [Arrays](/java/fundamentals/java-arrays#creating-arrays---basic-types) in Java Basics.
+If you need a refresher on the syntax first, see [Arrays](/java/fundamentals/java-arrays#creating-arrays---basic-types) in Loops and Iteration.
 
 ### What an array is
 
-An array is a single block of memory holding elements of the same type, laid out end to end.
+Model an array as numbered slots of one element type. Common JVM implementations store those slots together, allowing indexed access. An object array stores references in its slots; the objects themselves need not sit next to one another.
 
 ```java
 int[] readings = new int[5];
@@ -37,7 +37,7 @@ That is why reading or writing any element takes the same amount of time regardl
 
 - **Reading any element by index:** instant, no searching
 - **Writing to any element by index:** instant
-- **Memory efficiency:** no overhead beyond the values themselves
+- **Memory efficiency:** no separate linked-list node per element; arrays still have an object header, length, and possible alignment overhead
 - **Predictable performance:** no hidden resizing or reallocation
 
 </RulesBox>
@@ -98,14 +98,14 @@ A common pattern when you know the maximum size but not the actual count: alloca
 int[] readings = new int[100];
 int count = 0;
 
-void addReading(int value) {
+public void addReading(int value) {
     if (count < readings.length) {
         readings[count] = value;
         count++;
     }
 }
 
-int average() {
+public int average() {
     if (count == 0) return 0;
     int total = 0;
     for (int i = 0; i < count; i++) {   // loop to count, not readings.length
@@ -146,6 +146,114 @@ for (int r = 0; r < grid.length; r++) {
 
 `grid.length` is the number of rows; `grid[r].length` is the length of that row. Reading them in the wrong order is a frequent bug on non-square grids.
 
+### Object arrays
+
+These examples apply classes, constructors, and Scanner to an array of related objects. Treat each class declaration as a separate local file when working in VS Code.
+
+### Adding objects to arrays
+
+Storing an object in an array works the same way as storing a primitive. You can create the object first and assign it, or create it in the assignment. The example uses a small `Robot` class.
+
+### Robot objects in arrays
+
+```java
+// Assume we have a Robot class
+public class Robot {
+    private String name;
+    private int teamNumber;
+    private boolean isActive;
+    
+    public Robot(String name, int teamNumber) {
+        this.name = name;
+        this.teamNumber = teamNumber;
+        this.isActive = false;
+    }
+    
+    public String getName() { return this.name; }
+    public int getTeamNumber() { return this.teamNumber; }
+    public boolean isActive() { return this.isActive; }
+    public void activate() { this.isActive = true; }
+    
+    public String toString() {
+        return name + " (Team " + teamNumber + ") - " + (isActive ? "Active" : "Inactive");
+    }
+}
+
+// Create an array for robot objects
+Robot[] competition = new Robot[4];
+
+// Method 1: Create robot first, then add to array
+Robot robot1 = new Robot("SpeedBot", 12345);
+competition[0] = robot1;
+
+// Method 2: Create robot directly in array assignment
+competition[1] = new Robot("PowerBot", 67890);
+competition[2] = new Robot("PrecisionBot", 11111);
+competition[3] = new Robot("AllStarBot", 22222);
+
+// Activate all robots and display
+for (int i = 0; i < competition.length; i++) {
+    competition[i].activate();
+    System.out.println(competition[i]);
+}
+```
+
+### User input for object arrays
+
+An array of objects can also be filled from user input, one object per set of prompts. The example builds a team roster.
+
+### Building object arrays from user input
+
+```java
+import java.util.Scanner;
+
+public class RobotTeamBuilder {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        
+        System.out.print("How many robots in your team? ");
+        int teamSize = Integer.valueOf(scanner.nextLine());
+        
+        // Create array based on user input
+        Robot[] robotTeam = new Robot[teamSize];
+        
+        // Collect robot information
+        for (int i = 0; i < robotTeam.length; i++) {
+            System.out.println("\nEntering Robot " + (i + 1) + ":");
+            
+            System.out.print("Robot name: ");
+            String name = scanner.nextLine();
+            
+            if (name.isEmpty()) {
+                System.out.println("Using default name: Robot" + (i + 1));
+                name = "Robot" + (i + 1);
+            }
+            
+            System.out.print("Team number: ");
+            int teamNumber = Integer.valueOf(scanner.nextLine());
+            
+            // Create and add robot to array
+            robotTeam[i] = new Robot(name, teamNumber);
+        }
+        
+        // Display the complete team
+        System.out.println("\n=== Robot Team Roster ===");
+        System.out.println("Total robots: " + robotTeam.length);
+        
+        for (int i = 0; i < robotTeam.length; i++) {
+            System.out.println((i + 1) + ". " + robotTeam[i]);
+        }
+    }
+}
+```
+
+
+### Reading the cost notation
+
+The following pages use n for the number of elements. O(1) means the work does not grow with n; O(n) means it can grow in proportion to n.
+
+Amortized O(1) means the average cost per operation over a sequence stays bounded even though an occasional operation does more work. These describe growth, not zero time. [Big-O](/java/fundamentals/java-big-o) develops the analysis.
+
 ### Choosing an array
 
 Use an array when all of the following hold:
@@ -185,7 +293,7 @@ If the size changes as the program runs, use an [ArrayList](/java/fundamentals/j
 </ExerciseBox>
 
 <LinkGrid
-  title="Next"
+  title="Related"
   section="java"
   links={[
     {"label":"ArrayLists","id":"java-arraylists"},
@@ -210,3 +318,5 @@ If the size changes as the program runs, use an [ArrayList](/java/fundamentals/j
     {"label":"Objects and References","id":"java-objects-and-references"}
   ]}
 />
+
+<LinkGrid title="Next lesson" section="java" links={[{"label": "ArrayLists", "id": "java-arraylists"}]} />

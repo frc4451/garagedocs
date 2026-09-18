@@ -18,24 +18,24 @@ Sometimes a base class knows *that* something must happen but not *how*. Every s
 You could give the parent an empty method and hope subclasses remember to override it:
 
 ```java
-class Subsystem {
-    void periodic() { }         // does nothing; easy to forget to override
+public class Subsystem {
+    public void periodic() { }         // does nothing; easy to forget to override
 }
 ```
 
 That compiles, and a subclass that forgets silently does nothing at all. An abstract method makes it a compile error instead:
 
 ```java
-abstract class Subsystem {
+public abstract class Subsystem {
     protected final String name;
 
-    Subsystem(String name) {
+    public Subsystem(String name) {
         this.name = name;
     }
 
-    abstract void periodic();       // no body; subclasses must supply one
+    public abstract void periodic();       // no body; subclasses must supply one
 
-    void describe() {               // ordinary method, inherited as usual
+    public void describe() {               // ordinary method, inherited as usual
         System.out.println("subsystem: " + name);
     }
 }
@@ -44,11 +44,11 @@ abstract class Subsystem {
 An abstract method declares a signature and ends with a semicolon instead of a body. Any concrete subclass must implement it:
 
 ```java
-class Intake extends Subsystem {
-    Intake() { super("intake"); }
+public class Intake extends Subsystem {
+    public Intake() { super("intake"); }
 
     @Override
-    void periodic() {
+    public void periodic() {
         System.out.println("checking intake sensor");
     }
 }
@@ -80,24 +80,24 @@ A class with an abstract method *must* be declared abstract. The reverse is not 
 This is what abstract classes offer that interfaces historically did not: real fields, constructors, and finished methods alongside the abstract ones.
 
 ```java
-abstract class Subsystem {
+public abstract class Subsystem {
     protected final String name;
     private boolean enabled = false;
 
-    Subsystem(String name) {
+    public Subsystem(String name) {
         this.name = name;
     }
 
     // concrete: shared by every subclass
-    void enable()  { enabled = true; }
-    void disable() { enabled = false; }
-    boolean isEnabled() { return enabled; }
+    public void enable()  { enabled = true; }
+    public void disable() { enabled = false; }
+    public boolean isEnabled() { return enabled; }
 
     // abstract: each subclass decides
-    abstract void periodic();
+    public abstract void periodic();
 
     // concrete, but built on the abstract part
-    final void update() {
+    public final void update() {
         if (enabled) {
             periodic();
         }
@@ -114,28 +114,28 @@ Marking `update` as `final` means subclasses cannot change that ordering; they c
 An abstract class may extend another abstract class and implement only some of the inherited abstract methods, leaving the rest for further subclasses:
 
 ```java norun
-abstract class Subsystem {
-    abstract void periodic();
-    abstract void stop();
+public abstract class Subsystem {
+    public abstract void periodic();
+    public abstract void stop();
 }
 
-abstract class MotorSubsystem extends Subsystem {
+public abstract class MotorSubsystem extends Subsystem {
     protected final Motor motor;
 
-    MotorSubsystem(Motor motor) { this.motor = motor; }
+    public MotorSubsystem(Motor motor) { this.motor = motor; }
 
     @Override
-    void stop() {                    // supplied here for all motor subsystems
+    public void stop() {                    // supplied here for all motor subsystems
         motor.set(0);
     }
     // periodic() left abstract; still each subclass's job
 }
 
-class Intake extends MotorSubsystem {
-    Intake(Motor motor) { super(motor); }
+public class Intake extends MotorSubsystem {
+    public Intake(Motor motor) { super(motor); }
 
     @Override
-    void periodic() { motor.set(0.6); }
+    public void periodic() { motor.set(0.6); }
 }
 ```
 
@@ -172,9 +172,9 @@ When both would work, prefer the interface. Single inheritance is a scarce resou
 The `update`/`periodic` split above has a name, the template method pattern. The parent defines the sequence; subclasses fill in steps.
 
 ```java
-abstract class AutoRoutine {
+public abstract class AutoRoutine {
     // fixed sequence, subclasses cannot reorder it
-    final void run() {
+    public final void run() {
         initialise();
         while (!isFinished()) {
             step();
@@ -182,10 +182,10 @@ abstract class AutoRoutine {
         cleanUp();
     }
 
-    void initialise() { }             // optional hook, default does nothing
-    abstract void step();             // required
-    abstract boolean isFinished();    // required
-    void cleanUp() { }                // optional hook
+    public void initialise() { }             // optional hook, default does nothing
+    public abstract void step();             // required
+    public abstract boolean isFinished();    // required
+    public void cleanUp() { }                // optional hook
 }
 ```
 
@@ -226,7 +226,7 @@ Distinguishing required steps (`abstract`) from optional hooks (concrete, empty)
 </ExerciseBox>
 
 <LinkGrid
-  title="Next"
+  title="Related"
   section="java"
   links={[
     { "label": "Interfaces", "id": "java-interfaces" },
@@ -251,3 +251,5 @@ Distinguishing required steps (`abstract`) from optional hooks (concrete, empty)
     { "label": "The Command Pattern", "id": "java-command-pattern" }
   ]}
 />
+
+<LinkGrid title="Next lesson" section="java" links={[{"label": "Interfaces", "id": "java-interfaces"}]} />

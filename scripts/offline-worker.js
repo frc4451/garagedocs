@@ -3,8 +3,9 @@ const PREFIX = 'garagedocs-offline-' + BUILD.scope + '-';
 const CACHE = PREFIX + BUILD.version;
 const META = new URL(BUILD.scope + '__offline_complete__', self.location.origin).href;
 const urls = new Set(BUILD.files.map(file => file.url));
+const serviceWorker = /** @type {ServiceWorkerGlobalScope} */ (self);
 async function broadcast(message) {
-  for (const client of await self.clients.matchAll({ includeUncontrolled: true })) {
+  for (const client of await serviceWorker.clients.matchAll({ includeUncontrolled: true })) {
     if (new URL(client.url).pathname.startsWith(BUILD.scope)) client.postMessage(message);
   }
 }
@@ -46,7 +47,7 @@ self.addEventListener('activate', event => {
     // Keep the previous snapshot for already-open tabs' lazy-loaded assets.
     const keys = (await caches.keys()).filter(key => key.startsWith(PREFIX) && key !== CACHE);
     for (const key of keys.slice(0, -1)) await caches.delete(key);
-    await self.clients.claim();
+    await serviceWorker.clients.claim();
     await broadcast({ type: 'OFFLINE_READY' });
   })());
 });

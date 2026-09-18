@@ -13,6 +13,14 @@ description: "What a state machine is, why the same intake looks different writt
 
 Every robot program is a state machine. The scheduler's list of running commands is a state; a subsystem's setpoint is a state; the boolean behind a `Trigger` is a state. Command-based code lets those states stay implicit, spread across bindings, default commands and `isFinished()` methods. State-driven code makes them explicit: one enum names what a mechanism or the whole robot is doing, and one method decides what happens next. This group is about when that trade is worth making, and how FRC 2910 and FRC 254 make it.
 
+### Two competition examples
+
+**FRC 2910 separates the request from the robot's current action.** In [2910's `SuperStructure`](https://github.com/FRCTeam2910/2026CompetitionRobot-Public/blob/main/src/main/java/org/frc2910/robot/subsystems/SuperStructure.java), driver controls and autonomous routines set a `WantedState`. Each loop, `handleStateTransitions()` combines that request with sensor readings to choose a `CurrentState`. Then `applyStates()` sends goals to the mechanisms. Logging both values answers two different questions: "What did the code request?" and "What was the robot actually doing?" Their smaller [`HopperSubsystem`](https://github.com/FRCTeam2910/2026CompetitionRobot-Public/blob/main/src/main/java/org/frc2910/robot/subsystems/hopper/HopperSubsystem.java) uses the same pattern inside one mechanism.
+
+**FRC 254 treats movement as a path through allowed states.** Each [254 `SuperstructureState`](https://github.com/Team254/FRC-2025-Public/blob/main/src/main/java/com/team254/frc2025/subsystems/superstructure/SuperstructureState.java) names coordinated elevator and wrist goals and lists the states that may safely follow it. Its [`SuperstructureStateMachine`](https://github.com/Team254/FRC-2025-Public/blob/main/src/main/java/com/team254/frc2025/subsystems/superstructure/SuperstructureStateMachine.java) searches that graph for a legal route to the requested state. A [`StateTransition`](https://github.com/Team254/FRC-2025-Public/blob/main/src/main/java/com/team254/frc2025/subsystems/superstructure/StateTransition.java) holds the command for one step of that route. This extra structure is useful when mechanisms can collide and cannot move directly between every pair of positions.
+
+These are examples at different scales. Start with 2910's request, transition, and action pattern when one mechanism has a few behaviors. A transition graph like 254's becomes useful when several mechanisms must move in a safe order.
+
 <RulesBox title="Before you start">
 
 The [Command-Based Programming](/frc/introduction-to-command-based) group, [AdvantageKit](/frc/advantagekit) for `Logger.recordOutput`, and [BobotState](/frc/bobot-state) for how FRC 4451 already centralises what the robot knows. Kit Bot's subsystem-owned command factories ([R05](/kit-bot/r05-commands-and-triggers)) are the pattern this group builds on, not one it replaces.
@@ -142,6 +150,9 @@ Cobra is already partway there. `Hood` has `HoodState {DOWN, MID, UP}` and logs 
   {"url": "https://www.chiefdelphi.com/t/should-you-have-state-in-subsystems-java/467543", "label": "Chief Delphi: Should you have State in Subsystems? (Java)", "note": "The counter-case: a subsystem state enum that grew into tangled logic, and the command-factory answer for small robots."},
   {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/SuperStructure.java", "note": "The two-layer wanted/current state machine that logs both every cycle; SCORE_ON_MOVE and AUTO_SCORE as driver and auto intents."},
   {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/hopper/HopperSubsystem.java", "note": "The subsystem-sized version the intake example is modelled on: WantedState, SystemState, handleStateTransition, applyStates."},
+  {"source": "frc254", "path": "src/main/java/com/team254/frc2025/subsystems/superstructure/SuperstructureState.java", "note": "Coordinated elevator and wrist targets plus the next states that are allowed from each state."},
+  {"source": "frc254", "path": "src/main/java/com/team254/frc2025/subsystems/superstructure/SuperstructureStateMachine.java", "note": "Graph construction, pathfinding between states, and execution of the selected transitions."},
+  {"source": "frc254", "path": "src/main/java/com/team254/frc2025/subsystems/superstructure/StateTransition.java", "note": "The command and metadata associated with one transition between two states."},
   {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/Hood.java", "note": "HoodState and its logged current state."},
   {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/flywheel/Flywheel.java", "note": "FlywheelState derived from measured velocity."},
   {"source": "wpilib", "path": "docs/software/commandbased/binding-commands-to-triggers.html", "note": "The trigger version of the intake."}

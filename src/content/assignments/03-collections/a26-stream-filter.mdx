@@ -21,20 +21,9 @@ this assignment there. After completing the checks and rubric, update the root
 
 ### Scenario
 
-You have a season of scouting entries and a list of questions:
+Answer five questions about scouting data: filter by drivetrain, select top scorers, average climb rates, check a threshold, and find a match.
 
-- Which teams run swerve?
-- Who are the top five by pick score?
-- What is the average climb rate for each drivetrain?
-- Is there anyone here who averages over 80?
-- Who is the first team matching *this* condition?
-
-Every query is read-only. You are not changing the list, you are producing an
-answer from it. That is the shape streams are for.
-
-You will write each query **twice**, once as a stream and once as a loop. This is not
-busywork: the point is that after ten of these you will have an opinion about which
-reads better, and it will be your own rather than borrowed.
+Write each query with a stream and with a loop. Compare results and explain which version you find easier to read.
 
 ### What to build
 
@@ -71,7 +60,7 @@ comparison is honest.
 <JavaPlayground id="a26-stream-filter" />
 
 <RulesBox title="Hints" items={[
-  "<strong><code>.toList()</code> beats <code>.collect(Collectors.toList())</code>.</strong> Shorter, and it returns an immutable list, which fits a read-only query result.",
+  "<strong>Choose the result type deliberately.</strong> Stream.toList returns an unmodifiable list. Its elements can still be mutable objects. Use it here because callers only need to read the result.",
   "<strong>Top-K is <code>sorted</code> then <code>limit</code>.</strong> <code>Comparator.comparingDouble(TeamEntry::pickScore).reversed()</code>, then <code>limit(k)</code>, then <code>toList()</code>. Note that this sorts the whole stream to take five: fine at this size, wasteful at a hundred thousand, and worth knowing which one you are writing.",
   "<strong><code>groupingBy</code> takes a downstream collector.</strong> <code>groupingBy(TeamEntry::drivetrain, Collectors.averagingDouble(TeamEntry::climbRate))</code> gives you <code>Map&lt;String, Double&gt;</code> in one call. The second argument is what aggregates each group: <code>counting</code>, <code>summingInt</code> and <code>joining</code> are its siblings.",
   "<strong><code>anyMatch</code> short-circuits, and your loop must too.</strong> It stops at the first hit rather than walking the list. If your loop version counts matches and then compares against zero, it computes the same answer with unnecessary work.",
@@ -87,7 +76,7 @@ comparison is honest.
     ["Functionality", "60", "All ten methods agree pairwise on every sample input. Each stream version is a single expression using the appropriate operation. No <code>.collect(Collectors.toList())</code> where <code>.toList()</code> would do."],
     ["Edge cases", "15", "Top-K returns at most K, including when K exceeds the list, and nothing when K is 0. <code>anyMatch</code> on an empty list is <code>false</code>. <code>firstMatching</code> gives an empty <code>Optional</code> when nothing matches."],
     ["Code quality", "20", "Both versions of a query return the same type. The loop versions short-circuit wherever their stream twins do. No copy-pasted logic between pairs that wanted to be a helper."],
-    ["Comments", "5", "Author header, and one line per pair on which version you find clearer: the answer is not the same for all five."],
+    ["Comments", "5", "Author header, and one line per pair on which version you find clearer: explain your choice for each query."],
     ["Total", "100", ""]
   ]}
 />

@@ -6,7 +6,8 @@ import { fileURLToPath } from 'url';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { pagefindDevPlugin } from './scripts/pagefind-dev-plugin.mjs';
 import { normalizeWindowsDevPathsPlugin } from './scripts/normalize-windows-dev-paths.mjs';
-import { rehypeHeadingIds } from '@astrojs/markdown-remark';
+import { vscodeEditPagePlugin } from './scripts/vscode-edit-page-plugin.mjs';
+import { rehypeHeadingIds, unified } from '@astrojs/markdown-remark';
 import { rehypeBasePath } from './scripts/rehype-base-path.mjs';
 import { rehypeHeadingLinks } from './scripts/rehype-heading-links.mjs';
 import { rehypeMarkdownTables } from './scripts/rehype-markdown-tables.mjs';
@@ -71,7 +72,8 @@ export default defineConfig({
     '/frc/controllers-and-bindings': withBase('/frc/controllers-and-inputs'),
     '/frc/frc-code-organization': withBase('/frc/code-organization'),
     '/frc/frc-pid-control': withBase('/frc/pid-control'),
-    '/frc/frc-programming-resources': withBase('/frc/programming-resources'),
+    '/frc/frc-programming-resources': withBase('/resources'),
+    '/frc/programming-resources': withBase('/resources'),
     '/frc/geometry-classes': withBase('/frc/pose-geometry'),
     '/frc/intake-command-based': withBase('/frc/command-based-intake'),
     '/frc/intake-example-robot': withBase('/frc/basic-intake-example'),
@@ -179,24 +181,26 @@ export default defineConfig({
     }),
   ],
   markdown: {
-    // `java norun` on a fence opts an example out of the Run control. The remark
-    // plugin marks the code node, but Astro's Shiki step rebuilds every <pre> and
-    // drops that mark — so the Shiki transformer below re-reads the fence meta
-    // and stamps data-java-norun on the <pre> that actually reaches rehype.
-    remarkPlugins: [remarkJavaNorun],
-    // Astro normally assigns heading ids *after* user rehype plugins run, so
-    // rehypeHeadingIds is listed explicitly first and rehypeHeadingLinks turns
-    // each heading into a link to its own anchor. Content links are authored
-    // site-root-relative (`/frc/...`); rehypeBasePath rewrites them for the
-    // deployed base path. rehypeRunnableJava then wraps Java example fences in
-    // the Java lessons so the browser can hydrate a Run control.
-    rehypePlugins: [
-      rehypeHeadingIds,
-      rehypeHeadingLinks,
-      rehypeMarkdownTables,
-      [rehypeBasePath, { base: BASE }],
-      rehypeRunnableJava,
-    ],
+    processor: unified({
+      // `java norun` on a fence opts an example out of the Run control. The remark
+      // plugin marks the code node, but Astro's Shiki step rebuilds every <pre> and
+      // drops that mark — so the Shiki transformer below re-reads the fence meta
+      // and stamps data-java-norun on the <pre> that actually reaches rehype.
+      remarkPlugins: [remarkJavaNorun],
+      // Astro normally assigns heading ids *after* user rehype plugins run, so
+      // rehypeHeadingIds is listed explicitly first and rehypeHeadingLinks turns
+      // each heading into a link to its own anchor. Content links are authored
+      // site-root-relative (`/frc/...`); rehypeBasePath rewrites them for the
+      // deployed base path. rehypeRunnableJava then wraps Java example fences in
+      // the Java lessons so the browser can hydrate a Run control.
+      rehypePlugins: [
+        rehypeHeadingIds,
+        rehypeHeadingLinks,
+        rehypeMarkdownTables,
+        [rehypeBasePath, { base: BASE }],
+        rehypeRunnableJava,
+      ],
+    }),
     shikiConfig: {
       theme: 'github-light',
       themes: {
@@ -216,7 +220,7 @@ export default defineConfig({
     },
   },
   vite: {
-    plugins: [normalizeWindowsDevPathsPlugin(), pagefindDevPlugin(BASE)],
+    plugins: [normalizeWindowsDevPathsPlugin(), vscodeEditPagePlugin(BASE), pagefindDevPlugin(BASE)],
     server: {
       host: DEV_HOST,
       port: DEV_PORT,

@@ -13,7 +13,7 @@ description: "Deadband, scaling, and the stick curve from A08 applied to a real 
 
 The Drive subsystem from R07 takes `speed` and `rotation` values in `[-1, 1]`. Xbox sticks report values in the same range, but raw readings can make the robot creep at rest and respond too sharply near the center.
 
-This module is the small layer of math that turns raw stick input into something a driver can actually steer. You already wrote it as plain Java in [A08](/java/assignments/a08-stick-curve-calculator). This is where it gets a home in the project.
+This module adjusts stick input so the driver can make small movements near the center. For practice with the same calculation outside a robot project, use [A08](/java/assignments/a08-stick-curve-calculator).
 
 ---
 
@@ -39,9 +39,9 @@ This module is the small layer of math that turns raw stick input into something
 
 Three things go wrong if you skip stick math:
 
-1. **The stick never reads exactly zero.** A driver's hand on the stick rests at ±0.02 most of the time. The robot creeps even when the driver isn't trying to drive.
+1. **A centered stick can report a small nonzero value.** Check your own controller in the Sim GUI. That reading can request motion when the driver expects the robot to stay still.
 2. **Small movements are too sensitive.** A 10% stick deflection becomes a 10% drive command, too much for precise lining-up.
-3. **The Y axis is upside-down.** Push the stick *forward* (up on the controller) and `getLeftY()` returns a *negative* number. Conventions left over from the old joystick API.
+3. **The Y axis is upside-down.** Push the stick *forward* (up on the controller) and `getLeftY()` returns a *negative* number. Negating this reading makes forward positive.
 
 Three fixes, in order:
 
@@ -49,13 +49,13 @@ Three fixes, in order:
 - **Deadband** small absolute values to zero.
 - **Apply a curve**: square the input while preserving sign so small motions stay small but full deflection still gives full drive.
 
-You did all three in A08. We're going to drop that work in.
+The helper below performs the deadband and curve steps.
 
 ---
 
 ### A small helper class
 
-Put it in `subsystems/drive/StickCurve.java`: drive-specific math, so it lives next to the drive code. If a second subsystem ever needs it, we'll move it up to a `util/` package then.
+Create `src/main/java/frc/robot/subsystems/drive/StickCurve.java` with this complete file.
 
 ```java
 package frc.robot.subsystems.drive;
@@ -80,11 +80,11 @@ public final class StickCurve {
 }
 ```
 
-Same shape as A08: deadband first, sign-preserving power second, clamp last. The order matters: deadband on a *post*-curve value would zero out values that the curve already pushed close to zero, double-clipping. Deadband on the raw input first is the right move.
+The helper checks the raw input against the deadband, squares its size, restores its sign, and clamps the result. The deadband check goes first: squaring a small input makes it smaller and could otherwise put it below the threshold.
 
 Notice everything here stays a plain `double`: `rawStick`, `deadband`, `maxOutput` are all dimensionless fractions of full stick deflection, not a physical quantity WPILib's Units library has a type for. That's the same distinction R03 drew between `Distance` and `MAX_DRIVE_PERCENT`, and R07 drew between `arcadeDrive`'s `speed`/`rotation` and its internal `Voltage` math. Units typing stops where the physical quantity does.
 
-The exponent `2` is the common choice; `3` is gentler near zero and worth trying once you've driven the robot. Pick one and stick with it; flip-flopping is more confusing than either choice.
+Keep exponent `2` for this project so your checks use the same calculation.
 
 ---
 
@@ -104,14 +104,14 @@ The default command is the right home. The `Drive` subsystem stays unaware of wh
 
 ### Updated default command
 
-This goes in `RobotContainer`'s `configureBindings`:
+Replace only the `drive.setDefaultCommand(...)` call inside `RobotContainer.configureBindings()` with this partial snippet. Keep every launcher, D-pad, and characterization binding. Import `DriveConstants` and `StickCurve` from `frc.robot.subsystems.drive`.
 
 ```java
 drive.setDefaultCommand(
     Commands.run(
         () -> {
             double rawY = -driver.getLeftY();         // negate Y
-            double rawRot = -driver.getRightX();      // negate X depending on convention
+            double rawRot = driver.getRightX();      // positive X requests a right turn
 
             double speed = StickCurve.shape(
                 rawY,
@@ -135,8 +135,8 @@ What changed from the R07 version:
 
 - Stick reads are conditioned through `StickCurve.shape` before reaching `arcadeDrive`.
 - Deadband comes from `DriveConstants.TELEOP_DEADBAND`. Adjusting the feel is a constants edit, not a code edit.
-- `shape` is called with a max output of `1.0`, not `DriveConstants.MAX_DRIVE_PERCENT`. `arcadeDrive`'s own doc comment (R07) says it takes `speed` and `rotation` in the full `[-1, 1]` range, then applies `MAX_DRIVE_PERCENT` itself when it converts that to volts. Capping to `MAX_DRIVE_PERCENT` a second time here, before the value ever reaches `arcadeDrive`, would compound the two caps and leave full stick deflection well under 85% of battery voltage.
-- The lambda still ends in `drive.arcadeDrive(...)`: the subsystem's API is unchanged. Good IO design means everything below is sealed.
+- `shape` is called with a max output of `1.0`, not `DriveConstants.MAX_DRIVE_PERCENT`. `arcadeDrive`'s own doc comment (R07) says it takes `speed` and `rotation` in the full `[-1, 1]` range, then applies `MAX_DRIVE_PERCENT` itself when it converts that to volts. Capping to `MAX_DRIVE_PERCENT` a second time here, before the value ever reaches `arcadeDrive`, would compound the two caps and leave full stick deflection well under 10.2 V.
+- The lambda still ends in `drive.arcadeDrive(...)`: the subsystem's API is unchanged. The IO files do not need to change.
 
 ---
 
@@ -148,11 +148,11 @@ Plug in an Xbox controller. Slowly push the left stick forward from rest. The ro
 
 1. Not move at all until the stick crosses about 5% deflection.
 2. Move slowly at 20–30% deflection.
-3. Move at full commanded speed at full deflection; `arcadeDrive` still caps the resulting voltage at 85% of battery voltage through `MAX_DRIVE_PERCENT`.
+3. Move at full commanded speed at full deflection; `arcadeDrive` still caps the resulting voltage at 10.2 V through `MAX_DRIVE_PERCENT`.
 
-If the robot starts moving the moment you breathe on the stick, your deadband isn't wired through. If the robot accelerates linearly with stick deflection, your curve isn't applied: the `Math.pow(..., 2)` step is the difference.
+For a numeric check, `shape(0.03, 0.05, 1.0)` should be zero. The helper squares 0.30, so `shape(0.30, 0.05, 1.0)` is 0.09. This is an output fraction, not a measured speed.
 
-Then try sitting on a single 30% reading for a few seconds. The robot should glide smoothly, not creep then jolt. Smooth glide means the curve is doing its job at small inputs.
+If a centered stick requests motion, inspect its raw reading and confirm the command calls `shape`. If small inputs remain too large, check the deadband and exponent before changing motor settings.
 
 ---
 
@@ -170,7 +170,7 @@ Change one variable at a time and have the same person drive the same route both
 
 <RulesBox title="Done when">
 
-Slowly deflecting the stick: nothing until about 5 %, gentle motion at 20–30 %, full speed at full deflection, and a held 30 % that glides rather than creeps and jolts. If any of those is wrong, check whether the deadband and the curve are applied on the path from the stick to the drive command. The stick behaviour is the evidence.
+With one stick axis at a time, input below 0.05 requests zero, input 0.30 becomes 0.09, and input 1.0 becomes 1.0. Forward and right-turn directions still match R07. Explain how these smaller requests help the driver make careful adjustments.
 
 </RulesBox>
 

@@ -11,7 +11,7 @@ description: "RobotBase.isReal() picks the IO implementation at runtime, and the
 ---
 
 
-R07 and R08 left a TODO: `new DriveIOSim()` is hard-coded in `RobotContainer`. That's fine for development but useless on a real robot. This module finishes the IO pattern: the runtime decision of which implementation to construct.
+R07 and R08 always selected simulation IO. Now add one decision: create simulation IO on your laptop and real IO on the roboRIO. **Runtime** means while the program is running.
 
 The decision uses one `if`. Its location matters because the rest of the project should depend on the IO interfaces rather than the runtime environment.
 
@@ -35,7 +35,7 @@ This check is the *only* thing the IO selection needs. No env variables, no buil
 
 ### Where the `if` lives
 
-It lives in `RobotContainer`'s constructor. Specifically, in the place where IOs and subsystems get constructed.
+The choice belongs in the `RobotContainer` constructor, where the subsystem objects are created. Replace `src/main/java/frc/robot/RobotContainer.java` with the complete file below. It includes the D-pad and characterization bindings from R08 and R09. The heartbeat and temporary print bindings are no longer needed.
 
 ```java
 package frc.robot;
@@ -44,6 +44,7 @@ import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 
+import static edu.wpi.first.units.Units.Meters;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.commands.TeleopDrive;
 import frc.robot.subsystems.drive.Drive;
@@ -77,6 +78,7 @@ public class RobotContainer {
         drive    = new Drive(driveIO);
         launcher = new Launcher(launcherIO);
 
+        System.out.println("IO: " + (RobotBase.isReal() ? "real" : "sim"));
         configureBindings();
     }
 
@@ -84,11 +86,15 @@ public class RobotContainer {
         drive.setDefaultCommand(new TeleopDrive(
             drive,
             () -> -driver.getLeftY(),
-            () -> -driver.getRightX()));
+            () -> driver.getRightX()));
 
         driver.rightBumper().whileTrue(launcher.launchFuel());
         driver.leftBumper().whileTrue(launcher.intakeFuel());
         driver.a().whileTrue(launcher.ejectFuel());
+        driver.povUp().whileTrue(launcher.launchAtDistance(Meters.of(1.0)));
+        driver.povDown().whileTrue(launcher.launchAtDistance(Meters.of(3.0)));
+        driver.y().whileTrue(drive.characterizeFeedforward());
+        driver.x().whileTrue(launcher.characterizeFeedforward());
     }
 
     public Command getAutonomousCommand() {
@@ -105,29 +111,9 @@ A few things worth pointing out:
 
 ---
 
-### A slightly tidier variant: a factory
+### Keep the selection in one place
 
-Some teams move the `if` into a tiny static method to keep the constructor short:
-
-```java
-private static DriveIO driveIO() {
-    return RobotBase.isReal() ? new DriveIOReal() : new DriveIOSim();
-}
-
-private static LauncherIO launcherIO() {
-    return RobotBase.isReal() ? new LauncherIOReal() : new LauncherIOSim();
-}
-
-public RobotContainer() {
-    drive    = new Drive(driveIO());
-    launcher = new Launcher(launcherIO());
-    configureBindings();
-}
-```
-
-Same logic, slightly less clutter at the call site. Either form is fine architecturally: both keep the real-vs-sim decision inside `RobotContainer` and invisible everywhere else. One note if you're aiming for the capstone checklist: it asks for "exactly one `if (RobotBase.isReal())` block," which describes the inline form above literally. The factory form replaces that single `if` with two `RobotBase.isReal()` ternaries, one per factory method. That still satisfies the underlying rule (single source of truth, still inside `RobotContainer`), but if your mentor is checking the checklist item by its literal wording, use the inline form or mention the substitution.
-
----
+Use the single `if` shown above for this project. Each branch assigns both IO implementations before the subsystem constructors run. Neither subsystem needs to ask where the program is running.
 
 ### See the simulation layers
 
@@ -143,33 +129,19 @@ Mechanical Advantage's FRC Championship presentation shows how robot code, a phy
 
 ### Try it
 
-Confirm both modes work.
+1. Build and start simulation.
+2. Find `IO: sim` in the console.
+3. Test forward, reverse, and turning.
+4. Test the bumpers, A, both D-pad distance settings, and the X/Y characterization bindings.
+5. Explain which two objects would change on the roboRIO.
 
-1. **Sim**: press `F5` to launch the sim. The console doesn't say which IO it picked; add `System.out.println("IO: " + (RobotBase.isReal() ? "real" : "sim"))` to the constructor if you want confirmation. Drive around. Same behaviour as R11.
-2. **Real (with a mentor)**: use a Kit Bot that has passed its electrical inspection, then deploy with `Ctrl+Shift+P` and `WPILib: Deploy Robot Code`. Drive should work identically. Stick math feels the same. The only difference is real motors and real wheels.
+This lesson's running check uses simulation. Continue to R13. Return to [First Deploy](/kit-bot/r12-first-deploy) with a mentor after the simulation capstone.
 
-If both work, the IO pattern is paying off. If sim works but real doesn't, the bug is in `DriveIOReal`: CAN IDs, inversion, or current limit. The subsystem code didn't change.
-
----
-
-### Why runtime selection comes after both implementations
-
-R07 and R08 kept the simulation implementation selected while you built and tested both sides of the interface. Adding runtime selection earlier would have introduced the interface, two implementations, and the selector at the same time. By keeping the IO hard-coded to sim through R07–R11, you got to focus on:
-
-- The first interface and implementation pair on the drivetrain (R07).
-- Repeating the pattern for the launcher (R08).
-- How each subsystem consumes its interface (R07 and R08).
-- How commands consume the subsystem (R11).
-
-Now that all those layers are concrete, the runtime selection lands in a place where you can clearly see what it changes (the IO impl chosen) and what it doesn't (everything else).
-
-This is also why we held off on telemetry until R13. Same kind of thing. One concept at a time.
-
----
+If real hardware behaves differently, compare configuration, sensor signs, wiring, battery voltage, and the model. A successful simulation alone does not identify which of those caused the difference.
 
 <RulesBox title="Done when">
 
-The console reports `IO: sim` on the laptop. Reading `RobotContainer`, you can point at the single `if (RobotBase.isReal())` and state what changes on each side. You can also state that nothing else in the project depends on the mode, which is the more important claim. The real-robot branch is deployed only when a Kit Bot is available, and only after this passes.
+The console reports `IO: sim`. All controls retained from earlier lessons still work. Point to the single IO-selection `if` and name the real and simulation implementations. No physical robot is required.
 
 </RulesBox>
 

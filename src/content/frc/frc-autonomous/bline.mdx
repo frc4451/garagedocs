@@ -15,11 +15,26 @@ description: "A path follower that chases the robot's real position instead of a
 
 BLine is an open-source path-following suite for holonomic drivetrains: a web editor for drawing paths, and a Java library, **BLine-Lib**, that follows them. Its pitch is *build fast autos, tune what the robot actually does*, and its distinguishing choice is that a path is a **sequence of points**, not a trajectory in time.
 
-That one decision is worth understanding, because it is the reason to pick BLine over the alternatives, and the reason not to, on the wrong day.
+The latter is critical to understand, because it can be the reason to pick BLine over the alternatives.
 
-### Points, not time
+<ReferenceImage
+  src="/media/frc/bline-editor-overview.png"
+  alt="BLine Web displaying a path on the 2026 FRC field with path elements, constraints, and simulation controls"
+  caption="BLine Web keeps the field, ordered path elements, constraints, and simulation controls in one editor. Screenshot courtesy of"
+  sourceUrl="https://bline-docs.pages.dev/gui/"
+  sourceLabel="the official BLine documentation"
+/>
 
-[PathPlanner](/frc/pathplanner#paths-autos-and-event-markers) and Choreo generate a **trajectory**: at every instant `t`, here is where the robot should be, how fast, and pointing which way. The follower's job is to make the robot match that schedule. It is time-optimal, and if the robot is bumped, or the wheels slip, or a mechanism takes longer than expected, the schedule has moved on without it and the follower is now chasing a ghost.
+### "Get to Point"
+
+PathPlanner and Choreo generate a ***trajectory***: at every instant `t`
+1. Here is where the robot should be, how fast, and pointing which way. 
+2. The follower's job is to make the robot match that schedule. 
+
+It is time-optimal. If the robot is bumped, the wheels slip, or a mechanism takes longer than expected, the schedule has moved on without it and the follower is now chasing a ghost.
+
+This can also mean that when the if the robot started one second late for any reason, the auto is one second behind, and needs to accelerate unsafely to catch up. This can result in accidents where robots slam into game pieces.
+In the 2025 season when Choreo would load every autonomous trajectory at the start of Autonomous.
 
 BLine reads the robot's current pose every cycle and asks a geometric question: *how far along the drawn line am I, and which point is next?* There is no clock to fall behind. If the robot gets shoved two feet sideways it simply drives back onto the line from where it is; if it is blocked for a second, it resumes from where it stopped. The docs put it plainly: paths "should wait for physical progress rather than a clock."
 
@@ -91,6 +106,18 @@ This is FRC 4451's actual wiring from their 2026 robot, lightly trimmed. Three t
 - **`withDefaultShouldFlip()`** means you draw every path as if you are the blue alliance and BLine mirrors it when the Driver Station says red. One set of paths, not two.
 - **`withPoseReset`** tells the drivetrain where the path starts. Apply it when building the *first* path of an auto, not every path; later paths should trust the pose the robot has earned.
 
+### Check the loaded path
+
+`BLineField` can publish the loaded path and live robot pose through WPILib's `Field2d`. Display it in Elastic to confirm that the selected path, field side, and pose use the same coordinate frame. This display helps with setup and debugging; BLine does not require it to follow a path.
+
+<ReferenceImage
+  src="/media/frc/bline-elastic-paths.png"
+  alt="Elastic showing a BLine Field2d widget with loaded paths and the live robot pose on the 2026 field"
+  caption="The optional BLine Field2d view shows the loaded route and live pose in Elastic. Screenshot courtesy of"
+  sourceUrl="https://bline-docs.pages.dev/lib/field-visualization/"
+  sourceLabel="the official BLine documentation"
+/>
+
 ### Where paths come from
 
 **Drawn.** [BLine Web](https://bline-docs.pages.dev/gui/) is a browser editor: click waypoints onto the field, set headings and constraints, preview, export JSON. The file goes in the deploy folder and is loaded by name:
@@ -134,6 +161,24 @@ Path toLoading = new Path(
 
 A **Waypoint** is a position with a heading; a **TranslationTarget** is a position the robot passes through without caring about heading; a **RotationTarget** asks for a heading by a certain fraction of progress. The **handoff radius** is the circle around each intermediate target inside which BLine considers it reached and moves on. It decides whether the robot cuts corners or squares them.
 
+<ReferenceImage
+  src="/media/frc/bline-path-element-layers.svg"
+  alt="Diagram showing translation anchors forming straight path segments while rotation targets and event triggers attach to progress along a segment"
+  caption="Translation anchors shape the route. Rotation targets and events add behavior without bending that route. Diagram courtesy of"
+  sourceUrl="https://bline-docs.pages.dev/concepts/path-elements/"
+  sourceLabel="the official BLine documentation"
+/>
+
+For most pass-through targets, BLine can advance after the robot crosses a projected progress threshold even when it passes outside the target's radius. A radius-only handoff instead keeps the old target active until the robot enters its circle. Use radius-only behavior when the robot must physically visit that point.
+
+<ReferenceImage
+  src="/media/frc/bline-handoff-comparison.svg"
+  alt="Two-panel diagram comparing a radius-only handoff with a projected-progress handoff when the robot passes beside an intermediate target"
+  caption="The handoff rule determines whether a robot that passes beside an intermediate target advances or turns back toward it. Diagram courtesy of"
+  sourceUrl="https://bline-docs.pages.dev/concepts/key-parameters/"
+  sourceLabel="the official BLine documentation"
+/>
+
 ### Events
 
 An `EventTrigger` at `t = 0.7` fires when the robot is 70 % of the way along the path, by progress rather than by time, which is the same design again. It is bound by name:
@@ -161,7 +206,10 @@ Both are on the same robot for a reason. Use **PathPlanner** when the motion its
 
 <Sources items={[
   {"source": "bline", "note": "BLine overview: points, not time."},
-  {"source": "bline", "path": "gui/", "note": "The path editor."},
+  {"source": "bline", "path": "gui/", "note": "The path editor layout and editor screenshot."},
+  {"source": "bline", "path": "lib/field-visualization/", "note": "Optional BLineField output in Elastic and its screenshot."},
+  {"source": "bline", "path": "concepts/path-elements/", "note": "Translation, rotation, and event element roles and the path-element diagram."},
+  {"source": "bline", "path": "concepts/key-parameters/", "note": "Handoff radius and projected-progress behavior and the comparison diagram."},
   {"source": "bline", "path": "reference/versions/", "note": "Library and vendordep versions."},
   {"url": "https://github.com/edanliahovetsky/BLine-Lib", "label": "BLine-Lib source", "note": "The follower library."},
   {"url": "https://github.com/edanliahovetsky/BLine-Web", "label": "BLine-Web source", "note": "The editor."},

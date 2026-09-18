@@ -6,12 +6,11 @@ import type { StatusFn } from './types';
  * document is parsed and again by the React islands on hydration; the runner
  * shares one init promise, so repeated calls join the start in progress.
  */
-export function preloadJavaRuntimeSoon(onStatus?: StatusFn): Promise<void> {
-  return import('./cheerpjRunner').then((mod) => {
-    if (typeof window !== 'undefined') {
-      (window as unknown as { __jpDumpResources?: typeof mod.dumpCheerpjResources }).__jpDumpResources =
-        mod.dumpCheerpjResources;
-    }
-    return mod.preloadJavaRuntime(onStatus);
-  });
+export async function preloadJavaRuntimeSoon(onStatus?: StatusFn): Promise<void> {
+  const mod = await import('./cheerpjRunner');
+  if (typeof window !== 'undefined') {
+    (window as unknown as { __jpDumpResources?: typeof mod.dumpCheerpjResources }).__jpDumpResources =
+      mod.dumpCheerpjResources;
+  }
+  await mod.preloadJavaRuntime(onStatus);
 }

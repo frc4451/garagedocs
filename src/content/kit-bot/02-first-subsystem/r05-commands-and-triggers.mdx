@@ -37,7 +37,7 @@ A command is an object that does work, optionally over multiple ticks. It has fo
 | `isFinished()` | Every tick after `execute()` | Returns `true` to stop the command |
 | `end(boolean interrupted)` | Once when the command stops | Cleanup: stop motors, reset flags |
 
-The full `Command` interface has a few more methods (`getRequirements`, `runsWhenDisabled`), but those four are the lifecycle.
+The `Command` abstract class has a few more methods (`getRequirements`, `runsWhenDisabled`), but those four are the lifecycle.
 
 Start with the command factory methods inherited from `SubsystemBase`. They build common command shapes and automatically require that subsystem. R11 later shows why controller-specific drive logic can use its own command class.
 
@@ -45,7 +45,7 @@ Start with the command factory methods inherited from `SubsystemBase`. They buil
 
 ### Put one-subsystem commands on the subsystem
 
-Add these methods to `Heartbeat`:
+Add these methods inside `Heartbeat`, before its final closing brace. Place the `import` line below the package declaration, above the class:
 
 ```java
 import edu.wpi.first.wpilibj2.command.Command;
@@ -82,7 +82,7 @@ The inherited `run` factory calls `reset()` every scheduler tick until the comma
 
 ### What a `Trigger` is
 
-A `Trigger` is a `BooleanSupplier` with sugar on top: it polls the supplier every scheduler tick and fires bound commands on edges.
+A `Trigger` checks a true-or-false condition every scheduler tick. A binding tells it which command to schedule when that condition changes. Pressing a button changes its condition from `false` to `true`.
 
 You almost never construct one by hand. You get them from a `CommandXboxController`:
 
@@ -165,7 +165,7 @@ public Command reportIdleCommand() {
 }
 ```
 
-Set it as the default from `RobotContainer`:
+Add this line inside the `RobotContainer` constructor, after `configureBindings();`:
 
 ```java
 heartbeat.setDefaultCommand(heartbeat.reportIdleCommand());
@@ -179,13 +179,13 @@ We'll use this pattern in R11 to make stick input the default drivetrain behavio
 
 ### Reading the sticks
 
-For triggers like the A button, bind a subsystem command directly. Analog sticks are different because controller input does not belong inside a subsystem. Read stick values in a controller-specific command or command factory:
+For triggers like the A button, bind a subsystem command directly. Analog sticks are different because controller input does not belong inside a subsystem. Read this example for R11; do not paste it yet. `drive` and `TeleopDrive` have not been created:
 
 ```java
 drive.setDefaultCommand(new TeleopDrive(
     drive,
     () -> -driver.getLeftY(),
-    () -> -driver.getRightX()));
+    () -> driver.getRightX()));
 ```
 
 The `-` sign on `getLeftY()` is the classic FRC gotcha: Xbox stick Y is positive *down*. Negate at the read site to make "forward" positive.
@@ -200,7 +200,7 @@ In your project:
 
 1. Add the `CommandXboxController driver` field to `RobotContainer` and the two bindings from the snippet above.
 2. Build and simulate (`F5`).
-3. In the sim GUI, drag a keyboard from the **Joystick** list onto **Joystick 0** so the keyboard acts as the driver's controller. (The sim's default mappings vary; in many builds the "A" button is `1` on the keypad.)
+3. Assign a controller or keyboard joystick to **Joystick 0**. For a keyboard, open its mapping and identify the keys for A and B. Watch the displayed button indicators change before testing the code.
 4. Enable in teleop. Watch the console. Heartbeat ticks roll up automatically. Press the A-button equivalent: the count resets to 0. Press B: the current count prints.
 
 If the sim's keyboard mapping is confusing, plug a real Xbox controller via USB. The sim picks it up.
@@ -224,14 +224,14 @@ Everything in Phase 2 (R03â€“R05) was deliberately *no hardware*. Phase 3 (R06â€
 
 <RulesBox title="Done when">
 
-With a keyboard or controller on Joystick 0 in the Sim GUI, the A binding resets the heartbeat count and the B binding prints it. Both are visible in the console; neither works until the robot is enabled. Screenshot the console with a reset in it.
+With a keyboard or controller on Joystick 0 in the Sim GUI, the A binding resets the heartbeat count and the B binding prints it. Both are visible in the console; neither works until the robot is enabled. After resetting, press B. Save the smaller printed count beside a value from before the reset.
 
 </RulesBox>
 
 ### References
 
 - [Lambdas](/java/fundamentals/java-lambdas#where-you-will-meet-them): every command factory is a lambda receiver
-- [Interfaces](/java/fundamentals/java-interfaces#functional-interfaces) and [Supplier](/java/fundamentals/java-functional-interfaces#primitive-variants): `Command` is an interface; `Trigger` polls a `BooleanSupplier`
+- [Interfaces](/java/fundamentals/java-interfaces#functional-interfaces) and [Supplier](/java/fundamentals/java-functional-interfaces#primitive-variants): `Command` is an abstract class; `Trigger` checks a `BooleanSupplier`
 - [A22: Command-Binding Lab](/java/assignments/a22-command-binding): the assignment that built this from scratch
 - WPILib: [Commands](https://docs.wpilib.org/en/stable/docs/software/commandbased/commands.html)
 - WPILib: [Binding Commands to Triggers](https://docs.wpilib.org/en/stable/docs/software/commandbased/binding-commands-to-triggers.html)

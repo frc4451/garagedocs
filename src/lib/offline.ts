@@ -1,20 +1,15 @@
-interface InstallPrompt extends Event {
-  prompt(): Promise<{ outcome: string }>;
-}
 export function initializeOffline() {
   const panel = document.querySelector<HTMLElement>('[data-offline-controls]');
   if (!panel) return;
   const status = panel.querySelector<HTMLElement>('[data-offline-status]')!;
   const download = panel.querySelector<HTMLButtonElement>('[data-offline-download]')!;
   const progress = panel.querySelector<HTMLProgressElement>('[data-offline-progress]')!;
-  const install = panel.querySelector<HTMLButtonElement>('[data-offline-install]')!;
   const notice = document.querySelector<HTMLElement>('[data-offline-notice]')!;
   const updateButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-offline-update]')];
   // The preferences drawer transforms on mobile; keep the update notice outside it.
   document.body.append(notice);
   const scope = panel.dataset.scope!;
   let registration: ServiceWorkerRegistration | undefined;
-  let prompt: InstallPrompt | undefined;
   let applying = false;
   let downloading = false;
   const showUpdate = () => {
@@ -32,17 +27,6 @@ export function initializeOffline() {
     download.disabled = false;
     status.textContent = 'Download failed. Check your connection and storage, then retry.';
   };
-  window.addEventListener('beforeinstallprompt', event => {
-    event.preventDefault();
-    prompt = event as InstallPrompt;
-    install.hidden = false;
-  });
-  install.addEventListener('click', async () => {
-    await prompt?.prompt();
-    prompt = undefined;
-    install.hidden = true;
-  });
-  window.addEventListener('appinstalled', () => { install.hidden = true; });
   const reflectNetwork = () => {
     document.documentElement.toggleAttribute('data-offline', !navigator.onLine);
   };
@@ -81,10 +65,10 @@ export function initializeOffline() {
       download.disabled = false;
       if (data.ready === false) {
         status.textContent = 'Offline copy missing or incomplete. Connect and download again.';
-        download.textContent = 'Download again';
+        download.textContent = 'Download Again';
       } else {
         status.textContent = 'Ready offline. Clearing site data removes this copy.';
-        download.textContent = 'Check for updates';
+        download.textContent = 'Check for Updates';
       }
     }
   });
@@ -118,7 +102,7 @@ export function initializeOffline() {
       await navigator.storage?.persist?.();
       if (registration) {
         // A missing snapshot needs a fresh install, even if the worker source has not changed.
-        if (download.textContent === 'Download again') {
+        if (download.textContent === 'Download Again') {
           // A new script URL forces an install even when this build is unchanged.
           // Unregister/register can reuse a worker that still controls an open tab.
           watch(await navigator.serviceWorker.register(scope + 'sw.js?repair=' + Date.now(), { scope, updateViaCache: 'none' }));

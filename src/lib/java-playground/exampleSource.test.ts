@@ -36,6 +36,33 @@ describe('looksLikeRunnableJava', () => {
 });
 
 describe('wrapExampleSource', () => {
+  it('prepares multiple public lesson types without changing nested visibility', () => {
+    const wrapped = wrapExampleSource(`public abstract class Base {
+    public static class Detail {}
+}
+public class Child extends Base {}`);
+    expect(wrapped.entryClass).toBe('Base');
+    expect(wrapped.source).toContain('abstract class Base');
+    expect(wrapped.source).toContain('public abstract class Base');
+    expect(wrapped.source).not.toContain('public class Child');
+    expect(wrapped.source).toContain('public static class Detail');
+    expect(wrapped.hasMain).toBe(false);
+  });
+
+  it('finds main after a public interface and keeps the matching file name', () => {
+    const wrapped = wrapExampleSource(`public interface Action {
+    public void run();
+}
+public final class Demo {
+    public static void main(String[] args) { System.out.println("ready"); }
+}`);
+    expect(wrapped.entryClass).toBe('Demo');
+    expect(wrapped.hasMain).toBe(true);
+    expect(wrapped.source).toContain('interface Action');
+    expect(wrapped.source).not.toContain('public interface Action');
+    expect(wrapped.source).toContain('public final class Demo');
+  });
+
   it('wraps statements in Main.main', () => {
     const wrapped = wrapExampleSource('System.out.println("Hello world!");\n');
     expect(wrapped.entryClass).toBe('Main');
