@@ -72,13 +72,35 @@ for (const file of walk(CONTENT)) {
   }
 }
 
-async function check(url) {
+const REQUEST_TIMEOUT_MS = 15_000;
+const MAX_ATTEMPTS = 3;
+const RETRYABLE_STATUS = new Set([403, 408, 425, 429]);
+
+function shouldRetry(status) {
+  return (
+    typeof status !== 'number' ||
+    RETRYABLE_STATUS.has(status) ||
+    (status >= 500 && status < 600)
+  );
+}
+
+async function checkOnce(url) {
   const headers = { 'User-Agent': 'Mozilla/5.0 (garagedocs source check)' };
   try {
-    let res = await fetch(url, { method: 'HEAD', redirect: 'follow', headers });
+    let res = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      headers,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
     if (res.status >= 400) {
       // Some hosts answer HEAD with an error and GET with the page (the VS Code marketplace does).
-      res = await fetch(url, { method: 'GET', redirect: 'follow', headers });
+      res = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        headers,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
     }
     return res.status;
   } catch (err) {
@@ -86,9 +108,24 @@ async function check(url) {
   }
 }
 
+async function check(url) {
+  let status;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    status = await checkOnce(url);
+    if (!shouldRetry(status) || attempt === MAX_ATTEMPTS) return status;
+
+    // A small stagger keeps a temporary host or rate limit from receiving every
+    // retry at once. Permanent client errors such as 404 are never retried.
+    await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
+  }
+  return status;
+}
+
 const failures = [];
 const entries = [...urls.entries()];
-const limit = 8;
+// Keep enough parallelism for a full-site check without sending large bursts to
+// GitHub, WPILib, Oracle, and the other documentation hosts.
+const limit = 4;
 let index = 0;
 await Promise.all(
   Array.from({ length: limit }, async () => {
