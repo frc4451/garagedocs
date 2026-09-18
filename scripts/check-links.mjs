@@ -43,13 +43,31 @@ function idsOf(file) {
   return idCache.get(file);
 }
 
+/**
+ * Windows accepts a path even when one of its segments has the wrong case.
+ * GitHub Pages builds on Linux, where that same link is missing. Walk each
+ * segment so local checks enforce the casing that production requires.
+ */
+function existsWithExactCase(candidate) {
+  const absolute = path.resolve(candidate);
+  const relative = path.relative(path.resolve(DIST), absolute);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return false;
+
+  let current = path.resolve(DIST);
+  for (const segment of relative.split(path.sep).filter(Boolean)) {
+    if (!fs.readdirSync(current).includes(segment)) return false;
+    current = path.join(current, segment);
+  }
+  return fs.existsSync(current);
+}
+
 function targetFile(href) {
   let p = href.split('#')[0].split('?')[0];
   if (BASE && p.startsWith(BASE)) p = p.slice(BASE.length);
   const full = path.join(DIST, p.replace(/^\/+/, ''));
-  if (fs.existsSync(full) && fs.statSync(full).isFile()) return full;
+  if (existsWithExactCase(full) && fs.statSync(full).isFile()) return full;
   const index = path.join(full, 'index.html');
-  if (fs.existsSync(index)) return index;
+  if (existsWithExactCase(index)) return index;
   return null;
 }
 
