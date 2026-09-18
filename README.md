@@ -218,3 +218,7 @@ The tokens are what make the reader preferences work:
 ## License
 
 Copyright © 2026 FRC 4451 ROBOTZ Garage. Forked from itkan-robotics/mantik; see NOTICE.
+
+## Offline access
+
+GarageDocs can be downloaded for offline reading and search. See [Offline GarageDocs](docs/offline.md) for installation, updates, limitations, and production testing.
