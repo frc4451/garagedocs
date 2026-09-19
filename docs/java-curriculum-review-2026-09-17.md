@@ -4,7 +4,7 @@
 
 Reviewed all 61 existing Java Fundamentals lessons, all 29 Practice assignment pages (A00–A28), and the three Java/Practice overview pages. Added three short Fundamentals lessons, bringing the lesson count to 64. The audience is high-school students and mentors; the first groups assume no programming experience. Advanced algorithms and concurrency remain further study rather than universal prerequisites for starting robot work.
 
-Used the project documentation standard and the Anti Slop Prose Doc in this context folder. Preserved the assignment checks, reference solutions, code/output fences, images, source attribution, and stable lesson URLs. No Git commands were run and no images were generated.
+Used the project's documentation and prose standards. Preserved the assignment checks, reference solutions, code/output fences, images, source attribution, and stable lesson URLs. No Git commands were run and no images were generated.
 
 ## Reading order
 
@@ -57,7 +57,3 @@ Files: src/lib/java-playground/exampleSource.ts and exampleSource.test.ts.
 ## Practical limits
 
 Compilation and checks verify examples, not classroom pacing. A mentor should have a first-time student explain and modify an example at each group checkpoint. The browser Java runtime still requires internet. Existing assignment starter templates and hidden checks were not rewritten; this pass revised their instructions and preparation links.
-
-Repository: C:\Users\judso\FIRST Robotics\opensource\mantik-garage
-
-Local backups, staging scripts, and verification logs: C:\Users\judso\OneDrive\Documents\ChatGPT\GarageDocs
