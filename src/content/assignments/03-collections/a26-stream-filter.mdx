@@ -19,21 +19,27 @@ description: "Answer five questions about a season of scouting data with streams
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A26: Stream Filter`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Answer five questions about scouting data: filter by drivetrain, select top scorers, average climb rates, check a threshold, and find a match.
 
 Write each query with a stream and with a loop. Compare results and explain which version you find easier to read.
 
-### What to build
+## What To Build
 
-One file, plus the `TeamEntry` record. `pickScore()` is `avgPoints` plus 25 times
-`climbRate`.
+Use the supplied browser starter. The browser keeps both types in one editor file, so
+its `TeamEntry` record is package-private and `StreamQueries` is public. Keep that
+starter layout in the browser. The local version uses two public files:
+`TeamEntry.java` for `public record TeamEntry` and `StreamQueries.java` for `public
+class StreamQueries`. Make `pickScore()` public; it is `avgPoints` plus 25 times
+`climbRate`. Make the ten query methods `public static` so another class can call the
+assignment's API. Keep `sample`, `numbersOf`, `numberOr`, and `rounded` private static
+helpers; `main` remains public.
 
 <ContentTable
   headers={["Query", "Returns", "Both versions"]}
   rows={[
-    ["Teams on a drivetrain", "<code>List&lt;TeamEntry&gt;</code>", "<code>swerveTeamsStream</code> / <code>swerveTeamsLoop</code>"],
+    ["SWERVE teams in input order", "<code>List&lt;TeamEntry&gt;</code>", "<code>swerveTeamsStream</code> / <code>swerveTeamsLoop</code>"],
     ["Top K by pick score", "<code>List&lt;TeamEntry&gt;</code>", "<code>topKByPickScoreStream</code> / <code>...Loop</code>"],
     ["Average climb rate per drivetrain", "<code>Map&lt;String, Double&gt;</code>", "<code>avgClimbByDrivetrainStream</code> / <code>...Loop</code>"],
     ["Anyone over a threshold?", "<code>boolean</code>", "<code>anyTeamOverStream</code> / <code>...Loop</code>"],
@@ -42,33 +48,101 @@ One file, plus the `TeamEntry` record. `pickScore()` is `avgPoints` plus 25 time
 />
 
 Every stream version should be **one expression**, from `list.stream()` to the terminal
-operation. Every loop version must return the same type, including `Optional`, so the
-comparison is honest.
+operation. Every loop version must return the same type, including `Optional`, so callers can use either version.
 
-<RulesBox title="How the browser version differs" items={[
-  "One file rather than two; the twelve sample teams are in <code>sample()</code>, written for you, with a tie in pick score, a drivetrain with a single entry, and one team that fails every predicate.",
-  "<code>main</code> rounds the averages to three decimals before printing. <code>6.0 / 7</code> is not a number to put in a check, and the rounding is also why the stream and loop versions can be compared at all: see the hint on summation.",
+A stream describes a sequence of operations on values. Operations such as `filter`
+and `sorted` build the pipeline; a terminal operation such as `toList` or `findFirst`
+starts processing and produces a result. Create a fresh stream for each query: a
+stream cannot be reused after a terminal operation. A predicate is a yes-or-no test;
+its `test(entry)` method is the test to call in the matching loop version.
+
+The required calls use non-null lists and predicates, and `k` is non-negative. An
+empty list is still a valid input: filtering and top-K return an empty list, grouping
+returns an empty map, `anyTeamOver` returns `false`, and `firstMatching` returns
+`Optional.empty()`. Never return `null` to represent no matching team.
+
+Sort top-K by descending `pickScore`. When two teams have the same score, keep their
+original input order. Both Java's ordered stream sort and `List.sort` are stable, so
+you do not need to invent a second ranking rule. Limit the sorted result to at most
+`k` entries; `k == 0` returns an empty list.
+
+For list-returning pairs, agreement means equal values in the same order. For the map
+pair, agreement means equal drivetrain keys mapped to equal rounded averages; map
+iteration order is not part of the result. Agreement does not require identical list
+mutability. `Stream.toList()` returns an unmodifiable list, while a loop may build a
+mutable `ArrayList`. Callers in this assignment only read either result.
+
+<RulesBox title="Browser And Local Versions" items={[
+  "The browser uses one source file because its editor accepts one compilation unit. The twelve sample teams are in <code>sample()</code>, written for you, with a tie in pick score and a drivetrain represented by one entry. The local submission separates the public record and public class into two files.",
+  "<code>main</code> rounds the drivetrain averages to three decimals for readable, consistent output before comparing those maps. The other query pairs compare their results directly.",
   "The editor runs <strong>Java 17</strong>, so <code>.toList()</code> (Java 16) works. Everything here is available locally on Java 25 unchanged."
 ]} />
 
 
-<RulesBox title="Plan it as sessions" items={[
+## Build Locally
+
+In the browser, open the assignment and choose **Reset** if you need the supplied
+starter again. Complete only the ten query methods; `main`, its helpers, the sample
+data, and the `TeamEntry` record are provided. Browser code fences elsewhere on this
+page are examples and do not become part of the editor automatically.
+
+For the repository copy, create `assignments/a26-stream-filter/`. Save the complete
+browser source as `StreamQueries.java`, move the full `TeamEntry` record into
+`TeamEntry.java`, and apply the public API and private-helper visibility described in
+What To Build. Open a terminal in that folder and run:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac TeamEntry.java StreamQueries.java
+java StreamQueries
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac TeamEntry.java StreamQueries.java
+java StreamQueries
+```
+
+</CodeTab>
+</CodeTabs>
+
+The local and browser programs use simulated scouting records printed to the console.
+No robot, controller, or other hardware is required.
+
+## Check Coverage
+
+The browser reports these checks by name: *Both filters find the same seven teams in
+the same order*, *Top-K ranks by pick score, not by average alone*, *Top-K never
+returns more than the list holds, or fewer than zero*, *Grouping averages each
+drivetrain separately*, *anyTeamOver answers true, false, and false on empty*, and
+*firstMatching returns an Optional, empty when nothing matches*. They compare the
+printed results from the supplied `main`; they do not inspect whether every stream
+method is one expression, whether loop methods short-circuit, whether tied scores keep
+input order, whether the two local types and query API are public, whether local
+helpers are private, or whether your five comparison comments explain your judgment.
+Review those items yourself after all named checks pass.
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Both filters find the same seven teams in the same order</em>, <em>Top-K ranks by pick score, not by average alone</em>, <em>Top-K never returns more than the list holds, or fewer than zero</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Grouping averages each drivetrain separately</em>, <em>anyTeamOver answers true, false, and false on empty</em>, <em>firstMatching returns an Optional, empty when nothing matches</em>."
+  "<strong>Session 2.</strong> Finish the remaining named checks: <em>Grouping averages each drivetrain separately</em>, <em>anyTeamOver answers true, false, and false on empty</em>, <em>firstMatching returns an Optional, empty when nothing matches</em>. Then complete the manual rubric review in Check Coverage."
 ]} />
 
 <JavaPlayground id="a26-stream-filter" />
 
 <RulesBox title="Hints" items={[
-  "<strong>Choose the result type deliberately.</strong> Stream.toList returns an unmodifiable list. Its elements can still be mutable objects. Use it here because callers only need to read the result.",
-  "<strong>Top-K is <code>sorted</code> then <code>limit</code>.</strong> <code>Comparator.comparingDouble(TeamEntry::pickScore).reversed()</code>, then <code>limit(k)</code>, then <code>toList()</code>. Note that this sorts the whole stream to take five: fine at this size, wasteful at a hundred thousand, and worth knowing which one you are writing.",
+  "<strong>Choose the result type deliberately.</strong> <code>Stream.toList()</code> returns an unmodifiable list. Its elements can still be mutable objects. Use it here because callers only need to read the result.",
+  "<strong>Top-K is <code>sorted</code> then <code>limit</code>.</strong> <code>Comparator.comparingDouble(TeamEntry::pickScore).reversed()</code>, then <code>limit(k)</code>, then <code>toList()</code>. This approach sorts all n entries, so its sorting work grows O(n log n). That is appropriate for the required sample; for much larger inputs, measure it against the bounded-priority-queue stretch before deciding whether the extra complexity helps.",
   "<strong><code>groupingBy</code> takes a downstream collector.</strong> <code>groupingBy(TeamEntry::drivetrain, Collectors.averagingDouble(TeamEntry::climbRate))</code> gives you <code>Map&lt;String, Double&gt;</code> in one call. The second argument is what aggregates each group: <code>counting</code>, <code>summingInt</code> and <code>joining</code> are its siblings.",
   "<strong><code>anyMatch</code> short-circuits, and your loop must too.</strong> It stops at the first hit rather than walking the list. If your loop version counts matches and then compares against zero, it computes the same answer with unnecessary work.",
-  "<strong>Two correct sums can differ in the last bit.</strong> <code>averagingDouble</code> uses compensated summation; a plain <code>+=</code> loop does not. Both are right; they can still disagree at the seventeenth decimal, which is exactly why <code>main</code> compares rounded values. Floating-point equality is a trap even when nobody made a mistake.",
+  "<strong>Compare averages at the assignment's precision.</strong> Floating-point arithmetic represents many decimal fractions approximately, and two accumulation strategies can produce slightly different low-order bits. The supplied <code>rounded</code> helper applies the same three-decimal output policy to both maps before comparison. If they still disagree, inspect the grouping, totals, and counts rather than changing the printout.",
   "<strong>If the two versions disagree, that is the assignment working.</strong> You have found a real difference between what you meant and what you wrote. Do not patch the print: find which one is wrong."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -81,7 +155,11 @@ comparison is honest.
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+First save passing copies of the required `TeamEntry.java` and `StreamQueries.java`.
+Try each stretch goal in separate copies so added output and methods cannot interfere
+with the required browser checks.
 
 - Add `summary(List<TeamEntry>)` returning a record `Summary(int count, double
   totalScore, double maxClimbRate, String topTeamName)` from a single pipeline. Look at
@@ -90,20 +168,23 @@ comparison is honest.
 - Take one query, write it a third time with `parallelStream()`, and time all three over
   100,000 entries with `System.nanoTime`. Be ready for the parallel version to lose.
 - Rewrite `topKByPickScore` so it does not sort the whole list. A bounded priority queue
-  gets you O(n log k) instead of O(n log n), but the result is harder to read, which
-  is the trade to notice.
+  can reduce the work to O(n log k) instead of O(n log n). Compare the implementations'
+  measured behavior and readability for the input sizes you care about.
 
-### References
+## References
 
 - JavaDoc: [`java.util.stream.Stream<T>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/stream/Stream.html)
 - JavaDoc: [`java.util.stream.Collectors`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/stream/Collectors.html)
 - JavaDoc: [`Collectors.groupingBy`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/stream/Collectors.html#groupingBy(java.util.function.Function,java.util.stream.Collector))
 - JavaDoc: [`java.util.Optional<T>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Optional.html)
-- Wikipedia: [Kahan summation](https://en.wikipedia.org/wiki/Kahan_summation_algorithm): why two correct sums can differ
+- JavaDoc: [`java.lang.Double`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Double.html): binary floating-point values and operations
 
 <Sources items={[
-  {"source": "csce146", "note": "Streams."},
-  {"source": "dev-java", "path": "api/streams/", "note": "Streams."},
-  {"source": "java-api", "path": "java.base/java/util/stream/Stream.html", "note": "<code>filter</code>, <code>map</code>, <code>sorted</code>, <code>collect</code>."},
-  {"source": "java-api", "path": "java.base/java/util/stream/Collectors.html", "note": "<code>Collectors</code>."}
+  {"source": "csce146", "label": "Course Materials", "note": "The course sequence that inspired this streams assignment."},
+  {"source": "dev-java", "path": "api/streams/", "label": "The Stream API", "note": "Pipeline structure, intermediate operations, terminal operations, and reduction."},
+  {"source": "java-api", "path": "java.base/java/util/stream/Stream.html", "label": "Stream API", "note": "Contracts for <code>filter</code>, <code>sorted</code>, <code>limit</code>, <code>anyMatch</code>, <code>findFirst</code>, and <code>toList</code>."},
+  {"source": "java-api", "path": "java.base/java/util/stream/Collectors.html", "label": "Collectors API", "note": "Contracts for <code>groupingBy</code> and <code>averagingDouble</code>."},
+  {"source": "java-api", "path": "java.base/java/util/Optional.html", "label": "Optional API", "note": "Representing a result that may be absent without returning <code>null</code>."},
+  {"source": "java-api", "path": "java.base/java/util/Comparator.html", "label": "Comparator API", "note": "Building and reversing the pick-score ordering used by top-K."},
+  {"source": "java-api", "path": "java.base/java/lang/Double.html", "label": "Double API", "note": "IEEE 754 binary floating-point representation and operations used by the averages."}
 ]} />

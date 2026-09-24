@@ -1,0 +1,249 @@
+---
+title: "Mechanisms per Subsystem"
+lessonId: mechanisms-per-subsystem
+section: frc
+group: frc-mechanism-visualization
+groupLabel: "Mechanism Visualization"
+groupOrder: 18
+order: 3
+difficulty: intermediate
+duration: 30 min
+description: "Assembling component ligaments into one canvas per subsystem: the root, the chain, where update and recordOutput belong in the loop, log key naming, the assembly for the intake, turreted shooter and climber from Part 4, and the static scenery that turns a mechanism position into a meaning."
+---
+
+The component layer produced ligaments that are not attached to anything. This lesson attaches them. One subsystem owns one canvas, one root, one chain of ligaments, and one `recordOutput` call, which is the whole of the upper layer.
+
+### The canvas and the root
+
+A canvas needs a size and a root needs a position on it, and both are constants rather than code. Cobra already has the record for this in the ROBOTZ Garage library:
+
+```java
+public class MechanismConfigs {
+  @Builder
+  public record RootMechanismConfig(
+      double displayWidth, double displayHeight, Translation2d rootPosition) {
+    public RootMechanismConfig {
+      if (rootPosition == null) {
+        rootPosition = new Translation2d(displayWidth / 2.0, 0.0);
+      }
+    }
+  }
+}
+```
+
+The default puts the root at the bottom centre of the canvas, which suits a mechanism that stands up from the floor. `IntakeConstants` overrides it to the middle, because the intake arm swings both above and below its pivot:
+
+```java
+public static final RootMechanismConfig rootMechanismConfig =
+    RootMechanismConfig.builder()
+        .displayHeight(1.0)
+        .displayWidth(1.0)
+        .rootPosition(new Translation2d(0.5, 0.5))
+        .build();
+```
+
+Size the canvas so the mechanism fits at full extension with a little margin. A 1.0 by 1.0 metre canvas holds a 0.3 metre arm comfortably. An elevator that reaches 1.5 metres needs a taller canvas, or the carriage climbs off the top of the picture and the drawing silently stops being useful at exactly the extension you care about.
+
+### The assembly
+
+The subsystem builds the canvas, gets the root, constructs its components, and appends them in the order the real assembly connects. For Cobra's intake, which is a pivot and a set of rollers, only the pivot is drawn:
+
+```java
+private final LoggedMechanism2d mechanism;
+private final PivotMechanism endeffectorMech;
+
+public Intake(SingleRollerIO intakeIO, SingleRollerIO endeffectorIO) {
+  // ... components as they already exist ...
+
+  RootMechanismConfig rootConfig = IntakeConstants.rootMechanismConfig;
+  mechanism =
+      new LoggedMechanism2d(
+          rootConfig.displayWidth(), rootConfig.displayHeight(), new Color8Bit(Color.kWhite));
+
+  LoggedMechanismRoot2d root =
+      mechanism.getRoot(
+          "intake", rootConfig.rootPosition().getX(), rootConfig.rootPosition().getY());
+
+  endeffectorMech = new PivotMechanism(IntakeConstants.measuredPivotMechanismConfig);
+  root.append(endeffectorMech.getPivotMech());
+}
+```
+
+`append()` returns what it was given, so a chain can be written as nested calls or as separate statements. FRC 6328 nests them and keeps the returned reference:
+
+```java
+elevatorMechanism =
+    root.append(
+        new LoggedMechanismLigament2d(
+            name + " Elevator", Units.inchesToMeters(26.0), elevatorAngle.getDegrees(), 4.0, ...));
+pivotMechanism =
+    elevatorMechanism.append(
+        new LoggedMechanismLigament2d(name + " Pivot", Units.inchesToMeters(6.0), 0.0, 8.0, ...));
+```
+
+Either form works. Appending to `elevatorMechanism` rather than to `root` is the part that matters: it puts the pivot at the top of the elevator and makes the pivot's angle parent-relative, which is the convention from the [first lesson](/frc/what-a-mechanism-drawing-shows#two-conventions-that-break-a-first-attempt).
+
+### Where the calls go in the loop
+
+The update and the log call belong at the end of the subsystem's `periodic()`, after every component has run its own `periodic()` and the inputs for this loop are final:
+
+```java
+@Override
+public void periodic() {
+  rollers.periodic();
+  endeffector.periodic();
+
+  endeffectorMech.update(endeffector.getPosition());
+  Logger.recordOutput("Intake/Mechanism2d", mechanism);
+}
+```
+
+Riptide places them in the same position, after `elevator.periodic()`, `pivot.periodic()` and `shooter.periodic()` have all run:
+
+```java
+measuredMechanism.update(elevator.getHeightInches(), pivot.getPosition());
+goalMechanism.update(elevator.getGoalHeightInches(), pivot.getGoalPosition());
+```
+
+Order inside the loop decides what the drawing means. Updating the ligaments before the components refresh their inputs draws the previous loop's position against this loop's goal, which puts a 20 millisecond lag into every reading and makes a correctly tuned mechanism look like it is chasing.
+
+<StepsBox title="One loop, in order">
+
+1. Each component's `periodic()` runs, reading its IO and updating `inputs`.
+2. The subsystem's state or goal logic runs, if it has any.
+3. Each mechanism component's `update()` runs, reading the positions from step 1.
+4. `Logger.recordOutput` writes the canvas once.
+
+</StepsBox>
+
+### Naming the key
+
+The key is what you drag onto a Mechanism tab, so it has to be findable among several hundred other outputs. Two conventions are in use, and they sort differently.
+
+<ContentTable
+  headers={["Convention", "Example", "What it gives you"]}
+  rows={[
+    ["Under the subsystem", "<code>Intake/Mechanism2d</code>", "Everything about the intake sits together, beside <code>Intake/Pivot/Position</code>. Matches the log paths from Mechanism Components."],
+    ["Under a shared prefix", "<code>Mechanism2d/Intake</code>", "Every drawing on the robot sits in one folder, so you find them without knowing the subsystem names. This is 6328's choice."]
+  ]}
+/>
+
+Either is defensible. Pick one and use it everywhere, because the cost of mixing them is that half the drawings are missing from wherever you look first. Cobra's existing log paths are subsystem-first (`Intake/Pivot/CurrentAngleDegrees`), so the first form is the consistent choice on this robot.
+
+### Three assemblies from Part 4
+
+[Composing Mechanism Subsystems](/frc/composing-mechanism-subsystems) builds four subsystems. Three of them have something to draw.
+
+**The intake** is a pivot and a roller. One ligament from the root at the pivot's angle, and a spinner on the arm's far end showing which way the roller is turning.
+
+**The turreted shooter** is a turret pivot, a hood pivot and a flywheel. The hood and the flywheel both sit in a side-on canvas: the hood's angle is the launch angle, and the flywheel spins at the end of it. The turret rotates about a vertical axis, which a side view cannot show, because at every turret angle the side drawing is identical. Give the turret a second canvas seen from above, covered [below](#a-second-canvas-for-a-different-plane), or read it from the 3D view in a [later lesson](/frc/mechanisms-in-3d).
+
+```java
+// Hood only. The turret's rotation is perpendicular to this canvas.
+hoodMech = new PivotMechanism(ShooterConstants.measuredHoodMechanismConfig);
+root.append(hoodMech.getPivotMech());
+```
+
+**The climber** is one elevator. One ligament from the root, at 90 degrees, whose length is the carriage position:
+
+```java
+carriageMech = new ElevatorMechanism(ClimberConstants.measuredCarriageMechanismConfig);
+root.append(carriageMech.getElevatorMech());
+```
+
+The feeder is two rollers, so its canvas is two spinners side by side. That looks thin next to the shooter, and it still earns its place: a tower turning while the kicker sits still is a jam, and it reads faster as two discs than as two current traces.
+
+### What else belongs on the canvas
+
+Everything so far moves. A canvas can also carry things that never move, and they are what turn a position into a meaning.
+
+#### The robot's own outline
+
+A mechanism drawn on an empty grid has no scale. Draw the frame perimeter behind it and every position is suddenly readable: inside the frame, past the bumper, above the height limit.
+
+A rectangle is four ligaments in a chain, and the parent-relative angle rule does the work. Each edge turns the same amount from the one before, so a constant quarter turn traces a closed box:
+
+```java
+// Proposed. FRC 3847 draws its 2026 robot outline this way.
+LoggedMechanismRoot2d outline = mechanism.getRoot("Outline", originX, originY);
+LoggedMechanismLigament2d top = outline.append(new LoggedMechanismLigament2d("TopEdge", heightM, 180.0));
+LoggedMechanismLigament2d right = top.append(new LoggedMechanismLigament2d("RightEdge", widthM, 270.0));
+LoggedMechanismLigament2d bottom = right.append(new LoggedMechanismLigament2d("BottomEdge", heightM, 270.0));
+bottom.append(new LoggedMechanismLigament2d("LeftEdge", widthM, 270.0));
+```
+
+Build it once, in the constructor, and never touch it again. It is scenery, not state.
+
+#### Static field geometry
+
+The better version of the same idea is to draw the thing the mechanism is aiming at.
+
+FRC 3847's 2025 code does this with the reef. Their `RobotSim` puts a purple trunk on the same canvas the elevator and arm live on, then three separate roots for the L2, L3 and L4 branches at their real heights, each a short ligament angled down, with an extra segment on the L4 branch. None of it is ever updated.
+
+They wrote up where the approach came from on Chief Delphi: asked for the code behind one of these drawings, 3847 [credit FRC 604's *Scrappy, Not Crappy* talk](https://www.chiefdelphi.com/t/spectrum-3847-build-blog-2025/478254/237) and point at the mechanism's own file. That post is about the technique rather than the reef specifically, and it is the shortest route from this page to a team explaining the idea in their own words.
+
+That changes what the drawing says. An elevator reported at 1.85 metres is a number you have to look up. An elevator whose carriage lines up with the purple L3 branch drawn beside it is a robot that is ready to score on L3, and you read it without knowing a single height.
+
+The scenery has to be in the same coordinates as the mechanisms for that to work, which is the whole trick. Once it is, the canvas answers a question no graph does: not where is the mechanism, but is the mechanism where it needs to be.
+
+For Cobra the equivalent is the hub. A hood at 34 degrees is a number. A hood drawn against a static hub outline at the right height and distance is either aimed or not.
+
+<RulesBox title="Scenery rules">
+
+- Build it in the constructor and never update it. A static object that gets a `setAngle` call is a mechanism you forgot you drew.
+- Use one colour for all of it, distinct from every mechanism colour, so the eye separates the field from the robot at a glance.
+- Take the dimensions from the game manual, not from the CAD of your own robot.
+- Redraw it when the game changes. Scenery from last season is worse than none.
+
+</RulesBox>
+
+#### A second canvas for a different plane
+
+One canvas is one projection, and a mechanism that moves perpendicular to it is invisible. A turret is one case; a climber that swings sideways is another.
+
+The fix is a second canvas, and the rule for which mechanism goes on which is the plane it moves in. FRC 3847's 2025 robot publishes both a left view and a front view: the elevator, shoulder, elbow and intake draw on the left view, and the climb draws on the front view, because a climber that moves side to side does not show up in a side profile.
+
+Two canvases cost one more key and one more `recordOutput`. They are worth it when a mechanism is invisible on the first one, and not worth it to give every subsystem a matching pair.
+
+### When a subsystem is the wrong owner
+
+One canvas per subsystem is the default because the subsystem is already the unit that owns the components and runs the loop. It stops being right when two subsystems can hit each other.
+
+An elevator that carries an arm through the space a separate intake occupies needs both drawn on one canvas at their real relative positions, because the question is whether they collide. Riptide and 6328 both own the canvas at the superstructure rather than the subsystem for this reason: their elevator and pivot are one kinematic chain, and drawing them apart would answer nothing.
+
+The test is whether the two mechanisms share a coordinate frame that matters. If the positions are only ever read separately, separate canvases are clearer. If one mechanism's safe range depends on where the other one is, they belong in one picture, and the owner is whatever object already coordinates them. [The Superstructure](/frc/superstructure) is that object on a state-driven robot.
+
+<RulesBox title="Common mistakes">
+
+- Call `Logger.recordOutput` on the canvas once per loop, at the end of `periodic()`, not in the constructor.
+- Append a component to the ligament it physically attaches to, not always to the root.
+- Size the canvas for the mechanism at full extension.
+- Give the canvas one key and keep the naming convention consistent across subsystems.
+- Draw every component the subsystem owns, so the picture needs no caveat about what is missing.
+- Scale a spinner's rate down until the motion reads, and carry its direction in colour.
+- Build scenery once in the constructor, in its own colour, and never update it.
+- Add a second canvas only when a mechanism is invisible on the first one.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/MechanismConfigs.java", "note": "<code>RootMechanismConfig</code> and its bottom-centre default root position."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/IntakeConstants.java", "note": "The 1.0 by 1.0 canvas with the root moved to the centre for a pivot that swings both ways."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "The subsystem the assembly is added to, and the existing order of component <code>periodic()</code> calls."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/pivot/Pivot.java", "note": "<code>getPosition()</code> and <code>getGoalPosition()</code>, the values the mechanism update reads, and the subsystem-first log path convention."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/superstructure/SuperStructure.java", "note": "Mechanism updates placed after every component <code>periodic()</code> in the same loop."},
+  {"source": "mech-adv", "path": "src/main/java/org/littletonrobotics/frc2025/subsystems/superstructure/SuperstructureVisualizer.java", "note": "Nested <code>append</code> keeping the returned references, and the <code>Mechanism2d/</code> key prefix."},
+  {"source": "advantagekit", "path": "javadoc/org/littletonrobotics/junction/mechanism/LoggedMechanismRoot2d.html", "note": "Roots come from <code>getRoot</code> and are not constructed directly."},
+  {"source": "spectrum-2025", "path": "src/main/java/frc/robot/RobotSim.java", "note": "The reef drawn as static scenery on the same canvas as the mechanisms: a trunk root plus separate roots for the L2, L3 and L4 branches at their real heights, built once and never updated. Also the left view and front view published side by side."},
+  {"source": "spectrum-2025", "path": "src/main/java/frc/robot/climb/Climb.java", "note": "The climber drawing on the front view rather than the left view, because it moves in the other plane."},
+  {"source": "spectrum-2026", "path": "src/main/java/frc/robot/RobotSim.java", "note": "The robot outline traced as four appended ligaments, each turning a quarter turn from the last to close the rectangle."},
+  {"url": "https://www.chiefdelphi.com/t/spectrum-3847-build-blog-2025/478254/237", "label": "Spectrum 3847 Build Blog 2025, post 237", "note": "FRC 3847 answering a question about one of their <code>Mechanism2d</code> drawings, crediting FRC 604's <em>Scrappy, Not Crappy</em> talk as the source of the technique."},
+  {"source": "wpilib", "path": "docs/software/dashboards/glass/mech2d-widget.html", "note": "Root positions and the canvas coordinate system."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Measured Against Goal","id":"measured-against-goal"},
+  {"label":"Ligaments and Components","id":"ligaments-and-components"},
+  {"label":"Composing Mechanism Subsystems","id":"composing-mechanism-subsystems"},
+  {"label":"The Superstructure","id":"superstructure"}
+]} />

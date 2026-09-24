@@ -20,13 +20,19 @@ description: "An enum that carries data and behaviour per constant, replacing th
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A15: MatchPhase Enum with Fields`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Replace A05's String phases with an enum that stores each phase's time range, label, and example drive scaling. A call to phaseAt(75) returns the TELEOP constant.
 
 Keep the fictional timeline from A05. The scaling values are exercise data, not safe output limits for a physical drivetrain.
 
-### What to build
+## What To Build
+
+An enum is a type with a fixed set of objects. Here, those objects are `AUTO`,
+`TELEOP`, `ENDGAME`, and `OVER`. Unlike the small enum in [Enums and
+Records](/java/fundamentals/java-enums-and-records), each object also stores fields
+and supplies its own version of one method. The constructor calls beside the
+constants fill the four fields that are already in the starter.
 
 `MatchPhase` with four constants, each carrying `startSeconds`,
 `endSecondsExclusive`, `maxDriveScaling` and `label`. The constants and constructor are
@@ -35,9 +41,9 @@ written for you. You add three things:
 <ContentTable
   headers={["Member", "What it does"]}
   rows={[
-    ["<code>abstract String shortStatus(int)</code>", "Declared <code>abstract</code> on the enum, then given a <em>different body by each constant</em>."],
-    ["<code>boolean contains(int)</code>", "One concrete method using the fields: true when the time is in <code>[startSeconds, endSecondsExclusive)</code>."],
-    ["<code>static MatchPhase phaseAt(int)</code>", "Walk <code>values()</code>, return the first phase whose <code>contains</code> is true, throw <code>IllegalArgumentException</code> when none is."]
+    ["<code>public abstract String shortStatus(int)</code>", "Declared <code>public abstract</code> on the enum, then given a <em>different public body by each constant</em>."],
+    ["<code>public boolean contains(int)</code>", "One concrete method using the fields: true when the time is in <code>[startSeconds, endSecondsExclusive)</code>."],
+    ["<code>public static MatchPhase phaseAt(int)</code>", "Walk <code>values()</code>, return the first phase whose <code>contains</code> is true, throw <code>IllegalArgumentException</code> when none is."]
   ]}
 />
 
@@ -53,15 +59,61 @@ Use these exact status strings; the automated checks compare them:
   ]}
 />
 
-<RulesBox title="How the browser version differs" items={[
+<RulesBox title="Browser And Local Files" items={[
   "Two files locally, one here, with only <code>MatchPhaseTester</code> declared <code>public</code>.",
   "<code>main</code> is written for you: it prints the field table, walks nine times through <code>phaseAt</code>, and probes the boundaries."
 ]} />
 
+## Build Locally
 
-<RulesBox title="Plan it as sessions" items={[
+Create `MatchPhase.java` and `MatchPhaseTester.java` in the assignment folder.
+Move the enum into `MatchPhase.java` and declare it `public`. Move the supplied
+tester, including its unchanged `main`, into `MatchPhaseTester.java` and keep that
+class `public` too. The browser starter keeps both types together, where only
+`MatchPhaseTester` can be a public top-level type.
+
+Declare the local enum constructor `private`. Only the constants inside
+`MatchPhase` call it; assignment code should not construct additional phases.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac MatchPhase.java MatchPhaseTester.java
+java -Duser.language=en -Duser.country=US MatchPhaseTester
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac MatchPhase.java MatchPhaseTester.java
+java -Duser.language=en -Duser.country=US MatchPhaseTester
+```
+
+</CodeTab>
+</CodeTabs>
+
+The two `-D` flags make Java use US number formatting for this run. That keeps the
+supplied tester's decimal point stable without editing its protected `main` method.
+
+## Read The Unfamiliar Syntax
+
+Start with one constant. `AUTO(0, 15, 1.0, "Autonomous")` calls the enum
+constructor once and stores those four arguments in the `AUTO` object. Its brace
+block then implements `shortStatus`. Repeat that same shape for the other three
+constants, changing only the required status expression. After the last constant
+body, keep the semicolon that separates the constants from the enum's fields and
+methods.
+
+`public abstract String shortStatus(int currentSeconds);` has no method body. Java then
+requires every constant to provide one. Keep each implementation `public` because
+an overriding method cannot be less visible than the method it replaces.
+
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Each constant keeps its own field values</em>, <em>phaseAt picks the right phase at every boundary</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>shortStatus differs per constant</em>, <em>contains is half-open, and negatives throw</em>."
+  "<strong>Session 2.</strong> Complete the named checks <em>shortStatus differs per constant</em> and <em>contains is half-open, and negatives throw</em>. Then review the manual rubric items that output checks cannot inspect."
 ]} />
 
 <JavaPlayground id="a15-matchphase-enum" />
@@ -73,7 +125,7 @@ Use these exact status strings; the automated checks compare them:
   "<strong>The upper bound is exclusive.</strong> OVER accepts times from 150 up to, but not including, Integer.MAX_VALUE. Negative times and Integer.MAX_VALUE match no range and therefore throw."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -86,22 +138,30 @@ Use these exact status strings; the automated checks compare them:
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+Finish and save the required version first. Try stretch work in a copy so extra
+behavior cannot change the required output.
 
 - Add `MatchPhase next()` returning the phase that follows, with `OVER` returning itself.
   Write it without naming a single constant in the body.
 - Rewrite [A05](/java/assignments/a05-match-phase-detector) to return `MatchPhase` instead of
   `String`, and count how many comparisons disappear.
 
-### References
+<RulesBox title="Manual Checks" items={[
+  "The browser checks compare the field table, boundary choices, status text, and negative-time rejection. They do not inspect whether <code>shortStatus</code> is abstract, whether every field is <code>final</code>, or whether <code>phaseAt</code> uses <code>values()</code>.",
+  "Read the code for those rubric requirements. Also call <code>phaseAt(Integer.MAX_VALUE)</code> once: the supplied upper bound is exclusive, so that value must throw. Remove that temporary probe before submitting so the required output stays unchanged."
+]} />
+
+## References
 
 - JavaDoc: [`java.lang.Enum`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Enum.html)
 - Wikipedia: [Enumerated type](https://en.wikipedia.org/wiki/Enumerated_type)
 - Wikipedia: [Interval: half-open](https://en.wikipedia.org/wiki/Interval_(mathematics)#Terminology)
 
 <Sources items={[
-  {"source": "csce145", "note": "Enums with fields."},
-  {"source": "dev-java", "path": "classes-objects/enums/", "note": "Enums with fields, constructors and abstract methods."},
-  {"source": "java-api", "path": "java.base/java/lang/Enum.html", "note": "<code>Enum</code>."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> methods used here."}
+  {"source": "csce145", "label": "Beginner Course Sequence", "note": "Enums with fields."},
+  {"source": "dev-java", "path": "classes-objects/enums/", "label": "Dev.java: Enums", "note": "Enum fields, constructors, <code>values()</code>, and abstract methods implemented by each constant."},
+  {"source": "java-api", "path": "java.base/java/lang/Enum.html", "label": "Enum API", "note": "The common base class and <code>name()</code> method used by the tester."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "label": "String API", "note": "The strings returned by <code>shortStatus</code>."}
 ]} />

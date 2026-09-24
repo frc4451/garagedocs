@@ -20,17 +20,19 @@ description: "Choose an autonomous routine from three enums, with rules that mus
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A06: Auto Routine Picker`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Choose a routine from a starting position, partner plan, and battery label. Apply the supplied rules in order so the same inputs always give the same answer.
 
 This console exercise prints a choice; it does not plan a collision-free path or operate a robot.
+`FRESH`, `WARM`, and `COLD` are exercise labels supplied as input. The program does not
+measure voltage, temperature, state of charge, or battery health.
 
-### What to build
+## What To Build
 
 Four enums and a picker:
 
-```java
+```java norun
 enum StartPosition     { LEFT, CENTER, RIGHT }
 enum PartnerPlan       { SCORE, DEFENSE, UNKNOWN }
 enum BatteryCondition  { FRESH, WARM, COLD }
@@ -40,17 +42,21 @@ enum AutoRoutine {
 }
 ```
 
-`main` reads three words: start position, partner plan, battery condition, each
-case-insensitive: converts them with `valueOf` on the uppercased, trimmed input inside a
-re-prompt loop, then calls:
+`main` reads three words in order: start position, partner plan, and battery condition. Trim and uppercase each word before calling that enum's `valueOf` method. Use `toUpperCase(java.util.Locale.ROOT)` so conversion does not depend on the computer's language settings. If a word is invalid, ask for that value again. If input ends, stop the run instead of asking forever.
 
-```java
-static AutoRoutine chooseRoutine(StartPosition pos, PartnerPlan partner, BatteryCondition battery)
+After reading three valid values, `main` calls this method and prints its returned routine plus a one-line reason. This declaration sketch needs a method body:
+
+```java norun
+public static AutoRoutine chooseRoutine(StartPosition pos, PartnerPlan partner, BatteryCondition battery)
 ```
 
-and prints the routine plus a one-line reason.
+The method declaration is a contract between the caller and the method. `main` supplies
+three enum values in the parentheses. `chooseRoutine` examines those parameters and must
+`return` one `AutoRoutine` on every possible path. Keep the declaration inside
+`AutoPicker`, but outside `main`. The supplied enums stay outside `AutoPicker` in the
+browser file. They have package access, which lets the class in the same file use them.
 
-### The rules
+## The Rules
 
 Apply them in order. The first rule that matches wins:
 
@@ -67,12 +73,18 @@ Apply them in order. The first rule that matches wins:
   ]}
 />
 
-<RulesBox title="How the browser version differs" items={[
+Treat this table like a checklist from top to bottom. For example,
+`CENTER, DEFENSE, FRESH` also satisfies the centre-and-fresh rule, but the earlier
+`DEFENSE` rule wins. You can express the ordered checks with early `return` statements,
+or with an equivalent ordered structure. A `switch` is useful once you reach rules that
+depend on `pos`; it does not replace the higher-priority partner checks.
+
+<RulesBox title="Browser And Local Files" items={[
   "Locally this is five files. The playground compiles one, so declare all four enums in <code>AutoPicker.java</code> without the <code>public</code> keyword: a Java file may hold many top-level types as long as only one is public. The starter has them laid out that way already.",
   "The editor runs <strong>Java 17</strong>, so arrow-syntax <code>switch</code> expressions work here as they do locally."
 ]} />
 
-### Requirements
+## Requirements
 
 - `chooseRoutine` is a pure function: enums in, an `AutoRoutine` out, nothing printed
 - Invalid input re-prompts rather than crashing. `valueOf` throws
@@ -80,21 +92,58 @@ Apply them in order. The first rule that matches wins:
 - The reason line names the rule that fired, so a driver can sanity-check the choice
 
 
-<RulesBox title="Plan it as sessions" items={[
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Centre start, fresh battery</em>, <em>Centre start, tired battery</em>, <em>Side start with a scoring partner</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>A defending partner outranks the position rules</em>, <em>An unknown partner outranks everything</em>."
+  "<strong>Session 2.</strong> Complete these checks, then review the remaining rubric items: <em>A defending partner outranks the position rules</em>, <em>An unknown partner outranks everything</em>."
 ]} />
 
 <JavaPlayground id="a06-auto-routine-picker" />
 
+To try a valid browser run, paste these three lines into the input box, then select Run:
+
+```text
+center
+defense
+fresh
+```
+
+The result must select `SIDE_SPRINT` because rule 2 is checked before the centre rules.
+In your local assignment folder, save the public `AutoPicker` class in `AutoPicker.java`
+and keep each public type in a matching filename as directed above. Create `StartPosition.java`, `PartnerPlan.java`, `BatteryCondition.java`, and `AutoRoutine.java`, each with the matching `public enum`. Copy the enum declarations out of `AutoPicker.java` so no type is declared twice. Save all five files before running the commands below from their folder. [Java Setup](/java/fundamentals/java-setup#compile-and-run) explains how to open that terminal.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac AutoPicker.java StartPosition.java PartnerPlan.java BatteryCondition.java AutoRoutine.java
+java AutoPicker
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac AutoPicker.java StartPosition.java PartnerPlan.java BatteryCondition.java AutoRoutine.java
+java AutoPicker
+```
+
+</CodeTab>
+</CodeTabs>
+
+Enter the sample words when the local program prompts for them.
+
+The automated checks exercise the five named combinations in the session plan. They do
+not verify invalid-input re-prompting, mixed-case or padded input, the exact reason text,
+purity, comments, or every enum combination. Check those rubric items yourself.
+
 <RulesBox title="Hints" items={[
   "<strong>Apply the first matching rule.</strong> A defending partner with a CENTER start and FRESH battery matches both rules 2 and 3. Rule 2 wins because it appears first.",
   "<strong>Catching a bad name.</strong> <code>valueOf</code> throws rather than returning null. Wrap it in <code>try</code> / <code>catch (IllegalArgumentException e)</code> inside your re-prompt loop, or check the input against <code>values()</code> before converting. See <a href=\"/java/fundamentals/java-try-catch\">Try/Catch</a>.",
-  "<strong>Switching on an enum.</strong> Inside a <code>switch</code> on an enum you write the constant bare: <code>case CENTER -&gt;</code>, not <code>case StartPosition.CENTER -&gt;</code>. Cover every constant and the compiler stops asking for a default.",
-  "<strong>Reasons without duplication.</strong> If your reason strings drift out of sync with the rules, consider returning the reason alongside the routine rather than rebuilding it with a second chain of conditions."
+  "<strong>Switching on an enum.</strong> For this Java 17-compatible <code>switch</code> expression, write the constant bare: <code>case CENTER -&gt;</code>, not <code>case StartPosition.CENTER -&gt;</code>. Cover every constant and the compiler stops asking for a default.",
+  "<strong>Reasons without changing the contract.</strong> <code>chooseRoutine</code> must keep the required <code>AutoRoutine</code> return type. After calling it, <code>main</code> can use the returned routine together with the original inputs to choose the matching reason. All valid combinations of the supplied enums are covered by rules 1 through 6. Rule 7 remains the defensive fallback in the required table; it is not another valid-input test case."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -107,21 +156,48 @@ Apply them in order. The first rule that matches wins:
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+Save the checked required version first. Keep stretch work in a separate folder so changed input or output does not replace the required submission.
 
 - Add a field to `AutoRoutine` holding its expected point value, then print the choice along
   with what you expect to score. See [A15: MatchPhase Enum](/java/assignments/a15-matchphase-enum) for enums with fields and methods.
 - Add a fourth input for the field side and make the `LEFT` / `RIGHT` rules mirror.
 
-### References
+## References
 
-- JavaDoc: [`java.lang.Enum`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Enum.html)
-- JavaDoc: [`java.lang.IllegalArgumentException`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/IllegalArgumentException.html)
+- Javadoc: [`java.lang.Enum`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Enum.html)
+- Javadoc: [`java.lang.IllegalArgumentException`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/IllegalArgumentException.html)
 - Wikipedia: [Enumerated type](https://en.wikipedia.org/wiki/Enumerated_type)
 
 <Sources items={[
-  {"source": "csce145", "note": "Enums and validation."},
-  {"source": "dev-java", "path": "classes-objects/enums/", "note": "Enums."},
-  {"source": "dev-java", "path": "language-basics/switch-expression/", "note": "Switching on an enum."},
-  {"source": "java-api", "path": "java.base/java/lang/Enum.html", "note": "<code>valueOf</code>, <code>values()</code>."}
+  {
+    "source": "csce145",
+    "label": "Course Materials",
+    "note": "Introductory enum and input-validation context for the assignment sequence."
+  },
+  {
+    "source": "dev-java",
+    "path": "classes-objects/enums/",
+    "label": "Enum Types",
+    "note": "Enum declarations, constants, and using enum values as method parameters and return values."
+  },
+  {
+    "source": "dev-java",
+    "path": "language-basics/switch-expression/",
+    "label": "Switch Expressions",
+    "note": "Arrow switch rules, enum selectors, and exhaustive result-producing switches."
+  },
+  {
+    "source": "java-api",
+    "path": "java.base/java/lang/Enum.html",
+    "label": "Enum API",
+    "note": "The enum name contract underlying <code>valueOf</code> conversion and invalid-name handling."
+  },
+  {
+    "source": "java-api",
+    "path": "java.base/java/lang/String.html#toUpperCase(java.util.Locale)",
+    "label": "Locale-Independent Case Conversion",
+    "note": "Locale.ROOT provides stable case conversion for program identifiers."
+  }
 ]} />

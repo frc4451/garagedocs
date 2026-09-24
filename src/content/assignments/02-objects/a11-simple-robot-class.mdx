@@ -20,14 +20,13 @@ description: "Design your first class by hand: fields, validating constructors, 
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A11: Simple Robot Class`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Create a Robot class that stores four values, checks their allowed ranges, and provides methods to read or update them. Its limits are exercise requirements, not robot inspection rules.
 
-### What to build
+## What To Build
 
-`Robot` with four `private` fields: `name`, `teamNumber`, `maxSpeedMps`, `weightLbs`:
-and:
+Create `Robot` with four `private` fields: `name`, `teamNumber`, `maxSpeedMps`, and `weightLbs`. Add these constructors and methods:
 
 - A four-argument constructor that **validates every parameter** before storing it
 - A two-argument constructor `Robot(String, int)` that **chains** to the first with
@@ -50,27 +49,87 @@ and:
   ]}
 />
 
-<RulesBox title="How the browser version differs" items={[
+`double` has a special value named `NaN` ("not a number"). A check such as
+`speed < 0.0 || speed > 30.0` misses it because every ordered comparison with
+`NaN` is false. Treat `Double.NaN` as bad input too. `Double.isNaN(maxSpeedMps)`
+checks that case directly, in both the constructor and the setter.
+
+<RulesBox title="Browser And Local Files" items={[
   "The full assignment is two files, <code>Robot.java</code> and <code>RobotTester.java</code>. The playground compiles one file, so <code>Robot</code> is declared in the same file without <code>public</code>: a Java file may hold many top-level types as long as only one is public.",
-  "<code>main</code> is written for you and exercises every requirement. Leave it alone and fill in the class above it."
+  "<code>main</code> is written for you and exercises the printed behaviors used by the automated checks. Leave it alone and fill in the class above it, then complete the manual checks listed below."
 ]} />
 
+## Build Locally
 
-<RulesBox title="Plan it as sessions" items={[
+The editor tab is named `RobotTester`, which is the class containing `main`. For
+the repository version, create these two files in the assignment folder:
+
+- `Robot.java` contains `public class Robot` and all of its fields. Mark the
+  constructors, getters, setters, `toString`, `equals`, and `hashCode` public.
+- `RobotTester.java` contains `public class RobotTester` and the supplied `main`
+  and `rejects` methods.
+
+Java requires each public top-level class to be in a file with the same name.
+Save both files. Open the assignment folder's terminal as shown in [Compile And Run](/java/fundamentals/java-setup#compile-and-run), then compile both files and run the class that contains `main`. Keep any import needed by `Robot`, such as `java.util.Objects`, at the top of `Robot.java`.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac Robot.java RobotTester.java
+java RobotTester
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac Robot.java RobotTester.java
+java RobotTester
+```
+
+</CodeTab>
+</CodeTabs>
+
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>toString and the four-argument constructor</em>, <em>Constructor chaining supplies the defaults</em>, <em>Setters update the mutable fields</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>equals compares name and team only</em>, <em>Every validation rule fires</em>."
+  "<strong>Session 2.</strong> Finish <em>equals compares name and team only</em> and <em>Every validation rule fires</em>, then do the manual checks listed below."
 ]} />
+
+<RulesBox title="Manual Checks" items={[
+  "The checks recognize required printed results. They do not inspect whether the short constructor actually uses <code>this(...)</code>, whether fields have the required access and <code>final</code> modifiers, or whether <code>hashCode</code> is present and consistent with <code>equals</code>.",
+  "The supplied bad-name probe passes <code>null</code>; manually try a spaces-only name. Also manually test <code>Double.NaN</code>, invalid values passed to both setters, and every accepted boundary listed in the rubric."
+]} />
+
+The two constructors are an overload: they share the name `Robot` and have
+different parameter lists. A call to `this(...)` invokes another constructor on
+the same new object. Put it first in this constructor so the code works in the
+browser's Java 17 runner as well as locally. A `final` field may be assigned by a constructor and cannot be assigned
+again afterward, so `name` and `teamNumber` can be final while speed and weight
+remain changeable through their setters.
+
+## Equality Methods
+
+Every Java class inherits methods from `Object`. **Overriding** means providing your own version with the same method signature. Write `public boolean equals(Object other)` and `public int hashCode()`; `@Override` above each method lets the compiler check that you are overriding an existing method. `toString()` is another inherited method you override to return your chosen description.
+
+An `Object` parameter can receive a reference to a `Robot`, a `String`, or another class, so check its type before reading Robot fields. In Java 17, `other instanceof Robot robot` both tests the type and gives you the name `robot` for that object when the test succeeds. The test is false for `null`. Compare names using `String.equals` and team numbers using `==`. An unrelated class is never equal under this assignment's rule.
+
+A **hash code** is an integer used by collections to organize objects for lookup. You can import `java.util.Objects` and use `Objects.hash(...)` to combine the same fields you compare in `equals`. For example, a different class identified by `label` and `number` could call `Objects.hash(label, number)`. Do not include mutable values that your equality rule ignores. Read [Objects.hash](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Objects.html#hash(java.lang.Object...)) for the helper's contract.
+
+You do not need subclasses for this assignment. If you extend `Robot` later, review the equality contract before adding new fields to the comparison.
 
 <JavaPlayground id="a11-simple-robot-class" />
 
 <RulesBox title="Hints" items={[
   "<strong>Chaining, not copying.</strong> <code>this(name, teamNumber, 0.0, 0)</code> as the <em>first</em> statement of the two-argument constructor runs the four-argument one, validation included. Constructor chaining lets both constructors use the same validation.",
   "<strong>Validate before you assign.</strong> If this constructor throws, the new expression does not return a usable Robot. Check everything first, then store the values. You can also delegate to the setters, which already validate.",
-  "<strong><code>equals</code> has a contract.</strong> It takes <code>Object</code>, not <code>Robot</code>, so you have to check the type before casting. <code>null</code> must return <code>false</code> rather than throwing, and so must a <code>String</code>. Whenever you override <code>equals</code> you should override <code>hashCode</code> too, which matters from <a href=\"/java/fundamentals/java-sets-and-maps\">Sets and Maps</a> onward.",
-  "<strong>Getters that do nothing are fine.</strong> Getters expose a value while keeping the field private. Callers use the method instead of depending on how the value is stored."
+  "<strong><code>equals</code> must stay predictable.</strong> It takes <code>Object</code>, not <code>Robot</code>, so check whether the argument is a <code>Robot</code> before using it as one. <code>null</code> and a <code>String</code> must return <code>false</code> rather than throwing. The same object must equal itself, swapping the two objects must not change the answer, and repeated calls must agree while their compared fields stay unchanged. The Object API linked below gives the full contract.",
+  "<strong>Equal objects need equal hash codes.</strong> Override <code>hashCode</code> using the same two fields as <code>equals</code>: <code>name</code> and <code>teamNumber</code>. The numbers do not have to be unique. The rule is only that objects considered equal produce the same hash code. This matters from <a href=\"/java/fundamentals/java-sets-and-maps\">Sets and Maps</a> onward.",
+  "<strong>Simple getters are useful.</strong> A getter may only return a field. It still keeps callers from depending on direct field access and leaves the class in control of its public API."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -83,22 +142,66 @@ and:
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
 
-- Add a `static Robot fromString(String)` that parses your own `toString` output back
+Finish and save the required version first. Try these in a copy so changed methods
+or extra output cannot interfere with the required checks.
+
+- Add a `public static Robot fromString(String)` that parses your own `toString` output back
   into a `Robot`, and check that a round trip returns an equal object.
 - Make `Robot` immutable: drop both setters and add `withMaxSpeedMps(double)` that
   returns a *new* `Robot`. Decide which version you would rather maintain.
 
-### References
+## References
 
-- JavaDoc: [`java.lang.Object.equals`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#equals(java.lang.Object))
-- JavaDoc: [`java.lang.Object.hashCode`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#hashCode())
+- Javadoc: [`java.lang.Object.equals`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#equals(java.lang.Object))
+- Javadoc: [`java.lang.Object.hashCode`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#hashCode())
+- Javadoc: [`java.lang.Double.isNaN`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Double.html#isNaN(double))
 - Wikipedia: [Class invariant](https://en.wikipedia.org/wiki/Class_invariant)
 
 <Sources items={[
-  {"source": "csce145", "note": "Classes and objects."},
-  {"source": "dev-java", "path": "classes-objects/", "note": "Classes, fields, constructors."},
-  {"source": "dev-java", "path": "classes-objects/creating-objects/", "note": "Creating objects."},
-  {"source": "jls", "path": "jls-8.html", "note": "Classes (chapter 8)."}
+  {
+    "source": "csce145",
+    "label": "Beginner Course Sequence",
+    "note": "Classes and objects."
+  },
+  {
+    "source": "dev-java",
+    "path": "classes-objects/",
+    "label": "Classes And Objects",
+    "note": "Classes, fields, and constructors."
+  },
+  {
+    "source": "dev-java",
+    "path": "classes-objects/creating-objects/",
+    "label": "Creating And Using Objects",
+    "note": "Creating and initializing objects."
+  },
+  {
+    "source": "jls",
+    "path": "jls-8.html#jls-8.8.7.1",
+    "label": "JLS \u00a78.8.7.1: Constructor Invocations",
+    "note": "Constructor calls using <code>this(...)</code>."
+  },
+  {
+    "url": "https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html",
+    "label": "Object API",
+    "note": "The contracts for <code>equals</code> and <code>hashCode</code>."
+  },
+  {
+    "url": "https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Double.html#isNaN(double)",
+    "label": "Double.isNaN",
+    "note": "Detecting the special not-a-number value."
+  },
+  {
+    "source": "java-api",
+    "path": "java.base/java/util/Objects.html#hash(java.lang.Object...)",
+    "label": "Objects.hash",
+    "note": "Computing a hash code from multiple fields used by the equality rule."
+  },
+  {
+    "url": "https://docs.oracle.com/en/java/javase/17/language/pattern-matching-instanceof-operator.html",
+    "label": "Java 17 Type Patterns",
+    "note": "Testing an object type and introducing a pattern variable before reading its fields."
+  }
 ]} />

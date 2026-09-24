@@ -1,0 +1,251 @@
+---
+title: "FuelSim"
+lessonId: fuelsim
+section: frc
+group: frc-sim-tools
+groupLabel: "Simulation Specific Tools"
+groupOrder: 20
+order: 2
+difficulty: intermediate
+duration: 30 min
+description: "Wiring FRC 5000's single-file fuel physics simulation into a 2026 robot: installing it, registering the robot and its intakes, launching fuel from the shooter's sim IO, reading the hub score, and the two traps (robot-relative speeds and NetworkTables-only logging) that catch AdvantageKit projects."
+---
+
+FuelSim is one Java file. FRC 5000 Hammerheads publish it under the MIT licence, and it simulates fuel on the 2026 field: fuel against fuel, fuel against the field, net and trench, fuel against your robot, projectile motion with optional drag, intakes as bounding boxes, and scoring in the hub.
+
+It asks nothing of your drive code. You hand it a pose supplier and a speeds supplier, and it does the rest. That makes it the cheapest way to put game pieces into an existing simulator.
+
+<RulesBox title="Before you start">
+
+A working simulator ([Running the Simulator](/frc/running-the-simulator)), a pose you trust ([Wheel Odometry](/frc/wheel-odometry)), and the IO layer ([IO Layers](/frc/io-layers)), because the launch call belongs in a sim IO rather than in a subsystem. Read [Simulating the Game](/frc/simulating-the-game) first for what this does and does not prove.
+
+</RulesBox>
+
+### Installing it
+
+There is no vendordep. Copy `FuelSim.java` into your project and keep the MIT licence header that names the copyright holder.
+
+The file declares `package frc.robot.util;` on its second line. Put it in `frc/robot/util/` and nothing changes; put it anywhere else and edit that line to match.
+
+Two consequences of copying a file rather than depending on a library are worth deciding on before you start. Upstream fixes do not arrive on their own, so note the commit you copied. And the physics constants are `protected static final` fields inside the class, so tuning them means editing your copy, which makes the next update a manual merge.
+
+### Creating the simulation
+
+The constructor takes the NetworkTables key it publishes to, or defaults to `/Fuel Simulation`:
+
+```java
+// RobotContainer
+public final FuelSim fuelSim = new FuelSim(); // publishes to /Fuel Simulation/Fuels
+```
+
+Then, once during construction:
+
+```java
+private void configureFuelSim() {
+  fuelSim.spawnStartingFuel(); // fills the depots and the neutral zone
+  fuelSim.start();             // updateSim() does nothing until this is called
+}
+```
+
+`start()` and `stop()` gate `updateSim()` only. `stepSim()` advances the world regardless, which is what you want from a unit test that has no scheduler running.
+
+### Driving it from the loop
+
+One call, in `Robot.java`, in the one method that never runs on real hardware:
+
+```java
+@Override
+public void simulationPeriodic() {
+  robotContainer.fuelSim.updateSim();
+}
+```
+
+`simulationPeriodic()` is the right home because nothing inside it ships to the roboRIO. Putting the call in `robotPeriodic()` behind an `isSimulation()` check does the same job with one more thing to get wrong.
+
+Each call runs `subticks` physics iterations, five by default. Raise it when fast fuel tunnels through a wall, lower it when the loop overruns:
+
+```java
+fuelSim.setSubticks(8);
+fuelSim.setLoggingFrequency(10); // Hz, the default; documented as an AdvantageScope performance knob
+```
+
+Air resistance is off unless you ask for it, which matters for a long shot:
+
+```java
+fuelSim.enableAirResistance();
+```
+
+### Registering the robot
+
+This is where fuel learns that your robot exists, and it contains the one trap that produces wrong results instead of no results.
+
+```java
+public void registerRobot(
+    Distance width,          // left to right, the robot's y axis
+    Distance length,         // front to back, the robot's x axis
+    Distance bumperHeight,   // floor to the top of the bumpers
+    Supplier<Pose2d> poseSupplier,
+    Supplier<ChassisSpeeds> fieldSpeedsSupplier)
+```
+
+The last argument wants **field-relative** speeds. Cobra's `Drive.getChassisSpeeds()` returns `kinematics.toChassisSpeeds(getModuleStates())`, which is **robot-relative**. Passing it compiles, runs, and is wrong: the shot compensation for robot motion is added in the wrong direction whenever the robot is not facing zero degrees, and the error looks like a badly tuned shooter.
+
+Cobra already does the conversion once per loop in `Drive.periodic()` and stores the result, so the correct wiring reads from there:
+
+```java
+fuelSim.registerRobot(
+    Inches.of(34),   // measure these on the robot; Cobra has no constant for them
+    Inches.of(34),
+    Inches.of(5),
+    BobotState::getGlobalPose,
+    BobotState::getRobotVelocity); // field-relative, converted in Drive.periodic()
+```
+
+The dimensions are illustrative. Measure the frame and the bumpers, because a bumper height that is too low lets fuel pass under the robot and one that is too high catches fuel the real robot would drive over.
+
+Only one robot can be registered. The suppliers and dimensions are plain fields rather than a list, so a second `registerRobot` call replaces the first instead of adding a second robot.
+
+### Registering intakes
+
+An intake is a rectangle in robot-relative coordinates that removes fuel when it is active. Intakes are kept in a list, so a robot with two of them registers two:
+
+```java
+public void registerIntake(
+    double xMin, double xMax, double yMin, double yMax,
+    BooleanSupplier ableToIntake,
+    Runnable intakeCallback)
+```
+
+There are overloads for `Distance` bounds and for omitting the supplier, the callback, or both. Prefer the `Distance` overloads so the units are in the type rather than in a comment.
+
+For Cobra, the intake is active when the end effector is deployed and the robot is not already full. The callback is how the simulation tells the robot it collected something:
+
+```java
+fuelSim.registerIntake(
+    Inches.of(-17), Inches.of(-10),   // in front of the frame
+    Inches.of(-8), Inches.of(8),
+    () -> intake.pivotIsDeployed() && shooterIO.canIntake(),
+    shooterIO::intakeFuel);
+```
+
+Without the `BooleanSupplier` the intake is always on, and a robot that sweeps up fuel while stowed is a simulation that will not catch a real sequencing bug.
+
+### Launching fuel
+
+```java
+public void launchFuel(
+    LinearVelocity launchVelocity,
+    Angle hoodAngle,      // 0 is horizontal, 90 degrees is straight up
+    Angle turretYaw,      // robot-relative
+    Distance launchHeight)
+```
+
+Four details decide whether this works.
+
+**The hood angle convention matches Cobra's.** Zero is horizontal and 90 degrees is straight up, which is the same sense as `HoodConstants.pivotConfig`, whose range runs from 28 to 50 degrees. The hood angle goes in directly.
+
+**The turret yaw is robot-relative.** Cobra has no turret: it aims by rotating the chassis, and `launchFuel` already adds the robot's heading internally. Pass `Degrees.zero()` and let the drivetrain do the aiming.
+
+**The launch height has to clear the bumpers.** The Javadoc says so: a launch height below the registered bumper height spawns the fuel inside your own robot, which then collides with it immediately. The symptom is fuel that appears and instantly squirts sideways.
+
+**The velocity is a surface speed, not a flywheel speed.** Convert with the wheel radius before the call: a flywheel at `ω` rad/s with radius `r` throws at `ω × r` m/s, minus whatever slip the real shooter has.
+
+It throws `IllegalStateException` if no robot is registered, because it needs the robot's pose and speeds to place the fuel.
+
+### Where the launch call belongs
+
+In the shooter's simulation IO, not in the `Shooter` subsystem. The subsystem runs on the real robot, and a real robot has no `FuelSim`. The sim IO already exists only in simulation, which is the boundary [IO Layers](/frc/io-layers) puts there for exactly this reason.
+
+```java
+// Proposed, in a Cobra shooter sim IO that holds a FuelSim reference
+private int fuelStored = 0;
+
+public boolean canIntake() {
+  return fuelStored < CAPACITY;
+}
+
+public void intakeFuel() {
+  fuelStored++;
+}
+
+/** Called while the feeder is running and the shooter is at speed. */
+public void launchFuel(AngularVelocity flywheelSpeed, Angle hoodAngle) {
+  if (fuelStored == 0) return;
+  fuelStored--;
+
+  fuelSim.launchFuel(
+      MetersPerSecond.of(flywheelSpeed.in(RadiansPerSecond) * FLYWHEEL_RADIUS.in(Meters)),
+      hoodAngle,
+      Degrees.zero(),          // Cobra aims with the chassis
+      ROBOT_TO_SHOOTER.getMeasureZ());
+}
+```
+
+The stored count is what makes the intake and the shooter agree: the intake callback increments it, the launch decrements it, and `canIntake()` stops the robot hoovering up the whole field.
+
+### Reading the result
+
+The hub counts for you:
+
+```java
+FuelSim.Hub.BLUE_HUB.getScore();
+FuelSim.Hub.RED_HUB.getScore();
+FuelSim.Hub.BLUE_HUB.resetScore();
+```
+
+A scoring count is the number an autonomous routine can be measured against. Run the routine, read the score, change the hood table, run it again.
+
+Fuel positions publish to `<key>/Fuels` as a struct array of `Translation3d`. In AdvantageScope, open a 3D Field tab and add that topic as game pieces, next to the robot model from [Mechanisms in 3D](/frc/mechanisms-in-3d).
+
+### The AdvantageKit trap
+
+FuelSim publishes with a `StructArrayPublisher` straight to NetworkTables. It does not call `Logger.recordOutput`, and it imports nothing from AdvantageKit.
+
+On an AdvantageKit robot that has a consequence worth knowing before you rely on it: the fuel positions are live only. They are not in the `.wpilog`, and they do not come back on [replay](/frc/log-replay). Replaying a simulated match gives you every input and output the robot recorded and an empty field.
+
+If the fuel needs to be in the log, mirror it yourself. `fuels` is a `protected` field, so a small subclass in the same package can reach it:
+
+```java
+// Proposed. Not part of FuelSim.
+public class LoggedFuelSim extends FuelSim {
+  public void logToAdvantageKit(String key) {
+    Logger.recordOutput(
+        key, fuels.stream().map(fuel -> fuel.pos).toArray(Translation3d[]::new));
+  }
+}
+```
+
+That reaches into the library's internals, so it breaks when upstream renames a field. Decide whether replayable fuel is worth that, and write the decision down next to the class.
+
+<RulesBox title="Common mistakes">
+
+- Pass field-relative `ChassisSpeeds`. `Drive.getChassisSpeeds()` is robot-relative.
+- Call `start()`, or `updateSim()` will do nothing and the field will look frozen.
+- Set a launch height above the registered bumper height.
+- Convert flywheel angular velocity to surface speed before launching.
+- Gate each intake with a `BooleanSupplier` so a stowed intake collects nothing.
+- Keep `launchFuel` in the sim IO, never in a subsystem the real robot runs.
+- Record the commit you copied, since there is no vendordep to tell you the version.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "fuelsim", "path": "FuelSim.java", "note": "The whole API: the constructors and their default <code>/Fuel Simulation</code> key, <code>registerRobot</code> and its field-relative speeds parameter, the <code>registerIntake</code> overloads, <code>launchFuel</code> with its angle conventions and <code>IllegalStateException</code>, <code>setSubticks</code>, <code>setLoggingFrequency</code>, the <code>Hub</code> score accessors, and the <code>StructArrayPublisher</code> that publishes to NetworkTables rather than AdvantageKit."},
+  {"source": "fuelsim", "path": "README.md", "note": "Installation by copying the file, the package-name note, and the setup and usage examples this lesson adapts."},
+  {"source": "fuelsim", "path": "LICENSE.md", "note": "MIT licence, copyright 2026, which the copied file has to keep."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "<code>getChassisSpeeds()</code> is robot-relative; <code>periodic()</code> converts it with <code>ChassisSpeeds.fromRobotRelativeSpeeds</code> before storing it."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "<code>getGlobalPose()</code> and <code>getRobotVelocity()</code>, the field-relative pair FuelSim should be given."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/HoodConstants.java", "note": "The 28 to 50 degree hood range that matches FuelSim's hood angle convention."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "The velocity-controlled flywheel whose surface speed becomes the launch velocity."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/kinematics/ChassisSpeeds.html", "note": "<code>fromRobotRelativeSpeeds</code> and the difference between the two frames."},
+  {"source": "advantagescope", "path": "tab-reference/3d-field/", "note": "Adding a <code>Translation3d</code> array as game pieces."},
+  {"source": "advantagekit", "path": "data-flow/recording-outputs/", "note": "What <code>Logger.recordOutput</code> puts in the log, and why a raw NetworkTables publish does not replay."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"maple-sim","id":"maple-sim"},
+  {"label":"Simulating the Game","id":"simulating-the-game"},
+  {"label":"IO Layers","id":"io-layers"},
+  {"label":"Autonomous Simulation","id":"autonomous-simulation"},
+  {"label":"Log Replay","id":"log-replay"}
+]} />

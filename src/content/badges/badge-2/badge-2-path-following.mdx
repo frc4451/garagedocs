@@ -1,0 +1,122 @@
+---
+title: "Step 10: Path Following"
+lessonId: badge-2-path-following
+section: badges
+group: badge-2
+groupLabel: "Badge 2: Intermediate FRC"
+groupOrder: 2
+order: 10
+difficulty: advanced
+description: "Three autonomous routines, each with at least three paths and two mechanism actions: PathPlanner on the differential Kit Bot through PPLTVController and left and right feedforwards, PathPlanner on the swerve template with heading independent of travel, and BLine on the same swerve drive. The configuration each one confirms, the logs each one saves, and the mentor's three-run check."
+---
+
+In Step 10, the student builds three autonomous routines. The first runs PathPlanner on the differential Kit Bot in `KitBotPathPlanner`. The second moves the same PathPlanner workflow onto the swerve drive in `Badge2Robot`. The third keeps that drivetrain, pose source, mechanism commands and logging and swaps the follower for BLine. Each routine follows at least three named paths and runs at least two mechanism actions. The three routines do not need to trace the same route.
+
+The mechanism actions on the Kit Bot come from the template's `Superstructure`; on the swerve robot they come from the composed subsystems of [Step 8](/badges/badge-2-mechanism-composition), which is why composition comes first.
+
+Before moving from the Kit Bot to swerve, work through [Drivetrain Fundamentals](/frc/tank-and-swerve), ending with [Drivetrain Checks](/frc/drivetrain-checks), as assigned in [Step 9](/badges/badge-2-math#tank-to-swerve). The left/right speed calculation becomes a speed-and-angle calculation for each module; a path follower supplies the chassis motion that feeds those calculations.
+
+## References to Review
+
+- [PathPlanner](/frc/pathplanner)
+- [BLine](/frc/bline)
+- [Autonomous Simulation](/frc/autonomous-simulation)
+- [Pose Geometry](/frc/pose-geometry)
+- [Command Groups](/frc/command-groups#autonomous-routines)
+
+## Guided Example
+
+Build and verify the first routine on the differential Kit Bot. This establishes the sequence the student will reuse: confirm configuration, draw the first path, run it, add one mechanism action, then extend the routine to three paths and two actions.
+
+### PathPlanner on the Kit Bot
+
+The AdvantageKit 2026 Kit Bot template inherits the differential-drive template's PathPlanner configuration. Its `Drive` constructor calls `AutoBuilder.configure` with the pose supplier, the pose reset, a robot-relative `ChassisSpeeds` supplier built from the left and right wheel velocities through `DifferentialDriveKinematics`, a `runClosedLoop(ChassisSpeeds)` consumer, a `PPLTVController(0.02, maxSpeedMetersPerSec)`, the `ppConfig` from `DriveConstants`, and an alliance flip supplier. `runClosedLoop` converts the chassis speeds to wheel speeds, computes a `kS` and `kV` feedforward for each side, and hands velocity and feedforward to the IO. The [PathPlanner](/frc/pathplanner#autobuilder-configuration-differential) lesson has the differential configuration beside the swerve one.
+
+`PPLTVController` is the follower for a drivetrain that cannot move sideways: it controls forward speed and turn rate, and the robot's heading is the direction of travel. `DriveConstants` carries the numbers `RobotConfig` is built from: mass, moment of inertia, wheel coefficient of friction, wheel radius, gearing, current limit, motors per side and track width. The template ships with defaults; the student confirms each against the Kit Bot they simulate.
+
+| # | Work | Lesson | Done when |
+|---|---|---|---|
+| 10.1 | Confirm `RobotConfig` | [PathPlanner](/frc/pathplanner#configuring-autobuilder) | The student reads mass, moment of inertia, wheel data, gearing, track width and maximum speed out of `DriveConstants` and states which values came from the template and which were changed, and why |
+| 10.2 | Confirm odometry | [Wheel Odometry](/frc/wheel-odometry#differential-drive-odometry) | Driving the simulated Kit Bot in a square produces a sensible `Odometry/Robot` trace on the 2D field before any path is followed |
+| 10.3 | Draw three paths | [PathPlanner](/frc/pathplanner#paths-autos-and-event-markers) | At least three named `.path` files in `src/main/deploy/pathplanner/paths/`, drawn in blue-origin coordinates |
+| 10.4 | Build one routine | [PathPlanner](/frc/pathplanner#creating-and-running-paths) | One auto, built in the editor or with `AutoBuilder`, follows all three paths in order |
+| 10.5 | Two mechanism actions | [PathPlanner](/frc/pathplanner#event-markers-and-named-commands) | `Superstructure.intake()` and `Superstructure.launch()` run through named commands on event markers or in the auto command tree; the template already registers `"Launch"` |
+| 10.6 | Reset pose once | [Autonomous Simulation](/frc/autonomous-simulation#the-three-tools-in-simulation) | The pose is reset once, at the routine's starting pose, and not before later paths |
+| 10.7 | Alliance mirroring | [Math Toolbox: Geometry](/frc/math-toolbox-geometry#cobras-own-the-alliance-flip) | Paths are authored on the blue origin; the routine runs correctly from both alliances in the Sim GUI, using the flip supplier `AutoBuilder` was configured with |
+| 10.8 | Plot the routine | [Autonomous Simulation](/frc/autonomous-simulation#the-three-tools-in-simulation) | `Odometry/Trajectory` and `Odometry/TrajectorySetpoint` plotted against `Odometry/Robot` on AdvantageScope's 2D field |
+| 10.9 | Save the log | [Log Replay](/frc/log-replay) | A `.wpilog` in the repository or linked from the README shows three paths, both actions, and a stopped drivetrain at the end |
+
+## Independent Change
+
+Move the workflow to swerve, then keep the same drivetrain interfaces and mechanism commands while replacing the PathPlanner follower with BLine. The student chooses the routes, action timing, and the path that demonstrates heading independent of travel.
+
+### PathPlanner on Swerve
+
+The same file workflow, on the swerve template in `Badge2Robot`. The template's `Drive` configures `AutoBuilder` with `PPHolonomicDriveController` and a `RobotConfig` built from `TunerConstants`: module locations from `getModuleTranslations()`, wheel radius, drive gear ratio, slip current and the speed at 12 volts. The holonomic controller commands translation and rotation separately, which is the behavior a differential drivetrain cannot offer and the reason for row 10.14.
+
+| # | Work | Lesson | Done when |
+|---|---|---|---|
+| 10.10 | Confirm the swerve configuration | [PathPlanner](/frc/pathplanner#autobuilder-configuration-swerve) | The student points to the pose supplier, pose reset, robot-relative speed supplier, drive consumer and controller in `Drive`'s `AutoBuilder.configure` call |
+| 10.11 | Explain holonomic control | [PathPlanner](/frc/pathplanner#paths-autos-and-event-markers) | The student explains why the swerve controller can command translation and heading separately, and what `PPLTVController` could not do |
+| 10.12 | Confirm `RobotConfig` | [PathPlanner](/frc/pathplanner#configuring-autobuilder) | Module locations, mass, moment of inertia, wheel data, gearing and maximum speed read out of `Drive` and `TunerConstants` |
+| 10.13 | Draw three paths | [PathPlanner](/frc/pathplanner#paths-autos-and-event-markers) | At least three named path files for the swerve project |
+| 10.14 | Heading independent of travel | [Pose Geometry](/frc/pose-geometry#state-and-change) | At least one path where the robot's heading differs from its direction of travel, with the rotation target visible in the editor |
+| 10.15 | Build one routine | [PathPlanner](/frc/pathplanner#creating-and-running-paths) | One auto follows all three paths |
+| 10.16 | Two mechanism actions | [PathPlanner](/frc/pathplanner#event-markers-and-named-commands) | Two actions from the Step 8 subsystems run through named commands, `EventTrigger`s, or the auto command tree; none requires the drivetrain |
+| 10.17 | Alliance mirroring | [Math Toolbox: Geometry](/frc/math-toolbox-geometry#cobras-own-the-alliance-flip) | Blue-origin paths verified from the red alliance in the Sim GUI |
+| 10.18 | Plot the routine | [Autonomous Simulation](/frc/autonomous-simulation#the-three-tools-in-simulation) | Planned pose, measured pose and target heading on the 2D field |
+| 10.19 | Save the log | [Log Replay](/frc/log-replay) | A `.wpilog` shows three paths, both actions, the independent heading, and a stopped drivetrain at the end |
+
+### BLine on Swerve
+
+The same swerve drive, with BLine-Lib as the follower. BLine follows a sequence of points from the robot's current pose rather than a schedule in time, which the [BLine](/frc/bline#get-to-point) lesson explains and row 10.28 demonstrates.
+
+| # | Work | Lesson | Done when |
+|---|---|---|---|
+| 10.20 | Install BLine-Lib | [BLine](/frc/bline#installing-it) | The vendordep is installed at the version the README records (0.9.1 when this page was written), and `frc.robot.lib.BLine` imports resolve |
+| 10.21 | Wire the builder | [BLine](/frc/bline#wiring-it-to-the-drivetrain) | One `FollowPath.Builder` receives the drive subsystem, its pose supplier, its robot-relative `ChassisSpeeds` supplier, its drive consumer, and three PID controllers |
+| 10.22 | Set global constraints | [BLine](/frc/bline#where-paths-come-from) | `Path.setDefaultGlobalConstraints` or `deploy/autos/config.json` sets translation velocity and acceleration, rotation velocity and acceleration, the end tolerances and the handoff radius, and the README states each unit |
+| 10.23 | Draw three paths | [BLine](/frc/bline#where-paths-come-from) | At least three named path files in `src/main/deploy/autos/paths/`, loaded by name |
+| 10.24 | Build one routine | [Command Groups](/frc/command-groups#autonomous-routines) | One command follows all three paths, with `withPoseReset` applied to the first path only |
+| 10.25 | Two mechanism actions | [BLine](/frc/bline#events) | Two actions from the Step 8 subsystems run through `FollowPath.registerEventTrigger` or a `BLineCommands` composition |
+| 10.26 | No requirement conflict | [BLine](/frc/bline#events) | No event command requires the drivetrain; the student explains what the scheduler would do if one did |
+| 10.27 | Draw and log | [BLine](/frc/bline#check-the-loaded-path) | The loaded paths are drawn on a `Field2d`, and measured pose is logged beside them |
+| 10.28 | Two starting offsets | [BLine](/frc/bline#get-to-point) | The routine runs from the drawn start and from a start offset by about half a metre; the robot drives onto the line from where it is rather than replaying a timeline |
+| 10.29 | Save the log | [Log Replay](/frc/log-replay) | A `.wpilog` shows all paths, both actions, and the final stopped state |
+
+## Badge Check
+
+<StepsBox title="Path following badge check">
+
+1. The mentor runs the routines in order: PathPlanner on the Kit Bot, PathPlanner on swerve, BLine on swerve. Each run starts from a clean simulation state with the pose reset to the routine's start.
+2. For each run, AdvantageScope shows the planned and measured poses on the 2D field and the mechanism goals on a graph.
+3. The mentor opens each saved log and asks the student to point at the start and end of every path and every action, and to say what changed at each transition.
+4. The mentor switches the alliance in the Sim GUI and reruns one routine. It mirrors correctly.
+5. For the BLine routine, the mentor sets a starting offset and watches the robot recover the line.
+
+</StepsBox>
+
+<Sources items={[
+  {"source": "advantagekit-templates", "path": "kitbot_2026/src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "The Kit Bot template's <code>AutoBuilder.configure</code> with <code>PPLTVController(0.02, maxSpeedMetersPerSec)</code>, the kinematics-based speed supplier, <code>runClosedLoop</code> with per-side <code>kS</code> and <code>kV</code>, and the trajectory logging callbacks."},
+  {"source": "advantagekit-templates", "path": "kitbot_2026/src/main/java/frc/robot/subsystems/drive/DriveConstants.java", "note": "<code>ppConfig</code>: mass, MOI, wheel COF, wheel radius, gearing, current limit, two motors per side, track width."},
+  {"source": "advantagekit-templates", "path": "kitbot_2026/src/main/java/frc/robot/subsystems/superstructure/Superstructure.java", "note": "The <code>intake()</code>, <code>eject()</code> and <code>launch()</code> command factories the Kit Bot actions come from."},
+  {"source": "advantagekit-templates", "path": "kitbot_2026/src/main/java/frc/robot/RobotContainer.java", "note": "<code>NamedCommands.registerCommand(\"Launch\", …)</code> and the <code>LoggedDashboardChooser</code> built from <code>AutoBuilder.buildAutoChooser()</code>."},
+  {"source": "advantagekit-templates", "path": "talonfx_swerve/src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "The swerve template's <code>PPHolonomicDriveController</code> and the <code>RobotConfig</code> built from <code>TunerConstants</code>."},
+  {"source": "pathplanner", "path": "pplib-build-an-auto.html", "note": "<code>AutoBuilder.configure</code>, named commands and building an auto."},
+  {"source": "pathplanner", "path": "api/java/com/pathplanner/lib/controllers/PPLTVController.html", "note": "The differential follower: <code>isHolonomic()</code> is false; constructors take <code>dt</code> and an optional maximum velocity."},
+  {"source": "pathplanner", "path": "gui-editing-paths-and-autos.html", "note": "Paths, autos, rotation targets and event markers in the editor."},
+  {"source": "pathplanner", "path": "pplib-triggers.html", "note": "<code>EventTrigger</code>, and the warning that a bound command sharing requirements with the auto interrupts it."},
+  {"source": "bline", "path": "getting-started/installation/", "note": "The vendordep URL, the install steps and the 0.9.1 release."},
+  {"source": "bline", "path": "lib/follow-path/", "note": "<code>FollowPath.Builder</code> parameters, <code>withDefaultShouldFlip</code> and <code>withPoseReset</code>."},
+  {"source": "bline", "path": "lib/path-construction/", "note": "<code>Path.setDefaultGlobalConstraints</code> with its parameter order and units; loading a path by name from <code>deploy/autos/paths/</code>."},
+  {"source": "bline", "path": "lib/event-triggers/", "note": "<code>FollowPath.registerEventTrigger</code> for a <code>Runnable</code> or a <code>Command</code>, and the <code>BLineCommands</code> helpers that avoid the drivetrain-requirement conflict."},
+  {"source": "bline", "path": "lib/field-visualization/", "note": "Drawing the loaded path on a <code>Field2d</code>."},
+  {"source": "advantagescope", "path": "tab-reference/2d-field", "note": "Plotting planned and measured poses."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Step 11: Observations and Vision","id":"badge-2-photonvision"},
+  {"label":"Step 9: Pose and Motion","id":"badge-2-math"},
+  {"label":"PathPlanner","url":"/frc/pathplanner"},
+  {"label":"BLine","url":"/frc/bline"}
+]} title="Next" section="badges" />

@@ -11,55 +11,89 @@ description: Publish the feeder and intake-launcher readings through NetworkTabl
 ---
 
 
-Telemetry is data the robot sends out so you can inspect its behavior. The feeder and intake-launcher motor each publish RPM, current, and applied voltage. Seeing both sets of values is how you confirm that launch spins the roller before the feeder changes to its full launch output.
+Telemetry is data the robot sends to a tool for inspection. In this lesson, the feeder and launcher roller each publish velocity, current, and applied voltage. Comparing these six readings helps you check the two-stage launch sequence in simulation.
 
-**NetworkTables** carries named values between robot code and tools on the driver-station computer. A name such as `Launcher/Feeder/velocityRPM` identifies one value. The code publishes a new number every robot tick.
+**NetworkTables** carries named values between robot code and tools on the driver-station computer. Each value has a topic name. For example, `Launcher/Feeder/velocityRPM` means the feeder velocity in revolutions per minute (RPM).
 
-### Step 1: start the log
+## Before You Start
 
-Add these two lines at the start of the `Robot()` constructor, before `m_robotContainer = new RobotContainer();`:
+Complete [R08 Part 2: Intake and Launch](/kit-bot/r08-launcher-io-part-2), [R11: Teleop Drive](/kit-bot/r11-teleop-drive), and [R12: Real vs Sim at Runtime](/kit-bot/r12-real-vs-sim). Confirm that all three launcher controls work in simulation.
+
+Keep [AdvantageScope: Tour](/tools/advantagescope-tour) open if this is your first time using the field tree or a Line Graph.
+
+You will edit these existing files in WPILib VS Code:
+
+- `src/main/java/frc/robot/Robot.java`
+- `src/main/java/frc/robot/subsystems/launcher/Launcher.java`
+
+## Start the Log
+
+Open `Robot.java`. Add these imports with the other imports:
+
+```java
+import edu.wpi.first.wpilibj.DataLogManager;
+import edu.wpi.first.wpilibj.DriverStation;
+```
+
+Find the existing `public Robot()` constructor. Insert these three lines **before** the line that creates `RobotContainer`:
 
 ```java
 DataLogManager.start();
 DriverStation.startDataLog(DataLogManager.getLog());
+System.out.println("WPILOG directory: " + DataLogManager.getLogDir());
 ```
 
-Import `edu.wpi.first.wpilibj.DataLogManager` and `edu.wpi.first.wpilibj.DriverStation` at the top of `Robot.java`.
+Keep the rest of the constructor. This is an insertion, not a replacement constructor.
 
-`DataLogManager` saves a `.wpilog` file. In simulation, the file is stored on the computer. `DriverStation.startDataLog` adds controller and Driver Station information to the same log.
+`DataLogManager.start()` creates a `.wpilog` file and records NetworkTables changes by default. `DriverStation.startDataLog(...)` adds Driver Station and controller data. The printed directory gives you the exact folder to open later instead of relying on a guessed location.
 
-### Step 2: open publishers once
+Save `Robot.java`. In the Command Palette, run **WPILib: Build Robot Code**. Continue when the terminal ends with `BUILD SUCCESSFUL`.
 
-Add these fields to `Launcher`:
+## Open Six Publishers Once
+
+Open `Launcher.java`. Add these imports with the other imports:
 
 ```java
-private final NetworkTable table =
+import edu.wpi.first.networktables.DoublePublisher;
+import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableInstance;
+```
+
+Merge `RPM`, `Amps`, and `Volts` into the file's existing static imports from `edu.wpi.first.units.Units`.
+
+Insert these fields inside `Launcher`, near the existing `io` and `inputs` fields. Keep all existing fields and methods.
+
+```java
+private final NetworkTable telemetryTable =
     NetworkTableInstance.getDefault().getTable("Launcher");
 
 private final DoublePublisher feederVelocityPublisher =
-    table.getDoubleTopic("Feeder/velocityRPM").publish();
+    telemetryTable.getDoubleTopic("Feeder/velocityRPM").publish();
 private final DoublePublisher feederCurrentPublisher =
-    table.getDoubleTopic("Feeder/currentAmps").publish();
+    telemetryTable.getDoubleTopic("Feeder/currentAmps").publish();
 private final DoublePublisher feederVoltagePublisher =
-    table.getDoubleTopic("Feeder/appliedVolts").publish();
+    telemetryTable.getDoubleTopic("Feeder/appliedVolts").publish();
 
 private final DoublePublisher launcherVelocityPublisher =
-    table.getDoubleTopic("IntakeLauncher/velocityRPM").publish();
+    telemetryTable.getDoubleTopic("IntakeLauncher/velocityRPM").publish();
 private final DoublePublisher launcherCurrentPublisher =
-    table.getDoubleTopic("IntakeLauncher/currentAmps").publish();
+    telemetryTable.getDoubleTopic("IntakeLauncher/currentAmps").publish();
 private final DoublePublisher launcherVoltagePublisher =
-    table.getDoubleTopic("IntakeLauncher/appliedVolts").publish();
+    telemetryTable.getDoubleTopic("IntakeLauncher/appliedVolts").publish();
 ```
 
-In `Launcher.java`, import `NetworkTable`, `NetworkTableInstance`, and `DoublePublisher` from `edu.wpi.first.networktables`. Add static imports for `RPM`, `Amps`, and `Volts` from `edu.wpi.first.units.Units`.
+These fields open the six publishers once when the subsystem is created. Do not call `publish()` from `periodic()`.
 
-The fields are created once with the subsystem. Do not call `publish()` inside `periodic()`.
+The exact topics are:
 
-The topic paths keep each motor's readings together. A student inspecting `Launcher/Feeder` knows those three values came from the feeder controller, while `Launcher/IntakeLauncher` came from the other controller.
+| Motor | Velocity | Current | Applied Voltage |
+|---|---|---|---|
+| Feeder | `Launcher/Feeder/velocityRPM` | `Launcher/Feeder/currentAmps` | `Launcher/Feeder/appliedVolts` |
+| Launcher roller | `Launcher/IntakeLauncher/velocityRPM` | `Launcher/IntakeLauncher/currentAmps` | `Launcher/IntakeLauncher/appliedVolts` |
 
-### Step 3: set the values every tick
+## Publish Current Readings
 
-Add these lines at the end of `Launcher.periodic()`:
+Find the existing `periodic()` method in `Launcher.java`. Keep its output calls and `io.updateInputs(inputs)`. Insert these lines immediately **after** `io.updateInputs(inputs)`:
 
 ```java
 feederVelocityPublisher.set(inputs.feederVelocity.in(RPM));
@@ -74,55 +108,112 @@ launcherVoltagePublisher.set(
     inputs.intakeLauncherAppliedVoltage.in(Volts));
 ```
 
-`DoublePublisher` accepts a primitive `double`, so each measure is converted to the unit named by its topic with `.in(...)`.
+The call to `io.updateInputs(inputs)` refreshes the readings. Publishing afterward sends the readings from that simulation tick. Each `.in(...)` conversion matches the unit written in its topic name.
 
-### Step 4: graph the values
+Save `Launcher.java`, then run **WPILib: Build Robot Code** again.
 
-1. Open AdvantageScope with `WPILib: Start Tool`.
-2. Select **File → Connect to Simulator → Default**.
-3. Add a Line Graph tab and drag both `velocityRPM` topics onto it.
-4. Use a second graph for both `currentAmps` topics.
-5. Use a third graph for both `appliedVolts` topics. Separate units keep a large RPM value from hiding a small voltage value.
-6. Enable teleop. Hold the left bumper to intake, the right bumper to launch, and A to eject.
+## Connect AdvantageScope
 
-Look for these behaviors:
+1. In WPILib VS Code, open the Command Palette and run **WPILib: Simulate Robot Code**. Keep **Sim GUI** selected and choose **OK**.
+2. Assign the controller or keyboard to Joystick 0 in the Simulation GUI.
+3. Open another Command Palette and run **WPILib: Start Tool**. Choose **AdvantageScope**.
+4. In AdvantageScope, use **File → Connect to Simulator → Default**. If this label differs in the installed version, open the live-source menu and choose the **Simulator** source at the default address.
+5. In the field tree, expand the NetworkTables source and then `Launcher`. Confirm that all six exact topics from the table above appear.
+6. In the Simulation GUI, select **Teleoperated** and **Enabled**.
 
-- Intake and eject move both motors and reverse the fuel path.
-- The intake-launcher voltage changes immediately when launch starts.
-- The feeder uses its spin-up voltage first, then changes to its full launch voltage.
-- Releasing any button returns both applied-voltage topics to zero.
+If the `Launcher` branch is missing, first confirm that simulation is still running and that AdvantageScope shows a live Simulator connection. Then check the spelling and capitalization of the topic strings in `Launcher.java`.
 
-The two RPM traces do not need to match. The motors do different jobs and are not followers.
+## Graph the Launch Sequence
 
-### Match the graph to video
+Add three Line Graph tabs with the **+** button:
 
-After [First Deploy](/kit-bot/r12-first-deploy), record a mentor-supervised hardware run from the side while collecting the same telemetry. Use the video to mark when fuel enters the feeder and touches the intake and launcher roller. Compare those moments with both RPM traces. A dip in one trace tells you which roller took on the load.
+1. Drag both `velocityRPM` topics onto the first graph.
+2. Drag both `currentAmps` topics onto the second graph.
+3. Drag both `appliedVolts` topics onto the third graph.
 
-The [YETI Robotics 2026 build thread](https://www.chiefdelphi.com/t/frc-3506-yeti-robotics-2026-build-thread/511666) shows repeated-shot testing with motor-speed evidence on a Kit Bot. Use its graphs as an example of the question to ask, not as a target value for your robot.
+Keeping different units on different graphs makes the scales readable. RPM means revolutions per minute, current uses amperes (A), and voltage uses volts (V).
 
-### Open a saved log
+Hold the left bumper to intake, the right bumper to launch, and A to eject. Release each control before trying the next one.
 
-Disable and stop simulation. Check the terminal for the log path printed by `DataLogManager`; simulation logs are normally in the project's `logs` folder. In AdvantageScope, use **File → Open Log** and choose the new `.wpilog` file. The same six values should be available for playback even though robot code is no longer running.
+Look for these simulation results:
 
-### Troubleshooting
+- Intake and eject change both motors' readings.
+- At the start of launch, the launcher roller receives its launch voltage while the feeder receives its small spin-up voltage.
+- After the configured spin-up time, the feeder applied-voltage trace changes to its full launch request. Zoom into the beginning of the graph if the first phase is hard to see.
+- Releasing the control returns both applied-voltage topics to zero. The velocity traces may take time to return to zero.
 
-- **The Launcher table is missing:** confirm simulation is running and AdvantageScope is connected to the simulator.
-- **Only one motor changes:** confirm `Launcher.periodic()` sends both target voltages and publishes both input groups.
-- **Feeder and launcher traces are identical:** check for an accidental `.follow(...)` configuration or a copied topic path.
-- **No log file appears:** confirm `DataLogManager.start()` runs from the `Robot()` constructor.
-- **A graph has the wrong scale:** confirm the topic name and `.in(...)` conversion use the same unit.
+The two velocity traces do not need to match because the motors have different jobs and are simulated separately. These traces show the model's readings and command sequence. They do not prove that physical fuel moved through the mechanism.
 
-<RulesBox title="Done when">
+## Open the Saved WPILOG
 
-AdvantageScope shows separate RPM, current, and applied-voltage topics for the feeder and intake-launcher motors. A launch graph shows the spin-up phase, the feeder transition, and both outputs returning to zero. The same topics open from a saved WPILOG.
+1. In the Simulation GUI, select **Disabled**.
+2. Stop the simulation from WPILib VS Code. Wait for the simulation process to end so the log writer can finish the file.
+3. In the VS Code terminal, find the line beginning `WPILOG directory:`. Open that folder in File Explorer.
+4. Sort by **Date modified** and identify the newest file ending in `.wpilog`.
+5. In AdvantageScope, use **File → Open Log(s)...** and select that file.
+6. Expand the recorded NetworkTables data and find the same six launcher topics. Drag them onto Line Graph tabs or use the existing tabs if AdvantageScope reconnects the fields.
+7. Press play or drag the timeline. Confirm that the applied-voltage traces contain the intake, launch, or eject action you recorded.
+
+If no `.wpilog` appears, confirm that `DataLogManager.start()` ran before `RobotContainer` was created and that the printed directory exists. If the file opens without the six topics, confirm that simulation ran long enough to publish values and that the saved file is the newest one.
+
+## Compare With Hardware Later
+
+After [First Deploy](/kit-bot/r12-first-deploy), a mentor can approve a physical test with no fuel loaded at first. Record video and the same six topics during later fuel testing. A drop in velocity when fuel touches a roller is evidence of a load at that time, but the graph alone does not identify the mechanical cause.
+
+The [YETI Robotics 2026 build thread](https://www.chiefdelphi.com/t/frc-3506-yeti-robotics-2026-build-thread/511666) shows repeated-shot testing with motor-speed evidence on a Kit Bot. Its values belong to that robot and are not target values for this one.
+
+<RulesBox title="Done When">
+
+AdvantageScope shows the six exact launcher topics live. A launch graph shows the feeder's spin-up request, its change to the full launch request, and both applied-voltage topics returning to zero after release. The newest saved WPILOG opens with the same six topics.
 
 </RulesBox>
 
 <Sources items={[
-  {"source": "wpilib", "path": "docs/software/networktables/networktables-intro.html", "note": "NetworkTables and named topics."},
-  {"source": "wpilib", "path": "docs/software/telemetry/datalog.html", "note": "DataLogManager and WPILOG files."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/networktables/DoublePublisher.html", "note": "Publishing double values."},
-  {"source": "advantagescope", "path": "overview/live-sources/", "note": "Connecting to simulation."},
-  {"source": "advantagescope", "path": "tab-reference/line-graph/", "note": "Graphing live values."},
-  {"url": "https://www.chiefdelphi.com/t/frc-3506-yeti-robotics-2026-build-thread/511666", "label": "YETI Robotics 2026 build thread", "note": "Kit Bot launcher testing with video and motor-speed evidence."}
+  {
+    "source": "wpilib",
+    "path": "docs/software/networktables/networktables-intro.html",
+    "note": "NetworkTables and named topics.",
+    "label": "NetworkTables Topics"
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/telemetry/datalog.html",
+    "note": "Starting data logging and recording Driver Station data.",
+    "label": "WPILib Data Logging"
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/wpilibj/DataLogManager.html",
+    "note": "Default NetworkTables logging and getLogDir().",
+    "label": "DataLogManager API"
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/networktables/DoublePublisher.html",
+    "note": "Publishing double values.",
+    "label": "Numeric Publishers"
+  },
+  {
+    "source": "advantagescope",
+    "path": "overview/live-sources/",
+    "note": "Connecting to a simulator live source.",
+    "label": "Live Data Sources"
+  },
+  {
+    "source": "advantagescope",
+    "path": "overview/log-files/",
+    "note": "Opening and playing WPILOG files.",
+    "label": "Open Log Files"
+  },
+  {
+    "source": "advantagescope",
+    "path": "tab-reference/line-graph/",
+    "note": "Graphing numeric fields and using the timeline.",
+    "label": "Line Graphs"
+  },
+  {
+    "url": "https://www.chiefdelphi.com/t/frc-3506-yeti-robotics-2026-build-thread/511666",
+    "label": "YETI Robotics 2026 build thread",
+    "note": "Kit Bot launcher testing with video and motor-speed evidence."
+  }
 ]} />

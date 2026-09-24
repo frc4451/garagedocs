@@ -20,13 +20,13 @@ description: "Let the compiler write the boilerplate: records, compact construct
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A18: Records`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Use records to group related values. Java supplies component accessors, equals, hashCode, and toString. Add validation and methods for the behavior the assignment needs.
 
 The examples store a vision result and a position setpoint. Records can have methods; choose them when their named components describe the value you want to represent.
 
-### What to build
+## What To Build
 
 **`VisionResult`**: a record with `timestampMs`, `xMeters`, `yMeters`,
 `areaSqPixels` and `confidence`, implementing `Comparable<VisionResult>`:
@@ -34,27 +34,37 @@ The examples store a vision result and a position setpoint. Records can have met
 - A **compact constructor** rejecting a negative `timestampMs`, a `confidence` outside
   `[0.0, 1.0]`, and a negative `areaSqPixels`
 - `compareTo` ordering by `timestampMs` ascending
-- `static int recent(VisionResult[] results, long maxAgeMs, long now)` counting the
+- `public static int recent(VisionResult[] results, long maxAgeMs, long now)` counting the
   results no more than `maxAgeMs` older than `now`
 
 **`Setpoint`**: a record with `name`, `valueMeters` and `toleranceMeters`:
 
 - A compact constructor that **trims the name**, rejects blank, and rejects a negative
   tolerance
-- `boolean isReached(double currentMeters)`: true when `currentMeters` is within
+- `public boolean isReached(double currentMeters)`: true when `currentMeters` is within
   `toleranceMeters` of `valueMeters`
 
-### The compact constructor
+## Compact Constructors
 
-A compact constructor uses the record name with **no parameter list**:
+A compact constructor uses the record name with **no parameter list**. This
+complete, separate `Main.java` example prints `Practice Bot`. Save it in a separate
+practice folder and use [Compile And Run](/java/fundamentals/java-setup#compile-and-run)
+to try it; keep the assignment's `RecordsTester.java` unchanged while exploring:
 
 ```java
-record Setpoint(String name, double valueMeters, double toleranceMeters) {
-    Setpoint {
-        if (name == null || name.trim().isEmpty()) {
-            throw new IllegalArgumentException("name must not be blank");
+public class Main {
+    public record Label(String text) {
+        public Label {
+            if (text == null || text.trim().isEmpty()) {
+                throw new IllegalArgumentException("text must not be blank");
+            }
+            text = text.trim();
         }
-        name = name.trim();   // assigning the component normalises what gets stored
+    }
+
+    public static void main(String[] args) {
+        Label label = new Label("  Practice Bot  ");
+        System.out.println(label.text());
     }
 }
 ```
@@ -63,15 +73,51 @@ The compact constructor can normalize its parameters before the
 fields are assigned, so whatever the parameters hold at the end is what the record
 keeps. That is how a record validates and normalises without repeating the component parameter list and field assignments.
 
-<RulesBox title="This assignment needs Java 17" items={[
-  "Records arrived in Java 16. The in-page editor runs <strong>Java 17</strong>, so everything here compiles and runs in the browser exactly as it does locally on Java 25.",
+The starter keeps `VisionResult` and `Setpoint` package-private because all three
+top-level types share one browser source file. Keep those declarations as supplied.
+Declare each compact constructor `public`. Also declare `recent` and `isReached`
+`public`; `compareTo` is already public because it implements the public
+`Comparable` method.
+
+<RulesBox title="Java 17 Required" items={[
+  "Records became a permanent Java feature in Java 16. The in-page editor runs <strong>Java 17</strong>, which supports every record feature required by this assignment. A local Java 25 installation supports them too, although later Java releases can differ in unrelated behavior.",
   "<code>main</code> is written for you and exercises both records. Leave it alone and implement the records above it."
 ]} />
 
+## Build Locally
 
-<RulesBox title="Plan it as sessions" items={[
+Save the browser starter as `RecordsTester.java` because `RecordsTester` is the
+public class containing `main`. Keep all three top-level types in that one file for
+this assignment. From `assignments/a18-records/`, compile and run it with:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac RecordsTester.java
+java RecordsTester
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac RecordsTester.java
+java RecordsTester
+```
+
+</CodeTab>
+</CodeTabs>
+
+The browser checks run the supplied `RecordsTester.main`. They check the printed
+ordering, boundary examples, generated record text, and four rejected inputs. They
+do not inspect your author comment, explain why a record fits these values, or prove
+every possible numeric input is sensible. Complete those rubric items yourself.
+
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Comparable orders the results by timestamp</em>, <em>The generated toString names every component</em>, <em>recent counts by age, not by position</em>, <em>Records compare by value, and accessors work</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>The compact constructor normalises as well as validates</em>, <em>isReached respects the tolerance</em>, <em>Every validation rule fires</em>."
+  "<strong>Session 2.</strong> Complete the remaining browser checks: <em>The compact constructor normalises as well as validates</em>, <em>isReached respects the tolerance</em>, and <em>Every validation rule fires</em>. Then perform the manual rubric review described below."
 ]} />
 
 <JavaPlayground id="a18-records" />
@@ -80,11 +126,19 @@ keeps. That is how a record validates and normalises without repeating the compo
   "<strong>You get more than you think.</strong> Accessors are named after the components with no <code>get</code> prefix: <code>result.confidence()</code>, not <code>getConfidence()</code>. <code>equals</code> compares every component, <code>hashCode</code> agrees with it, and <code>toString</code> prints them all. You do not write, or override, any of those.",
   "<strong>Validate in the compact constructor, not in a factory.</strong> If validation lives in a static <code>of(...)</code> method, somebody can still call <code>new</code> and skip it. The compact constructor is the only door.",
   "<strong>A record is shallowly immutable.</strong> Components cannot be reassigned after construction, but a record holding an array still shares that array with whoever passed it. Worth knowing before you put a <code>double[]</code> in one.",
-  "<strong><code>compareTo</code> is yours to write.</strong> Records generate <code>equals</code>, not ordering. Use <code>Long.compare</code> for the timestamps rather than subtracting, which can overflow.",
-  "<strong>Mind what &quot;recent&quot; means at the boundary.</strong> <code>now - timestamp &lt;= maxAgeMs</code> includes a result exactly <code>maxAgeMs</code> old. Decide deliberately, because the checks test a window where it matters."
+  "<strong><code>compareTo</code> is yours to write.</strong> Records generate <code>equals</code>, not ordering. A comparison returns a negative number when this result belongs before the other result, zero for equal timestamps, and a positive number when it belongs after. <code>Long.compare(this.timestampMs, other.timestampMs)</code> expresses that rule without subtraction overflow.",
+  "<strong>Compute age before counting.</strong> In a neutral example, a reading at 7,800 ms and a current time of 8,000 ms has age <code>8000 - 7800</code>, or 200 ms. The requirement says an age equal to <code>maxAgeMs</code> is included. The automated samples compare two windows but do not exercise that exact boundary, so check it yourself."
 ]} />
 
-### Self-grading rubric
+For the manual boundary check, create a temporary `Setpoint` whose target is `1.0`
+and tolerance is `0.125`. Confirm that `isReached(0.875)` and `isReached(1.125)` are
+both true, while `isReached(1.25)` is false. These fractions are exact in binary,
+so rounding does not obscure the inclusive boundary. Decimal values such as
+`0.05` can introduce tiny rounding differences when you subtract them; see
+[Floating-Point Calculations](/java/fundamentals/java-calculations).
+Remove the temporary calls before your final submission.
+
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -97,7 +151,10 @@ keeps. That is how a record validates and normalises without repeating the compo
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+First save a passing copy of the required version. Try each stretch goal in a
+separate copy so its extra output cannot interfere with the required checks.
 
 - Convert [A19](/java/assignments/a19-sorting-a-scouting-roster)'s `TeamEntry` to a record and count the
   lines that disappear. Keep its `toString`, since the checks there compare it.
@@ -107,17 +164,17 @@ keeps. That is how a record validates and normalises without repeating the compo
 - Write down which of the classes you built in this track *should* have been records,
   and which should not. Consider whether named, fixed components represent the value. Records can include behavior.
 
-### References
+## References
 
 - JavaDoc: [Record classes](https://docs.oracle.com/en/java/javase/25/language/records.html)
 - JavaDoc: [`java.lang.Record`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Record.html)
-- WPILib: [`PhotonTrackedTarget`](https://docs.wpilib.org/en/stable/docs/software/vision-processing/index.html): the kind of value a `VisionResult` stands in for
+- WPILib: [Vision Processing](https://docs.wpilib.org/en/stable/docs/software/vision-processing/index.html): background on the kind of vision data a `VisionResult` stands in for
 - Wikipedia: [Value object](https://en.wikipedia.org/wiki/Value_object)
 
 <Sources items={[
-  {"source": "csce146", "note": "Records."},
-  {"source": "dev-java", "path": "records/", "note": "Records: components, compact constructors, generated <code>equals</code>/<code>hashCode</code>."},
-  {"source": "java-api", "path": "java.base/java/lang/Record.html", "note": "<code>Record</code>."},
-  {"source": "jls", "path": "jls-8.html", "note": "Record classes (section 8.10)."},
-  {"source": "java-api", "path": "java.base/java/lang/Comparable.html", "note": "<code>Comparable</code> API reference."}
+  {"source": "csce146", "label": "Course Materials", "note": "The course sequence that inspired this records assignment."},
+  {"source": "dev-java", "path": "records/", "label": "Record Classes", "note": "Record components, compact constructors, generated accessors, and value-based methods."},
+  {"source": "java-api", "path": "java.base/java/lang/Record.html", "label": "Record API", "note": "The common superclass and contract for record classes."},
+  {"source": "jls", "path": "jls-8.html#jls-8.10", "label": "JLS Â§8.10: Record Classes", "note": "Language rules for record declarations and members."},
+  {"source": "java-api", "path": "java.base/java/lang/Comparable.html", "label": "Comparable API", "note": "The natural-order comparison contract implemented by <code>VisionResult</code>."}
 ]} />

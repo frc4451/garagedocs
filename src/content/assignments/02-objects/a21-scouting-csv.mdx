@@ -20,13 +20,28 @@ description: "Write scouting rows to a file and read them back unchanged, includ
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A21: Scouting CSV`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Write scouting entries to a CSV file, then read them back without changing their values. Notes can contain commas or quotes, so the reader must distinguish field separators from characters inside a quoted field.
 
+The supplied team numbers, names, notes, and scores are exercise data. Do not use
+them as current facts about real teams.
+
 Support one record per line in this exercise. Report a malformed row and continue reading valid rows.
 
-### What to build
+CSV means comma-separated values. A CSV row is plain text whose fields are separated by commas. Quotation marks let
+a comma belong to a field instead of separating fields. For example, the notes
+value `fast, "steady"` is written as `"fast, ""steady"""`: the outer quotes protect
+the comma, and each quote inside the value is doubled. Those extra marks belong to
+the file format; reading the row must restore the original notes value.
+
+Before starting, review [A20: Config Validator](/java/assignments/a20-config-validator)
+for the file-reading pattern. A21 uses the same try-with-resources structure so the
+reader closes at the end of the block. `readLine()` returns `null` at end of file,
+which ends the loop. Both public methods declare `throws IOException`, so file
+failures can travel to the caller instead of being mistaken for malformed CSV rows.
+
+## What To Build
 
 **`TeamEntry`** holding `teamNumber`, `teamName`, `drivetrain`, `avgPoints`,
 `climbsHigh` and `notes`. Validate in the constructor: `avgPoints` not negative, and
@@ -34,41 +49,118 @@ Support one record per line in this exercise. Report a malformed row and continu
 
 **`CsvIO`** with two static methods:
 
-```java
+```java norun
 public static void writeAll(String path, TeamEntry[] entries) throws IOException;
 public static TeamEntry[] readAll(String path) throws IOException;
 ```
+
+These are method signatures showing the required names, parameters, return types,
+and checked exception. The semicolons mean they are not implementations. Write
+each method with braces in `CsvIO`.
 
 **Writing**: open with try-with-resources, write the header
 `teamNumber,teamName,drivetrain,avgPoints,climbsHigh,notes`, then one line per entry.
 **Escape `notes`** when it contains a comma or a quote: wrap it in `"..."` and double
 any internal `"`. For the required samples, only notes contains commas or quotes. Assume the other text fields contain neither, and that no field contains a newline. Supporting general CSV input requires handling these cases in every text field.
 
+If you use `PrintWriter` as the starter's file-writing helper does, remember that
+its writing methods record errors instead of throwing `IOException`. Call
+`checkError()` after writing, before leaving the resource block, and throw an
+`IOException` if it reports a failure. Try-with-resources still closes the writer.
+The supplied sample checks do not simulate disk-write failures.
+
 **Reading**: skip the header, parse each line honouring those quotes, and when a line
 is malformed, **print a warning and skip it** rather than abandoning the load.
+Each valid data row must produce exactly six fields. Preserve an empty final field,
+such as the notes in `1234,Titan,SWERVE,55,true,`, rather than losing it. Treat a
+row with an unclosed quoted field as malformed. When checking whether a quote is
+doubled, verify that a next character exists before reading it.
 
-<RulesBox title="How the browser version differs" items={[
+<RulesBox title="Browser And Local Files" items={[
   "The full assignment builds on the records from <a href=\"/java/assignments/a18-records\">A18</a>. The starter uses a plain class so the <code>toString</code> the checks compare stays visible, but records work in the editor if you would rather rewrite it.",
   "Print skip warnings with <code>System.out</code>, not <code>System.err</code>. The checker treats anything on stderr as a crashed program, so a correct solution that warns on stderr would look like a failure.",
   "<code>main</code> and <code>dataDir</code> are written for you. <code>dataDir</code> picks a directory writable both locally and in the in-page editor."
 ]} />
 
+## Browser Files And Local Files
 
-<RulesBox title="Plan it as sessions" items={[
+The Run button writes and reads a real file in the browser runner's virtual file
+system. The starter's `dataDir()` chooses `/files` when it is available, then the
+Java temporary directory, then the current directory. The file operations are
+real, but this storage is separate from your computer and practice repository.
+Running the checks does not save `scouting.csv` or your Java source to the
+repository, and the browser file may disappear after the runner session.
+
+For the repository version, create these three source files in
+`assignments/a21-scouting-csv/`:
+
+- `TeamEntry.java` contains `public class TeamEntry`.
+- `CsvIO.java` contains `public class CsvIO`.
+- `RoundTripDemo.java` contains `public class RoundTripDemo` and `main`.
+
+Make all three classes, the `TeamEntry` constructor, and the methods named in this
+assignment `public` in the local files. Put the required `import` statements above
+the class that uses them. Keep all three files in the same folder and omit a
+`package` line.
+The browser combines them into one editor, where Java permits only
+`RoundTripDemo` to be a public top-level class. Copy your completed browser work
+into the matching local files before the repository checkpoint.
+
+From that assignment folder, compile all three files and run the class containing
+`main`:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac TeamEntry.java CsvIO.java RoundTripDemo.java
+java RoundTripDemo
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac TeamEntry.java CsvIO.java RoundTripDemo.java
+java RoundTripDemo
+```
+
+</CodeTab>
+</CodeTabs>
+
+The unchanged `dataDir()` selects the first writable location from `/files`, the
+Java temporary directory, and the current directory. The console output is the
+required evidence; you do not need to find the generated file. If you inspect it
+with a mentor, remember that `main` rewrites it with malformed sample rows near the
+end. The final file is the malformed-input test, not the first four-row round trip.
+The generated CSV does not need to be committed.
+
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>All four rows survive the round trip</em>, <em>A comma inside notes does not split the row</em>, <em>A quote inside notes survives escaping</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Nothing changes across the round trip</em>, <em>Bad rows are skipped, good ones still load</em>."
+  "<strong>Session 2.</strong> Finish the remaining checks: <em>Nothing changes across the round trip</em>, <em>Bad rows are skipped, good ones still load</em>. Then review the manual rubric items."
 ]} />
 
 <JavaPlayground id="a21-scouting-csv" />
 
+## What The Checks Cover
+
+The automated checks inspect the starter program's console output: four rows must
+survive, commas and quotes in notes must survive, all fields must match, and the
+two valid rows must remain after malformed rows are skipped. They do not inspect
+whether you used try-with-resources, separated escaping and parsing into helper
+methods, kept the catch around one row, wrote the required comments, or copied the
+source into your repository. Check those rubric items yourself. This is a file
+simulation exercise; it does not need a robot or other hardware.
+
 <RulesBox title="Hints" items={[
-  "<strong><code>split(\",\")</code> cannot do this.</strong> It has no idea which commas are inside quotes. Walk the line character by character with an <code>inQuotes</code> flag: a comma splits only when the flag is false. It is about fifteen lines and it is the heart of the assignment.",
-  "<strong>A doubled quote is one quote.</strong> Inside a quoted field, <code>\"\"</code> means a literal <code>\"</code>. When you meet a quote while inside quotes, peek at the next character: another quote means append one and skip ahead, anything else means the field ended.",
-  "<strong>Escape on the way out, unescape on the way in.</strong> They are mirror images, and a round trip is the test: write, read, compare every field. If a value survives one trip it will survive a hundred.",
+  "<strong><code>split(\",\")</code> cannot do this.</strong> It has no idea which commas are inside quotes. Walk the line character by character with an <code>inQuotes</code> flag: a comma splits only when the flag is false. Add the current field at every separator and once more after the loop so an empty final field survives.",
+  "<strong>A doubled quote is one quote.</strong> Inside a quoted field, <code>\"\"</code> means a literal <code>\"</code>. Before peeking at the next character, check that its index is still inside the line. A second quote means append one and skip ahead; a closing quote ends the quoted part. Reject the row if the loop ends while still inside quotes.",
+  "<strong>Escape on the way out, unescape on the way in.</strong> They are mirror operations. Use the required samples and additional small cases, including empty notes and an unclosed quote; one successful round trip cannot prove every input works.",
   "<strong>One bad row is not a bad file.</strong> Wrap the parse of <em>each line</em> in its own try/catch, warn, and carry on with the next. Wrapping the whole loop instead throws away everything after the first problem."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -81,22 +173,24 @@ is malformed, **print a warning and skip it** rather than abandoning the load.
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
 
 - Handle a newline *inside* a quoted field, which real CSV permits. This changes the
   shape of the reader because you can no longer assume one row is one line.
 - Add `appendAll` that adds rows to an existing file without rewriting it, and work out
-  what has to be true about the header for that to be safe.
+  what has to be true about the header for that to be safe. Try stretch work in a
+  copy after the required checks pass so it cannot break your graded version.
 
-### References
+## References
 
 - JavaDoc: [`java.io.PrintWriter`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/io/PrintWriter.html)
 - RFC 4180: [Common Format for CSV Files](https://www.rfc-editor.org/rfc/rfc4180)
 - Wikipedia: [Comma-separated values](https://en.wikipedia.org/wiki/Comma-separated_values)
 
 <Sources items={[
-  {"source": "csce146", "note": "String parsing."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>split</code>, <code>trim</code>, <code>strip</code>."},
-  {"source": "dev-java", "path": "numbers-strings/strings/", "note": "Strings."},
-  {"source": "dev-java", "path": "numbers-strings/string-builders/", "note": "<code>StringBuilder</code>."}
+  {"source": "csce146", "label": "CSCE 146", "note": "The course source for the string-parsing progression used by this assignment."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "label": "Java String API", "note": "The contracts for character access, replacement, and other String operations used while parsing a row."},
+  {"source": "java-api", "path": "java.base/java/io/PrintWriter.html", "label": "Java PrintWriter API", "note": "Writing text lines and closing the writer used for the CSV output file."},
+  {"url": "https://www.rfc-editor.org/rfc/rfc4180", "label": "RFC 4180 CSV Format", "note": "The primary format description for comma-separated rows, quoted fields, and doubled quotes. This exercise deliberately supports only one record per line."},
+  {"source": "dev-java", "path": "numbers-strings/string-builders/", "label": "StringBuilder", "note": "Building one parsed field character by character."}
 ]} />

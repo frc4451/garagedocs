@@ -17,7 +17,11 @@ WPILib connects commands to conditions through small Java interfaces such as `Ru
 
 ---
 
-### What a command is
+## Before You Start
+
+Complete R04 and keep its Heartbeat output working. Review [Lambdas: Where You Will Meet Them](/java/fundamentals/java-lambdas#where-you-will-meet-them) and [Functional Interfaces](/java/fundamentals/java-interfaces#functional-interfaces). You need the Sim GUI keyboard mapping or a USB controller. No robot hardware is required.
+
+## Commands
 
 <ReferenceImage
   src="/media/kit-bot/commands-and-subsystems.png"
@@ -43,9 +47,9 @@ Start with the command factory methods inherited from `SubsystemBase`. They buil
 
 ---
 
-### Put one-subsystem commands on the subsystem
+## Add Subsystem Commands
 
-Add these methods inside `Heartbeat`, before its final closing brace. Place the `import` line below the package declaration, above the class:
+This is a partial snippet. Place the `import` line below the package declaration, then add these methods inside `Heartbeat`, before its final closing brace:
 
 ```java
 import edu.wpi.first.wpilibj2.command.Command;
@@ -60,7 +64,7 @@ public Command printCountCommand() {
 }
 ```
 
-`runOnce` is inherited from `SubsystemBase`. The command runs its lambda once, ends, and already requires `heartbeat`. There is no subsystem argument to forget.
+`this::reset` is a **method reference**. It passes the existing `reset` method as the action, like the lambda `() -> reset()`. `runOnce` is inherited from `SubsystemBase`. The command runs its action once, ends, and already requires `heartbeat`.
 
 Keep the distinction clear:
 
@@ -76,11 +80,11 @@ public Command holdResetCommand() {
 }
 ```
 
-The inherited `run` factory calls `reset()` every scheduler tick until the command is interrupted.
+The inherited `run` factory calls `reset()` every scheduler tick until the command is interrupted. Before building, confirm that all three methods are inside the `Heartbeat` class and that the file still has only one final closing brace.
 
 ---
 
-### What a `Trigger` is
+## Triggers
 
 A `Trigger` checks a true-or-false condition every scheduler tick. A binding tells it which command to schedule when that condition changes. Pressing a button changes its condition from `false` to `true`.
 
@@ -108,9 +112,9 @@ You'll use `onTrue` for "do one thing on press" and `whileTrue` for "keep doing 
 
 ---
 
-### Wiring it up in `RobotContainer`
+## Bind the Buttons
 
-The full version of the heartbeat-resetting `RobotContainer`:
+Replace `RobotContainer.java` with this complete file:
 
 ```java
 package frc.robot;
@@ -149,7 +153,7 @@ Three patterns to absorb:
 
 ---
 
-### Default commands
+## Default Commands
 
 A subsystem can have a **default command**: the command that runs whenever no other command is using it. This is how teleop drive works: "when nothing else is driving, read the sticks and drive."
 
@@ -177,7 +181,7 @@ We'll use this pattern in R11 to make stick input the default drivetrain behavio
 
 ---
 
-### Reading the sticks
+## Preview for R11
 
 For triggers like the A button, bind a subsystem command directly. Analog sticks are different because controller input does not belong inside a subsystem. Read this example for R11; do not paste it yet. `drive` and `TeleopDrive` have not been created:
 
@@ -188,13 +192,13 @@ drive.setDefaultCommand(new TeleopDrive(
     () -> driver.getRightX()));
 ```
 
-The `-` sign on `getLeftY()` is the classic FRC gotcha: Xbox stick Y is positive *down*. Negate at the read site to make "forward" positive.
+WPILib controller Y values increase toward the bottom of the axis. The `-` sign makes a forward stick movement positive in the later drive convention.
 
 `TeleopDrive` owns the controller suppliers and stick math. `Drive` owns drivetrain behavior. Commands that coordinate several subsystems belong in an autonomous or composition class. This keeps controllers and unrelated subsystems out of each subsystem while still putting single-mechanism actions beside the mechanism that performs them.
 
 ---
 
-### Try it
+## Test the Bindings
 
 In your project:
 
@@ -207,7 +211,7 @@ If the sim's keyboard mapping is confusing, plug a real Xbox controller via USB.
 
 ---
 
-### What this batch adds up to
+## Phase Checkpoint
 
 You now have:
 
@@ -218,31 +222,21 @@ You now have:
 - A working subsystem class that does periodic work.
 - A button-bound command that talks to the subsystem.
 
-Everything in Phase 2 (R03–R05) was deliberately *no hardware*. Phase 3 (R06–R08), next, is the IO interface pattern from A17, applied to the Kit Bot's actual SparkMax motors. Once you finish that, the drivetrain works in sim.
+Everything in Phase 2 (R03–R05) was deliberately *no hardware*. Phase 3 (R06–R08), next, is the IO interface pattern from A17, applied to the Kit Bot's actual SPARK MAX motor controllers. Once you finish that, the drivetrain works in sim.
 
 ---
 
-<RulesBox title="Done when">
+<RulesBox title="Done When">
 
 With a keyboard or controller on Joystick 0 in the Sim GUI, the A binding resets the heartbeat count and the B binding prints it. Both are visible in the console; neither works until the robot is enabled. After resetting, press B. Save the smaller printed count beside a value from before the reset.
 
 </RulesBox>
 
-### References
-
-- [Lambdas](/java/fundamentals/java-lambdas#where-you-will-meet-them): every command factory is a lambda receiver
-- [Interfaces](/java/fundamentals/java-interfaces#functional-interfaces) and [Supplier](/java/fundamentals/java-functional-interfaces#primitive-variants): `Command` is an abstract class; `Trigger` checks a `BooleanSupplier`
-- [A22: Command-Binding Lab](/java/assignments/a22-command-binding): the assignment that built this from scratch
-- WPILib: [Commands](https://docs.wpilib.org/en/stable/docs/software/commandbased/commands.html)
-- WPILib: [Binding Commands to Triggers](https://docs.wpilib.org/en/stable/docs/software/commandbased/binding-commands-to-triggers.html)
-- WPILib JavaDoc: [`Subsystem`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/Subsystem.html), including `run`, `runOnce`, and `startEnd`
-- WPILib JavaDoc: [`Trigger`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/button/Trigger.html)
-- WPILib JavaDoc: [`CommandXboxController`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/button/CommandXboxController.html)
-
 <Sources items={[
-  {"source": "wpilib", "path": "docs/software/commandbased/commands.html", "note": "Commands and their lifecycle."},
-  {"source": "wpilib", "path": "docs/software/commandbased/binding-commands-to-triggers.html", "note": "Binding to triggers."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Subsystem.html", "note": "Subsystem-owned command factories and automatic requirements."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/button/Trigger.html", "note": "<code>Trigger</code>."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/button/CommandXboxController.html", "note": "Buttons as triggers."}
+  {"source": "wpilib", "path": "docs/software/commandbased/commands.html", "note": "Commands and their lifecycle.", "label": "WPILib Commands"},
+  {"source": "wpilib", "path": "docs/software/commandbased/binding-commands-to-triggers.html", "note": "Binding to triggers.", "label": "WPILib Trigger Bindings"},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Subsystem.html", "note": "Subsystem-owned command factories and automatic requirements.", "label": "WPILib API: Subsystem"},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/button/Trigger.html", "note": "<code>Trigger</code>.", "label": "WPILib API: Trigger"},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/button/CommandXboxController.html", "note": "Buttons as triggers.", "label": "WPILib API: CommandXboxController"}
 ]} />
+

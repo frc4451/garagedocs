@@ -1,0 +1,146 @@
+---
+title: "Step 7: Mechanism Library"
+lessonId: badge-2-mechanism-library
+section: badges
+group: badge-2
+groupLabel: "Badge 2: Intermediate FRC"
+groupOrder: 2
+order: 7
+difficulty: advanced
+description: "The five component families the student builds in org/<name>/mechanisms (roller, flywheel, pivot, elevator, linear rail), the ten Talon FX and Talon FXS implementations with their simulation counterparts, the voltage-control rule and the request each family sends, the seven simulation checks, and the tests and capability matrix that sign the step off."
+---
+
+In Step 7, the student expands the working Talon FX roller from [Step 6](/badges/badge-2-first-mechanism) into a library of reusable **components** inside `Badge2Robot`, under `org/<name>/mechanisms/`. A component is a plain Java object that a subsystem owns; it does not extend `SubsystemBase` and does not create commands. Each family gets a component class, an IO boundary, a Talon FX implementation, a Talon FXS implementation, a simulation for each, and one focused test. The five FRC lessons on mechanism components teach the contracts and the arithmetic; this step adds the CTRE implementations and the simulation matrix they do not carry.
+
+Step 6 established the student's first CTRE path. The student now adds the Talon FXS roller, then repeats the understood pattern for the other four families. The hardware pages cover Phoenix Tuner X and the two controllers; the mechanism library is written so the same component runs on either.
+
+## References to Review
+
+- [YAMG as a Starting Point](/frc/yamg)
+- [Rollers](/frc/roller-example), [Flywheels](/frc/shooter-example), [Pivots](/frc/pivot-example), [Elevators](/frc/elevator-example), [Linear Rails](/frc/linear-rail-example)
+- [Motor Controller Configuration](/frc/motor-controller-configuration)
+- [Control Requests](/frc/control-requests)
+- [TalonFX Simulation](/frc/talonfx-simulation)
+- [CTRE and Phoenix Tuner X](/hardware/ctre-hardware-setup), [Talon FX Motor Controllers](/hardware/ctre-talon-fx), [Talon FXS Motor Controller](/hardware/ctre-talon-fxs)
+
+## Library Contract
+
+Every family under `org/<name>/mechanisms/<family>/` contains:
+
+- the component class (`Roller`, `Flywheel`, `Pivot`, `Elevator`, `LinearRail`);
+- an IO interface (`RollerIO` and so on) with default no-op methods, which is also the replay implementation;
+- an AdvantageKit inputs class annotated `@AutoLog`;
+- a Talon FX implementation (`RollerIOTalonFX`);
+- a Talon FXS implementation (`RollerIOTalonFXS`);
+- a Talon FX simulation that extends the Talon FX implementation and drives `TalonFXSimState` (`RollerIOSimTalonFX`);
+- a Talon FXS simulation that extends the Talon FXS implementation and drives `TalonFXSSimState` (`RollerIOSimTalonFXS`);
+- configuration records that carry units and conversion values (gear reduction, drum radius, rigging, limits, tolerance);
+- one focused simulation test.
+
+The component owns mechanism behavior and logging: goals, limits, `atGoal`, and `Logger.processInputs` under a log path the parent subsystem assigns. The IO implementation owns vendor configuration and control requests. Nothing above the IO knows which controller is attached.
+
+The simulation classes follow the [vendor-sim-state pattern](/frc/talonfx-simulation#two-objects-two-jobs): the real IO's constructor runs unchanged, so the same configuration and the same control request run in simulation, and a background loop carries values between the Phoenix sim state and a WPILib physics model. The exact class names are `TalonFXSimState` and `TalonFXSSimState`; nothing in the library is called `TalonFXSim`.
+
+## Voltage Control
+
+Every Badge 2 implementation sends a voltage-output request. Open-loop effort is `VoltageOut`, closed-loop velocity is `VelocityVoltage`, and profiled position is `MotionMagicVoltage`. The [Control Requests](/frc/control-requests#the-grid) lesson describes the torque-current column, and the Rollers lesson offers a torque-current method; Badge 2 leaves both out. Two reasons: `TorqueCurrentFOC` requests need a Pro licence, and CTRE's control documentation states that the Talon FXS does not support them. A library whose Talon FXS implementation could not honour a request its Talon FX implementation accepts is not one library.
+
+| Component | Control behavior | Request | Physics model |
+|---|---|---|---|
+| Roller | Open-loop effort | `VoltageOut` | `DCMotorSim` |
+| Flywheel | Closed-loop angular velocity | `VelocityVoltage` | `FlywheelSim` |
+| Pivot | Profiled angular position | `MotionMagicVoltage` | `SingleJointedArmSim`, or `DCMotorSim` for a vertical axis |
+| Elevator | Profiled linear position, after conversion | `MotionMagicVoltage` | `ElevatorSim` with gravity |
+| Linear rail | Profiled linear position, after conversion | `MotionMagicVoltage` | `ElevatorSim` without gravity |
+
+A roller does not get `MotionMagicVoltage`; it has no position goal. A flywheel is not a position mechanism. The pivot, elevator and rail all send the same request; what differs is the conversion between rotor rotations and the mechanism unit, and the gravity model in `Slot0Configs`.
+
+## Component Behavior
+
+**Roller.** Accepts a voltage and a stop request. Reports position, velocity, applied voltage and current. The student can explain gear reduction, surface speed, output torque and contact force from the [Rollers](/frc/roller-example#calculate-torque-and-contact-force) lesson.
+
+**Flywheel.** Accepts an angular-velocity goal. Reports measured velocity and `atGoal` with an explicit tolerance. The student can explain gear reduction, wheel surface speed, feedforward and stored rotational energy from the [Flywheels](/frc/shooter-example#understand-acceleration-and-stored-energy) lesson. The simulation shows spin-up and coast-down.
+
+**Pivot.** Accepts an angle goal through `MotionMagicVoltage`. Enforces a minimum and a maximum angle before the goal reaches the IO. Supports a horizontal axis with `GravityType.Arm_Cosine` and a nonzero `kG`, and a vertical-axis use, such as a turret, with `kG` of zero. The simulation shows angle, velocity and the gravity response.
+
+**Elevator.** Accepts a distance goal through `MotionMagicVoltage`. Converts motor rotations through the reduction (driven teeth divided by driver teeth) and the drum radius, and includes a rigging factor when the carriage does not move one-to-one with rope travel. Enforces lower and upper travel limits. The simulation shows carriage height and gravity.
+
+**Linear rail.** Accepts a distance goal through `MotionMagicVoltage`. Documents one conversion model from the [Linear Rails](/frc/linear-rail-example) lesson: belt and pulley, chain and sprocket, rack and pinion, or lead screw. Uses a horizontal model with no gravity term. The component's documentation states that a vertical rail is an elevator problem and needs gravity compensation. Enforces retracted and extended limits.
+
+## Talon FXS
+
+The Talon FXS is a separate controller with a motor attached by connector, so its IO sets the `MotorArrangement` before anything else, as the [Talon FXS](/hardware/ctre-talon-fxs#set-the-motor-arrangement-first) page describes. In simulation, `TalonFXSSimState` carries two orientation fields where `TalonFXSimState` has one: `MotorOrientation` for the motor and its commutation sensor, and `ExtSensorOrientation` for an external sensor on the data port. A brushless motor such as the Minion reports rotor position through its commutation sensor, so the sim loop writes `setRawRotorPosition` and `setRotorVelocity` as it does for a Talon FX. A brushed motor with a quadrature or pulse-width encoder on the data port reports through that sensor, so the sim loop writes `setRawQuadraturePosition` and `setQuadratureVelocity`, or `setPulseWidthPosition` and `setPulseWidthVelocity`, and the feedback source in `ExternalFeedbackConfigs` names which. The Badge 2 library uses a brushless arrangement for every Talon FXS implementation, so rotor units apply throughout; the student documents that choice in the README.
+
+## Simulation Checks
+
+For each of the ten controller-and-component combinations, the student shows, on a graph or in a test:
+
+1. Supply voltage enters the vendor sim state (`setSupplyVoltage(RobotController.getBatteryVoltage())`).
+2. Motor voltage from the sim state (`getMotorVoltage()`) drives the WPILib physics model.
+3. The model's position and velocity return to the sim state in **rotor** units: mechanism value times the reduction.
+4. `SensorToMechanismRatio` is applied once, in the device configuration, and nowhere else.
+5. Positive output moves the mechanism in the documented positive direction.
+6. Each simulation publishes its current draw to the shared simulation owner. That owner sums all active mechanism currents and updates the one robot battery through `BatterySim` and `RoboRioSim.setVInVoltage` once per simulation cycle.
+7. The component receives simulated inputs through the same `updateInputs` as on the robot, with no simulation-only branch in component code.
+
+There is one simulated battery for the robot. An individual mechanism notifier must not call `RoboRioSim.setVInVoltage` from its own current alone once several mechanisms exist, because whichever notifier writes last would erase the other loads. Each simulation IO reports its latest current draw. A simulation-level owner, such as the `Badge2Robot` simulation harness, collects those values, passes all active currents to `BatterySim.calculateDefaultBatteryLoadedVoltage(double...)`, and writes the result once. Every device sim state reads that shared battery voltage on its next update.
+
+The ROBOTZ Garage library's `SingleRoller` family in Cobra shows this plumbing and is worth reading for it: `SingleRollerIOSimTalonFX` and `SingleRollerIOSimTalonFXS` are the two sim classes Step 7 asks each family to have.
+
+Its architecture is not the student's library design. In Cobra, `SingleRoller` is the base component and `Flywheel`, `Pivot` and `Elevator` all extend it, so one class carries every mechanism's behavior and each subclass narrows it. The Badge 2 library is five independent families instead, each with its own component, IO and configuration record. The tradeoff is real in both directions: Cobra's chain removes duplication and means a change to `SingleRoller` reaches everything, while five families let a student change the elevator's conversion without reading the flywheel's code. Building them separately first is what makes the tradeoff visible, which is the point of item 12 on the [sign-off](/badges/badge-2-sign-off#final-review).
+
+## Rows
+
+| # | Work | Lesson | Done when |
+|---|---|---|---|
+| 7.1 | Roller family | [Rollers](/frc/roller-example) | The Step 6 Talon FX path remains passing; `Roller` also runs on `RollerIOTalonFXS` and its simulation, so the complete family has both real implementations, both simulations, and the test proving positive voltage gives positive velocity and `stop()` gives zero applied voltage |
+| 7.2 | Flywheel family | [Flywheels](/frc/shooter-example) | `Flywheel` reaches a velocity goal on both controllers in simulation; the test proves `atGoal` turns true inside the tolerance and false after a goal change |
+| 7.3 | Pivot family | [Pivots](/frc/pivot-example) | `Pivot` follows a Motion Magic profile on both controllers; the test proves a goal past a limit is clamped and that the arm-cosine and zero-`kG` configurations both hold position |
+| 7.4 | Elevator family | [Elevators](/frc/elevator-example) | `Elevator` converts rotations to height through reduction, drum radius and rigging; the test proves one conversion by hand and both travel limits |
+| 7.5 | Linear-rail family | [Linear Rails](/frc/linear-rail-example) | `LinearRail` converts through the documented model; the test proves one conversion and both limits with gravity disabled |
+| 7.6 | Talon FX simulation | [TalonFX Simulation](/frc/talonfx-simulation#writing-a-new-one) | Every `…IOSimTalonFX` follows the checklist: extends the real IO, 5 ms `Notifier`, measured `delta`, rotor units, published current draw, `Orientation` where the mechanical direction differs; the shared simulation owner applies the summed battery load once |
+| 7.7 | Talon FXS simulation | [TalonFX Simulation](/frc/talonfx-simulation#talon-fxs-in-simulation) | Every `…IOSimTalonFXS` does the same through `TalonFXSSimState`, with `MotorOrientation` set and the feedback source documented |
+| 7.8 | Direction and ratio | [Motor Controller Configuration](/frc/motor-controller-configuration#essentials) | For each family, the README states which direction is positive and where `SensorToMechanismRatio` is set; the tests assert both |
+| 7.9 | Capability matrix | [Cobra Repository Tour](/frc/cobra-repository-tour#one-mechanism-end-to-end) | The README has a table of the ten real combinations and their ten simulation counterparts, each cell naming the class and its test |
+
+## Badge Check
+
+<StepsBox title="Mechanism Library Badge Check">
+
+1. From a clean clone, the student runs the library tests (`./gradlew test`). All pass.
+2. The student simulates `Badge2Robot` with a test binding for each family and graphs goal, setpoint and measured value for one Talon FX family and one Talon FXS family in AdvantageScope. The measured line follows the profile; `AppliedVoltage` sags as current rises.
+3. The mentor picks one family and asks for the conversion from rotor rotations to the mechanism unit, on paper, with the reduction and radius the student configured. The student's number matches the logged value.
+4. The mentor asks why every implementation uses voltage control and which request each family sends. The student answers from the table above and names the Talon FXS limitation.
+5. The student opens the README capability matrix and shows the class and test behind one cell the mentor chooses.
+
+</StepsBox>
+
+<Sources items={[
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/talonfx-control-intro.html", "note": "The three output types; TorqueCurrentFOC requires Pro and the Talon FXS does not support it, the basis of the voltage-only rule."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/closed-loop-requests.html", "note": "<code>VelocityVoltage</code>, <code>MotionMagicVoltage</code>, gravity types and slots."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/open-loop-requests.html", "note": "<code>VoltageOut</code> for the roller."},
+  {"source": "ctre", "path": "docs/api-reference/simulation/simulation-intro.html", "note": "<code>getSimState()</code>, supply voltage, orientation as a mechanical property, and rotor units before the gear ratio."},
+  {"source": "ctre-javadoc", "path": "com/ctre/phoenix6/sim/TalonFXSimState.html", "note": "The Talon FX sim state API."},
+  {"source": "ctre-javadoc", "path": "com/ctre/phoenix6/sim/TalonFXSSimState.html", "note": "<code>MotorOrientation</code>, <code>ExtSensorOrientation</code>, and the rotor, quadrature and pulse-width setters."},
+  {"source": "ctre-javadoc", "path": "com/ctre/phoenix6/signals/ExternalFeedbackSensorSourceValue.html", "note": "<code>Commutation</code>, <code>Quadrature</code> and <code>PulseWidth</code> feedback sources on the Talon FXS."},
+  {"source": "ctre-javadoc", "path": "com/ctre/phoenix6/signals/MotorArrangementValue.html", "note": "The motor arrangements a Talon FXS is configured for."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html", "note": "<code>DCMotorSim</code>, <code>FlywheelSim</code>, <code>SingleJointedArmSim</code> and <code>ElevatorSim</code>."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/system/plant/DCMotor.html", "note": "<code>getKrakenX60</code>, <code>getMinion</code> and the other motor models the physics is built from."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/ElevatorSim.html", "note": "The gravity flag that separates the elevator model from the rail model."},
+  {"url": "https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/BatterySim.html", "label": "WPILib BatterySim Javadoc", "note": "The loaded-voltage methods accept all current draws and pair with <code>RoboRioSim.setVInVoltage</code>."},
+  {"source": "advantagekit", "path": "data-flow/recording-inputs/io-interfaces/", "note": "The IO interface with real, sim and replay implementations the contract follows."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/generic/roller/GenericRoller.java", "note": "A component that is a plain object owned by a subsystem."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFX.java", "note": "The sim-state plumbing the student may study; not the architecture the student copies."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFXS.java", "note": "The Talon FXS variant of the same plumbing."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "Cobra's base component: a plain class with <code>periodic()</code>, <code>runVolts</code>, <code>stop</code> and <code>setGoal</code>, which <code>Flywheel</code>, <code>Pivot</code> and <code>Elevator</code> extend."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/pivot/Pivot.java", "note": "The library pivot: <code>setGoalPosition</code>, <code>isNear</code>, <code>isNearLowerLimit</code>, <code>atGoal</code>, in <code>Angle</code> units."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "The library elevator: <code>Distance</code> goals, drum circumference and the compensated travel limits."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Step 8: Mechanism Composition","id":"badge-2-mechanism-composition"},
+  {"label":"Step 6: One Complete Mechanism","id":"badge-2-first-mechanism"},
+  {"label":"Step 9: Math for Pose and Vision","id":"badge-2-math"},
+  {"label":"TalonFX Simulation","url":"/frc/talonfx-simulation"},
+  {"label":"Control Requests","url":"/frc/control-requests"}
+]} title="Next" section="badges" />

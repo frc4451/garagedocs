@@ -1,0 +1,95 @@
+---
+title: "Simulating the Game"
+lessonId: simulating-the-game
+section: frc
+group: frc-sim-tools
+groupLabel: "Simulation Specific Tools"
+groupOrder: 20
+order: 1
+difficulty: intermediate
+duration: 20 min
+description: "Why a field full of game pieces is a different simulation problem from a motor and a gearbox, what a game simulation can and cannot prove, and how FuelSim and maple-sim differ in what they model and what they cost to adopt."
+---
+
+[Physics in the IO Layer](/frc/physics-in-the-io-layer) gives a mechanism a model: a motor, a gearbox, an inertia, a gravity term. Run it and the elevator reaches its setpoint on a graph without a robot existing. That answers questions about the mechanism.
+
+It cannot answer whether the shot went in, because there is nothing to shoot. It cannot answer whether the intake picked up a fuel, because there is no fuel. The simulated robot drives through the trench, through the hub and through the other alliance's robots, because the only object in the world is the one you modelled.
+
+A game simulation adds the rest: a field with walls and obstacles, game pieces with mass and bounce, and a scoring target that counts. This group covers two libraries that do that for 2026 and what each one costs to adopt.
+
+<RulesBox title="Before you start">
+
+The [Simulation](/frc/simulation-first) group, because both libraries attach to a working simulator and an IO layer. [Pose and Odometry](/frc/wheel-odometry) for the field coordinate frame, and [Poses on the Field](/tools/advantagescope-poses-on-the-field) for drawing game pieces in AdvantageScope.
+
+</RulesBox>
+
+### What a game simulation proves
+
+The value is in the questions that need a game piece to exist:
+
+- **An autonomous routine that collects and scores.** A path that drives over three fuel and a routine that intakes them are different claims. Without pieces on the field, [Autonomous Simulation](/frc/autonomous-simulation) can only check the path.
+- **Whether the intake geometry reaches.** An intake whose bounding box sits above the fuel collects nothing, and that is visible in the simulation before it is visible on the practice field.
+- **A shot solution across a range.** Sweep the distance, launch, and count what goes in. The interpolation table from [Units and Interpolation](/frc/math-toolbox-units-and-interpolation) gets a first pass this way instead of from the first practice session.
+- **Driver practice before the robot exists.** A driver who has seen the cycle in simulation is not learning the cycle for the first time during a match.
+
+### What it does not prove
+
+A game simulation is a model of collisions, and collisions are where physics models are weakest. FuelSim's README says so directly: some of the parameters need tuning, "namely the coefficients of restitution of various collisions", and the result is close enough for simulation rather than a perfect analog. maple-sim runs a real rigid-body engine, which changes how the error behaves without removing it.
+
+Specifically, do not conclude any of the following from a game simulation:
+
+- **A tuned shooter.** The simulated fuel does not have the real ball's compression, surface, wear or spin. A hood angle that scores in simulation is a starting point for [Manual Tuning](/frc/manual-tuning-flywheel), not a result.
+- **A reliable intake.** Real intakes fail on compliance, on pieces arriving at odd angles and on two pieces arriving at once. A rectangular bounding box models none of that.
+- **Cycle times you can promise.** The simulated robot has no defence on it, no traffic, and a battery that never sags.
+
+The rule from [Simulation First](/frc/simulation-first) still holds and gets sharper here: simulation proves that code does what you wrote, not that the mechanism works.
+
+### The two libraries
+
+<ContentTable
+  headers={["", "FuelSim", "maple-sim"]}
+  rows={[
+    ["What it is", "One 885-line Java file you copy into your project", "A vendordep library built on the dyn4j rigid-body engine"],
+    ["Licence", "MIT, FRC 5000 Hammerheads", "BSD-3-Clause, Shenzhen Robotics Alliance"],
+    ["Models", "Fuel physics, fuel collisions with the field, net, trench, robots and other fuel, intakes as bounding boxes, hub scoring", "The full arena: drivetrain, game pieces, intakes, field obstacles, opponent robots, scoring"],
+    ["Your drivetrain", "You supply the pose and the field-relative speeds. The library does not touch your drive code.", "It simulates the drivetrain, so it replaces your module simulation"],
+    ["Seasons", "2026 fuel only", "2024 Crescendo, 2025 Reefscape, 2026 Rebuilt, plus an evergreen arena"],
+    ["Cost to adopt", "An afternoon. Copy the file, register the robot, call one method per loop.", "A rewrite of the simulation half of the drive subsystem"],
+    ["Cost to leave", "Delete the file", "Unpick the drivetrain simulation again"]
+  ]}
+/>
+
+Neither is FRC 4451's work, and neither is in Cobra today. Both are cited on the [References](/references) page.
+
+### Choosing between them
+
+The question is what you already have.
+
+**If the drivetrain simulation already works, start with FuelSim.** Cobra has `ModuleIOSim`, a pose estimator and a working simulator. FuelSim attaches to that without touching any of it: it asks for a pose supplier and a speeds supplier and leaves the drive code alone. The whole integration is a field, a constructor and a call in `simulationPeriodic()`.
+
+**If you want the field to push back, use maple-sim.** A robot that can be pinned against the trench wall, shoved by an opponent, or stopped by a field element needs the drivetrain inside the physics engine. FuelSim's robot is a rectangle that fuel bounces off; it cannot be pushed, because its pose comes from your odometry rather than from a physics body.
+
+The middle answer is the common one: run FuelSim first because it is cheap, find out whether game-piece simulation changes how the team works, and adopt maple-sim in the off-season if it does. Starting with the larger library and abandoning it halfway through January leaves the drive subsystem worse than it started.
+
+### Where the simulated field shows up
+
+Both libraries publish game-piece positions for AdvantageScope's 3D Field tab: FuelSim as a `Translation3d[]` on a NetworkTables topic, maple-sim through its arena's pose accessors. Added as game pieces on the 3D field, the fuel appears around the robot model you already configured in [Mechanisms in 3D](/frc/mechanisms-in-3d).
+
+That shared destination is the practical reason to set up the 3D view before adopting either library. A game simulation with nothing drawing it is a score counter and a loop-time cost.
+
+<Sources items={[
+  {"source": "fuelsim", "path": "README.md", "note": "What FuelSim models, and its statement that the coefficients of restitution need tuning and the result is not a perfect analog of real life."},
+  {"source": "fuelsim", "path": "LICENSE.md", "note": "MIT, copyright 2026."},
+  {"source": "maple-sim", "path": "simulation-details/", "note": "maple-sim's scope: drivetrain physics, game pieces, intakes, field obstacles and opponent robots on the dyn4j engine."},
+  {"source": "maple-sim-source", "path": "project/src/main/java/org/ironmaple/simulation/seasonspecific/rebuilt2026/Arena2026Rebuilt.java", "note": "The 2026 arena, alongside the 2024, 2025 and evergreen arenas in the same package tree."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOSim.java", "note": "The existing drivetrain simulation that FuelSim leaves alone and maple-sim would replace."},
+  {"source": "advantagescope", "path": "tab-reference/3d-field/", "note": "Game pieces on the 3D field."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"FuelSim","id":"fuelsim"},
+  {"label":"maple-sim","id":"maple-sim"},
+  {"label":"Simulation First","id":"simulation-first"},
+  {"label":"Physics in the IO Layer","id":"physics-in-the-io-layer"},
+  {"label":"Autonomous Simulation","id":"autonomous-simulation"}
+]} />

@@ -6,15 +6,16 @@ group: java-basics
 groupLabel: "Java Basics"
 groupOrder: 1
 order: 7
+duration: 25 min
 difficulty: beginner
 description: Read text and numbers with Scanner and supply repeatable sample input.
 ---
 
-A program reads **standard input** from its terminal or the browser editor's input box. `Scanner` provides methods for reading that input.
+Console input lets a program use values supplied when it runs. This lesson builds on [variables and types](/java/fundamentals/java-variables), [String values](/java/fundamentals/java-strings), and [calculations](/java/fundamentals/java-calculations). You will run one program in the browser and in a terminal, then make its input repeatable with a file.
 
-### Read a line and a number
+## Read Your First Input
 
-This is a complete program. Save it as `Main.java` when working locally.
+The program below is a complete `Main.java` file. It reads a name as text, reads another line of text, converts the second line to an `int`, and prints both values.
 
 ```java
 import java.util.Scanner;
@@ -22,8 +23,13 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         Scanner input = new Scanner(System.in);
+
+        System.out.println("Enter scout name:");
         String name = input.nextLine();
-        int count = Integer.parseInt(input.nextLine());
+
+        System.out.println("Enter reading count:");
+        String countText = input.nextLine();
+        int count = Integer.parseInt(countText);
 
         System.out.println(name + " collected " + count + " readings.");
         input.close();
@@ -31,29 +37,94 @@ public class Main {
 }
 ```
 
-Supply these two lines before running in the browser:
+### Run It In The Browser
+
+Under the example, find the box labeled **Sample input**. Replace its contents with these two lines:
 
 ```text
 Avery
 3
 ```
 
-The result is `Avery collected 3 readings.`. In VS Code, enter each line in the terminal and press Enter.
+Select **Run**. The **Console** should display:
 
-`import` lets this file use the short name `Scanner`. `new Scanner(System.in)` creates a reader connected to standard input. `nextLine()` reads one line as text. `Integer.parseInt` converts that text to an `int`.
+```text
+Enter scout name:
+Enter reading count:
+Avery collected 3 readings.
+```
 
-### Choose a reading method
+The browser supplies the complete contents of **Sample input** when the run begins. The program does not open a pop-up or accept more input after you select **Run**.
 
-| Method | Reads | Returns |
-|---|---|---|
-| `nextLine()` | The remainder of one line | `String` |
-| `next()` | One whitespace-separated token | `String` |
-| `nextInt()` | One integer token | `int` |
-| `nextDouble()` | One decimal-number token | `double` |
+### Run It In A Terminal
 
-A **token** is one piece of input separated by whitespace. With `nextInt()`, `3 4` on one line can supply two calls.
+Replace the contents of the `Main.java` file from Java Setup with the complete program above. Save the file. In VS Code's terminal, compile and start it:
 
-For all-numeric input, token methods are convenient:
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac Main.java
+java Main
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac Main.java
+java Main
+```
+
+</CodeTab>
+</CodeTabs>
+
+When the terminal displays `Enter scout name:`, the program is waiting at the first `nextLine()` call. Type `Avery`, then press Enter. When the next prompt appears, type `3`, then press Enter. The program prints `Avery collected 3 readings.` and returns to the terminal prompt.
+
+The terminal also shows the text you type. Those echoed input lines do not come from `System.out.println` and do not appear in the browser Console.
+
+## Build The Input Reader
+
+`Scanner` is a Java class for reading text and converting tokens into values. Three parts set up the reader:
+
+- `import java.util.Scanner;` lets the file use the short name `Scanner` instead of `java.util.Scanner`.
+- `Scanner input` declares a variable named `input` whose type is `Scanner`.
+- `new Scanner(System.in)` creates one Scanner object connected to Java's standard input source. The assignment stores a reference to that object in `input`.
+
+You do not need to study object construction yet. For these examples, keep the import at the top of the file and create the scanner at the start of `main`.
+
+Each `input.nextLine()` call returns the rest of one line as a `String`. The first call stores `Avery` in `name`. The second stores `3` in `countText`. `Integer.parseInt(countText)` converts the text `3` to the `int` value `3`, which the program stores in `count`.
+
+Use one scanner for `System.in`. In a short program like this one, close it after the final read. Closing the scanner also closes its input source, so do not close it and then try to create another scanner to continue reading standard input.
+
+## Read Lines Or Tokens
+
+A line read and a token read divide input differently:
+
+| Call | Reads | Returns |
+| --- | --- | --- |
+| `nextLine()` | The rest of the current line, without the line separator | `String` |
+| `next()` | The next token separated by whitespace | `String` |
+| `nextInt()` | The next integer token | `int` |
+| `nextDouble()` | The next floating-point token | `double` |
+
+A **token** is a piece of input separated from the next piece by whitespace, such as a space or line break. Two `nextInt()` calls can read the input `3 4` from one line. A single `nextLine()` call reads that same input as the String `"3 4"`.
+
+Reading complete lines first is a useful default when text and numbers appear together. Convert a line with `Integer.parseInt` for an `int` or `Double.parseDouble` for a `double`:
+
+```java norun
+String countText = input.nextLine();
+int count = Integer.parseInt(countText);
+
+String distanceText = input.nextLine();
+double distanceMeters = Double.parseDouble(distanceText);
+```
+
+This is a partial snippet. These statements belong inside `main` after the scanner is created; they do not form a complete file by themselves. `parseInt` and `parseDouble` read the String as a number. Extra words make the conversion fail. `Integer.parseInt` also rejects surrounding whitespace, so use the String method `trim()` first only when the input format permits extra space. The error section below shows what a failed conversion looks like.
+
+## Read Numeric Tokens
+
+When every input value is a number, token methods let one line or several lines supply the same values. This complete program reads two `double` tokens:
 
 ```java
 import java.util.Locale;
@@ -63,44 +134,126 @@ public class Main {
     public static void main(String[] args) {
         Scanner input = new Scanner(System.in);
         input.useLocale(Locale.US);
+
         double distanceMeters = input.nextDouble();
         double timeSeconds = input.nextDouble();
-        System.out.printf(Locale.US, "%.2f m/s%n", distanceMeters / timeSeconds);
+        double speedMetersPerSecond = distanceMeters / timeSeconds;
+
+        System.out.printf(Locale.US, "%.2f m/s%n", speedMetersPerSecond);
         input.close();
     }
 }
 ```
 
-Input `6 2` produces `3.00 m/s`. Use a positive time for this example. `Locale.US` makes the decimal separator a period, matching the sample. `%.2f` prints two decimal places and `%n` ends the line.
+Put `6 2` in **Sample input** and select **Run**. The Console displays:
 
-### Mixing token reads and line reads
+```text
+3.00 m/s
+```
 
-`nextInt()` consumes the number but usually leaves the newline behind. An immediate `nextLine()` then reads the remaining empty part of that line.
+Use a positive value for `timeSeconds` in this example.
 
-Choose one approach:
+`input.useLocale(Locale.US)` tells this scanner to read a period as the decimal separator. A scanner otherwise begins with the computer's formatting locale, so its accepted decimal separator can vary. The separate `Locale.US` argument in `printf` makes this program print a period too.
 
-- Read complete lines and convert them with `Integer.parseInt` or `Double.parseDouble`.
-- Use token methods throughout when every value is a separate token.
-- If a full text line follows a numeric token on the next line, call `nextLine()` once to consume the current line's remainder, then again to read the text.
+The format text `"%.2f m/s%n"` controls the result. `%f` formats the `double`, `.2` selects two digits after the decimal point, and `%n` ends the line with the line separator for the current platform. These formatting details support assignments that require an exact result; plain `println` is enough for the first input program.
 
-### Input errors and repeatable tests
+<span id="mixing-token-reads-and-line-reads"></span>
 
-Entering `three` where an integer is expected causes an exception. [Try-Catch](/java/fundamentals/java-try-catch) explains how to handle that case. First get a valid sample working.
+## Mix Token And Line Reads Carefully
 
-Use one Scanner for standard input. Close it after the program's final read; closing it also closes its input source.
+Token methods leave the scanner positioned immediately after the token. `nextLine()` then returns every character from that position to the end of the current line. Run this complete program with each input that follows:
 
-The browser runner needs an internet connection. For local sample files, use the operating-system commands in [Java Setup](/java/fundamentals/java-setup#testing-against-sample-input).
+```java
+import java.util.Scanner;
 
-### Practice
+public class Main {
+    public static void main(String[] args) {
+        Scanner input = new Scanner(System.in);
+        int number = input.nextInt();
+        String remainder = input.nextLine();
 
-1. Run the first program with two different names and counts.
-2. Run the speed program with `5 2` and confirm `2.50 m/s`.
-3. Try a text value where a number belongs. Read the error and identify the failed conversion.
-4. Write a program that reads three integers and prints their sum. Supply the same values once on one line and once on three lines.
+        System.out.println("number = [" + number + "]");
+        System.out.println("remainder = [" + remainder + "]");
+        input.close();
+    }
+}
+```
+
+With this input:
+
+```text
+7
+Avery Chen
+```
+
+the program prints `number = [7]` and `remainder = []`. The empty brackets show that `remainder` is the empty String `""`; the name remains unread on the next line.
+
+With `7 Avery Chen` on one line, the program prints `number = [7]` and `remainder = [ Avery Chen]`. The leading space after `7` is part of the returned String.
+
+If the input format puts the text on the line after the number, discard the current line's remainder before reading the text:
+
+```java
+import java.util.Scanner;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner input = new Scanner(System.in);
+        int number = input.nextInt();
+        input.nextLine();
+        String name = input.nextLine();
+
+        System.out.println("number = [" + number + "]");
+        System.out.println("name = [" + name + "]");
+        input.close();
+    }
+}
+```
+
+For the exact input below, `number` is `7` and `name` is `"Avery Chen"`:
+
+```text
+7
+Avery Chen
+```
+
+Do not use the extra `nextLine()` when useful text can follow the number on the same line. It would discard that text. Reading every value with `nextLine()` and then converting numeric lines avoids this transition in many beginning programs.
+
+## Read Input Failures
+
+Input failures happen after different stages. The stage tells you what to inspect:
+
+- A compiler error appears while `javac Main.java` checks the source. The program never starts. Compare the reported code with the working file structure and punctuation from [Printing](/java/fundamentals/java-printing#fix-a-first-error).
+- If `countText` is `three`, the file still compiles. `Integer.parseInt(countText)` fails while the program runs and reports a `NumberFormatException` because `three` is not an integer representation.
+- If the browser's **Sample input** contains only `Avery`, the second `nextLine()` has no line to return. The run reports a `NoSuchElementException` because the supplied input has reached its end, also called end-of-input or EOF.
+
+In a terminal, an input call waits while standard input remains open. If you start the first program and enter only `Avery`, it keeps waiting for the count. Stop that run with Ctrl+C, then start it again and supply both lines. Later lessons show how to check and handle invalid or exhausted input. For now, compare the supplied lines with the program's reads and get the valid sample working again.
+
+## Repeat Input From A File
+
+A file supplies the same input on every run and reaches its end after the final saved line. If `Main.java` now contains the speed program or a mixing program, replace it with the first name-and-count program again and save it. In VS Code's Explorer, create `in.txt` in the same folder as `Main.java`. Put these two lines in it and save the file:
+
+```text
+Avery
+3
+```
+
+Compile `Main.java`, then follow [Test Sample Input Later](/java/fundamentals/java-setup#testing-against-sample-input) for the PowerShell or Terminal command that sends `in.txt` to `java Main`. The program should print the same three output lines shown in the browser result. If the file has too few lines, the program reaches the file's end and reports `NoSuchElementException` instead of waiting for keyboard input.
+
+## Practice With Known Results
+
+1. Run the first program with `Morgan` and `5`. Predict all three output lines before selecting **Run**.
+2. Change only the count to `five`. Identify the line that attempts the failed conversion, then restore `5`.
+3. Run the numeric-token program with `5 2`. Confirm that it prints `2.50 m/s`. Put `5` and `2` on separate lines and confirm that the result stays the same.
+4. Run the complete mixing program with `7` and `Avery Chen` on separate lines. Predict the two printed lines before selecting **Run**.
+5. Write a complete program that reads three integer tokens and prints their sum. Supply the same values once on one line and once on three lines.
 
 <Sources items={[
-  {"source":"java-api","path":"java.base/java/util/Scanner.html","note":"Token and line reads, input mismatch, locale, and closing the source."},
-  {"source":"java-api","path":"java.base/java/util/Formatter.html","note":"Decimal precision and newline formatting."}
+  {"source":"java-api","path":"java.base/java/util/Scanner.html","note":"Scanner construction from System.in, line and token reads, blocking behavior, locale-sensitive number parsing, exhausted-input exceptions, and closing the input source.","label":"Scanner Input"},
+  {"source":"java-api","path":"java.base/java/lang/Integer.html#parseInt(java.lang.String)","note":"Converting a String to an int and NumberFormatException for text that does not contain a parsable integer.","label":"Convert Text To An Integer"},
+  {"source":"java-api","path":"java.base/java/lang/Double.html#parseDouble(java.lang.String)","note":"Converting a String to a double and NumberFormatException for text that does not contain a parsable double.","label":"Convert Text To A Double"},
+  {"source":"java-api","path":"java.base/java/util/Formatter.html","note":"The %f floating-point conversion, precision after the decimal point, locale-sensitive output, and the %n line separator.","label":"Formatted Output"}
 ]} />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Control Structures", "id": "java-control-structures"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[
+  {"label":"Control Structures","id":"java-control-structures","description":"Trace how a program chooses which statements to run"}
+]} />

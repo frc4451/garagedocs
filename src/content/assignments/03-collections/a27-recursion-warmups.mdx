@@ -19,18 +19,23 @@ description: "Six small recursive methods, one shape: a base case that stops and
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A27: Recursion Warmups`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Practice six recursive operations: factorial, array sum, string reversal, two versions of exponentiation, and binary search. Each method needs a stopping case and a recursive call that approaches it.
 
 Trace a small input on paper before running it.
 
-### What to build
+## What To Build
+
+Use the supplied browser starter. Its public class is `RecursionWarmups`, so save the
+local source as `RecursionWarmups.java`. The starter already supplies `main`, the two
+call-counter fields, the two-argument binary-search wrapper, and small test helpers.
+Complete the six recursive method bodies without changing those supplied parts.
 
 <ContentTable
   headers={["Method", "Base case", "Notes"]}
   rows={[
-    ["<code>factorial(int n)</code>", "<code>n &lt;= 1</code> returns 1", "<code>IllegalArgumentException</code> for negative <code>n</code>. Return <code>long</code>: 13! does not fit in an <code>int</code>; a <code>long</code> fits only through 20!, so keep required inputs from 0 through 20."],
+    ["<code>factorial(int n)</code>", "after rejecting negatives, <code>n &lt;= 1</code> returns 1", "Check <code>n &lt; 0</code> first and throw <code>IllegalArgumentException</code>. Return <code>long</code>: 13! does not fit in an <code>int</code>; a <code>long</code> fits only through 20!, so keep required inputs from 0 through 20."],
     ["<code>sum(int[] arr, int from)</code>", "<code>from == arr.length</code> returns 0", "Called as <code>sum(arr, 0)</code>. The index <em>is</em> the recursion."],
     ["<code>reverse(String s)</code>", "the empty string", "Peel off the first character, recurse on the rest, put it back on the end."],
     ["<code>powerSlow(double, int)</code>", "<code>exp == 0</code> returns 1", "<code>IllegalArgumentException</code> for a negative exponent."],
@@ -41,42 +46,106 @@ Trace a small input on paper before running it.
 
 No loops in any of the bodies. `main`'s test driver is allowed them; the methods are not.
 
-### Halving the exponent
+The required input contract matters when you choose base cases. `factorial` accepts
+`0` through `20` and rejects negative values; results above `20!` do not fit in a
+`long` and are outside this assignment. `sum` receives a non-null array and a `from`
+index from `0` through `arr.length`. `reverse` receives a non-null string. Both power
+methods accept a non-negative integer exponent. Binary search receives a non-null
+array sorted in ascending order and an inclusive range; the supplied wrapper creates
+that range, including `low == 0` and `high == -1` for an empty array.
+
+The required reversal examples use simple Latin letters. The starter's
+`charAt`/`substring` approach works with Java UTF-16 code units, so it is not a
+general-purpose reversal for text containing a supplementary Unicode character,
+whose surrogate pair would be split. Unicode-aware reversal is outside this rubric.
+
+## Halving The Exponent
 
 `powerSlow` makes one recursive call per unit of exponent. `powerFast` uses the
 identity:
 
-```java
+```text
 base^exp = (base * base)^(exp / 2)   // when exp is even
          = base * base^(exp - 1)     // when exp is odd
 ```
 
+Here `^` is mathematical exponent notation and `exp` is the exponent whose size is
+called `n` in O(n). Do not copy this as Java: Java's `^` operator is bitwise XOR, not
+exponentiation. Express the identity with multiplication and recursive calls.
+
 Every even step halves the remaining exponent, so the depth goes from O(n) to O(log n).
 Increment `slowCalls` and `fastCalls` at the top of the two methods; `main` prints both
 counts for `2.0^10` so you can see the difference rather than take it on trust.
+Each active call also occupies stack memory until it returns. Reducing depth therefore
+reduces both the number of calls and the maximum number of power calls held on the
+stack at once.
 
-<RulesBox title="How the browser version differs" items={[
+<RulesBox title="Browser And Local Versions" items={[
   "Nothing structural: one file locally and one here. <code>main</code> is written for you.",
   "The two call counters are <code>static int</code> fields the starter already declares. <code>main</code> resets each one immediately before the call it measures."
 ]} />
 
 
-<RulesBox title="Plan it as sessions" items={[
+## Build Locally
+
+In the browser, open the assignment and choose **Reset** if you need a clean copy of
+the supplied starter. The short code fragments on this page explain ideas; they do
+not run by themselves or get inserted into the editor. Fill in the six marked method
+bodies and keep each required method recursive.
+
+For the repository copy, create `assignments/a27-recursion-warmups/`, save the complete
+source as `RecursionWarmups.java`, open a terminal in that folder, and run:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac RecursionWarmups.java
+java RecursionWarmups
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac RecursionWarmups.java
+java RecursionWarmups
+```
+
+</CodeTab>
+</CodeTabs>
+
+This assignment uses arrays, strings, numbers, and console output only. No robot or
+other hardware is required.
+
+## Check Coverage
+
+The browser reports these checks by name: *factorial stops at the base case and
+rejects negatives*, *sum walks to the end of the array and stops*, *reverse peels one
+character at a time*, *Both power versions get the same answer*, *Halving the
+exponent really does cut the call count*, *Exponent zero is the base case, negative
+is an error*, *binarySearch finds the ends as readily as the middle*, and
+*binarySearch survives an empty and a one-element array*. These output checks do not
+prove that the six bodies contain no loops, that every recursive call moves toward a
+reachable base case for every legal input, or that your hand trace shows both stack
+growth and unwinding. Inspect those requirements manually before scoring the rubric.
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>factorial stops at the base case and rejects negatives</em>, <em>sum walks to the end of the array and stops</em>, <em>reverse peels one character at a time</em>, <em>Both power versions get the same answer</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Halving the exponent really does cut the call count</em>, <em>Exponent zero is the base case, negative is an error</em>, <em>binarySearch finds the ends as readily as the middle</em>, <em>binarySearch survives an empty and a one-element array</em>."
+  "<strong>Session 2.</strong> Finish the remaining named checks: <em>Halving the exponent really does cut the call count</em>, <em>Exponent zero is the base case, negative is an error</em>, <em>binarySearch finds the ends as readily as the middle</em>, <em>binarySearch survives an empty and a one-element array</em>. Then complete the manual review in Check Coverage."
 ]} />
 
 <JavaPlayground id="a27-recursion-warmups" />
 
 <RulesBox title="Hints" items={[
   "<strong>Trust the recursive call.</strong> When you write <code>reverse(s)</code>, assume <code>reverse(s.substring(1))</code> already works. Your only job is combining that result with <code>s.charAt(0)</code>. Trying to picture the entire stack at once is what makes recursion feel hard; picture exactly one call.",
-  "<strong>The base case must be reachable from every legal input.</strong> <code>factorial(0)</code> is 1, but <code>factorial(-1)</code> is not defined. Subtracting 1 from it forever never reaches the base case. Throw rather than return something wrong.",
-  "<strong>Two base cases in binary search, and order matters.</strong> Check <code>low &gt; high</code> <em>first</em>: if you compute <code>mid</code> before checking, an empty range indexes outside the array. Test with <code>new int[0]</code> to confirm that check works.",
+  "<strong>Reject invalid values before the base case.</strong> <code>factorial(0)</code> is 1, but <code>factorial(-1)</code> is undefined. If you write <code>n &lt;= 1</code> first, a negative value incorrectly returns 1. Check <code>n &lt; 0</code> and throw before returning the base-case value.",
+  "<strong>Two base cases in binary search, and order matters.</strong> Check <code>low &gt; high</code> <em>first</em>. Computing <code>mid</code> alone does not access the array, but reading <code>sorted[mid]</code> before the empty-range check can index outside it. Test with <code>new int[0]</code> to confirm the guard works.",
   "<strong><code>mid = low + (high - low) / 2</code>, not <code>(low + high) / 2</code>.</strong> The second one overflows once the array is big enough. It is a famous bug and it sat in the JDK's own binary search for nine years.",
   "<strong>Trace one by hand before you run it.</strong> Write the frames for <code>factorial(4)</code> or <code>reverse(\"ABC\")</code> on paper: watch them pile up, then unwind from the bottom. Use the trace to explain why the recursion stops and how the result returns."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -89,18 +158,26 @@ counts for `2.0^10` so you can see the difference rather than take it on trust.
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+First save a passing copy of the required `RecursionWarmups.java`. Work on each
+stretch goal in a separate copy so extra methods, state, or output cannot interfere
+with the required checks.
 
 - Add `fib(int n)` the naive way and time `fib(35)`. Then add `fibMemo` backed by a
-  `HashMap<Integer, Long>` and time it again. The gap between O(2ⁿ) and O(n) is not a
-  number you forget once you have watched it.
+  `HashMap<Integer, Long>` and time it again. Record several runs and explain the
+  repeated subproblems removed by memoization; individual timings remain noisy.
 - Add a recursive maze solver over a `boolean[][]`: mark visited, recurse on the
-  neighbours, unmark on the way out when a branch fails. That unmarking is what makes it
-  backtracking rather than flood fill.
-- Rewrite `reverse` so it does not call `substring`. Each `substring` copies, which
-  quietly makes the whole thing O(n²): pass an index instead and compare.
+  neighbours, and decide whether failed paths should remain marked. Unmarking permits
+  a later branch to revisit a cell and is appropriate when the path itself affects
+  which moves are legal; leaving it marked avoids repeated work when reachability
+  depends only on the cell.
+- Rewrite `reverse` so it does not call `substring` or repeatedly concatenate growing
+  strings. Each operation can copy characters, so changing only the index is not
+  enough to guarantee linear work. Pass an index and fill a character array or use a
+  `StringBuilder`, then compare.
 
-### References
+## References
 
 - JavaDoc: [`java.lang.StackOverflowError`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/StackOverflowError.html)
 - Wikipedia: [Recursion (computer science)](https://en.wikipedia.org/wiki/Recursion_(computer_science))
@@ -109,8 +186,9 @@ counts for `2.0^10` so you can see the difference rather than take it on trust.
 - Google Research: [Nearly all binary searches are broken](https://research.google/blog/extra-extra-read-all-about-it-nearly-all-binary-searches-and-mergesorts-are-broken/)
 
 <Sources items={[
-  {"source": "csce146", "note": "Recursion."},
-  {"source": "dev-java", "path": "classes-objects/defining-methods/", "note": "Methods calling themselves."},
-  {"source": "java-api", "path": "java.base/java/lang/StackOverflowError.html", "note": "What happens without a base case."},
-  {"url": "/java/fundamentals/java-recursion", "label": "Recursion in the Java track", "note": "The lesson this assignment follows."}
+  {"source": "csce146", "label": "Course Materials", "note": "The course sequence that inspired this recursion assignment."},
+  {"source": "dev-java", "path": "classes-objects/defining-methods/", "label": "Defining Methods", "note": "Java method declarations, parameters, return values, and method calls."},
+  {"source": "java-api", "path": "java.base/java/lang/StackOverflowError.html", "label": "StackOverflowError API", "note": "The error that can result when recursive calls do not stop before exhausting the stack."},
+  {"url": "/java/fundamentals/java-recursion", "label": "Recursion In The Java Track", "note": "Base cases, recursive progress, call-stack traces, and recursive array helpers used by this assignment."},
+  {"url": "https://research.google/blog/extra-extra-read-all-about-it-nearly-all-binary-searches-and-mergesorts-are-broken/", "label": "Google Research: Binary Search Overflow", "note": "Why computing a midpoint from the full sum can overflow."}
 ]} />

@@ -95,8 +95,9 @@ material from a new source, add the source to the References page and, if licens
 ## 4. Code and content conventions
 
 **Robot code facts.** FRC lessons are written against FRC 4451's competition code,
-Cobra2026Private (a private GitHub repository; ask a mentor for access), and the vendor
-documentation the References page lists. Do not invent API names, values or behaviour.
+Cobra2026Private, and the vendor documentation the References page lists. Despite its name,
+that repository is public: read it and verify every Cobra claim against the file you cite.
+Do not invent API names, values or behaviour.
 Kit Bot is checked against Scorpion2026. Java 25 is the curriculum standard; the browser
 runner is Java 17, pinned in `src/lib/java-playground/constants.ts`.
 

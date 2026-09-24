@@ -1,0 +1,102 @@
+---
+title: "Step 12: Robot State"
+lessonId: badge-2-robot-state
+section: badges
+group: badge-2
+groupLabel: "Badge 2: Intermediate FRC"
+groupOrder: 2
+order: 12
+difficulty: advanced
+description: "A smaller BobotState-style object that receives robot-wide observations, derives logged facts, exposes narrow read access and triggers, and owns no actuator."
+---
+
+In Step 12, the student builds one deliberately shared object in `Badge2Robot`: a `BobotState`-style class that stores robot-wide observations and derived facts. It holds the pose, velocity, accepted vision observations, at least one target-relative calculation, and at least one field-zone predicate. It exposes them through narrow getters, records, and `Trigger`s. Mutable collections are copied on entry with `List.copyOf`, and getters return the stored unmodifiable snapshot instead of the caller's list or the drivetrain's queue. A record with another mutable component makes a defensive copy in its constructor and accessor. `BobotState` does not own a motor, component, or subsystem, and nothing calls it to set an output. Subsystems keep their local state (the intake's deployment, the flywheel's readiness), while `BobotState` may combine those facts into a derived readiness condition without setting their motors.
+
+## References to Review
+
+- [BobotState](/frc/bobot-state)
+- [VirtualSubsystem](/frc/virtual-subsystem)
+- [VARC](/frc/varc)
+- [Lombok](/frc/lombok)
+- [Why State Machines](/frc/why-state-machines)
+
+## Guided Example
+
+Start with estimated pose and one fixed field target. Derive the robot-to-target distance once per loop, log the value, expose it through a narrow getter, and build one `Trigger` from a stated range condition.
+
+### What the Object Does
+
+Once per robot loop, through the [`VirtualSubsystem`](/frc/virtual-subsystem#the-class) pattern, the Badge 2 `BobotState`:
+
+- receives the current estimated pose and the robot-relative or field-relative velocity from the drivetrain, which is the only writer of the pose;
+- receives accepted vision observations from Step 11; if the integration uses a queue, the drivetrain owns and drains that queue while the vision callback only appends observations;
+- calculates at least one target-relative transform or distance (`fieldToHub.relativeTo(fieldToRobot)` and its translation's `getNorm()`, in the [VARC](/frc/varc#what-a-varc-holds) shape);
+- calculates at least one field-zone predicate (inside the alliance zone, within shooting range of the hub);
+- copies mutable inputs on entry and exposes only narrow values or unmodifiable snapshots, never the drivetrain's queue or a caller-owned mutable collection;
+- publishes the derived values to AdvantageKit logs with `Logger.recordOutput`;
+- provides one or more `Trigger`s built on derived facts, for `RobotContainer` to bind;
+- makes no motor, component or subsystem output call.
+
+The [Why State Machines](/frc/why-state-machines) lesson explains where a full state-driven superstructure would take this next. Badge 2 stops before it: the object derives facts, and commands and triggers decide what to request.
+
+### Lombok Applied on Purpose
+
+Step 3 added Lombok to the project. Here it is used where it removes routine code without hiding a decision:
+
+- `@Builder` constructs immutable configuration or observation records.
+- `@Getter` exposes read-only derived state.
+- `@NonNull` guards required construction inputs.
+- No broad generated setters. A `@Setter` on `BobotState`, if one exists, marks exactly the fields the drivetrain writes and nothing else.
+- `./gradlew delombok` runs before the mentor check, and the student reads the generated result.
+
+## Independent Change
+
+Add one field-zone predicate chosen for the student's simulated route and bind its trigger to a command on a Step 8 subsystem. The student chooses the zone boundary, logs the inputs and result, and verifies the transition in simulation.
+
+| # | Work | Lesson | Done when |
+|---|---|---|---|
+| 12.1 | A `VirtualSubsystem` | [VirtualSubsystem](/frc/virtual-subsystem#writing-one) | `BobotState extends VirtualSubsystem`, registers itself once, and its `periodic()` runs every loop before the command scheduler's subsystems |
+| 12.2 | Pose and velocity in | [BobotState](/frc/bobot-state#the-flow-through-one-loop) | The drivetrain writes the estimated pose and velocity into `BobotState`; no other class writes them |
+| 12.3 | Observations in | [BobotState](/frc/bobot-state#the-flow-through-one-loop) | Accepted Step 11 observations reach `BobotState`; if a queue is used, the drivetrain owns and drains it after the callback appends each observation |
+| 12.4 | One target calculation | [VARC](/frc/varc#writing-one) | A distance or transform to a fixed target is recomputed every loop from the current pose and logged |
+| 12.5 | One zone predicate | [BobotState](/frc/bobot-state#zones-and-game-logic-as-triggers) | A field-zone predicate is computed from the pose and logged |
+| 12.6 | Defensive ownership | [BobotState](/frc/bobot-state#adding-to-it-without-ruining-it) | Mutable collections are copied on entry, getters return unmodifiable snapshots or individual values, no getter exposes the drivetrain's queue, and no method sets a subsystem output |
+| 12.7 | Triggers | [BobotState](/frc/bobot-state#zones-and-game-logic-as-triggers) | At least one `Trigger` built on a derived fact is bound in `RobotContainer` to a command on a Step 8 subsystem |
+| 12.8 | Lombok on purpose | [Lombok](/frc/lombok#rules-for-using-it) | `@Builder`, `@Getter` and `@NonNull` appear where the list above allows; `delombok` output is committed to nothing and shown at the check |
+| 12.9 | Subsystem state stays home | [Why State Machines](/frc/why-state-machines#when-to-reach-for-it) | Intake deployment and flywheel readiness live in their subsystems; `BobotState` may combine them into a derived readiness fact and does not set their motors |
+
+## Badge Check
+
+The evidence is one trace, in code and in a log.
+
+<StepsBox title="Robot state badge check">
+
+1. The student picks one value that starts at a sensor or simulation input (a module encoder, a gyro, a simulated camera) and traces it through the IO inputs, the pose estimator, into `BobotState`, into a derived fact, into a `Trigger`, and into the command that trigger schedules, pointing at each line of code.
+2. The student opens a saved log and shows the same trace: the input, the pose, the derived value, the trigger's state and the command's start, on one AdvantageScope timeline.
+3. The student runs `./gradlew delombok` and shows the generated code for one `@Builder` record and one `@Getter`.
+4. The mentor names a value and asks whether it belongs in `BobotState` or in a subsystem. The student answers with the three tests from [Adding to it without ruining it](/frc/bobot-state#adding-to-it-without-ruining-it).
+5. The mentor asks what happens if a command calls a setter on `BobotState` to "fix" the pose. The student explains why the log would stop explaining the robot.
+
+</StepsBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/commandbased/binding-commands-to-triggers.html", "note": "<code>Trigger</code> objects built from a <code>BooleanSupplier</code> and bound to commands."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/button/Trigger.html", "note": "<code>Trigger</code> composition and binding methods."},
+  {"source": "java-api", "path": "java.base/java/lang/Record.html", "note": "Records are shallowly immutable carriers; final component references do not make referenced mutable objects deeply immutable."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List.copyOf</code> creates the unmodifiable snapshots used at the ownership boundary."},
+  {"source": "advantagekit", "path": "data-flow/recording-outputs/", "note": "<code>Logger.recordOutput</code> for every derived value."},
+  {"url": "https://projectlombok.org/features/GetterSetter", "label": "Project Lombok: @Getter and @Setter", "note": "What the read-only getters generate, and why setters are a design decision."},
+  {"url": "https://projectlombok.org/features/NonNull", "label": "Project Lombok: @NonNull", "note": "The null check generated on required construction inputs."},
+  {"url": "https://projectlombok.org/features/Builder", "label": "Project Lombok: @Builder", "note": "Builders on immutable records."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "A public FRC 4451 <code>BobotState</code>: pose, observation queue, target trackers, logged every loop."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/bobot_state/varc/TargetAngleTracker.java", "note": "A public per-target calculation recomputed each loop, the shape row 12.4 asks for."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/util/VirtualSubsystem.java", "note": "The public <code>VirtualSubsystem</code> base class."},
+  {"source": "ember", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "The first <code>BobotState</code>, where the pattern started."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Step 13: Integration Capstone","id":"badge-2-capstone"},
+  {"label":"Step 11: Observations and Vision","id":"badge-2-photonvision"},
+  {"label":"BobotState","url":"/frc/bobot-state"},
+  {"label":"VirtualSubsystem","url":"/frc/virtual-subsystem"}
+]} title="Next" section="badges" />

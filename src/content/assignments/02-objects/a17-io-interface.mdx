@@ -19,15 +19,29 @@ description: "Separate what hardware can do from how it does it, then swap a sim
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A17: IO Interface Technique`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Use an interface to separate a climber's requested actions and readings from the code providing them. Pass either a mock or a small simulation into the same Climber class.
 
 Both implementations are console models. The mock prints requests; the simulation changes a number using a stated formula. Neither controls real hardware or models the full physics of a climber.
 
-### What to build
+## What To Build
+
+Complete [Interfaces](/java/fundamentals/java-interfaces) and [Dependency
+Injection](/java/fundamentals/java-dependency-injection) first. Badge 1 assigns
+both before A17. An interface states which calls are available; an implementation
+decides what those calls do. Constructor injection means `Climber` receives a
+`ClimberIO` object instead of constructing one for itself.
+
+IO means **input/output**: readings come into the subsystem, and requests go out.
+A mock is a small substitute that follows the same interface and records or prints
+calls without contacting hardware.
 
 Build the specified climber first, locally or in the browser, so you can use the same checks. As an extension, design an interface for an intake or pivot.
+
+The required local submission is also the climber. If the embedded browser prompt
+still says to choose any local mechanism, follow this page: complete and save the
+climber first, then treat another mechanism as extension work.
 
 <ContentTable
   headers={["File", "What it is"]}
@@ -42,13 +56,69 @@ Build the specified climber first, locally or in the browser, so you can use the
 The sim deliberately produces *different* readings from the mock, which lets you
 tell from the output which one the subsystem is holding.
 
-<RulesBox title="How the browser version differs" items={[
+<RulesBox title="Browser And Local Files" items={[
   "Five files locally, one here, with only <code>ClimberDemo</code> declared <code>public</code>.",
   "The mechanism is fixed to a climber and the method names are given, so the checks have something to call. Use the climber for the required submission. Afterward, compare its interface with an intake or pivot design."
 ]} />
 
+## Build Locally
 
-<RulesBox title="Plan it as sessions" items={[
+Create `ClimberIO.java`, `ClimberIOMock.java`, `ClimberIOSim.java`, `Climber.java`,
+and `ClimberDemo.java` in the assignment folder. Put the matching top-level type
+in each file. Declare the interface and four classes `public`, and make every
+constructor and required method public. The browser combines all five types into
+one file, where only `ClimberDemo` can be public.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac ClimberIO.java ClimberIOMock.java ClimberIOSim.java Climber.java ClimberDemo.java
+java -Duser.language=en -Duser.country=US ClimberDemo
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac ClimberIO.java ClimberIOMock.java ClimberIOSim.java Climber.java ClimberDemo.java
+java -Duser.language=en -Duser.country=US ClimberDemo
+```
+
+</CodeTab>
+</CodeTabs>
+
+The two `-D` flags make Java use US number formatting for this run. That keeps the
+supplied demo's decimal point stable without editing its protected `main` method.
+
+## Trace The Swap
+
+`ClimberIO` contains four public method signatures and no changing state. Both IO
+classes write `implements ClimberIO`, so Java requires them to supply all four
+public methods. Their private fields belong to their own objects.
+
+`Climber` stores one `private final ClimberIO`. Its constructor receives that
+object and saves it. The demo chooses either `new ClimberIOMock()` or
+`new ClimberIOSim()` when it constructs a climber. After that choice, the same
+`Climber` code calls the same four interface methods. Java dispatches each call to
+the implementation in the object it received.
+
+In the simulation, each call to `setVoltage` advances the model by one simulated
+second. To *integrate* position means to accumulate that change over calls. The
+position change for one call is `volts * 0.02`, so the first `setVoltage(6.0)` call
+adds `6.0 * 0.02 = 0.12` meter. Clamp only the required upper limit at `0.30` meter.
+This timestep and limit are assignment data, not robot constants or a full physics
+model.
+
+Follow the call order carefully. `Climber.climb` checks the current limit reading
+before it asks the IO object to apply voltage. A call that first reaches `0.30`
+therefore still uses the requested voltage; the next call sees the limit and
+applies `0.0`. Under this required contract, a negative request at the top is also
+replaced by zero. Treat bidirectional limit handling as a later design discussion,
+not a change to this assignment.
+
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>The mock announces what it would do</em>, <em>The mock reports its own flat readings</em>.",
   "<strong>Session 2.</strong> Build on what already passes: <em>The sim integrates position over ticks</em>, <em>The sim stops at the hard limit</em>.",
   "<strong>Session 3.</strong> Build on what already passes: <em>One subsystem drove both implementations</em>."
@@ -63,7 +133,7 @@ tell from the output which one the subsystem is holding.
   "<strong>Clamp inside the sim, and back off inside the subsystem.</strong> Two different jobs: the sim refuses to report a position past its limit, while <code>climb</code> refuses to keep pushing once the limit reports true. Both are needed, and the trace shows each."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -76,23 +146,36 @@ tell from the output which one the subsystem is holding.
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+Finish and save the required climber first. Try stretch work in a copy so new
+methods or output cannot interfere with the required trace.
 
 - Add a third implementation, `ClimberIOReplay`, that returns readings from a hard-coded
   array of past values. Now you can re-run a match without a robot or a simulator.
 - Add an `updateInputs` method that fills a small inputs object once per tick, and make
   every getter read from that instead. Compare your result with AdvantageKit's IO layer
-.
+  after reading [The IO Layer On The Robot](/frc/io-layers).
 
-### References
+- As an optional model experiment, add a lower clamp at `0.0` and test negative
+  voltage. Keep it out of the required version because the assignment contract only
+  requires the upper `0.30` limit.
 
-- JavaDoc: [Interfaces](https://docs.oracle.com/javase/tutorial/java/IandI/createinterface.html)
+<RulesBox title="Manual Checks" items={[
+  "The browser checks compare mock output, mock readings, simulated motion, the hard-limit stop, and use of both implementations. They do not inspect whether the interface has state, whether implementation fields are private, or whether <code>Climber</code> uses a type check.",
+  "Read the code for those rubric requirements. Confirm that only <code>setVoltage</code> advances simulated position; getter calls report state without changing it."
+]} />
+
+## References
+
+- Dev.java: [Defining Interfaces](https://dev.java/learn/interfaces/defining-interfaces/)
 - WPILib: [Robot simulation](https://docs.wpilib.org/en/stable/docs/software/wpilib-tools/robot-simulation/introduction.html)
 - Wikipedia: [Dependency inversion principle](https://en.wikipedia.org/wiki/Dependency_inversion_principle)
 
 <Sources items={[
-  {"source": "csce146", "note": "Interfaces."},
-  {"source": "dev-java", "path": "interfaces/", "note": "Interfaces."},
-  {"source": "dev-java", "path": "interfaces/defining-interfaces/", "note": "Defining and implementing."},
-  {"url": "/frc/io-layers", "label": "The IO layer on the robot", "note": "The pattern this assignment practises."}
+  {"source": "csce146", "label": "Data Structures Course Sequence", "note": "Interfaces."},
+  {"source": "dev-java", "path": "interfaces/", "label": "Dev.java: Interfaces", "note": "Interfaces as contracts between callers and implementations."},
+  {"source": "dev-java", "path": "interfaces/defining-interfaces/", "label": "Dev.java: Defining Interfaces", "note": "Public method signatures and implementing classes."},
+  {"url": "https://docs.oracle.com/javase/specs/jls/se25/html/jls-9.html", "label": "JLS Chapter 9: Interfaces", "note": "The Java 25 language rules for interface declarations and members."},
+  {"url": "/frc/io-layers", "label": "The IO Layer On The Robot", "note": "The real and simulated IO pattern this assignment practises."}
 ]} />

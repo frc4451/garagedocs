@@ -1,0 +1,134 @@
+---
+title: "Step 6: One Complete Mechanism"
+lessonId: badge-2-first-mechanism
+section: badges
+group: badge-2
+groupLabel: "Badge 2: Intermediate FRC"
+groupOrder: 2
+order: 6
+difficulty: advanced
+description: "A guided Talon FX roller from component contract through IO, simulation, logging, and a focused test, followed by one independent change before the student expands the pattern into the full mechanism library."
+---
+
+In Step 6, the student builds one complete roller in `Badge2Robot`. This is the first working path through the mechanism architecture: a `Roller` component, its IO boundary, a Talon FX implementation, a Talon FX simulation, AdvantageKit logging, and a focused simulation test.
+
+The student finishes and tests this path before adding the second controller or another mechanism family. The result provides one known working example that the student can explain and extend in [Step 7](/badges/badge-2-mechanism-library).
+
+## References to Review
+
+- [Rollers](/frc/roller-example)
+- [Motor Controller Configuration](/frc/motor-controller-configuration#essentials)
+- [Control Requests](/frc/control-requests#the-grid)
+- [TalonFX Simulation](/frc/talonfx-simulation#writing-a-new-one)
+- [Unit Tests in Simulation](/frc/unit-tests-in-simulation#a-mechanism-in-the-loop)
+- [AdvantageKit IO Interfaces](/frc/advantagekit#how-replay-uses-the-io-layer)
+- [Step 5: Testing Fundamentals](/badges/badge-2-testing)
+- [Threads and Concurrency](/java/fundamentals/java-threads-and-concurrency#why-this-is-hard) and [Race Conditions and Synchronization](/java/fundamentals/java-race-conditions-and-synchronization#synchronized)
+
+## Guided Example
+
+Build the roller under `org/<name>/mechanisms/roller/`. The guided result contains these classes:
+
+- `Roller`, a plain Java object that owns the requested voltage, stop behavior, input processing, and log path;
+- `RollerIO`, whose inputs report position, velocity, applied voltage, and current;
+- `RollerIOInputsAutoLogged`, generated from the `@AutoLog` inputs class;
+- `RollerIOTalonFX`, which configures the controller and sends `VoltageOut` requests;
+- `RollerIOSimTalonFX`, which extends the real IO and connects `TalonFXSimState` to `DCMotorSim`; and
+- `RollerTest`, which initializes the Hardware Abstraction Layer (HAL), enables the simulated Driver Station, runs the component's normal 20 ms path, and closes every resource it creates.
+
+The component does not extend `SubsystemBase` and does not create commands. A parent subsystem will own it later. For this step, `Badge2Robot` may use a small test subsystem or container-owned harness that calls `Roller.periodic()` once per robot loop and gives commands one WPILib requirement. Keep that temporary ownership visible in the README so Step 8 can replace it with a composed parent subsystem.
+
+## IO and Logging
+
+`Roller.periodic()` calls `io.updateInputs(inputs)` and then `Logger.processInputs(logPath, inputs)`. The component reads the cached inputs after that call. This gives the real robot, simulation, and replay modes the same component path through the IO boundary.
+
+The IO implementation owns CTRE details. It applies `SensorToMechanismRatio` once, documents which direction is positive, and sends `VoltageOut` for run and stop requests. The component records the requested voltage as an output. The IO inputs record measured values returned by the controller. Requested voltage and measured applied voltage are different facts, so both belong in the log.
+
+## Simulation Loop
+
+`RollerIOSimTalonFX` reuses the real IO constructor. That keeps the controller configuration and control request identical in real and simulated modes. Its simulation code owns two objects with different jobs: `TalonFXSimState` represents the controller, and `DCMotorSim` represents the mechanism physics.
+
+Run their exchange in a 5 ms `Notifier`. On each callback:
+
+1. Measure elapsed time from the previous callback instead of assuming the callback ran at exactly 5 ms.
+2. Set the Talon FX supply voltage from `RobotController.getBatteryVoltage()`.
+3. Read motor voltage from the Talon FX sim state and apply it to `DCMotorSim`.
+4. Advance the physics model by the measured elapsed time.
+5. Write position and velocity back to the Talon FX sim state in rotor units. Multiply mechanism rotations by the configured reduction once.
+6. Publish the latest simulated current draw for the simulation owner to read.
+
+The simulation harness owns the one robot battery. Once per simulation cycle, it reads the roller's latest current, calculates loaded voltage with `BatterySim`, and calls `RoboRioSim.setVInVoltage` once. Step 7 keeps this owner and adds every active mechanism current to the same calculation. A mechanism notifier never writes robot battery voltage by itself, so adding mechanisms cannot turn the battery into a last-writer-wins race.
+
+The notifier callback and the main robot loop can touch the same simulation IO at the same time. That creates a race unless access is coordinated. Keep the shared data small: the physics model, the device sim state, the last timestamp, and the latest current draw. Guard each complete read or update of that shared group with the same private lock, using a short `synchronized` block or synchronized private method. Do not hold the lock while logging or waiting. The [Java synchronization lesson](/java/fundamentals/java-race-conditions-and-synchronization#synchronized) explains why one lock must protect the whole operation.
+
+`updateInputs` remains the main-loop boundary that supplies one coherent snapshot to the component and AdvantageKit. AdvantageKit logging calls stay on the main robot thread because its logging APIs are not thread-safe. The student does not need the rest of the Java concurrency unit for this mechanism, but should understand that the notifier is a second thread, shared mutable data needs one owner or one lock, and cleanup ends that thread's lifecycle.
+
+The simulation class owns the `Notifier`, so it also owns cleanup. Provide an idempotent `close()` that stops and closes the notifier, and have the test call it in teardown even when an assertion fails. The test also restores simulated battery voltage and closes any controller or harness resource it created. This prevents a background callback from leaking into the next test.
+
+## First Test
+
+Step 5 established JUnit assertions and lifecycle annotations with pure Java `MechanismLimits`; it did not initialize WPILib or run a motor simulation. This step adds the mechanism-in-the-loop setup from [Unit Tests in Simulation](/frc/unit-tests-in-simulation#a-mechanism-in-the-loop). In `@BeforeAll`, initialize HAL, enable `DriverStationSim`, notify new data, and allow Phoenix to observe the enabled state before constructing the roller. A helper then calls the same `periodic()` path the robot uses and waits 20 ms with `Timer.delay(0.020)` so the Phoenix device and 5 ms notifier advance in real time.
+
+Do not pause the WPILib scheduler clock for this roller test. A paused clock with `SimHooks.stepTiming` is useful for command timing and appears later in Step 8's interlock tests. The simulated Talon FX runs on Phoenix timing, so this mechanism test uses real elapsed time and tolerances that do not depend on one exact callback count.
+
+The focused test proves both required roller behaviors:
+
+1. A positive voltage request produces positive measured velocity in the documented direction.
+2. `stop()` produces zero applied voltage after the simulated loop advances.
+
+The assertion reads the component's normal logged input path or its public measured-state accessors. It does not reach into `DCMotorSim` to decide whether the component passed. A test that reads the same boundary as robot code can catch a broken ratio, direction, or `updateInputs` path.
+
+## Check the Result
+
+Run `Badge2Robot` in simulation with one controller binding for positive voltage and another for stop. In AdvantageScope, graph requested voltage, applied voltage, velocity, current, and battery voltage. Positive voltage should produce positive velocity. Applied voltage should return to zero after stop. Battery voltage should fall as simulated current rises.
+
+Simulation establishes the software path, conversion, direction convention, and cleanup behavior. It does not establish that a wired motor spins safely in the intended physical direction. That check happens later with the mechanism secured, a current limit configured, and a mentor present.
+
+## Independent Change
+
+After the guided roller passes, the student changes one configuration value without following a copied solution. Choose a different reduction or moment of inertia, calculate the expected effect before running, update the configuration and test expectation, and then explain the observed change in the velocity graph.
+
+The student may read the cited lessons and source files. The submitted classes must fit the student's package names, ownership, constants, and test harness. Copying a complete mechanism implementation from another repository does not demonstrate this step because the student still needs to explain every boundary and lifecycle choice in their own project.
+
+## Rows
+
+| # | Work | Lesson | Done when |
+|---|---|---|---|
+| 6.1 | Define the roller contract | [Rollers](/frc/roller-example) | `Roller` is a plain object with voltage, stop, measured-state, periodic, and log-path behavior; the README names its temporary owner |
+| 6.2 | Build the IO boundary | [AdvantageKit](/frc/advantagekit#how-replay-uses-the-io-layer) | The IO inputs carry position, velocity, applied voltage, and current through `updateInputs` and `Logger.processInputs` |
+| 6.3 | Configure the Talon FX | [Motor Controller Configuration](/frc/motor-controller-configuration#essentials) | `RollerIOTalonFX` sets direction and `SensorToMechanismRatio` once and sends `VoltageOut` requests |
+| 6.4 | Connect the simulation | [TalonFX Simulation](/frc/talonfx-simulation#writing-a-new-one) | `RollerIOSimTalonFX` extends the real IO and exchanges supply voltage, motor voltage, rotor position, rotor velocity, and current with `DCMotorSim` |
+| 6.5 | Manage the background loop | [TalonFX Simulation](/frc/talonfx-simulation#writing-a-new-one) | The 5 ms notifier uses measured elapsed time, synchronizes shared state, performs no logging, and has an idempotent cleanup path |
+| 6.6 | Prove run and stop | [Unit Tests in Simulation](/frc/unit-tests-in-simulation#a-mechanism-in-the-loop) | The focused test proves positive voltage gives positive measured velocity and `stop()` gives zero applied voltage, then closes every resource in teardown |
+| 6.7 | Read the log | [AdvantageKit](/frc/advantagekit#logging) | AdvantageScope shows requested voltage, applied voltage, velocity, current, and battery voltage from one simulation run |
+| 6.8 | Make an independent change | [Rollers](/frc/roller-example#calculate-torque-and-contact-force) | The student predicts, implements, tests, and explains the graph change from one new reduction or inertia value |
+
+## Badge Check
+
+<StepsBox title="One Complete Mechanism Badge Check">
+
+1. From a clean clone, the student runs `RollerTest`. Both behavior assertions pass, and the process exits without a surviving notifier thread.
+2. The student simulates the roller from controller bindings and shows the five required signals in AdvantageScope.
+3. The mentor points to one boundary in the path from controller command to measured velocity. The student identifies its owner and explains why that code belongs there.
+4. The student explains the conversion from mechanism position to rotor position and shows where the reduction is applied once.
+5. The student explains how the background loop is stopped and why logging remains on the main thread.
+6. The student shows the independent configuration change, the prediction made before running it, and the resulting test and graph.
+
+</StepsBox>
+
+<Sources items={[
+  {"source": "ctre", "path": "docs/api-reference/simulation/simulation-intro.html", "note": "The Talon FX sim-state exchange, rotor-unit feedback, supply voltage, and recommendation to update simulated PID more frequently with a Notifier."},
+  {"source": "ctre", "path": "docs/api-reference/wpilib-integration/unit-testing.html", "note": "HAL and Driver Station setup for Phoenix device tests and the delay that lets the simulated device observe the enabled state."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html", "note": "The physics-simulation model used for the roller."},
+  {"url": "https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/BatterySim.html", "label": "WPILib BatterySim Javadoc", "note": "The loaded-voltage method accepts one or more current draws and pairs with <code>RoboRioSim.setVInVoltage</code>."},
+  {"source": "advantagekit", "path": "data-flow/recording-inputs/io-interfaces/", "note": "The IO boundary, one input snapshot per loop, and real, simulation, and replay implementations."},
+  {"source": "advantagekit", "path": "getting-started/common-issues/multithreading/", "note": "Background work belongs inside IO implementations, and AdvantageKit logging APIs stay on the main thread."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFX.java", "note": "A project-specific example of Talon FX sim-state plumbing to study while designing the student's own implementation."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Step 7: Mechanism Library","id":"badge-2-mechanism-library"},
+  {"label":"Step 5: Testing Fundamentals","id":"badge-2-testing"},
+  {"label":"TalonFX Simulation","url":"/frc/talonfx-simulation"},
+  {"label":"Unit Tests in Simulation","url":"/frc/unit-tests-in-simulation"}
+]} title="Next" section="badges" />

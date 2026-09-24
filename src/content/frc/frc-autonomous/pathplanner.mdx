@@ -8,7 +8,7 @@ groupOrder: 17
 order: 1
 difficulty: intermediate
 duration: 15 min
-description: "PathPlanner for drawn autonomous paths: configuring AutoBuilder for swerve, pathfinding warm-up, loading paths, and event markers with named commands."
+description: "PathPlanner for drawn autonomous paths: configuring AutoBuilder for swerve and for a differential drive, pathfinding warm-up, loading paths, and event markers with named commands."
 ---
 
 ### Plan and follow autonomous paths
@@ -102,6 +102,50 @@ public class Drive extends SubsystemBase {
 A mass left over from last season's robot produces consistent tracking error on every path, and it looks like badly tuned PID, so teams often spend a practice session tuning gains to compensate for a wrong number. Update it when the robot's weight changes.
 
 </RulesBox>
+
+### AutoBuilder configuration (differential)
+
+A differential drivetrain cannot move sideways, so its follower is different: `PPLTVController` commands a forward speed and a turn rate, and the robot's heading is its direction of travel. `AutoBuilder.configure` takes the same seven arguments; the controller and the `RobotConfig` change. The code below is the AdvantageKit 2026 Kit Bot template's `Drive` constructor (Mechanical Advantage, v26.0.2), quoted with the SysId setup left out:
+
+```java
+// Configure AutoBuilder for PathPlanner
+AutoBuilder.configure(
+    this::getPose,
+    this::setPose,
+    () ->
+        kinematics.toChassisSpeeds(
+            new DifferentialDriveWheelSpeeds(
+                getLeftVelocityMetersPerSec(), getRightVelocityMetersPerSec())),
+    (ChassisSpeeds speeds) -> runClosedLoop(speeds),
+    new PPLTVController(0.02, maxSpeedMetersPerSec),
+    ppConfig,
+    () -> DriverStation.getAlliance().orElse(Alliance.Blue) == Alliance.Red,
+    this);
+```
+
+The speed supplier builds robot-relative `ChassisSpeeds` from the two wheel velocities through `DifferentialDriveKinematics`; there is no `vy`. `PPLTVController(0.02, maxSpeedMetersPerSec)` takes the loop period in seconds and the maximum speed in metres per second. The consumer, `runClosedLoop`, turns the chassis speeds back into wheel speeds and adds a feedforward per side before handing both to the IO:
+
+```java
+/** Runs the drive at the desired velocity. */
+public void runClosedLoop(ChassisSpeeds speeds) {
+  var wheelSpeeds = kinematics.toWheelSpeeds(speeds);
+  runClosedLoop(wheelSpeeds.leftMetersPerSecond, wheelSpeeds.rightMetersPerSecond);
+}
+
+/** Runs the drive at the desired left and right velocities. */
+public void runClosedLoop(double leftMetersPerSec, double rightMetersPerSec) {
+  double leftRadPerSec = leftMetersPerSec / wheelRadiusMeters;
+  double rightRadPerSec = rightMetersPerSec / wheelRadiusMeters;
+  Logger.recordOutput("Drive/LeftSetpointRadPerSec", leftRadPerSec);
+  Logger.recordOutput("Drive/RightSetpointRadPerSec", rightRadPerSec);
+
+  double leftFFVolts = kS * Math.signum(leftRadPerSec) + kV * leftRadPerSec;
+  double rightFFVolts = kS * Math.signum(rightRadPerSec) + kV * rightRadPerSec;
+  io.setVelocity(leftRadPerSec, rightRadPerSec, leftFFVolts, rightFFVolts);
+}
+```
+
+`ppConfig` lives in the template's `DriveConstants`, built from the robot mass, moment of inertia, a `ModuleConfig` (wheel radius, maximum speed, wheel coefficient of friction, the gearbox with its reduction, the current limit, and two motors per side) and the track width. The template ships with placeholder mass and inertia values, so the *Keep RobotConfig honest* rule applies here first. The template already registers a `"Launch"` named command and builds its auto chooser with `AutoBuilder.buildAutoChooser()`, so an auto drawn in the editor with a `Launch` event marker runs without further wiring.
 
 ### Warmup and Pathfinding
 
@@ -199,6 +243,10 @@ public class RobotContainer {
   {"source": "pathplanner", "path": "pplib-pathfinding.html", "note": "Pathfinding and the <code>Pathfinding.setPathfinder</code> hook."},
   {"source": "pathplanner", "path": "gui-editing-paths-and-autos.html", "note": "Paths, autos and event markers in the editor."},
   {"source": "pathplanner", "path": "api/java/com/pathplanner/lib/auto/AutoBuilder.html", "note": "<code>AutoBuilder</code> Javadoc."},
+  {"source": "pathplanner", "path": "api/java/com/pathplanner/lib/controllers/PPLTVController.html", "note": "The differential follower: <code>isHolonomic()</code> is false; the <code>(dt, maxVelocity)</code> constructor."},
+  {"source": "advantagekit-templates", "path": "kitbot_2026/src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "The differential <code>AutoBuilder.configure</code> and <code>runClosedLoop</code> quoted in the differential section."},
+  {"source": "advantagekit-templates", "path": "kitbot_2026/src/main/java/frc/robot/subsystems/drive/DriveConstants.java", "note": "<code>ppConfig</code>: mass, MOI, wheel COF, <code>ModuleConfig</code> and track width."},
+  {"source": "advantagekit-templates", "path": "kitbot_2026/src/main/java/frc/robot/RobotContainer.java", "note": "The registered <code>\"Launch\"</code> named command and the auto chooser."},
   {"source": "pathplanner", "path": "api/java/com/pathplanner/lib/auto/NamedCommands.html", "note": "<code>NamedCommands.registerCommand</code>."},
   {"url": "https://gist.github.com/mjansen4857/a8024b55eb427184dbd10ae8923bd57d", "label": "PathPlanner warm-up gist", "note": "Pre-loading the path follower so the first auto does not stall."},
   {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "<code>AutoBuilder.configure</code> with the drivetrain's pose, speeds and <code>runVelocity</code>."},

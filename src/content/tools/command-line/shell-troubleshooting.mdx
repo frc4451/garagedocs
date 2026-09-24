@@ -10,13 +10,13 @@ difficulty: intermediate
 description: "Check tool versions, inspect processes and ports, read logs and build failures, and connect through SSH."
 ---
 
-### The shape of a diagnosis
+## Start With the Symptom
 
 Record what you observe, change one relevant thing, and repeat the check. This page covers commands for Java, Git, Gradle, processes, ports, logs, and remote shells.
 
 Network problems have their own ladder in [Network Diagnostics](/tools/network-diagnostics). Every command below is shown for PowerShell and for the macOS/Linux Terminal.
 
-### Is it installed, and which one is running?
+## Check the Installed Program
 
 Compare the tool version and path with the project requirements. Java lessons use Java 25 locally. WPILib includes its own JDK, but a separately opened shell can still select another installation.
 
@@ -50,7 +50,7 @@ echo $JAVA_HOME                # what build tools will use, which may differ fro
 
 If `java`, `javac`, and `JAVA_HOME` refer to different installations, determine which one the failing tool uses. [Files, pipes and PATH](/tools/files-pipes-and-path#path-and-command-not-found) explains command lookup.
 
-### What is running, and how to stop it
+## Check a Running Process
 
 Identify the process before stopping it. A closed window does not always mean the process exited. Replace `12345` below with the ID you inspected; the stop commands are alternatives. Prefer the program's normal stop command first, and save work before terminating it.
 
@@ -60,9 +60,7 @@ Identify the process before stopping it. A closed window does not always mean th
 ```powershell
 Get-Process java, node                            # processes by name (error if none: that is an answer too)
 Get-Process | Sort-Object CPU -Descending | Select-Object -First 5    # highest accumulated CPU time
-Stop-Process -Id 12345                            # stop by process id
-Stop-Process -Name java                           # stop every java (careful: includes VS Code's language server)
-Stop-Process -Id 12345 -Force                     # stop without a confirmation prompt
+Stop-Process -Id 12345 -Confirm                   # replace 12345 with one inspected process ID
 ```
 
 </CodeTab>
@@ -71,17 +69,15 @@ Stop-Process -Id 12345 -Force                     # stop without a confirmation 
 ```bash
 ps aux | grep -i "[j]ava"                         # processes by name; the [j] trick hides grep itself
 top                                               # live view of the busiest; q to leave
-kill 12345                                        # ask a process (by id, the second column of ps) to stop
-pkill java                                        # every java (careful: includes VS Code's language server)
-kill -9 12345                                     # if it ignores the first request
+kill 12345                                        # replace 12345 with one inspected process ID
 ```
 
 </CodeTab>
 </CodeTabs>
 
-On macOS/Linux, `kill` sends SIGTERM by default; a program can handle it to clean up. `kill -9` prevents that cleanup. PowerShell `Stop-Process` terminates the process; `-Force` suppresses confirmation rather than providing a stronger signal. See [Stop-Process](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/stop-process). For Gradle, try the wrapper's `--stop` command before terminating a daemon.
+Try the application's normal Close or Stop action first. A process ID (PID) identifies one running process; replace `12345` only with a PID you found in the preceding list. Confirm the program name and owner before stopping it. On macOS/Linux, `kill` sends SIGTERM by default so the program can clean up. PowerShell's `-Confirm` asks before it terminates the process. For Gradle, try the wrapper's `--stop` command before terminating a daemon.
 
-### Who is holding this port?
+## Check a Port
 
 An address-in-use error can mean another process is listening on the port. Inspect its identity before deciding whether to stop it or choose another port:
 
@@ -106,9 +102,9 @@ ss -ltnp                               # Linux: the same, faster
 </CodeTab>
 </CodeTabs>
 
-If the listener is an old instance you no longer need, stop that instance and retry. To test a service on another machine, use [Network diagnostics](/tools/network-diagnostics#rung-5-is-anyone-listening-on-the-port).
+If the listener is an old instance you no longer need, stop that instance and retry. To test a service on another machine, use [Network diagnostics](/tools/network-diagnostics#rung-5-test-the-port).
 
-### Watching a log
+## Watch a Log
 
 If the application writes a log, watch it while reproducing the failure. Compare timestamps and messages with your actions.
 
@@ -135,7 +131,7 @@ tail -f app.log | grep -i "error"          # live, only the lines that matter
 
 When asking for help, include the relevant log, the command you ran, and what you expected to happen.
 
-### Reading a Java stack trace
+## Read a Java Stack Trace
 
 An uncaught Java exception usually prints a **stack trace**. It identifies the exception and the chain of calls where it occurred:
 
@@ -154,7 +150,7 @@ Exception in thread "main" java.lang.ArrayIndexOutOfBoundsException: Index 5 out
 
 Read each `Caused by:` block as well. It records an underlying exception; both the cause and the wrapping exception may provide useful context.
 
-### Reading a Gradle failure
+## Read a Gradle Failure
 
 Gradle builds the robot project. A failure may come from compilation, tests, dependency resolution, configuration, or another task. Start with the failing task and its message:
 
@@ -202,7 +198,7 @@ For a compile failure, look for `error:` with a file and line number. For other 
 
 A dependency-resolution failure can involve connectivity, credentials, a missing version, or repository configuration. `--offline` only works if the required dependencies are cached. For a wrapper permission error on macOS/Linux, check its executable permission. For an invalid `JAVA_HOME`, inspect the configured path and JDK.
 
-### Is Git in the state I think it is?
+## Check Git State
 
 Before touching anything in a repository that is behaving oddly:
 
@@ -229,9 +225,9 @@ git stash list                    # anything stashed and forgotten
 </CodeTab>
 </CodeTabs>
 
-`git status` is the same on every platform and is the first thing to run when VS Code's Source Control view looks wrong; it says in words what the view is summarizing. What to do about it is in the [Git lessons](/tools/local-git-workflow#essential-commands).
+`git status` is the same on every platform and is the first thing to run when VS Code's Source Control view looks wrong; it says in words what the view is summarizing. What to do about it is in the [Git lessons](/tools/local-git-workflow#command-reference).
 
-### Use a shell on another machine with SSH
+## Connect With SSH
 
 `ssh` connects to a remote machine. Commands then run under the remote account and operating system; only tools installed there are available. Replace the example user, address, and paths with those for your device.
 
@@ -266,7 +262,7 @@ Check the remote hostname and account before changing files. Follow the device's
 
 A changed SSH host key can follow re-imaging, but can also mean the address now reaches a different device. Confirm the target and key through a trusted source before updating `known_hosts`.
 
-<RulesBox title="Common mistakes">
+<RulesBox title="Common Mistakes">
 
 - **Assuming a version.** Check the version and path used by the failing process.
 - **Stopping every Java process.** This can also stop the editor's Java tooling. Inspect the process ID first.

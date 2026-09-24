@@ -30,7 +30,7 @@ export const sourceRegistry = {
   cobra: {
     name: 'FRC 4451 Cobra2026',
     base: 'https://github.com/frc4451/Cobra2026Private/blob/main/',
-    version: 'main',
+    version: 'main, MIT',
   },
   finn: {
     name: 'FRC 4864 Finn2025',
@@ -45,12 +45,12 @@ export const sourceRegistry = {
   frc2910: {
     name: 'FRC 2910 2026CompetitionRobot-Public',
     base: 'https://github.com/FRCTeam2910/2026CompetitionRobot-Public/blob/main/',
-    version: 'main',
+    version: 'main, MIT',
   },
   frc254: {
     name: 'FRC 254 FRC-2025-Public',
     base: 'https://github.com/Team254/FRC-2025-Public/blob/main/',
-    version: 'main',
+    version: 'main, MIT',
   },
   ember: {
     name: 'FRC 4451 Ember2024',
@@ -76,6 +76,16 @@ export const sourceRegistry = {
     name: 'Team 6328 RobotCode2026Public',
     base: 'https://github.com/Mechanical-Advantage/RobotCode2026Public/blob/main/',
     version: 'main',
+  },
+  'spectrum-2026': {
+    name: 'FRC 3847 2026-Spectrum',
+    base: 'https://github.com/Spectrum3847/2026-Spectrum/blob/main/',
+    version: 'main, no licence published for Spectrum code',
+  },
+  'spectrum-2025': {
+    name: 'FRC 3847 2025-Spectrum',
+    base: 'https://github.com/Spectrum3847/2025-Spectrum/blob/main/',
+    version: 'main, no licence published for Spectrum code',
   },
   gompeilib: {
     name: 'Team 190 GompeiLib',
@@ -137,6 +147,16 @@ export const sourceRegistry = {
     base: 'https://docs.advantagekit.org/',
     version: '26.0.2',
   },
+  'advantagekit-templates': {
+    name: 'AdvantageKit template projects',
+    base: 'https://github.com/Mechanical-Advantage/AdvantageKit/blob/v26.0.2/template_projects/sources/',
+    version: 'v26.0.2',
+  },
+  'akit-source': {
+    name: 'AdvantageKit source',
+    base: 'https://github.com/Mechanical-Advantage/AdvantageKit/blob/v26.0.2/',
+    version: 'v26.0.2',
+  },
   advantagescope: {
     name: 'AdvantageScope docs',
     base: 'https://docs.advantagescope.org/',
@@ -160,7 +180,17 @@ export const sourceRegistry = {
   'maple-sim': {
     name: 'maple-sim docs',
     base: 'https://shenzhen-robotics-alliance.github.io/maple-sim/',
-    version: '2026',
+    version: 'maplesim 0.4.0-beta-obstacles-fix, frcYear 2026',
+  },
+  'maple-sim-source': {
+    name: 'maple-sim source',
+    base: 'https://github.com/Shenzhen-Robotics-Alliance/maple-sim/blob/main/',
+    version: 'main, BSD-3-Clause',
+  },
+  fuelsim: {
+    name: 'FRC 5000 FuelSim',
+    base: 'https://github.com/hammerheads5000/FuelSim/blob/main/',
+    version: 'main, MIT',
   },
   'java-api': {
     name: 'Java SE 25 API',

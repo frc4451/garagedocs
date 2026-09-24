@@ -12,95 +12,186 @@ durationFixed: true
 ---
 
 
-A **pose** contains the robot's position and rotation on the field. **Odometry** updates that pose from measured wheel travel and heading. In this lesson, the field display is a way to check motion. The timed autonomous routine does not use this pose to steer.
+A **pose** describes where the robot is and which way it faces. A two-dimensional pose has three values:
 
-**Refresher:** [R07 Part 2](/kit-bot/r07-drive-io-part-2). You will use left distance, right distance, and heading (the direction the robot faces).
+- **x**, the distance along the field's length, in metres
+- **y**, the distance across the field, in metres
+- **angle**, the direction the robot faces, in degrees
 
-### Step 1: add heading to the IO inputs
+WPILib's field coordinates start at the blue alliance wall's right corner as viewed from the blue driver stations. Positive x points away from the blue wall. Positive y points to the left. An angle of 0° points along positive x, and positive angles turn counter-clockwise.
 
-<ReferenceImage
-  src="/media/kit-bot/advantagescope-field2d.png"
-  alt="Field view displaying a robot pose and a planned trajectory"
-  caption="A field view turns pose data into a visual check: position, heading, and movement should agree with what the robot actually did."
-  sourceUrl="https://docs.wpilib.org/en/stable/docs/software/dashboards/glass/field2d-widget.html"
-  sourceLabel="WPILib documentation"
-/>
+For example, `(x = 2 m, y = 1 m, angle = 90°)` means the robot is 2 metres along positive x, 1 metre along positive y, and facing positive y.
 
-Add this field to `DriveIO.DriveInputs`:
+**Odometry** updates the pose from the left wheel distance, right wheel distance, and heading. This lesson uses the pose as a visual check. The timed autonomous routine does not steer from it.
+
+## Before You Start
+
+Complete [R07 Part 2: Make It Drive](/kit-bot/r07-drive-io-part-2) and [R13 Part 1: AdvantageScope](/kit-bot/r13-telemetry-with-advantagescope). Confirm that both drive distances change with the expected signs in simulation and that AdvantageScope can connect to the Simulator source.
+
+Use [AdvantageScope: Poses on the Field](/tools/advantagescope-poses-on-the-field) for a larger explanation of field coordinates and the 2D Field controls.
+
+You will make small insertions in these existing files:
+
+- `src/main/java/frc/robot/subsystems/drive/DriveIO.java`
+- `src/main/java/frc/robot/subsystems/drive/DriveIOSim.java`
+- `src/main/java/frc/robot/subsystems/drive/Drive.java`
+
+The canonical pose topic in this lesson is `Drive/Pose`. Capitalization is part of the topic name.
+
+## Add Heading to the IO Inputs
+
+Open `DriveIO.java`. Add this import with the other measure imports:
+
+```java
+import edu.wpi.first.units.measure.Angle;
+```
+
+Merge `Degrees` into the file's existing static imports from `edu.wpi.first.units.Units`.
+
+Find the nested `DriveInputs` class. Insert this field beside its position and velocity fields:
 
 ```java
 public Angle heading = Degrees.zero();
 ```
 
-In `DriveIO.java`, import `edu.wpi.first.units.measure.Angle` and statically import `edu.wpi.first.units.Units.Degrees`. Also add the static `Degrees` import to `DriveIOSim.java`. In `DriveIOSim.updateInputs`, add:
+Every `DriveInputs` object now starts with a heading of zero degrees. The simulator will replace that value every tick. `DriveIOReal` will leave it at zero because this curriculum's physical Kit Bot has no heading sensor yet.
+
+## Read the Simulated Heading
+
+Open `DriveIOSim.java`. Merge `Degrees` into the existing static imports from `edu.wpi.first.units.Units`.
+
+Find `updateInputs(DriveInputs inputs)`. Keep `sim.update(0.020)` first. Insert this line after the simulator update, beside the existing position readings:
 
 ```java
 inputs.heading = Degrees.of(sim.getHeading().getDegrees());
 ```
 
-The stock real Kit Bot has no gyro in this curriculum. Leave the real heading at zero until a real heading sensor is installed and checked.
+The simulator advances one 20 millisecond tick before the code reads heading and wheel distances. That keeps all three odometry inputs from the same simulated tick.
 
-### Step 2: update odometry
+Save both IO files. In the Command Palette, run **WPILib: Build Robot Code**. Continue when the terminal ends with `BUILD SUCCESSFUL`.
 
-In `Drive.java`, import `edu.wpi.first.math.kinematics.DifferentialDriveOdometry` and `edu.wpi.first.math.geometry.Rotation2d`. Add static imports for `Meters` and `Degrees` from `edu.wpi.first.units.Units`. Add this field inside the class, outside its methods:
+## Create Odometry in Drive
+
+Open `Drive.java`. Add these imports with the other imports:
+
+```java
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.kinematics.DifferentialDriveOdometry;
+import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.networktables.StructPublisher;
+```
+
+Merge `Degrees` and `Meters` into the file's existing static imports from `edu.wpi.first.units.Units`.
+
+Insert these two fields inside `Drive`, near the existing `io` and `inputs` fields:
 
 ```java
 private final DifferentialDriveOdometry odometry =
     new DifferentialDriveOdometry(Rotation2d.kZero, 0.0, 0.0);
+
+private final StructPublisher<Pose2d> posePublisher =
+    NetworkTableInstance.getDefault()
+        .getStructTopic("Drive/Pose", Pose2d.struct)
+        .publish();
 ```
 
-After `io.updateInputs(inputs)` in `periodic()`, add:
+The constructor starts the pose at `(0 m, 0 m, 0°)`. `Pose2d.struct` identifies the data as one structured pose so AdvantageScope can read x, y, and angle together.
+
+## Update and Publish the Pose
+
+Find the existing `periodic()` method in `Drive.java`. Keep `io.updateInputs(inputs)` and `io.setVoltages(leftVoltage, rightVoltage)`. Insert this block immediately **after** `io.updateInputs(inputs)` and before the existing output call:
 
 ```java
 odometry.update(
     Rotation2d.fromDegrees(inputs.heading.in(Degrees)),
     inputs.leftPosition.in(Meters),
     inputs.rightPosition.in(Meters));
-```
 
-Build before adding the publisher.
-
-### Step 3: publish the pose
-
-In `Drive.java`, import `edu.wpi.first.math.geometry.Pose2d`, `edu.wpi.first.networktables.StructPublisher`, and `edu.wpi.first.networktables.NetworkTableInstance`. Add this publisher as a field:
-
-```java
-private final StructPublisher<Pose2d> posePublisher =
-    NetworkTableInstance.getDefault()
-        .getStructTopic("Drive/pose", Pose2d.struct)
-        .publish();
-```
-
-At the end of `periodic()`, publish the current pose:
-
-```java
 posePublisher.set(odometry.getPoseMeters());
 ```
 
-`Pose2d.struct` describes the binary data so AdvantageScope can decode it as a pose instead of a collection of unrelated numbers.
+The update uses three measurements:
 
-### Step 4: use the field view
+1. heading, in degrees
+2. left wheel distance, in metres
+3. right wheel distance, in metres
 
-1. Run simulation and connect AdvantageScope.
-2. Add a 2D Field tab.
-3. Drag `Drive/pose` into the field's pose list. If the icon starts at an edge, pan or zoom so the origin is visible.
-4. Drive forward, reverse, and turn.
+When both distances increase together and heading stays near 0°, x should increase while y stays near zero. During a turn, the heading changes and the pose curves in the direction of travel. You do not need trigonometry for this lesson; `DifferentialDriveOdometry` performs the coordinate update.
 
-The icon should move and rotate with the simulated drivetrain.
+Save `Drive.java`, then run **WPILib: Build Robot Code**.
 
-### What the real robot still needs
+## Show the Pose on a 2D Field
 
-Wheel distance can estimate forward motion. Rotation needs a trustworthy heading measurement. Until a gyro is connected through `DriveIOReal`, the real robot's published rotation remains zero and turns make its field pose incorrect. State this limitation whenever you show real-robot pose data.
+<ReferenceImage
+  src="/media/kit-bot/advantagescope-field2d.png"
+  alt="WPILib Glass Field2d widget showing a robot pose and a planned trajectory"
+  caption="A field view can show a robot pose and a planned trajectory. This lesson publishes only the robot pose."
+  sourceUrl="https://docs.wpilib.org/en/stable/docs/software/dashboards/glass/field2d-widget.html"
+  sourceLabel="WPILib documentation"
+/>
 
-<RulesBox title="Done when">
+1. In WPILib VS Code, run **WPILib: Simulate Robot Code** with **Sim GUI** selected.
+2. Assign a controller or keyboard to Joystick 0. Select **Teleoperated** and **Enabled**.
+3. Open AdvantageScope and connect to the Simulator source as you did in Part 1.
+4. In AdvantageScope, choose **+ → 2D Field**.
+5. In the field tree, find the exact struct topic `Drive/Pose`. Drag it into the **Poses** list in the control pane.
+6. Set its object type to **Robot** if AdvantageScope did not choose it automatically.
+7. Choose the current season's field. Pan or zoom until the origin at `(0 m, 0 m)` is visible.
 
-In simulation, `Drive/pose` moves and rotates on AdvantageScope's 2D field. You can name the three measurements used by odometry and explain why the real Kit Bot needs a gyro for trustworthy rotation.
+If the topic does not appear as a pose, check that the code uses `getStructTopic("Drive/Pose", Pose2d.struct)`. Untyped numbers cannot provide the structured pose type that the field view expects.
+
+## Check Three Motions
+
+Use short stick movements so the icon stays near the origin:
+
+1. Drive forward with the turn stick centered. The robot icon should move mostly along positive x.
+2. Drive backward over the same path. The x value should move back toward its earlier value.
+3. Center the forward stick and command a turn. The robot icon should rotate, and its angle should change.
+
+The simulation checks that the model's heading, wheel distances, odometry update, struct publication, and field view connect correctly. It does not establish physical encoder signs, wheel scale, gyro installation, or real-world accuracy.
+
+## Understand the Real-Robot Limit
+
+`DriveIOReal` does not supply a heading measurement in this curriculum. Its `heading` value therefore remains at the default 0°. On a physical robot, straight wheel motion may change x, but any turn makes the published angle and later position estimate wrong.
+
+Treat `Drive/Pose` as unsupported on the physical robot until a gyro is installed, its units and direction are checked, and `DriveIOReal.updateInputs(...)` writes that measured heading. A gyro alone does not make the pose exact. Wheel slip, encoder scale, and sensor offsets can still create error.
+
+<RulesBox title="Done When">
+
+In simulation, the `Drive/Pose` struct appears on AdvantageScope's 2D Field. Forward changes position mostly along positive x, reverse moves back toward the earlier position, and a turn changes the displayed angle. Name the three odometry inputs and explain why physical-robot pose remains unsupported without a checked heading sensor.
 
 </RulesBox>
 
 <Sources items={[
-  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/differential-drive-odometry.html", "note": "Differential-drive odometry inputs and updates."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/kinematics/DifferentialDriveOdometry.html", "note": "DifferentialDriveOdometry."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/networktables/StructPublisher.html", "note": "Publishing Pose2d as a struct."},
-  {"source": "advantagescope", "path": "tab-reference/2d-field/", "note": "Displaying Pose2d on the field."}
+  {
+    "source": "wpilib",
+    "path": "docs/software/basic-programming/coordinate-system.html",
+    "note": "WPILib field axes, origin, units, and positive rotation.",
+    "label": "Field Coordinates"
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/kinematics-and-odometry/differential-drive-odometry.html",
+    "note": "Differential-drive odometry inputs and updates.",
+    "label": "Differential-Drive Odometry"
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/math/kinematics/DifferentialDriveOdometry.html",
+    "note": "DifferentialDriveOdometry constructors, update inputs, and pose result.",
+    "label": "Odometry API"
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/networktables/StructPublisher.html",
+    "note": "Publishing structured Pose2d values.",
+    "label": "Structured Publishers"
+  },
+  {
+    "source": "advantagescope",
+    "path": "tab-reference/2d-field/",
+    "note": "Adding a Pose2d to the 2D Field and selecting its object type.",
+    "label": "2D Field View"
+  }
 ]} />

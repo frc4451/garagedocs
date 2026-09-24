@@ -7,114 +7,224 @@ groupLabel: "Loops and Iteration"
 groupOrder: 3
 order: 4
 difficulty: beginner
-duration: 30 min
-description: "break to leave a loop early, continue to skip an iteration, and how loop timing behaves when you do."
+duration: 35 min
+description: "Use break to leave a loop and continue to skip the rest of one pass without losing track of the loop's update."
 ---
 
-### Breaking out of loops
+Most loops finish when their condition becomes `false`. Two statements change that normal path: `break` leaves the loop, while `continue` skips to the loop's next step.
 
-The `break` statement immediately exits the loop, moving execution to the first line after the loop block.
+Complete [While Loops](/java/fundamentals/java-while-loops), [For Loops](/java/fundamentals/java-for-loops), [Arrays](/java/fundamentals/java-arrays), and [Try-Catch](/java/fundamentals/java-try-catch) first. The lesson starts with counters and conditions so you can trace exactly which statement runs next, then applies the same control to input.
 
-### Using break statement
+## Leave With Break
+
+The plain statement `break;` ends the nearest `while` or `for` loop immediately. Java skips the rest of that loop's body and continues with the first statement after the loop. Java also has a labeled form for nested statements; this lesson uses the plain, unlabeled form.
+
+This complete `Main.java` program stops before it prints `8`. To run it locally, replace the contents of `Main.java`, save the file, and use the [Compile And Run](/java/fundamentals/java-setup#compile-and-run) steps from Java Setup.
 
 ```java
-// Counting from 1 to 5 with break
-int number = 1;
+public class Main {
+    public static void main(String[] args) {
+        for (int number = 1; number <= 10; number = number + 1) {
+            if (number == 8) {
+                break;
+            }
 
-while (true) {
-    System.out.println(number);
-    
-    if (number >= 5) {
-        break;  // Exit when we reach 5
+            System.out.println(number);
+        }
+
+        System.out.println("After the loop");
     }
-    
+}
+```
+
+When `number` is `8`, Java reaches `break` before the `println`. The loop's update does not run, the condition is not checked again, and execution moves to `System.out.println("After the loop")`. The program prints 1 through 7 and then `After the loop`.
+
+Put an early-exit check before work that should not happen on the exit pass. Moving the `println` above the `if` would also print `8`.
+
+## Skip With Continue
+
+The plain statement `continue;` skips the remaining statements in the nearest loop body. It keeps the loop itself running. What happens next depends on the kind of loop:
+
+| Loop | Next Step After `continue` |
+| --- | --- |
+| `while` | Check the condition |
+| `for` | Run the update expression, then check the condition |
+
+This complete program skips `2` and prints the other values from 1 through 4. The browser exercise gives you a different boundary to implement yourself.
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        for (int number = 1; number <= 4; number = number + 1) {
+            if (number == 2) {
+                continue;
+            }
+
+            System.out.println(number);
+        }
+    }
+}
+```
+
+The pass with `number == 2` does not reach `println`. The `for` loop still runs `number = number + 1`, making `number` equal to `3`, and then checks `number <= 4` again.
+
+```text
+1
+3
+4
+```
+
+## Trace The For Update
+
+The update in a `for` header runs after a normal pass and after an unlabeled `continue` that belongs to that loop. A `break` leaves before that update.
+
+| Current Value | Decision | Next Step |
+| --- | --- | --- |
+| `1` | Print `1` | Update to `2`, then check the condition |
+| `2` | `continue` | Update to `3`, then check the condition |
+| `3` | Print `3` | Update to `4`, then check the condition |
+| `4` | Print `4` | Update to `5`, then check the condition |
+| `5` | Condition is false | Leave the loop without running the body or update |
+
+This distinction matters when the update changes the value that will eventually make the condition false.
+
+## Protect A While Update
+
+A `while` loop has no automatic update step. If `continue` runs before your update, Java jumps to the condition and the update is skipped. The same value can then trigger `continue` again.
+
+Place the counter update before a possible `continue` when every pass must advance the counter:
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        int number = 0;
+
+        while (number < 4) {
+            number = number + 1;
+
+            if (number == 2) {
+                continue;
+            }
+
+            System.out.println(number);
+        }
+    }
+}
+```
+
+This program prints the same 1, 3, and 4 as the `for` example. On the skipped pass, `number` has already changed from `1` to `2`. The next condition check still has a new value to examine.
+
+Compare that order with this partial illustration:
+
+```java norun
+while (number < 4) {
+    if (number == 2) {
+        continue;
+    }
+
     number = number + 1;
 }
-
-System.out.println("Ready!");
-// Output: 1, 2, 3, 4, 5, Ready!
 ```
 
-### Continue statement
+Read this partial example without running it. If the loop reaches `number == 2`, `continue` skips the update. The next condition is still `2 < 4`, so the same path repeats without making progress.
 
-The `continue` statement skips the rest of the current loop body. A `while` loop checks its condition next. A `for` loop runs its update expression first, then checks the condition.
+## Finish The Current Body
 
-### Using continue statement
+A loop condition is checked only at the loop's defined check point. Changing a value used by the condition does not interrupt a body that is already running.
 
 ```java
-Scanner scanner = new Scanner(System.in);
+public class Main {
+    public static void main(String[] args) {
+        int number = 1;
 
-while (true) {
-    System.out.println("Insert positive integers");
-    int number = Integer.valueOf(scanner.nextLine());
-    
-    if (number <= 0) {
-        System.out.println("Unfit number! Try again.");
-        continue;  // Skip to beginning of loop
-    }
-    
-    if (number == 999) {
-        break;  // Exit condition
-    }
-    
-    System.out.println("Your input was " + number);
-}
+        while (number != 2) {
+            System.out.println("Before change: " + number);
+            number = 2;
+            System.out.println("After change: " + number);
+        }
 
-// Robot example: Process valid sensor readings only
-while (true) {
-    System.out.println("Enter sensor reading (0-100, -1 to exit)");
-    int reading = Integer.valueOf(scanner.nextLine());
-    
-    if (reading == -1) {
-        break;
+        System.out.println("After the loop");
     }
-    
-    if (reading < 0 || reading > 100) {
-        System.out.println("Invalid reading! Must be 0-100");
-        continue;  // Skip invalid readings
-    }
-    
-    System.out.println("Processing sensor reading: " + reading);
 }
 ```
 
-### Loop execution timing
+Both prints inside the body run. Java checks `number != 2` again only after it reaches the closing brace, so the program leaves the loop on that next check. A `break` would transfer control immediately instead.
 
-A loop condition is checked only at the **start** of each pass. Changing a variable in the middle of the body does not stop the loop there; the rest of the body still runs, and the loop exits at the next check.
+## Skip Invalid Input
 
-### Loop timing example
+`continue` can reject one input line while keeping the input loop available for later lines. This complete program accepts positive integers, skips invalid lines and negative integers, and stops at `0` or end-of-input (EOF):
 
 ```java
-int number = 1;
+import java.util.Scanner;
 
-while (number != 2) {
-    System.out.println(number);  // prints 1
-    number = 2;                  // Now number equals 2
-    System.out.println(number);  // prints 2
-    number = 1;                  // Back to 1 - loop continues!
+public class Main {
+    public static void main(String[] args) {
+        Scanner input = new Scanner(System.in);
+
+        System.out.println("Enter positive integers. Enter 0 to stop.");
+
+        while (input.hasNextLine()) {
+            String line = input.nextLine();
+            int number;
+
+            try {
+                number = Integer.parseInt(line);
+            } catch (NumberFormatException exception) {
+                System.out.println("Skipped invalid integer: " + line);
+                continue;
+            }
+
+            if (number == 0) {
+                break;
+            }
+
+            if (number < 0) {
+                System.out.println("Skipped negative integer: " + number);
+                continue;
+            }
+
+            System.out.println("Accepted: " + number);
+        }
+
+        System.out.println("Input finished");
+        input.close();
+    }
 }
-// This loop runs forever!
-
-// The condition (number != 2) is only checked:
-// 1. When loop starts
-// 2. After reaching the closing }
-
-// For loop example:
-for (int i = 0; i != 100; i++) {
-    System.out.println(i);       // prints current i
-    i = 100;                     // Set i to 100
-    System.out.println(i);       // prints 100
-    i = 0;                       // Reset i to 0
-}  // At this point, i++ makes i = 1, loop continues
-// This loop also runs forever!
 ```
 
-<RulesBox title="Loop control guidelines">
+For the browser, place these lines in **Sample input** before selecting **Run**:
 
-- **Make sure the condition can become false.** A loop whose variables never change never ends.
-- **Give a `while (true)` loop a visible `break`.** A reader should find the exit without tracing the whole body.
-- **Use `continue` to skip bad input** rather than nesting the rest of the body inside an `if`.
-- **One check per `if`.** An `if` that tests three unrelated things is hard to read and harder to fix.
+```text
+4
+-2
+no
+7
+0
+```
+
+The program accepts 4 and 7, prints one skip message for each rejected line, and stops at 0. It does not read any later lines. If the supplied input ends first, `hasNextLine()` becomes false and the program prints `Input finished`. In a terminal, `hasNextLine()` can wait while the input remains open. Use the [browser and terminal input instructions](/java/fundamentals/java-while-loops#read-until-a-sentinel) from While Loops for both run paths.
+
+The declaration `int number;` creates the variable before the `try` without giving it a value. Successful parsing assigns the value. If parsing fails, the `catch` reaches `continue`, so Java starts the next pass before any later statement can read the unassigned variable. The loop also consumes a complete line before every `continue`, so invalid input cannot leave the scanner stuck on the same text.
+
+## Check Every Exit Path
+
+Execution can leave a loop because its condition becomes false or because control transfers through `break`, `return`, or an exception. Do not judge termination only by whether one variable changes. Instead, trace each path through the body and identify the next statement and the exit it can reach.
+
+Use these checks:
+
+1. Write the starting value and condition.
+2. Trace the body to each `break` and `continue`.
+3. For `continue`, identify whether the next step is the `while` condition or the `for` update.
+4. Confirm that every repeated path can still reach a stopping condition or an explicit exit.
+
+If a local program does not stop, press Ctrl+C in the terminal. Then trace the last repeated value and check whether `continue` skipped the update that should have changed it.
+
+<RulesBox title="Choose The Statement">
+
+- Use `break` when the current loop has finished its job.
+- Use `continue` when this pass should skip its remaining work but later passes should still run.
+- Put an exit or skip check before the work it is meant to prevent.
+- Keep the stopping path visible and traceable.
 
 </RulesBox>
 
@@ -131,12 +241,15 @@ Predict each result, run the code, and explain any difference before continuing.
 </ExerciseBox>
 
 <Sources items={[
-  {"source": "csce145", "note": "The course whose structure this lesson follows."},
-  {"source": "java-tutorial", "path": "java/nutsandbolts/branch.html", "note": "break and continue."},
-  {"source": "jls", "path": "jls-14.html", "note": "break and continue (sections 14.15, 14.16)."},
-  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/Scanner.html", "note": "<code>Scanner</code> API reference."}
+  {"source": "csce145", "label": "Course Materials", "note": "The beginner course structure that inspired this lesson's loop-control sequence."},
+  {"source": "dev-java", "path": "language-basics/controlling-flow/#the-break-statement", "label": "The Break Statement", "note": "Unlabeled <code>break</code> terminates the nearest loop."},
+  {"source": "dev-java", "path": "language-basics/controlling-flow/#the-continue-statement", "label": "The Continue Statement", "note": "Unlabeled <code>continue</code> skips the rest of the current pass and proceeds with the nearest loop."},
+  {"source": "jls", "path": "jls-14.html#jls-14.12.1", "label": "§14.12.1: Abrupt Completion Of while", "note": "A matching <code>continue</code> starts the next <code>while</code> iteration by evaluating its condition."},
+  {"source": "jls", "path": "jls-14.html#jls-14.14.1.3", "label": "§14.14.1.3: Abrupt Completion Of for", "note": "A matching <code>continue</code> runs the basic <code>for</code> update expressions before the next condition check."},
+  {"source": "jls", "path": "jls-14.html#jls-14.15", "label": "§14.15: The break Statement", "note": "An unlabeled <code>break</code> transfers control out of the nearest loop."},
+  {"source": "jls", "path": "jls-14.html#jls-14.16", "label": "§14.16: The continue Statement", "note": "An unlabeled <code>continue</code> transfers control to the next iteration of the nearest loop."},
+  {"source": "java-api", "path": "java.base/java/util/Scanner.html#hasNextLine()", "label": "Scanner.hasNextLine", "note": "Checking for another line before reading and stopping at end-of-input."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html#parseInt(java.lang.String)", "label": "Integer.parseInt", "note": "Converting an input line to an <code>int</code> and reporting invalid text with <code>NumberFormatException</code>."}
 ]} />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Loop Best Practices", "id": "java-loop-best-practices"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "Loop Best Practices", "id": "java-loop-best-practices"}]} />

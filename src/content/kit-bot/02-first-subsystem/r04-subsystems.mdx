@@ -17,7 +17,11 @@ A subsystem is a Java class, so the class owns its fields and methods. WPILib's 
 
 ---
 
-### What `SubsystemBase` actually gives you
+## Before You Start
+
+Complete R00-R03 with the project building. Review [Inheritance](/java/fundamentals/java-inheritance#sharing-what-is-common) and the Java remainder operator `%`. You will create files under `src/main/java/frc/robot/subsystems/` and run only in simulation.
+
+## What `SubsystemBase` Provides
 
 <ReferenceImage
   src="/media/kit-bot/traditional-subsystem.png"
@@ -42,21 +46,21 @@ By extending [`SubsystemBase`](https://github.wpilib.org/allwpilib/docs/release/
 1. **`periodic()` is called every scheduler tick** (every 20 ms). You override it to do per-tick work.
 2. **The scheduler tracks "requirements"**. When a command says it requires this subsystem, the scheduler ensures only one command at a time owns it.
 3. **Default-command support**. You can register a "this is what to do when nothing else is happening" command, like "drive with sticks" for the drivetrain. The scheduler runs it automatically.
-4. **Sendable hooks for telemetry**. `SubsystemBase` implements [`Sendable`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/util/sendable/Sendable.html), which lets dashboard tools display information about the subsystem. R13 shows how to publish the measurements we want to graph in AdvantageScope.
+4. **Sendable framework hooks**. `SubsystemBase` implements [`Sendable`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/util/sendable/Sendable.html), which supplies naming and framework integration. Custom measurements do not appear automatically. R13 explicitly publishes the values it graphs in AdvantageScope.
 
-You will write one class per mechanism. Each class extends `SubsystemBase`. That's the entire pattern.
+This curriculum writes one class per mechanism and extends `SubsystemBase`. Later IO lessons refine what the subsystem owns.
 
 ---
 
-### A subsystem's three jobs
+## The Curriculum Pattern
 
-Every subsystem you write has the same three responsibilities. Holding to them keeps the code understandable.
+The subsystems in this curriculum use three responsibilities:
 
 | Job | What it looks like |
 |---|---|
 | **Own its hardware** | `private final` fields for motor controllers, sensors. Initialized in the constructor. Nothing outside the class touches them. |
 | **Expose a small public API** | Query methods return measurements. Action methods such as `launchFuel()` return a `Command` that already requires the subsystem. |
-| **Run its periodic work** | `@Override periodic()` updates internal state, runs control loops, publishes telemetry. Never reads from joysticks or makes decisions about *what* to do, only *how*. |
+| **Run its periodic work** | `@Override periodic()` updates internal state, runs control loops, publishes telemetry. In this curriculum, driver input and action selection belong in commands. |
 
 What it does **not** do:
 
@@ -68,11 +72,11 @@ This separation is what lets you change the hardware implementation in R07 and R
 
 ---
 
-### The simplest possible subsystem (no hardware)
+## Build a Hardware-Free Subsystem
 
 Before we talk to a motor, let's prove the scheduler is calling `periodic()` and the subsystem is being constructed. We'll build a subsystem whose only job is to count up.
 
-Create `src/main/java/frc/robot/subsystems/heartbeat/Heartbeat.java`:
+In Explorer, expand `src/main/java/frc/robot`. Create a `subsystems` folder if it does not exist, create a `heartbeat` folder inside it, then create `Heartbeat.java`. The folder spelling must match the package declaration. Replace the new file with this complete file:
 
 ```java
 package frc.robot.subsystems.heartbeat;
@@ -107,7 +111,7 @@ It has the three jobs:
 - **Public API**: `getTickCount()` and `reset()`.
 - **Periodic work**: increments the counter every tick.
 
-Replace `src/main/java/frc/robot/RobotContainer.java` with this complete file. It removes the template example bindings. Remove the template's `ExampleCommand.java`, `Autos.java` and `ExampleSubsystem.java` only after confirming nothing refers to them.
+Save a copy of the generated `RobotContainer.java`, then replace it with this complete file. Build before deleting generated examples. Use VS Code search to find `ExampleCommand`, `Autos`, and `ExampleSubsystem`; delete those files only after the new `RobotContainer` has removed every reference. A successful build confirms that no Java reference remains.
 
 ```java
 package frc.robot;
@@ -139,7 +143,7 @@ Two things to notice:
 
 ---
 
-### Run it
+## Run It
 
 Build and start simulation. Leave it disabled at first. After about one second, the console should start printing:
 
@@ -152,11 +156,11 @@ heartbeat: 150 ticks
 
 If you disable the robot, the prints keep going. `CommandScheduler.run()` lives in `robotPeriodic()`, which executes in every mode, and subsystem `periodic()` methods run on every scheduler tick regardless of whether the robot is enabled. (This is different from commands, most of which stop running when the robot disables.) Confirm this matches what you see: the tick count should keep climbing whether the robot is enabled or not.
 
-If the prints don't start at all, the most common cause is the subsystem isn't being constructed. Open `RobotContainer.java` and make sure `private final Heartbeat heartbeat = new Heartbeat();` is there. The constructor running is what registers the subsystem with the scheduler.
+If the prints do not start, first confirm the build succeeded and the simulation is still running. Then confirm `private final Heartbeat heartbeat = new Heartbeat();` is present in `RobotContainer.java` and `CommandScheduler.getInstance().run();` remains in `Robot.robotPeriodic()`.
 
 ---
 
-### What a real subsystem will look like
+## Later Subsystems
 
 R07 adds a `DriveIO` field to a drivetrain subsystem. `DriveIO` is an **interface**: a list of methods the subsystem can call. One implementation talks to real controllers; another talks to a simulation.
 
@@ -164,7 +168,7 @@ Keep the `Heartbeat` project working for now. No drivetrain code is needed in th
 
 ---
 
-### Why subsystems are classes
+## Why Subsystems Are Classes
 
 A subsystem groups the fields and methods for one capability.
 
@@ -176,7 +180,7 @@ Requirements organize command access. They do not replace electrical protection,
 
 ---
 
-### Try it
+## Practice
 
 If you haven't yet, do the exercise inline above:
 
@@ -203,24 +207,16 @@ That's the shape every subsystem will follow.
 
 ---
 
-<RulesBox title="Done when">
+<RulesBox title="Done When">
 
 The counter increases about 50 times per second but prints only once every 50 counts, about once per second. It keeps counting while disabled. Show increasing values and explain the difference between updating the counter and printing it.
 
 </RulesBox>
 
-### References
-
-- [Inheritance](/java/fundamentals/java-inheritance#sharing-what-is-common): `extends SubsystemBase` is plain Java inheritance
-- [Abstract Classes](/java/fundamentals/java-abstract-classes#a-template-method) and [Runtime Polymorphism](/java/fundamentals/java-runtime-polymorphism#a-worked-example): `periodic()` is a method the parent calls; subclasses override it
-- [A16: Subsystem-Family Inheritance](/java/assignments/a16-subsystem-family): the assignment that built this pattern in miniature
-- WPILib: [Subsystems](https://docs.wpilib.org/en/stable/docs/software/commandbased/subsystems.html)
-- WPILib JavaDoc: [`SubsystemBase`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/SubsystemBase.html)
-- WPILib JavaDoc: [`Subsystem`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/Subsystem.html) (the interface `SubsystemBase` implements)
-
 <Sources items={[
-  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "Subsystems, <code>periodic()</code>, default commands."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/SubsystemBase.html", "note": "<code>SubsystemBase</code>."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Subsystem.html", "note": "The <code>Subsystem</code> interface."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/util/sendable/Sendable.html", "note": "<code>Sendable</code>, why a subsystem shows on the dashboard."}
+  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "Subsystems, <code>periodic()</code>, default commands.", "label": "WPILib Subsystems"},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/SubsystemBase.html", "note": "<code>SubsystemBase</code>.", "label": "WPILib API: SubsystemBase"},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Subsystem.html", "note": "The <code>Subsystem</code> interface.", "label": "WPILib API: Subsystem"},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/util/sendable/Sendable.html", "note": "<code>Sendable</code>, why a subsystem shows on the dashboard.", "label": "WPILib API: Sendable"}
 ]} />
+

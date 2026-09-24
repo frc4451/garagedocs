@@ -1,0 +1,117 @@
+---
+title: "Base Subsystems and Components"
+lessonId: base-subsystems-and-components
+section: frc
+group: frc-examples
+groupLabel: "Mechanism Components"
+groupOrder: 11
+order: 8
+difficulty: advanced
+duration: 25 min
+description: "The other way to share mechanism code: FRC 254's base-subsystem pattern, where a hood extends a position-controlled subsystem rather than owning a component. What each design costs, and which one GarageDocs uses."
+---
+
+[Composing Mechanism Subsystems](/frc/composing-mechanism-subsystems) argues that a reusable mechanism should be a plain object owned by a subsystem, and gives the reason: if every motor wrapper extends `SubsystemBase`, a command that needs the whole shooter has to collect three separate requirements.
+
+That argument is sound and it is not the only workable answer. FRC 254 built the other one, FRC 2910 run it on their 2026 robot, and both have the results to say it works. A student who reads competition code will meet it, and should recognise it rather than assume it is a mistake.
+
+<RulesBox title="Before you start">
+
+[Composing Mechanism Subsystems](/frc/composing-mechanism-subsystems) for the design this compares against, and [Subsystems](/frc/subsystems) for what `SubsystemBase` and command requirements do.
+
+</RulesBox>
+
+### The other design
+
+Instead of a plain `Pivot` object that a subsystem owns, there is a **base subsystem** that already extends `SubsystemBase` and implements everything a position-controlled mechanism needs. A concrete mechanism extends it.
+
+In FRC 2910's code that base is `ServoMotorSubsystem`, and the hood is four words of declaration:
+
+```java
+public class HoodSubsystem extends ServoMotorSubsystem {
+```
+
+The base class carries the parts every position mechanism shares: motion-magic setpoints, soft limits, conversion between motor rotations and mechanism units, encoder zeroing, and a `home()` routine that drives to a hard stop and resets the encoder there. Its configuration object builds the `TalonFXConfiguration` with the soft limits and brake mode already set:
+
+```java
+// 2910, ServoMotorSubsystemConfig
+return BaseMotorConfig.createMotorConfiguration(sensorRotationsToMechanismUnitsRatio)
+        .withSoftwareLimitSwitch(new SoftwareLimitSwitchConfigs()
+                .withForwardSoftLimitEnable(true)
+                .withForwardSoftLimitThreshold(forwardSoftLimitThreshold)
+                .withReverseSoftLimitEnable(true)
+                .withReverseSoftLimitThreshold(reverseSoftLimitThreshold))
+        .withMotorOutput(new MotorOutputConfigs().withNeutralMode(NeutralModeValue.Brake));
+```
+
+`RollerMotorSubsystem` is the same idea for things that spin: no position goal, no soft limits, effort control.
+
+What the subclass adds is only what is specific to that mechanism. `HoodSubsystem` adds its state machine and its homing constants, and nothing else:
+
+```java
+private static final double HOMING_DUTY_CYCLE = -0.1;
+private static final double HOMING_MECHANISM_VELOCITY_SETPOINT = 0.5;
+private static final double HOMING_SETTLE_TIME_REQUIRED = 0.1;
+private static final double HOMING_DEGREE_TO_RESET_TO = -0.139;
+```
+
+The pattern originates with **FRC 254**, whose `ServoMotorSubsystem` is the ancestor of this one. 2910's repository carries a `FRC Team 254-License.md` at its root, which is how the lineage is recorded.
+
+### What each design costs
+
+<ContentTable
+  headers={["", "Component in a subsystem", "Subsystem extends a base"]}
+  rows={[
+    ["Relationship", "Has-a. The subsystem owns a <code>Pivot</code>.", "Is-a. The hood is a position-controlled subsystem."],
+    ["Command requirements", "One per parent subsystem, whatever it contains", "One per mechanism, so a multi-mechanism action needs several"],
+    ["Two mechanisms in one responsibility", "Natural: the parent owns both and exposes one command factory", "Awkward: they are two subsystems, and something above has to coordinate them"],
+    ["Sharing behaviour", "Write it once in the component, call it from each parent", "Write it once in the base, inherit it"],
+    ["Adding a mechanism", "Construct a component, call its <code>periodic()</code>", "Extend the base, add what differs"],
+    ["Boilerplate per mechanism", "A field, a constructor line, a <code>periodic()</code> call", "A class declaration"],
+    ["Where behaviour is overridden", "Compose differently, or add a method", "Override a method, with the usual inheritance caveats"],
+    ["Reading it cold", "Ownership is visible in the fields", "Behaviour is spread across the class and its parent"]
+  ]}
+/>
+
+The trade is the classic one, and the FRC-specific part is the requirements row. Command requirements are per `Subsystem`, so the choice of what is a subsystem decides what can run in parallel. That is why the composition page argues as it does: a turret, a hood and a flywheel that share one shot solution should be locked as one unit, and that is easiest when they are one subsystem.
+
+The counter is that 2910 do not have that problem, because their `SuperStructure` coordinates the mechanism subsystems and the mechanisms are rarely commanded individually. When a superstructure is doing the coordinating, the requirement granularity matters much less, and the inheritance saves real boilerplate.
+
+### Which to use
+
+**GarageDocs and Cobra use composition.** Cobra's `Intake` owns a `Pivot` and a `Flywheel` as plain objects, the ROBOTZ Garage library is built that way, and every mechanism lesson in this group follows it. That is the house style and it is not changing.
+
+Two honest reasons rather than one:
+
+- **It matches the library that exists.** `SingleRoller`, `Pivot`, `Flywheel` and `Elevator` are already plain components with an IO boundary. Switching would mean rewriting them, and the gain would be boilerplate rather than capability.
+- **It keeps the scheduler boundary where a beginner expects it.** One subsystem is one thing the robot does. A student who has recently learned command requirements can predict what conflicts, and that predictability is worth more in a training codebase than it is on a robot maintained by people who wrote the base class.
+
+**Recognise the other one when you read it.** 254 and 2910's code is some of the best available to learn from, and `extends ServoMotorSubsystem` is not a beginner mistake. If you find yourself writing the same motion-magic-plus-soft-limits-plus-homing block for the fourth mechanism, you have found the problem the base class solves, and the fix inside our design is to push that block down into the component rather than up into a base class.
+
+<RulesBox title="What to take from it either way">
+
+- A homing routine belongs with the mechanism code, not copied into each subsystem.
+- Soft limits and brake mode belong in the shared configuration builder, so no mechanism can forget them.
+- Conversion between motor rotations and mechanism units belongs in one place, whichever place that is.
+- If several mechanisms are always commanded together, something has to own that. A parent subsystem and a superstructure are both valid answers.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/base/servo/ServoMotorSubsystem.java", "note": "The base subsystem: motion-magic setpoints, soft limits, mechanism-unit conversion, encoder zeroing and <code>home()</code>, all on a class extending <code>SubsystemBase</code>."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/base/servo/ServoMotorSubsystemConfig.java", "note": "The configuration builder that sets the soft limits and brake mode for every servo mechanism."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/base/roller/RollerMotorSubsystem.java", "note": "The same idea for effort-controlled mechanisms with no position goal."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/shooter/HoodSubsystem.java", "note": "A concrete mechanism: <code>extends ServoMotorSubsystem</code>, adding only its state machine and homing constants."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/SuperStructure.java", "note": "The object that coordinates the mechanism subsystems, which is why the per-mechanism requirement granularity costs them little."},
+  {"source": "frc254", "path": "src/main/java/com/team254/lib/subsystems/ServoMotorSubsystem.java", "note": "The original, in FRC 254's library, alongside <code>ServoMotorSubsystemWithCanCoder</code> and <code>ServoMotorSubsystemWithFollowers</code>; 2910's repository carries a 254 licence file recording the lineage."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "The composition Cobra uses instead: a subsystem owning a <code>Pivot</code> and a <code>Flywheel</code> as plain objects."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/generic/flywheel/GenericFlywheel.java", "note": "The component design the composition lesson is written from."},
+  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "Command requirements are per subsystem, which is what makes this a design decision rather than a style preference."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Composing Mechanism Subsystems","id":"composing-mechanism-subsystems"},
+  {"label":"Subsystems","id":"subsystems"},
+  {"label":"The Superstructure","id":"superstructure"},
+  {"label":"Pivots","id":"pivot-example"}
+]} />

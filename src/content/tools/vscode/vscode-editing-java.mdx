@@ -10,138 +10,86 @@ difficulty: beginner
 description: "Use Java diagnostics, autocomplete, documentation, refactoring, formatting, and run controls in VS Code."
 ---
 
-### What is underneath
+## Before You Edit
 
-Java extensions run a **language server** that analyzes code and supplies diagnostics, completion, and navigation. Its analysis is separate from the Gradle build, so a clean Problems panel does not guarantee that the project builds.
+Java support runs a **language server**, a background tool that reads the open project and explains the code to VS Code. It supplies completion, navigation, and **diagnostics**, which are the underlines and messages about possible problems. A **Gradle build** is the project's complete compile-and-check task. Editor diagnostics help while you type; a clear Problems panel does not prove that the Gradle build passes.
 
-WPILib includes Java tooling. In a regular VS Code installation, install the **Extension Pack for Java** and a suitable JDK. Follow [Java setup](/java/fundamentals/java-setup) for this curriculum's version requirements.
+Use stock VS Code with the Extension Pack for Java and Java 25 for this site's standalone Java curriculum. Use WPILib VS Code 2026 for a 2026 robot project. WPILib supplies and manages the Java 17 robot toolchain. See [Java Setup](/java/fundamentals/java-setup) and [R00, Run Simulation](/kit-bot/r00-wpilib-setup#step-5-run-simulation).
 
-The Java status item indicates when the project is loading. Some features are unavailable or incomplete until loading finishes. Large dependency sets can make the first load slower.
+Open the full project folder. Wait for Java project loading to finish in the Status Bar before deciding that a missing diagnostic or action means the code is correct.
 
-### Squiggles and the Problems panel
+## Read Diagnostics
 
-Error and warning underlines represent diagnostics from the editor's tools. Hover to read them. Warnings deserve review, but do not all indicate incorrect behavior; an unused variable or deprecated API may need a different response.
+Red or yellow underlines mark editor diagnostics. Hover over an underline to read its message. Open **View → Problems** or use `Ctrl+Shift+M` / `Cmd+Shift+M` to see messages grouped by file. Select a message to open its line.
 
-Open **Problems** (`Ctrl+Shift+M` / `Cmd+Shift+M`) to read diagnostics by file. `F8` moves between them. Fix relevant errors, then run the build to check the project configuration and tasks as well.
-
-Start with the earliest relevant error. One syntax mistake can produce several later messages. Fix it, let diagnostics refresh, and check what remains.
+Start with the earliest relevant error. Fix it, save, and wait for the list to refresh. One missing brace can cause many later messages.
 
 <ContentTable
-  headers={["Message", "Usually means"]}
+  headers={["Message", "First Checks"]}
   rows={[
-    ["<code>cannot find symbol</code> / <code>X cannot be resolved</code>", "A typo in a name, or a missing <code>import</code>. <code>Ctrl+.</code> will offer the import if the class exists"],
-    ["<code>';' expected</code>", "Exactly that, usually at the end of the <em>previous</em> line"],
-    ["<code>incompatible types: double cannot be converted to int</code>", "A double value cannot be assigned directly to an int. Choose the intended type; a cast discards the fractional part and may not be the right fix"],
-    ["<code>missing return statement</code>", "Some path through the method reaches the end without returning"],
-    ["<code>non-static method cannot be referenced from a static context</code>", "You called an instance method from <code>main</code> without an object. See <a href=\"/java/fundamentals/java-static-and-final#static-methods\">static methods</a>"],
-    ["<code>The type X must implement the inherited abstract method</code>", "You wrote <code>implements</code> or <code>extends</code> and have not written every required method. <code>Ctrl+.</code> can add stubs"],
-    ["<code>unreachable code</code>", "A statement after a <code>return</code>, <code>break</code> or <code>throw</code>"]
+    ["<code>cannot find symbol</code> or <code>X cannot be resolved</code>", "Read the missing name and line. Check spelling and capitalization. If it is a class, use the quick-fix menu and verify the package before choosing an import"],
+    ["<code>&apos;;&apos; expected</code>", "Inspect the named line and the end of the previous statement"],
+    ["<code>double cannot be converted to int</code>", "Check the destination type and whether losing the fractional part is intended"],
+    ["<code>missing return statement</code>", "Follow every conditional path and find one that reaches the end without returning"],
+    ["<code>non-static method ... static context</code>", "Check whether the call needs an object; review <a href=\"/java/fundamentals/java-static-and-final#static-methods\">Static Methods</a>"],
+    ["<code>unreachable code</code>", "Look for an earlier <code>return</code>, <code>break</code>, or <code>throw</code>"]
   ]}
 />
 
-### Autocomplete
+## Use Completion and Snippets
 
-Start typing and a list appears; `Tab` or `Enter` accepts the highlighted entry, arrow keys move through it, `Escape` dismisses it. `Ctrl+Space` brings it back if it has gone.
+Start typing, or press `Ctrl+Space`, to open suggestions. Use arrow keys to inspect them, Enter or Tab to accept one, and Escape to close the list. After typing `object.`, read the highlighted method's parameter and return types before accepting it.
 
-Java completion uses type information to suggest members. After `motor.`, inspect the method signature and documentation before accepting an entry. Suggestions depend on the available project information and may include other completion sources.
+The Java extension documents these snippet prefixes: `sysout` or `sout` for `System.out.println`, `main` or `psvm` for a `main` method, `fori` for an indexed array loop, and `foreach` or `iter` for an enhanced loop. A snippet appears as a suggestion. Select it, then press Tab to move through its editable fields. If a prefix does not appear, open the Command Palette and choose **Insert Snippet** to inspect the snippets installed on that computer.
 
-Two things to know:
+Parameter hints show which argument you are filling and the required type. Open them with `Ctrl+Shift+Space` on Windows/Linux or `Cmd+Shift+Space` on macOS. Suggestions can match more than the start of a name, so inspect the full highlighted entry instead of assuming a short abbreviation selected the intended method.
 
-- It filters as you type and matches on **initials**: `gAR` finds `getAllUnreadResults`. You rarely need more than three or four characters.
-- When you accept a method, VS Code inserts the brackets and puts the cursor inside. `Ctrl+Shift+Space` (`Cmd+Shift+Space`) shows **parameter hints**. They identify the current argument and its required type, and reappear after every comma.
+## Hover and Go to Definition
 
-**Snippets** are autocomplete entries that expand into a block. The ones worth knowing in Java: `sysout` → `System.out.println();`, `main` → a main method, `fori` → a counting for loop, `foreach` → an enhanced for loop. Type the snippet name, accept it, and `Tab` moves between the blanks it leaves.
+- Hover over a name to see its type and available documentation.
+- Choose **Go → Go to Definition** or press `F12` on a name. Your code opens at its declaration. A dependency may open attached source or generated/decompiled content, depending on what the dependency supplies.
+- Choose **Go → Go Back** to return if the configured return shortcut is unknown.
+- Choose **Go → Go to References** or press `Shift+F12` before changing a widely used method.
+- Open Explorer and expand **Outline** to select a class, field, or method in the current file.
 
-### Hover and go to definition
+The breadcrumbs above the editor show the file path and the class or method containing the cursor. Select a segment to move among nearby files or symbols. Open **Go to Symbol in Editor** with `Ctrl+Shift+O` / `Cmd+Shift+O` when a long file is easier to search than scroll.
 
-Hover over a name to read its type and available documentation. Add Javadoc to your own methods where callers need to understand behavior, units, or constraints.
+## Review Fixes and Refactors
 
-`F12` on a name opens where it is defined. On your own code that is another file in the project. On library code it opens the source if the library ships it (WPILib does) and otherwise a decompiled view, which can still show what parameters a constructor takes. `Alt+←` (`Ctrl+-` on macOS) brings you back.
+Put the cursor on a diagnostic or symbol and choose the lightbulb, **Refactor...** from the context menu, or `Ctrl+.` / `Cmd+.`. A **quick fix** addresses a specific diagnostic, such as adding an import. A **refactoring** changes code structure while preserving intended behavior, such as renaming a symbol or extracting a method.
 
-`Alt+F12` (`Option+F12`) opens **Peek Definition** in an inline window. Press `Escape` to close it.
+Generated constructors, accessors, `toString`, or equality methods are proposed code. Before saving, read every generated field and parameter, check null and unit assumptions, and confirm that equality matches the class's intended identity. For Rename (`F2`), preview or review all changed references, including tests. Strings, configuration, and code outside the open project may still contain the old name.
 
-`Shift+F12` lists every place a name is **used**. Before you change a method, this tells you what else changes.
+**Organize Imports** sorts imports, removes imports the language server believes are unused, and may offer choices for unresolved classes. Run it through the Command Palette or with `Shift+Alt+O` on Windows/Linux or `Shift+Option+O` on macOS. Review ambiguous classes and the resulting diff before saving. The Keyboard Shortcuts editor is the source of truth when a platform or extension binding differs.
 
-For an interface method, `F12` opens its declaration. `Ctrl+F12` (`Cmd+F12`) finds implementations, such as real and simulated IO classes. [IO Layers](/frc/io-layers#swapping-implementations) explains that robot architecture.
+## Formatting
 
-### Quick fixes and refactoring
+Open the Command Palette and choose **Format Document**. The default shortcuts differ by platform: `Shift+Alt+F` on Windows, `Ctrl+Shift+I` on Linux, and `Shift+Option+F` on macOS. Save, then inspect the diff so formatting does not hide a behavior change.
 
-A lightbulb in the margin, or `Ctrl+.` (`Cmd+.`) anywhere, opens the **code actions** for that spot. What appears depends on where you are:
+The generated Kit Bot project and FRC 4451 competition repositories may use different shared settings and build rules. Follow the files in the project you opened. Do not assume that a formatter configured in Cobra is present in a newly generated project.
 
-<ContentTable
-  headers={["Cursor on", "Offers"]}
-  rows={[
-    ["An unresolved class name", "<em>Import 'Foo' (package)</em>: pick the right package if there are several"],
-    ["A class that <code>implements</code> an interface incompletely", "<em>Add unimplemented methods</em>: stubs for every missing one"],
-    ["A selected block of statements", "<em>Extract to method</em>: pulls it into a new method and replaces it with a call"],
-    ["A repeated expression", "<em>Extract to local variable</em> / <em>constant</em>"],
-    ["A field name", "<em>Generate getters and setters</em>"],
-    ["A class name", "<em>Generate constructors</em>, <em>Generate toString()</em>, <em>Generate hashCode() and equals()</em>"],
-    ["A variable that is only assigned once", "<em>Add final modifier</em>"]
-  ]}
-/>
+## Running a Single File
 
-Two useful refactorings:
+For a supported standalone Java file containing `public static void main(String[] args)`, the Java extension places **Run | Debug** above `main`. Save the file, select **Run**, and look for output in the Terminal. If the links are absent, confirm the file ends in `.java`, Java loading has finished, and the containing folder is open.
 
-**`F2`: Rename.** Uses Java symbol information to update references. Preview or review the edits, particularly when reflection, strings, or code outside the project may refer to the old name.
-
-**`Shift+Alt+O` (`Shift+Option+O`): Organize Imports.** Sorts imports, removes unused ones, and can offer missing imports. Resolve ambiguous class names deliberately. To run on explicit saves, configure `editor.codeActionsOnSave` with `"source.organizeImports": "explicit"`.
-
-### Formatting
-
-**Format Document** applies the selected formatter: `Shift+Alt+F` on Windows, `Shift+Option+F` on macOS, and `Ctrl+Shift+I` on Linux. `editor.formatOnSave` runs formatting when you save.
-
-Use the team's formatter configuration to avoid unrelated whitespace changes. Cobra configures Spotless in `build.gradle` and makes `compileJava` depend on `spotlessApply`, so a build can modify source formatting. Review those changes before committing.
-
-### Navigating a file
-
-- **Outline** (in the Explorer side bar) lists every member of the current file. Click to jump.
-- **Breadcrumbs**: the path along the top of the editor, `frc.robot › subsystems › Drive.java › Drive › arcadeDrive(double, double)`. Click any segment for a dropdown of its siblings.
-- **`Ctrl+Shift+O`** (`Cmd+Shift+O`): the same list as a searchable popup. Type `:` after it to group by kind.
-- **Folding**: the small arrows in the gutter, or `Ctrl+Shift+[` / `]`. `Ctrl+K Ctrl+0` folds everything, which turns a 400-line class into a table of contents.
-
-### Running a single file
-
-For a supported Java file with a `main` method, the Java extensions provide **Run | Debug** links. Standalone files are supported, but open the full project folder when dependencies or build configuration are needed. Use the integrated terminal for examples that read keyboard input, such as `Scanner`.
-
-For a robot project, use the WPILib build and simulation commands rather than treating it as a standalone lesson file. [Kit Bot R00](/kit-bot/r00-wpilib-setup#step-5-simulate-the-robot) covers simulation.
-
-<RulesBox title="Common mistakes">
-
-- **Following every error independently.** Check whether later messages result from an earlier syntax error.
-- **Ignoring warnings.** Read the message and decide whether it affects correctness or maintenance.
-- **Accepting a suggested fix without review.** Check types, imports, and the resulting behavior.
-- **Conflicting formatters.** Use the formatter settings agreed for the project.
-- **Incomplete project loading.** Wait for analysis to finish before interpreting a lack of diagnostics as success.
-
-</RulesBox>
+For robot code, do not use the standalone **Run** link. In WPILib VS Code 2026, open the robot project root and follow [R00, Step 5](/kit-bot/r00-wpilib-setup#step-5-run-simulation). A successful start opens the WPILib simulation controls described there; a compile error remains in the task terminal with a file and line to inspect.
 
 <ExerciseBox title="Practice">
 
-Open a lesson file from [Java Training](/java) in a folder, or a robot project.
-
-1. Delete an `import` line and watch the error appear. Put the cursor on the red name and use `Ctrl+.` to restore it. Then `Shift+Alt+O` and confirm the imports are sorted.
-2. Type `sysout` and accept the snippet. Inside the brackets type `Math.` and read three methods from the autocomplete list you did not know existed.
-3. `F2` on a method name; rename it; `Shift+F12` on the new name to see every call site updated.
-4. Select five lines that belong together and use `Ctrl+.` → *Extract to method*. Read the signature it chose. Every variable the block used from outside became a parameter.
-5. Write a class that `implements Comparable<...>` and nothing else. Use the lightbulb to generate the missing method.
-6. Hover over `System.out.println` and read the documentation without leaving the editor.
+Use a scratch copy of a Java lesson file. Remove one import, save, and read the first Problems message. Use the lightbulb to restore the import only after checking the package. Rename one private method with `F2`, review every edit, then undo. Insert a `sysout` snippet, run the file, and confirm its text appears in the Terminal.
 
 </ExerciseBox>
 
 <Sources items={[
-  {"source": "vscode", "path": "java/java-tutorial", "note": "Java in VS Code and the Extension Pack for Java."},
-  {"source": "vscode", "path": "java/java-editing", "note": "Autocomplete, navigation, quick fixes."},
-  {"source": "vscode", "path": "java/java-refactoring", "note": "Refactoring."},
-  {"source": "vscode", "path": "java/java-project", "note": "Project management and the language server."},
-  {"source": "vscode", "path": "editing/editingevolved", "note": "Go to definition, hover, Problems panel."},
-  {"source": "wpilib", "path": "docs/software/vscode-overview/3rd-party-libraries.html", "note": "Vendordeps the language server resolves."}
+  {"source": "vscode", "path": "java/java-tutorial", "note": "Java setup, project loading, and Run or Debug CodeLens."},
+  {"source": "vscode", "path": "java/java-editing", "note": "Diagnostics, completion, documented Java snippets, navigation, and quick fixes."},
+  {"source": "vscode", "path": "java/java-refactoring", "note": "Java refactoring and generated methods."},
+  {"source": "vscode", "path": "java/java-project", "note": "Project folders, build tools, and language-server project management."},
+  {"source": "wpilib", "path": "docs/zero-to-robot/step-2/wpilib-setup.html", "note": "WPILib's bundled Java and Gradle toolchain and separate VS Code installation."}
 ]} />
 
 <LinkGrid title="Next" section="tools" links={[
   {"label":"VS Code: Debugging","id":"vscode-debugging"},
-  {"label":"Hotkeys: Understanding code","url":"/tools/vscode-keyboard-shortcuts#understanding-code"},
-  {"label":"Packages: why one file is not a project","url":"/java/fundamentals/java-packages-and-project-layout#one-file-is-not-a-project"},
-  {"label":"VS Code docs: Java","url":"https://code.visualstudio.com/docs/java/java-tutorial"}
+  {"label":"VS Code: Java Editing","url":"https://code.visualstudio.com/docs/java/java-editing"},
+  {"label":"Kit Bot R00: Run Simulation","url":"/kit-bot/r00-wpilib-setup#step-5-run-simulation"}
 ]} />
-

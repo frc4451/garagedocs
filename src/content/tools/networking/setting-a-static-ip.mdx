@@ -10,22 +10,27 @@ difficulty: beginner
 description: "Set a static IPv4 address on Windows, macOS, or Linux, verify it, and restore DHCP afterward."
 ---
 
-### When you need one
+Read [How a Network Works](/tools/how-a-network-works) first. For command-line alternatives, complete [Command Line Basics](/tools/command-line-basics). The settings screens and commands below are alternative ways to configure an address; do not perform both methods for the same change.
 
-Use a static address when the network plan requires one, such as a direct connection to a device on a fixed subnet. A `169.254.x.x` address can indicate that DHCP did not supply a lease, but link-local addressing can also be intentional. Confirm the expected configuration before changing it.
+## Before You Change an Address
 
-- **Nothing is handing them out.** A laptop on a cable straight to a device, with no router in between. The symptom is a `169.254.x.x` address. [How a Network Works](/tools/how-a-network-works#addresses) explains why.
-- **Other devices need to find you by number.** A dashboard on the laptop that a device pushes data to.
-- **The network's DHCP is unreliable** and you would rather not wait for it.
+Use a static address only when the network plan requires one, such as a direct connection to a device on a fixed subnet. A `169.254.x.x` address is IPv4 link-local evidence; it does not by itself prove that a static address is required. Diagnose the connection and confirm the expected configuration before changing it.
 
-Get the address, subnet mask, and any gateway or DNS settings from the network administrator or device documentation.
+Before continuing, obtain all of these from the network owner or device documentation:
+
+- the exact laptop IP address and prefix or subnet mask;
+- the adapter or connection to change;
+- the gateway and DNS values, or an explicit instruction to leave each blank;
+- the address of one known test device;
+- permission to interrupt this connection; and
+- a saved record of every current IPv4, gateway, DNS, and route setting you may need to restore.
 
 <ContentTable
   headers={["Setting", "What it is", "Example"]}
   rows={[
-    ["<strong>IP address</strong>", "The address you are claiming. Must be on the same network as the device you want to reach, and not already in use", "<code>10.0.0.20</code>"],
-    ["<strong>Subnet mask</strong>", "Must match what the other devices use. Some screens ask for prefix length instead: <code>255.255.255.0</code> is <code>24</code>, <code>255.0.0.0</code> is <code>8</code>", "<code>255.255.255.0</code> / <code>24</code>"],
-    ["<strong>Gateway</strong> (router)", "Where to send packets for other networks. On a cable straight to one device there is none, so leave it blank", "<code>10.0.0.1</code> or blank"]
+    ["<strong>IP address</strong>", "An unused address assigned by the network plan. For this direct-device exercise, its prefix must place the intended device on the local link. Other networks require a suitable route", "<code>10.0.0.20</code>"],
+    ["<strong>Subnet mask</strong>", "Use the mask specified for this connection. Some screens ask for prefix length instead: <code>255.255.255.0</code> is <code>24</code>, <code>255.0.0.0</code> is <code>8</code>", "<code>255.255.255.0</code> / <code>24</code>"],
+    ["<strong>Gateway</strong> (router)", "Where to send packets for other networks. For an isolated link with no router, leave it blank as directed by the network plan", "<code>10.0.0.1</code> or blank"]
   ]}
 />
 
@@ -33,69 +38,113 @@ DNS may be needed for local names even without internet access. Use the server s
 
 The example below uses `10.0.0.20 / 255.255.255.0`. Substitute the numbers for your network. For an FRC robot, [The Robot Network](/frc/robot-network#which-device-owns-which-address) has them.
 
-### Which connection
+## Choose the Connection
 
-Select the adapter connected to the network you intend to configure. Record its current settings first so you can restore them. Changing the address can interrupt an active connection.
+An **adapter** is the computer's network connection, such as Ethernet or Wi-Fi. A macOS **service** or Linux **profile** holds configuration for a connection. Select the adapter connected to the network you intend to configure. Record its current settings first. Changing the address can interrupt an active connection. Connect or disconnect the intended cable and watch which adapter's status changes; do not change a similarly named adapter by guesswork.
+
+First run only the listing command for your operating system. Find the intended adapter, service, or profile. Before running the remaining commands, replace `Ethernet`, `Wired connection 1`, `en5`, and `enp3s0` with the matching names from that list. Keep quotation marks around names containing spaces.
 
 <CodeTabs>
 <CodeTab label="PowerShell">
 
 ```powershell
 Get-NetAdapter                    # Name and Status of every adapter; note the Name you want
+Get-NetIPConfiguration -InterfaceAlias "Ethernet" -Detailed
+Get-NetIPAddress -InterfaceAlias "Ethernet" -AddressFamily IPv4
+Get-NetRoute -InterfaceAlias "Ethernet" -AddressFamily IPv4
+Get-DnsClientServerAddress -InterfaceAlias "Ethernet" -AddressFamily IPv4
 ```
 
 </CodeTab>
-<CodeTab label="Terminal">
+<CodeTab label="macOS Terminal">
 
 ```bash
-networksetup -listallnetworkservices    # macOS: service names, e.g. "Ethernet", "USB 10/100/1000 LAN"
-nmcli connection show                   # Linux: connection names and the device each one uses
+networksetup -listnetworkserviceorder   # service name and its hardware device, such as en5
+networksetup -getinfo "Ethernet"
+networksetup -getdnsservers "Ethernet"
+networksetup -getsearchdomains "Ethernet"
+networksetup -getadditionalroutes "Ethernet"
+```
+
+</CodeTab>
+<CodeTab label="Linux Terminal">
+
+```bash
+nmcli connection show                   # connection names and the device each one uses
+nmcli connection show "Wired connection 1"
+ip -4 addr show dev enp3s0              # replace enp3s0 with the selected device
+ip -4 route show dev enp3s0
 ```
 
 </CodeTab>
 </CodeTabs>
 
+Copy this output into a text file in a safe folder and label it with the adapter name and date. A screenshot can help with the GUI, but the text record preserves complete addresses and routes. If the named adapter or connection is absent, return to the list and substitute its exact name; do not continue with the examples unchanged.
+
 The commands in the rest of this page are specific to one operating system, so each section shows only its own.
 
-### Windows
+## Windows
 
-**Settings.** *Settings → Network & internet → Ethernet* (or *Wi-Fi → the network's properties*). Find **IP assignment**, click *Edit*, switch from *Automatic (DHCP)* to *Manual*, turn **IPv4** on, and fill in IP address, subnet mask (older builds ask for prefix length instead), and gateway. Save.
+**Settings:**
 
-**PowerShell**, in a window started with *Run as administrator*:
+1. Open **Start → Settings → Network & internet**.
+2. Select **Ethernet**, or select **Wi-Fi → Properties** for the connected network. Confirm the displayed adapter matches the one whose before-state you recorded.
+3. Beside **IP assignment**, select **Edit**. Choose **Manual** and turn **IPv4** on.
+4. Enter the assigned IP address, subnet mask or prefix length, and gateway. Leave gateway blank only when the network plan says there is no router.
+5. Select **Save**. Reopen **IP assignment** and confirm the displayed values before testing another device.
+
+The command-line examples assume this interface originally used automatic IPv4 configuration and that you have saved its settings. If it already has custom addresses or routes, use its settings screen with the network owner to plan the change instead of adding this example on top of them.
+
+**PowerShell:** open Start, type `PowerShell`, right-click the result, and choose **Run as administrator**. An administrator window can change system settings. Use it only for the selected adapter:
 
 ```powershell
 # PrefixLength 24 = 255.255.255.0; use 8 for 255.0.0.0.
 # Add -DefaultGateway 10.0.0.1 if the network has a router.
 New-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 10.0.0.20 -PrefixLength 24
 
-# Check it took:
-Get-NetIPAddress -InterfaceAlias "Ethernet" -AddressFamily IPv4
+# Wait for AddressState Preferred before testing it:
+Get-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 10.0.0.20 |
+  Format-Table IPAddress, PrefixLength, AddressState
 ```
 
-If the address already exists, inspect the adapter's current IPv4 settings before adding or removing an address. Use the GUI to replace an old static configuration when that is clearer.
+`New-NetIPAddress` automatically disables DHCP on that interface when DHCP is enabled. Windows duplicate-address detection can leave the new address unusable briefly; continue only when `AddressState` is `Preferred`. If it becomes `Duplicate`, remove only this attempted address and ask the network owner to assign an unused one. If the address already exists, inspect the adapter's current IPv4 settings before adding or removing an address.
 
-### macOS
+## macOS
 
-**System Settings.** *System Settings → Network → the connection → Details… → TCP/IP*. Change **Configure IPv4** from *Using DHCP* to *Manually*, fill in IP address, subnet mask and router (blank if there is none). *OK*, then *Apply* if asked.
+**System Settings:**
+
+1. Open **Apple menu → System Settings → Network** and select the recorded network service.
+2. Select **Details… → TCP/IP**. Confirm its current address matches the before-state record.
+3. Change **Configure IPv4** from **Using DHCP** to **Manually**.
+4. Enter the assigned IP address and subnet mask. Enter a router only when the network plan supplies one.
+5. Select **OK**, then **Apply** if it appears. Reopen **TCP/IP** and confirm the values.
 
 For a connection without a router, use the settings screen and leave Router blank. The following Terminal example assumes the network has a router at `10.0.0.1`.
 
 **Terminal:**
 
 ```bash
-# Service name from networksetup -listallnetworkservices. The router argument is
-# shown below is a router at 10.0.0.1. Do not use a device address as a substitute router.
+# Service name from networksetup -listnetworkserviceorder.
+# The final argument is the network's router at 10.0.0.1.
+# Do not substitute the target device's address for the router.
 sudo networksetup -setmanual "Ethernet" 10.0.0.20 255.255.255.0 10.0.0.1
 
-# Check it took (en0 is usually the built-in port; a USB adapter may be en5 or higher):
-ifconfig | grep "inet "
+# Check only the chosen service and its recorded hardware device:
+networksetup -getinfo "Ethernet"
+ifconfig en5
 ```
 
-### Linux
+## Linux
 
 These Linux instructions require **NetworkManager**. If your system uses a different network manager, use its documentation.
 
-**Settings.** *Settings → Network → the gear next to the connection → IPv4*. Change **IPv4 Method** to *Manual*, add the address with its netmask and (optionally) gateway, *Apply*, then toggle the connection off and on.
+**Settings:** these labels describe a GNOME-style NetworkManager desktop; other desktops may differ. Use the Terminal alternative only if NetworkManager is installed.
+
+1. Open **Settings → Network** and select the gear beside the connection whose name and device you recorded.
+2. Open **IPv4** and change **IPv4 Method** to **Manual**.
+3. Add the assigned address and prefix. Add a gateway only when the network plan supplies one.
+4. Select **Apply**, then turn that connection off and on.
+5. Reopen its IPv4 page and confirm the displayed values before testing another device.
 
 **Terminal:**
 
@@ -105,11 +154,12 @@ sudo nmcli connection modify "Wired connection 1" ipv4.method manual ipv4.addres
 # Replace the empty gateway with 10.0.0.1 if that is the network's router.
 sudo nmcli connection up "Wired connection 1"
 
-# Check it took:
-ip addr
+# Check only the selected connection and device:
+nmcli connection show "Wired connection 1"
+ip -4 addr show dev enp3s0
 ```
 
-### Check it worked
+## Verify the Address
 
 Check the adapter settings, then test a device whose address you know:
 
@@ -122,21 +172,31 @@ ping 10.0.0.5               # the device you set this up to reach
 ```
 
 </CodeTab>
-<CodeTab label="Terminal">
+<CodeTab label="macOS Terminal">
 
 ```bash
-ifconfig                    # macOS; on Linux:  ip addr
+networksetup -getinfo "Ethernet"
+ifconfig en5                # hardware device recorded for this service
+ping -c 4 10.0.0.5
+```
+
+</CodeTab>
+<CodeTab label="Linux Terminal">
+
+```bash
+nmcli connection show "Wired connection 1"
+ip -4 addr show dev enp3s0
 ping -c 4 10.0.0.5          # the device you set this up to reach
 ```
 
 </CodeTab>
 </CodeTabs>
 
-If ping fails, continue with [Network diagnostics](/tools/network-diagnostics#rung-2-can-i-reach-anything). A correct displayed address does not rule out local routing or firewall problems, and some devices do not answer ping.
+If ping fails, continue with [Test Reachability](/tools/network-diagnostics#rung-2-test-reachability). A correct displayed address does not rule out local routing or firewall problems, and some devices do not answer ping.
 
-### Back to DHCP
+## Restore the Previous Configuration
 
-Restore the previous configuration when you finish. If the adapter normally uses DHCP, use the following procedure. Keep any intentional static configuration documented rather than replacing it automatically.
+Restore the configuration you recorded when you finish. Switching an adapter to DHCP does not necessarily restore earlier static DNS servers, routes, metrics, or additional addresses. The commands below restore automatic IPv4 addressing only. If the before-state record contains other manual values, restore those exact values with the network owner.
 
 **Windows:** *IP assignment → Edit → Automatic (DHCP)*, or in an administrator PowerShell:
 
@@ -145,23 +205,33 @@ Remove-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 10.0.0.20 -Confirm
 # Only if you added this default gateway:
 # Remove-NetRoute -InterfaceAlias "Ethernet" -DestinationPrefix "0.0.0.0/0" -NextHop 10.0.0.1 -Confirm
 Set-NetIPInterface -InterfaceAlias "Ethernet" -AddressFamily IPv4 -Dhcp Enabled
-ipconfig /renew
+# If the before-state showed automatic DNS, also run:
+# Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ResetServerAddresses
+ipconfig /renew "Ethernet"
 ```
+
+Run the DNS reset only if the before-state showed automatic DNS. If it showed manual DNS servers, restore those exact addresses instead. Confirm the selected adapter now reports DHCP enabled and compare its DNS, routes, and additional IPv4 addresses with the saved record.
 
 **macOS:** *Configure IPv4 → Using DHCP*, or:
 
 ```bash
 sudo networksetup -setdhcp "Ethernet"
+# Only if you changed DNS and the saved original used automatic DNS:
+# sudo networksetup -setdnsservers "Ethernet" empty
 ```
 
-**Linux:** *IPv4 Method → Automatic (DHCP)*, or:
+Use `empty` only when the before-state had no manual DNS servers. Otherwise, put the recorded server addresses after the service name. Recheck TCP/IP, DNS, search domains, and additional routes against the saved record.
+
+**Linux:** for an originally automatic profile, choose **IPv4 Method → Automatic (DHCP)**, or use:
 
 ```bash
 sudo nmcli connection modify "Wired connection 1" ipv4.method auto ipv4.addresses "" ipv4.gateway ""
 sudo nmcli connection up "Wired connection 1"
 ```
 
-<RulesBox title="Common mistakes">
+Use that command only for the originally automatic profile described above: it removes the manual address and gateway added by this exercise. It deliberately preserves DNS, search domains, routes, and automatic-setting flags because the example did not change them. If you changed those properties separately, restore each from the saved record. An originally manual profile needs its original manual method and values restored instead. Compare `nmcli connection show "Wired connection 1"`, the selected device address, and its routes with the saved record.
+
+<RulesBox title="Common Mistakes">
 
 - **Setting it on the wrong adapter.** Wi-Fi instead of Ethernet, or the built-in port instead of the USB adapter that is actually plugged in. Check the adapter list first.
 - **An incorrect mask.** Compare the configured mask with the network plan.
@@ -173,9 +243,13 @@ sudo nmcli connection up "Wired connection 1"
 
 <Sources items={[
   {"source": "powershell", "path": "module/nettcpip/new-netipaddress", "note": "<code>New-NetIPAddress</code>: setting a static address from PowerShell."},
+  {"source": "powershell", "path": "module/nettcpip/get-netipconfiguration", "note": "Recording one Windows interface's IP, route, and DNS configuration."},
   {"source": "powershell", "path": "module/nettcpip/get-netipaddress", "note": "Checking the result."},
+  {"source": "powershell", "path": "module/nettcpip/set-netipinterface", "note": "Restoring DHCP on the selected Windows interface."},
+  {"source": "powershell", "path": "module/dnsclient/set-dnsclientserveraddress", "note": "Restoring automatic or recorded DNS servers on Windows."},
   {"url": "https://support.apple.com/guide/mac-help/change-tcp-ip-settings-mchlp2718/mac", "label": "macOS: change TCP/IP settings", "note": "Static addressing in System Settings."},
-  {"url": "https://man7.org/linux/man-pages/man8/ip.8.html", "label": "Linux man page: ip", "note": "<code>ip addr add</code> on Linux."},
+  {"url": "https://networkmanager.dev/docs/api/latest/nm-settings-nmcli.html", "label": "NetworkManager settings reference", "note": "<code>nmcli</code> IPv4 method, addresses, gateway, DNS, and automatic-setting controls."},
+  {"url": "https://man7.org/linux/man-pages/man8/ip.8.html", "label": "Linux man page: ip", "note": "Inspecting the selected Linux device's address and routes."},
   {"source": "wpilib", "path": "docs/networking/networking-introduction/ip-configurations.html", "note": "The <code>10.TE.AM.5</code> / <code>255.0.0.0</code> convention."}
 ]} />
 

@@ -1,0 +1,121 @@
+---
+title: "Step 4: IO and Generated Code"
+lessonId: badge-2-io-and-generated-code
+section: badges
+group: badge-2
+groupLabel: "Badge 2: Intermediate FRC"
+groupOrder: 2
+order: 4
+difficulty: beginner
+description: "Trace AdvantageKit's real, simulation, and replay paths, then add and inspect narrowly scoped Lombok-generated code."
+---
+
+Step 4 teaches two kinds of code the student will read throughout Badge 2. AdvantageKit chooses an IO implementation for the current mode. Lombok writes ordinary Java members during the build. The student traces both processes before relying on them.
+
+## Before You Start
+
+Complete [Step 3: Project Setup](/badges/badge-2-project-architecture). Review [AdvantageKit](/frc/advantagekit), [Physics in the IO Layer](/frc/physics-in-the-io-layer), [Log Replay](/frc/log-replay), and [Lombok](/frc/lombok).
+
+## Guided IO Trace
+
+Start in `KitBotPathPlanner`:
+
+1. Open `Constants.java` and find `currentMode`. On the roboRIO it selects `REAL`; on a desktop it uses the configured simulation mode.
+2. Open `RobotContainer.java`. Trace the `REAL`, `SIM`, and `REPLAY` branches to the object each branch constructs.
+3. Open `Robot.java`. Match each mode to its logger setup.
+4. Draw three short arrows in the evidence notes: mode, constructed IO class, logger source or receiver.
+
+In the 2026 Kit Bot template, the branches construct `DriveIOTalonSRX`, `DriveIOSim`, or an empty `DriveIO() {}`. The logger adds `WPILOGWriter` and `NT4Publisher` for `REAL`, `NT4Publisher` for `SIM`, and a `WPILOGReader` replay source for `REPLAY`.
+
+Repeat the trace in `Badge2Robot`. Its drivetrain uses `ModuleIOTalonFX`, `ModuleIOSim`, or an empty `ModuleIO() {}` in the corresponding branches. The exact surrounding source remains the template version recorded in Step 3.
+
+## Replay a Template Log
+
+Replay needs an existing `.wpilog`; the empty template repository does not supply one. The unmodified v26.0.2 template publishes through NT4 in `SIM` and does not write a simulation log. Use either a short log from a robot running the same template or make the logging-only change below to record a desktop simulation log with the same input schema.
+
+This partial snippet replaces the `SIM` branch of `Robot.java`'s logger setup. The template already imports both receiver classes. Add the writer before `Logger.start()`:
+
+```java
+case SIM -> {
+    Logger.addDataReceiver(new NT4Publisher());
+    Logger.addDataReceiver(new WPILOGWriter("logs"));
+}
+```
+
+Keep `simMode` set to `SIM`, start **Simulate Robot Code**, drive the template chassis for at least ten seconds, and stop the simulation. The new `.wpilog` appears under the project's `logs/` folder. This change adds a file receiver; it does not change the drivetrain IO classes, logged input fields, or control logic. Record the template release and logging-only change in the evidence notes. Keep this writer in the `SIM` branch for later mechanism and autonomous logs. Add it to both badge projects when each needs a saved simulation log; it does not belong in the replay branch, which already writes its replay result.
+
+Set `Constants.simMode` to `REPLAY`. Open the original log in AdvantageScope, then start **Simulate Robot Code**. `LogFileUtil.findReplayLog()` first checks `AKIT_LOG_PATH`, then the file open in AdvantageScope, then prompts for a file. The template disables the simulation GUI by default for replay. A successful run reads the original log with `WPILOGReader` and writes a new file with `_sim` added to its name.
+
+Open the replay result in AdvantageScope. Confirm that the original input table is present and that `ReplayOutputs` advances through the whole log. Restore `Constants.simMode` to `SIM` before the next step. This exercise proves the template path with a known log; the student records their own mechanism logs after Step 6 adds a mechanism.
+
+## Guided Lombok Example
+
+Follow [Lombok: Adding It to a Project](/frc/lombok#adding-it-to-a-project) and use the plugin version supported by the recorded template release. Add the `io.freefair.lombok` plugin to `Badge2Robot`, refresh the Java project, and build before adding annotations.
+
+Create a configuration record with `@Builder` and a separate class with one limited `@Getter`. Keep the annotations focused. Do not add `@Data`, and do not generate a setter for a field that one class owns.
+
+Run the `delombok` task, then open the source and its expanded result under `build/delombok/` side by side. Name the builder methods and getter that Lombok generated. The generated folder is build output and is not committed.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+.\gradlew.bat delombok
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+./gradlew delombok
+```
+
+</CodeTab>
+</CodeTabs>
+
+## Independent Change
+
+Add one optional configuration component to the record. Update the builder call that constructs it, rebuild, run the `delombok` task with the command for the student's operating system, and identify the new generated builder field and method. Then remove a requested setter if it would let another class change owned state directly, and write the public method that expresses the allowed operation instead.
+
+## Rows
+
+| # | Work | Done when |
+|---|---|---|
+| 4.1 | Trace Kit Bot modes | The student points to `REAL`, `SIM`, and `REPLAY` in `KitBotPathPlanner`, names the drivetrain IO each constructs, and matches the logger setup |
+| 4.2 | Trace swerve modes | The student repeats the trace for `Badge2Robot`, including `ModuleIOTalonFX`, `ModuleIOSim`, and replay's empty IO |
+| 4.3 | Complete replay and restore simulation | The supplied or logging-only simulation `.wpilog` runs to completion in `REPLAY`; the generated `_sim` file contains the original inputs and `ReplayOutputs`; `simMode` is restored to `SIM` afterward |
+| 4.4 | Add Lombok | The plugin line is in `Badge2Robot`'s `build.gradle`; the recorded template still builds; VS Code resolves a generated getter |
+| 4.5 | Read generated code | The `delombok` task runs; the student opens one expanded class beside its source and names every generated method |
+| 4.6 | Use Lombok on purpose | One configuration record carries `@Builder`; one class carries a limited `@Getter`; no mechanism or state class carries `@Data` or a generated setter for a field one owner controls |
+
+## Badge Check
+
+<StepsBox title="IO and Generated Code Badge Check">
+
+1. The mentor names one mode in either template. The student points to the branch, constructed IO object, and matching logger setup.
+2. The student switches `Badge2Robot` to simulation, runs it, and identifies the simulation IO selected by the source.
+3. The student opens the recorded template log in AdvantageScope, sets `simMode` to `REPLAY`, runs the whole log, and shows the generated `_sim` file with the original inputs and `ReplayOutputs`. Replay success is required; a source-code explanation alone does not complete this row.
+4. The student runs the `delombok` task with the command for their operating system, opens the generated version of the configuration record, and explains that Lombok ran during the build and produced ordinary Java.
+5. The mentor names one field on a Badge 2 class. The student says whether another class should receive a getter, a setter, or a named operation, and explains who owns the field.
+
+</StepsBox>
+
+If an annotation remains unresolved after the build succeeds, refresh the Java language server and confirm the plugin appears in the same `build.gradle` that WPILib VS Code opened. If replay has no data, confirm that the selected `.wpilog` contains the input table the IO layer records before changing replay code.
+
+<Sources items={[
+  {"source": "advantagekit-templates", "path": "kitbot_2026/src/main/java/frc/robot/Constants.java", "note": "The mode selection used by the Kit Bot trace."},
+  {"source": "advantagekit-templates", "path": "kitbot_2026/src/main/java/frc/robot/RobotContainer.java", "note": "The real, simulation, and replay drivetrain IO construction paths."},
+  {"source": "advantagekit-templates", "path": "kitbot_2026/src/main/java/frc/robot/Robot.java", "note": "The logger receivers and replay source configured per mode."},
+  {"source": "advantagekit", "path": "data-flow/recording-inputs/io-interfaces/", "note": "The IO interface pattern and replay behavior."},
+  {"source": "advantagekit", "path": "getting-started/traditional-replay/", "note": "Selecting the original log, configuring replay mode, and recognizing the generated replay output."},
+  {"url": "https://plugins.gradle.org/plugin/io.freefair.lombok", "label": "io.freefair.lombok Gradle plugin", "note": "The plugin and version history used to match the project build."},
+  {"url": "https://projectlombok.org/features/delombok", "label": "Project Lombok: delombok", "note": "The expanded Java source generated from Lombok annotations."},
+  {"url": "https://projectlombok.org/features/Builder", "label": "Project Lombok: @Builder", "note": "The generated builder used on the configuration record."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Step 5: Testing Fundamentals","id":"badge-2-testing"},
+  {"label":"Step 3: Project Setup","id":"badge-2-project-architecture"},
+  {"label":"Lombok","url":"/frc/lombok"},
+  {"label":"Log Replay","url":"/frc/log-replay"}
+]} title="Next" section="badges" />

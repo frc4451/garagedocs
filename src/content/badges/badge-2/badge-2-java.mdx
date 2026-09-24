@@ -1,0 +1,151 @@
+---
+title: "Step 2: Java Foundations"
+lessonId: badge-2-java
+section: badges
+group: badge-2
+groupLabel: "Badge 2: Intermediate FRC"
+groupOrder: 2
+order: 2
+difficulty: beginner
+description: "The Java references, records, and local practice Badge 2 requires before the student creates a robot project."
+---
+
+Step 2 prepares the Java used throughout Badge 2. The student works in a local `Badge2JavaPractice` folder before creating the badge repository. This keeps the first examples small: they compile with Java 17 and do not need WPILib, GradleRIO, vendor libraries, or robot hardware.
+
+## Prerequisites
+
+Badge 1 already covers classes, interfaces, lambdas, and the A17 IO interface assignment. This step does not require A17 or A22 again. The student reviews the ideas below when needed and completes two focused assignments that prepare them for configuration records and object ownership.
+
+Before A13, review the following:
+
+- [Classes](/java/fundamentals/java-classes)
+- [Objects](/java/fundamentals/java-objects)
+- [Objects and References](/java/fundamentals/java-objects-and-references)
+- [A11: Simple Robot Class](/java/assignments/a11-simple-robot-class), which was completed for Badge 1 and supplies the reduced `Robot` class used by A13. Review that class; do not redo A11.
+
+Before A18, review:
+
+- [Enums and Records](/java/fundamentals/java-enums-and-records)
+- [Generics](/java/fundamentals/java-generics)
+- [Sorting Algorithms](/java/fundamentals/java-sorting-algorithms), for the `Comparable<VisionResult>` requirement
+
+Also review [Functions as Data](/java/fundamentals/java-functions-as-data), [Lambdas](/java/fundamentals/java-lambdas), and [Functional Interfaces](/java/fundamentals/java-functional-interfaces). Later Badge 2 code passes callbacks into commands and logging helpers. A **callback** is code supplied now for another method to call later. A **method reference**, such as `System.out::println`, names an existing method that can serve as that callback.
+
+The required programs must compile for Java 17 because that is the shared baseline for this practice and the 2026 robot project. Follow [Java Setup](/java/fundamentals/java-setup) if `javac` is unavailable. A Java 17 JDK can compile the files directly. If `javac --version` reports Java 25, the `--release 17` option used below tells that newer compiler to accept only Java 17 language features and Java 17 API signatures.
+
+## Guided Example
+
+Create a folder named `Badge2JavaPractice`. Save this complete program as `ConfigPractice.java`:
+
+```java
+import java.util.function.Consumer;
+
+public class ConfigPractice {
+    public record RollerConfig(String name, double reduction) {
+        public RollerConfig {
+            if (name == null || name.trim().isEmpty()) {
+                throw new IllegalArgumentException("name must not be blank");
+            }
+            if (!Double.isFinite(reduction) || reduction <= 0.0) {
+                throw new IllegalArgumentException("reduction must be finite and positive");
+            }
+            name = name.trim();
+        }
+    }
+
+    public static void report(RollerConfig config, Consumer<RollerConfig> callback) {
+        callback.accept(config);
+    }
+
+    public static void main(String[] args) {
+        RollerConfig first = new RollerConfig("  intake  ", 3.0);
+        RollerConfig alias = first;
+        RollerConfig equalValue = new RollerConfig("intake", 3.0);
+
+        System.out.println(first.name());
+        System.out.println(first == alias);
+        System.out.println(first == equalValue);
+        System.out.println(first.equals(equalValue));
+        report(first, System.out::println);
+    }
+}
+```
+
+Compile and run it from that folder:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac --release 17 ConfigPractice.java
+java ConfigPractice
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac --release 17 ConfigPractice.java
+java ConfigPractice
+```
+
+</CodeTab>
+</CodeTabs>
+
+The output is:
+
+```text
+intake
+true
+false
+true
+RollerConfig[name=intake, reduction=3.0]
+```
+
+The first two variables hold references to the same object. `equalValue` refers to a different object whose record components have the same values, so `==` is false and the record's generated `equals` method is true. The compact constructor validates and normalizes every new `RollerConfig` before the record stores its components. `report` receives a `Consumer<RollerConfig>` callback, and `System.out::println` supplies the existing method that the callback calls.
+
+## Independent Change
+
+Add a `double currentLimitAmps` component. Reject values that are non-finite, zero, or negative. Then construct two separate records with the same three values and print the results of `==` and `equals`. Add a `printName(RollerConfig config)` method and pass `ConfigPractice::printName` to `report`. The student writes one sentence explaining why the equality results differ and one sentence explaining when the callback runs.
+
+The A13 and A18 pages normally place work in the Practice repository and request checkpoint commits. Badge 2 overrides that location: save the required files under `Badge2JavaPractice/assignments/` now. Do not create or commit a separate Practice repository for this step. Step 3 copies the folder into `<yourname>Badge02`, where the student makes the badge repository checkpoint.
+
+Complete these assignments inside `Badge2JavaPractice/assignments/`, keeping every source file, prediction, and README note the assignment requires:
+
+| # | Work | Done when |
+|---|---|---|
+| 2.1 | [A13: Reference Semantics Lab](/java/assignments/a13-reference-semantics-lab) | All five experiments run; every prediction and reconciliation remains in the source; the student explains aliasing, reference equality, value equality, and method argument copies |
+| 2.2 | [A18: Records](/java/assignments/a18-records) | Both records pass the supplied checks; validation boundaries are demonstrated; the student names the members Java generates |
+| 2.3 | Demonstrate a callback | `report` accepts a `Consumer<RollerConfig>`; the student passes both `System.out::println` and their own method reference and explains when the supplied method runs |
+| 2.4 | Preserve the practice folder | `Badge2JavaPractice` contains `ConfigPractice.java`, the A13 folder, the A18 folder, and a README that records the commands and results |
+
+A13 and A18 include features supported by Java 17. Do not add code that depends on a later Java release to the required badge version. A student using a later local JDK can still compile the required subset with Java 17 language rules.
+
+## Badge Check
+
+<StepsBox title="Java Foundations Badge Check">
+
+1. The student opens `Badge2JavaPractice` and compiles and runs `ConfigPractice.java` without a robot project.
+2. The mentor changes one constructor input to an invalid value. The student predicts the exception, runs the program, and identifies the validation line.
+3. The student shows the completed A13 work and explains why assigning a new object to a method parameter does not replace the caller's reference.
+4. The student shows the completed A18 work and explains the generated accessors, `equals`, `hashCode`, and `toString`.
+5. The student points to the callback parameter, passes their own method with `ConfigPractice::printName`, and explains that `report` decides when to call it.
+6. The student makes one new record component or validation change, updates the example that uses it, and runs the program again.
+
+</StepsBox>
+
+If a program does not compile, read the first compiler error and its line number. Check the filename against the public class name, then check braces, component types, and constructor calls before changing the design.
+
+<Sources items={[
+  {"url": "https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html#jls-4.3.1", "label": "Java SE 17 JLS §4.3.1: Objects", "note": "Objects, reference values, and null in the language version required by this step."},
+  {"url": "https://docs.oracle.com/javase/specs/jls/se17/html/jls-8.html#jls-8.10", "label": "Java SE 17 JLS §8.10: Record Classes", "note": "Record components, generated members, and compact constructors in Java 17."},
+  {"url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Record.html", "label": "Java SE 17 Record API", "note": "The value-based contract and generated members shared by record classes."},
+  {"url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/function/Consumer.html", "label": "Java SE 17 Consumer API", "note": "The one-argument callback type used by <code>report</code>."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Step 3: Project Setup","id":"badge-2-project-architecture"},
+  {"label":"Step 1: Pretest","id":"badge-2-pretest"},
+  {"label":"Java Fundamentals","url":"/java/fundamentals"},
+  {"label":"Practice Assignments","url":"/java/assignments"}
+]} title="Next" section="badges" />

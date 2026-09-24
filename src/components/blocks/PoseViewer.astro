@@ -1,0 +1,453 @@
+---
+/**
+ * An orbiting diagram of one link in the vision pose chain. `stage` picks which
+ * arrow the reader is steering:
+ *
+ *   robot-to-camera  the mount, from the robot origin to the camera
+ *   camera-to-tag    what the camera measures, in its own frame
+ *   robot-to-tag     the two composed, then carried out to the field
+ *
+ * The maths lives in src/lib/pose-viewer/scene.ts; this file is the markup, the
+ * sliders and the theme tokens.
+ */
+interface Props {
+  stage: 'robot-to-camera' | 'camera-to-tag' | 'robot-to-tag';
+  title: string;
+  caption?: string;
+}
+
+const { stage, title, caption } = Astro.props;
+const uid = `pv-${Math.random().toString(36).slice(2, 9)}`;
+
+/** Slider definitions per stage: id, label, unit, min, max, step, default. */
+const mountControls = [
+  ['x', 'Camera X (forward)', 'm', -0.4, 0.4, 0.01, 0.25],
+  ['y', 'Camera Y (left)', 'm', -0.4, 0.4, 0.01, 0.15],
+  ['z', 'Camera Z (up)', 'm', 0.05, 0.9, 0.01, 0.35],
+  ['yaw', 'Yaw', '°', -180, 180, 1, 20],
+  ['pitch', 'Pitch', '°', -60, 60, 1, -15],
+  ['roll', 'Roll', '°', -60, 60, 1, 0],
+] as const;
+
+const tagControls = [
+  ['tagX', 'Tag distance ahead', 'm', 0.8, 5, 0.05, 2.5],
+  ['tagY', 'Tag left of the robot', 'm', -2.5, 2.5, 0.05, 0.6],
+  ['tagZ', 'Tag height', 'm', 0.3, 2.2, 0.05, 1.2],
+] as const;
+
+const controls =
+  stage === 'robot-to-camera'
+    ? mountControls
+    : stage === 'camera-to-tag'
+      ? [...mountControls.slice(0, 6), ...tagControls]
+      : [...mountControls.slice(0, 6), ...tagControls];
+
+/** Readout rows per stage. */
+const readouts =
+  stage === 'robot-to-camera'
+    ? [['rc', 'RobotToCamera']]
+    : stage === 'camera-to-tag'
+      ? [['ct', 'CameraToAprilTag'], ['ctd', 'Range to the tag']]
+      : [
+          ['rc', 'RobotToCamera'],
+          ['ct', 'CameraToAprilTag'],
+          ['rt', 'RobotToAprilTag'],
+          ['fr', 'FieldToRobot'],
+        ];
+---
+
+<figure class="pose-viewer" id={uid} data-pose-viewer data-stage={stage}>
+  <figcaption class="pose-viewer-title">{title}</figcaption>
+
+  <div class="pose-viewer-body">
+  <div class="pose-viewer-figure">
+  <canvas
+    class="pose-viewer-canvas"
+    data-pv-canvas
+    tabindex="0"
+    role="img"
+    aria-label={`${title}. Drag or use the arrow keys to orbit the view. The numeric values are listed below the diagram.`}
+  ></canvas>
+
+  <div class="pose-viewer-readout" data-pv-readout>
+    {
+      readouts.map(([key, label]) => (
+        <p class="pose-viewer-line">
+          <span class="pose-viewer-key" data-pv-swatch={key}>{label}</span>
+          <code data-pv-value={key}>—</code>
+        </p>
+      ))
+    }
+  </div>
+
+  </div>
+
+  <div class="pose-viewer-controls">
+    {
+      controls.map(([id, label, unit, min, max, step, value]) => (
+        <div class="pose-viewer-control">
+          <label for={`${uid}-${id}`}>
+            {label} <span class="pose-viewer-unit" data-pv-now={id}>{value}{unit}</span>
+          </label>
+          <input
+            id={`${uid}-${id}`}
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            data-pv-input={id}
+            data-pv-unit={unit}
+          />
+        </div>
+      ))
+    }
+  </div>
+  </div>
+
+  <button class="pose-viewer-reset" type="button" data-pv-reset>Reset</button>
+
+  {caption && <p class="pose-viewer-caption">{caption}</p>}
+</figure>
+
+<style>
+  .pose-viewer {
+    --pv-surface: #f4efeb;
+    --pv-grid: #d5cbc3;
+    --pv-chassis: #6f8399;
+    --pv-chassis-fill: rgba(111, 131, 153, 0.16);
+    --pv-front: var(--color-warning);
+    --pv-front-fill: rgba(200, 90, 0, 0.18);
+    --pv-text: var(--color-foreground-primary);
+    --pv-muted: var(--color-foreground-muted);
+    --pv-axis-x: #e00020;
+    --pv-axis-y: #2d7a4f;
+    --pv-axis-z: #2563eb;
+    --pv-camera: #7c3aed;
+    --pv-tag: #0f766e;
+    --pv-arrow-rc: #7c3aed;
+    --pv-arrow-ct: #c2410c;
+    --pv-arrow-rt: #0f766e;
+
+    margin: 2rem 0;
+    padding: 1rem;
+    border: 1px solid var(--color-background-border);
+    border-radius: 0.6rem;
+    background: var(--color-background-secondary);
+  }
+
+  :global([data-theme='dark']) .pose-viewer {
+    --pv-surface: #161d27;
+    --pv-grid: #2f3d4f;
+    --pv-chassis: #8ea3b8;
+    --pv-chassis-fill: rgba(142, 163, 184, 0.18);
+    --pv-front: #ffb454;
+    --pv-front-fill: rgba(255, 180, 84, 0.18);
+    --pv-axis-x: #ff6b6b;
+    --pv-axis-y: #4ade80;
+    --pv-axis-z: #60a5fa;
+    --pv-camera: #c4b5fd;
+    --pv-tag: #5eead4;
+    --pv-arrow-rc: #c4b5fd;
+    --pv-arrow-ct: #fdba74;
+    --pv-arrow-rt: #5eead4;
+  }
+
+  .pose-viewer-title {
+    font-weight: 600;
+    font-size: var(--font-size--normal, 1rem);
+    margin-bottom: 0.6rem;
+    color: var(--color-foreground-primary);
+  }
+
+  /* Controls beside the diagram on wide screens, stacked on narrow ones. */
+  .pose-viewer-body {
+    display: grid;
+    grid-template-columns: minmax(15rem, 20rem) 1fr;
+    gap: 1rem 1.25rem;
+    align-items: start;
+  }
+
+  .pose-viewer-figure {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .pose-viewer-canvas {
+    display: block;
+    width: 100%;
+    height: 340px;
+    border-radius: 0.4rem;
+    background: var(--pv-surface);
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .pose-viewer-canvas:active {
+    cursor: grabbing;
+  }
+
+  .pose-viewer-canvas:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  .pose-viewer-readout {
+    margin: 0.75rem 0 0;
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .pose-viewer-line {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: baseline;
+    font-size: var(--font-size--small, 0.9rem);
+  }
+
+  .pose-viewer-key {
+    font-weight: 600;
+    min-width: 11rem;
+  }
+
+  .pose-viewer-key::before {
+    content: '';
+    display: inline-block;
+    width: 0.65rem;
+    height: 0.65rem;
+    margin-right: 0.4rem;
+    border-radius: 2px;
+    background: currentColor;
+    vertical-align: baseline;
+  }
+
+  .pose-viewer-key[data-pv-swatch='rc'] { color: var(--pv-arrow-rc); }
+  .pose-viewer-key[data-pv-swatch='ct'] { color: var(--pv-arrow-ct); }
+  .pose-viewer-key[data-pv-swatch='ctd'] { color: var(--pv-arrow-ct); }
+  .pose-viewer-key[data-pv-swatch='rt'] { color: var(--pv-arrow-rt); }
+  .pose-viewer-key[data-pv-swatch='fr'] { color: var(--color-foreground-secondary); }
+
+  .pose-viewer-line code {
+    font-family: var(--font-stack--monospace);
+    font-size: 0.85em;
+  }
+
+  .pose-viewer-controls {
+    grid-column: 1;
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-content: start;
+    gap: 0.5rem;
+  }
+
+  .pose-viewer-control label {
+    display: block;
+    font-size: var(--font-size--small, 0.9rem);
+    margin-bottom: 0.15rem;
+  }
+
+  .pose-viewer-unit {
+    color: var(--color-foreground-muted);
+    font-family: var(--font-stack--monospace);
+    font-size: 0.85em;
+  }
+
+  .pose-viewer-control input[type='range'] {
+    width: 100%;
+    accent-color: var(--color-accent);
+  }
+
+  .pose-viewer-reset {
+    margin-top: 0.9rem;
+    font: inherit;
+    font-size: var(--font-size--small, 0.9rem);
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--color-background-border);
+    border-radius: 0.35rem;
+    background: var(--color-background-primary);
+    color: var(--color-foreground-primary);
+    cursor: pointer;
+  }
+
+  .pose-viewer-reset:hover {
+    background: var(--color-background-hover);
+  }
+
+  .pose-viewer-caption {
+    margin: 0.75rem 0 0;
+    font-size: var(--font-size--small, 0.9rem);
+    color: var(--color-foreground-secondary);
+  }
+
+  @media (max-width: 40rem) {
+    /* Controls beside the diagram on wide screens, stacked on narrow ones. */
+  .pose-viewer-body {
+    display: grid;
+    grid-template-columns: minmax(15rem, 20rem) 1fr;
+    gap: 1rem 1.25rem;
+    align-items: start;
+  }
+
+  .pose-viewer-figure {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .pose-viewer-canvas { height: 260px; }
+    .pose-viewer-key { min-width: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* Controls beside the diagram on wide screens, stacked on narrow ones. */
+  .pose-viewer-body {
+    display: grid;
+    grid-template-columns: minmax(15rem, 20rem) 1fr;
+    gap: 1rem 1.25rem;
+    align-items: start;
+  }
+
+  .pose-viewer-figure {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .pose-viewer-canvas { cursor: default; }
+  }
+</style>
+
+<script>
+  import {
+    Painter,
+    type Transform,
+    type Vec3,
+    compose,
+    fmt,
+    invert,
+    norm,
+    orbit,
+    readPalette,
+    rotation,
+  } from '@/lib/pose-viewer/scene';
+
+  // Chassis the diagrams draw, roughly a 28 inch frame with 5 inch bumpers.
+  const CHASSIS = { length: 0.71, width: 0.71, height: 0.15 };
+  const FOV = { h: 70, v: 45 };
+  const TAG_SIZE = 0.165;
+
+  // Where the tag sits on the field, used only to close the chain in the last stage.
+  const FIELD_TO_TAG: Transform = { t: [4.2, 2.6, 1.2], r: rotation(0, 0, 180) };
+
+  function wire(root: HTMLElement) {
+    const found = root.querySelector<HTMLCanvasElement>('[data-pv-canvas]');
+    if (!found) return;
+    const canvas: HTMLCanvasElement = found;
+    const stage = root.dataset.stage ?? 'robot-to-camera';
+    const inputs = [...root.querySelectorAll<HTMLInputElement>('[data-pv-input]')];
+    const view = { az: 35 * Math.PI / 180, el: 28 * Math.PI / 180 };
+    const defaults = new Map(inputs.map((i) => [i.dataset.pvInput!, i.value]));
+
+    const read = (id: string, fallback = 0) => {
+      const input = inputs.find((i) => i.dataset.pvInput === id);
+      return input ? Number(input.value) : fallback;
+    };
+
+    const setValue = (key: string, text: string) => {
+      const el = root.querySelector<HTMLElement>(`[data-pv-value="${key}"]`);
+      if (el) el.textContent = text;
+    };
+
+    const vec = (v: Vec3) => `(${fmt(v[0])}, ${fmt(v[1])}, ${fmt(v[2])}) m`;
+
+    function draw() {
+      const palette = readPalette(root);
+
+      const robotToCamera: Transform = {
+        t: [read('x'), read('y'), read('z')],
+        r: rotation(read('roll'), read('pitch'), read('yaw')),
+      };
+
+      // The tag is positioned relative to the robot in the controls, which keeps
+      // the sliders meaningful; the camera measurement is then derived from it.
+      const tagInRobot: Vec3 = [read('tagX', 2.5), read('tagY', 0.6), read('tagZ', 1.2)];
+      const robotToTag: Transform = { t: tagInRobot, r: rotation(0, 0, 180) };
+      const cameraToTag = compose(invert(robotToCamera), robotToTag);
+
+      const extent =
+        stage === 'robot-to-camera'
+          ? Math.max(CHASSIS.length / 2 + 0.6, Math.abs(read('x')) + 0.7, Math.abs(read('y')) + 0.7, read('z') + 0.7)
+          : Math.max(Math.abs(tagInRobot[0]) + 0.9, Math.abs(tagInRobot[1]) + 0.9, tagInRobot[2] + 0.8, 1.8);
+
+      const p = new Painter(canvas, view, extent, palette);
+      p.floor(Math.min(Math.ceil(extent * 4) / 4, 3));
+      p.chassis(CHASSIS.length, CHASSIS.width, CHASSIS.height);
+
+      const robotFrame: Transform = { t: [0, 0, 0], r: rotation(0, 0, 0) };
+      p.axes(robotFrame, 0.5, true);
+      p.text([0, 0, 0], 'robot origin', palette.muted, 10, 0, 16);
+
+      p.cameraBody(robotToCamera, FOV.h, FOV.v, stage === 'robot-to-camera' ? 0.6 : 1.1, palette.camera);
+      p.dropLine(robotToCamera.t, `${fmt(read('z'))} m up`);
+
+      // The mount arrow is drawn in every stage: it is the one the reader owns.
+      p.arrow([0, 0, 0], robotToCamera.t, palette.robotToCamera, 2.5, stage === 'robot-to-camera' ? 'RobotToCamera' : undefined);
+
+      if (stage === 'robot-to-camera') {
+        // Show the camera's own axes so the rotation half of the transform is visible.
+        p.axes({ t: robotToCamera.t, r: robotToCamera.r }, 0.28, false);
+        setValue('rc', `${vec(robotToCamera.t)}, yaw ${fmt(read('yaw'), 0)}° pitch ${fmt(read('pitch'), 0)}° roll ${fmt(read('roll'), 0)}°`);
+      } else {
+        p.tagPlate(robotToTag, TAG_SIZE, palette.tag, 'AprilTag');
+
+        if (stage === 'camera-to-tag') {
+          p.arrow(robotToCamera.t, tagInRobot, palette.cameraToTag, 2.5, 'CameraToAprilTag');
+          setValue('ct', `${vec(cameraToTag.t)} in camera coordinates`);
+          setValue('ctd', `${fmt(norm(cameraToTag.t))} m`);
+        } else {
+          p.arrow(robotToCamera.t, tagInRobot, palette.cameraToTag, 2, 'CameraToAprilTag');
+          p.arrow([0, 0, 0], tagInRobot, palette.robotToTag, 2.5, 'RobotToAprilTag');
+          const fieldToRobot = compose(FIELD_TO_TAG, invert(robotToTag));
+          setValue('rc', vec(robotToCamera.t));
+          setValue('ct', `${vec(cameraToTag.t)} in camera coordinates`);
+          setValue('rt', `${vec(robotToTag.t)}, ${fmt(norm(robotToTag.t))} m away`);
+          setValue('fr', `${vec(fieldToRobot.t)} on the field`);
+        }
+      }
+
+      p.corner('drag or use the arrow keys to orbit');
+    }
+
+    const sync = () => {
+      for (const input of inputs) {
+        const now = root.querySelector<HTMLElement>(`[data-pv-now="${input.dataset.pvInput}"]`);
+        if (now) now.textContent = `${input.value}${input.dataset.pvUnit ?? ''}`;
+      }
+      draw();
+    };
+
+    for (const input of inputs) input.addEventListener('input', sync);
+    root.querySelector<HTMLButtonElement>('[data-pv-reset]')?.addEventListener('click', () => {
+      for (const input of inputs) input.value = defaults.get(input.dataset.pvInput!) ?? input.value;
+      view.az = 35 * Math.PI / 180;
+      view.el = 28 * Math.PI / 180;
+      sync();
+    });
+
+    orbit(canvas, view, draw);
+    window.addEventListener('resize', draw);
+    if (window.ResizeObserver) new ResizeObserver(draw).observe(canvas);
+    // The site applies its theme as a data attribute on <html>; redraw on a change.
+    new MutationObserver(draw).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    sync();
+  }
+
+  for (const root of document.querySelectorAll<HTMLElement>('[data-pose-viewer]')) wire(root);
+</script>

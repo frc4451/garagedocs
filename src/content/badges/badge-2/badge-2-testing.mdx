@@ -1,0 +1,163 @@
+---
+title: "Step 5: Testing Fundamentals"
+lessonId: badge-2-testing
+section: badges
+group: badge-2
+groupLabel: "Badge 2: Intermediate FRC"
+groupOrder: 2
+order: 5
+difficulty: beginner
+description: "Add a small pure-Java configuration rule and meaningful JUnit tests to Badge2Robot before testing mechanisms in simulation."
+---
+
+Step 5 adds the first automated tests to `Badge2Robot`. These tests exercise pure Java configuration and decision logic, so a failure points to one rule and runs without a simulated motor controller. Mechanism and HAL simulation tests come later in [Unit Tests in Simulation](/frc/unit-tests-in-simulation).
+
+## Verify the Test Setup
+
+Open `Badge2Robot/build.gradle` from the exact AdvantageKit template release recorded in Step 3. AdvantageKit v26.0.2's shared template declares `testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'`, `testRuntimeOnly 'org.junit.platform:junit-platform-launcher'`, and a `test` block that calls `useJUnitPlatform()`. Confirm those lines remain present. If the student used a different recorded release, use that release's original `build.gradle` as the source of truth instead of copying v26.0.2's version.
+
+Also confirm that `wpi.java.configureTestTasks(test)` remains in the build. WPILib documents that Java tests live under `src/test/java/`, and Gradle runs them during a normal robot build.
+
+Record the JUnit dependency text and version in the evidence table. This makes the source of the version reviewable and prevents a later copy from silently introducing a different testing stack.
+
+## Guided Example
+
+Create these two complete files. The package path under `src/main/java/` and `src/test/java/` must match the package declaration.
+
+`src/main/java/frc/robot/config/MechanismLimits.java`:
+
+```java
+package frc.robot.config;
+
+public record MechanismLimits(double minPosition, double maxPosition) {
+    public MechanismLimits {
+        if (!Double.isFinite(minPosition) || !Double.isFinite(maxPosition)) {
+            throw new IllegalArgumentException("limits must be finite");
+        }
+        if (minPosition >= maxPosition) {
+            throw new IllegalArgumentException("minPosition must be less than maxPosition");
+        }
+    }
+
+    public double clamp(double requestedPosition) {
+        if (!Double.isFinite(requestedPosition)) {
+            throw new IllegalArgumentException("requestedPosition must be finite");
+        }
+        return Math.max(minPosition, Math.min(maxPosition, requestedPosition));
+    }
+}
+```
+
+`src/test/java/frc/robot/config/MechanismLimitsTest.java`:
+
+```java
+package frc.robot.config;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import org.junit.jupiter.api.Test;
+
+public class MechanismLimitsTest {
+    @Test
+    public void keepsValueInsideRange() {
+        MechanismLimits limits = new MechanismLimits(0.2, 1.4);
+
+        assertEquals(0.8, limits.clamp(0.8), 1e-9);
+    }
+
+    @Test
+    public void clampsBothEdges() {
+        MechanismLimits limits = new MechanismLimits(0.2, 1.4);
+
+        assertEquals(0.2, limits.clamp(-0.5), 1e-9);
+        assertEquals(1.4, limits.clamp(2.0), 1e-9);
+    }
+
+    @Test
+    public void rejectsReversedAndEqualRanges() {
+        assertThrows(IllegalArgumentException.class, () -> new MechanismLimits(2.0, 1.0));
+        assertThrows(IllegalArgumentException.class, () -> new MechanismLimits(1.0, 1.0));
+    }
+
+    @Test
+    public void rejectsNonFiniteValues() {
+        MechanismLimits limits = new MechanismLimits(0.2, 1.4);
+
+        assertThrows(IllegalArgumentException.class, () -> limits.clamp(Double.NaN));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new MechanismLimits(Double.NEGATIVE_INFINITY, 1.0));
+    }
+}
+```
+
+`@Test` marks a method for JUnit to run. `assertEquals(expected, actual, tolerance)` checks a floating-point result: the expected value comes first, the value returned by the code comes second, and the tolerance permits a small rounding difference. `assertThrows` passes a lambda containing the operation that should fail; the assertion passes only when that operation throws the named exception.
+
+Run the tests, then run the build and open `build/reports/tests/test/index.html`. The report should list four passing tests.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+.\gradlew.bat test
+.\gradlew.bat build
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+./gradlew test
+./gradlew build
+```
+
+</CodeTab>
+</CodeTabs>
+
+These tests cover a normal result, both boundary directions, invalid configuration, and non-finite input. They check behavior that could change during a refactor; they do not repeat the implementation line by line.
+
+## See a Useful Failure
+
+Temporarily change the upper clamp assertion from `1.4` to `1.3`. Run the tests and read the failure's expected value, actual value, test method, and source line. Restore `1.4`, run the tests again, and keep the passing version. The failed run is practice evidence; the incorrect assertion does not remain in the repository. In PowerShell, use `.\gradlew.bat test`; in macOS or Linux terminals, use `./gradlew test`.
+
+## Independent Change
+
+Add one method that answers a new configuration question, such as whether a position is inside the inclusive range. Write tests for a value in the middle, both exact limits, and one value outside each side. Give each test method a name that states the behavior it checks.
+
+## Rows
+
+| # | Work | Done when |
+|---|---|---|
+| 5.1 | Verify JUnit setup | The evidence table records the JUnit Jupiter dependency and version from the preserved template; `useJUnitPlatform()` and `wpi.java.configureTestTasks(test)` remain present |
+| 5.2 | Add pure configuration logic | `MechanismLimits.java` contains the complete validation and clamp behavior; it imports no WPILib or vendor class |
+| 5.3 | Test normal and edge behavior | The four supplied tests pass and the student adds meaningful tests for an independent method |
+| 5.4 | Read a failure and restore it | The student shows the temporary failed result, explains expected versus actual, restores the correct assertion, and shows a passing rerun |
+| 5.5 | Keep the build healthy | The PowerShell or Terminal commands shown above pass for both `test` and `build`; the HTML report is linked from the evidence table or its location is recorded |
+
+## Badge Check
+
+<StepsBox title="Testing Fundamentals Badge Check">
+
+1. The student shows the exact JUnit dependency supplied by the recorded template release and points to `useJUnitPlatform()` and `wpi.java.configureTestTasks(test)`.
+2. The student runs the PowerShell or Terminal test command shown above and opens the report showing all configuration tests passing.
+3. The mentor gives one valid value and one edge value. The student predicts which test covers each and explains the assertion.
+4. The student repeats the temporary failure exercise, reads the useful fields in the failure, restores the assertion, and reruns the tests successfully.
+5. The student changes one rule or boundary in `MechanismLimits`, updates the tests to express the agreed behavior, and completes a passing build with the command for their operating system.
+
+</StepsBox>
+
+If Gradle reports that `org.junit.jupiter` does not exist, first confirm that the test file is under `src/test/java/`, then compare `build.gradle` with the recorded template release. If no tests are found, check the `@Test` imports, package path, and `useJUnitPlatform()` before adding dependencies.
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/unit-testing.html", "note": "JUnit 5 availability, the Java test source set, assertions, test reports, and running tests from WPILib VS Code."},
+  {"url": "https://github.com/wpilibsuite/GradleRIO", "label": "GradleRIO repository", "note": "The official GradleRIO build command behavior, including tests during <code>build</code>."},
+  {"url": "https://github.com/Mechanical-Advantage/AdvantageKit/blob/v26.0.2/template_projects/template/build.gradle", "label": "AdvantageKit v26.0.2 template build.gradle", "note": "The exact JUnit Jupiter 5.10.1 dependency, launcher dependency, JUnit Platform task, and GradleRIO test configuration shipped by the recorded template release."},
+  {"url": "https://junit.org/junit5/docs/current/user-guide/", "label": "JUnit 5 User Guide", "note": "JUnit Jupiter test discovery, annotations, and assertions."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Step 6: One Complete Mechanism","id":"badge-2-first-mechanism"},
+  {"label":"Step 4: IO and Generated Code","id":"badge-2-io-and-generated-code"},
+  {"label":"Unit Tests in Simulation","url":"/frc/unit-tests-in-simulation"}
+]} title="Next" section="badges" />

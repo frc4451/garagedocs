@@ -10,132 +10,170 @@ difficulty: beginner
 description: "Use guides, API references, source code, errors, searches, and clear questions to investigate a problem."
 ---
 
-### A repeatable investigation process
+## Start With Evidence
 
-Experienced programmers do not memorize every library. They identify what they need, find the relevant source, test their interpretation, and record the result. This page provides a repeatable process.
+You do not need to memorize every Java or robot-library method. You need a repeatable way to find accurate information, compare it with the project in front of you, and test what you learned.
 
-### The four kinds of documentation
+When something fails, save the exact message before changing the code. The message, file, line, project version, and action that produced the failure are evidence. They help you separate an observed problem from a guess about its cause.
 
-Documentation may be divided among several sources. Each source answers different questions.
+Before starting, use [VS Code Tour](/tools/vscode-tour) if opening a project folder or finding the editor panels is unfamiliar. [Introduction to Version Control](/tools/introduction-to-version-control) explains repositories and commits. You can read the examples here without running a robot or writing a program.
+
+## Choose a Source
+
+An **API** (application programming interface) describes the operations a library makes available to your code. A **method** is a named operation. A **dependency** is another library or tool your project relies on. Different sources answer different questions. A search result is a route to a source, not evidence by itself.
 
 <ContentTable
-  headers={["Kind", "Answers", "Example"]}
+  headers={["Source", "Use It For", "Check"]}
   rows={[
-    ["<strong>Guide</strong>: prose with examples", "<em>How do I do X?</em> Concepts, walkthroughs, recommended patterns", "<a href=\"https://docs.wpilib.org/\">docs.wpilib.org</a>, <a href=\"https://docs.photonvision.org/\">docs.photonvision.org</a>, <a href=\"https://v6.docs.ctr-electronics.com/\">Phoenix 6 docs</a>"],
-    ["<strong>API reference</strong>: generated from the code", "<em>What exactly does this method take and return?</em> Every class and method, no narrative", "<a href=\"https://github.wpilib.org/allwpilib/docs/release/java/\">WPILib Javadoc</a>, <a href=\"https://api.ctr-electronics.com/phoenix6/latest/java/\">Phoenix 6 Javadoc</a>, <a href=\"https://codedocs.revrobotics.com/java/\">REVLib</a>"],
-    ["<strong>The source</strong>", "<em>What does it actually do?</em> When the docs are thin or you do not believe them", "The library's GitHub repository, or <code>F12</code> in VS Code"],
-    ["<strong>Other people</strong>", "<em>Has anyone else hit this?</em> Questions, bugs, workarounds", "Chief Delphi, the library's GitHub issues"]
+    ["<strong>Guide</strong>", "Learning a workflow or concept from an explanation and examples", "Does the guide cover your library and version?"],
+    ["<strong>API reference</strong>", "Looking up a documented class, constructor, method, parameter, return value, or exception", "Does this page match the dependency in your project? Some references omit undocumented members or provide little explanation."],
+    ["<strong>Source and tests</strong>", "Inspecting how one revision implements or checks behavior when the published documentation is incomplete", "Are you reading the same tag, branch, or commit as the version you use?"],
+    ["<strong>Issue or discussion</strong>", "Finding reports, reproduction steps, maintainer comments, and possible workarounds", "Does the report match your symptoms and version? A closed issue may be fixed, declined, duplicated, or closed as not planned."]
   ]}
 />
 
-Start with a guide for an unfamiliar task. Use the API reference for exact classes, methods, parameters, and versions. Read source and tests when the published explanation is incomplete. Use issue discussions for reported bugs and workarounds, then verify that they match your version.
+Start with a guide when the task is unfamiliar. Use an API reference when you know the class or method and need exact details. Read source and tests when you need implementation evidence. Use issue discussions to form a hypothesis, then confirm it against your project and its version.
 
-### Reading a Javadoc page
+## Look Up a Java Method
 
-Java API documentation commonly uses Javadoc, though each project can customize its content and layout. Open [`SparkMax`](https://codedocs.revrobotics.com/java/com/revrobotics/spark/SparkMax.html) or WPILib's [`PIDController`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/controller/PIDController.html) and locate:
+Suppose you have the text `"auto-ready"` and need to check whether it contains `"ready"`. You can use the Java API reference even if you do not know the method name.
 
-1. **The header.** Package, class name, and what it extends or implements. `extends SubsystemBase` or `implements Sendable` tells you what else the class can do that is not listed on this page. Click the parent.
-2. **The class description.** One to three paragraphs on what the class is *for*. Read it even when you think you know; it often says what the class is *not* for.
-3. **Constructor Summary.** How you make one, and what you must supply. If there are several, the differences are the optional things.
-4. **Method Summary.** Every method in a table: return type on the left, name and parameters in the middle, one line of description. **Scan this table** rather than reading the page top to bottom. It acts as the page's index. Look for the verb you want: `set…`, `get…`, `reset…`, `is…`.
-5. **Method Detail.** Click a method for the full description: what each parameter means, its units, what it returns, what it throws. **Units live here.** For example, `setPosition(double)` in the summary becomes "position in rotations" in the detail. Checking this section prevents many wrong-units bugs.
+1. Open the Java 25 [`String` page](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html). `String` is the class, which means it describes Java text values and the operations available on them.
+2. Use the browser's Find command, `Ctrl+F` on Windows/Linux or `Cmd+F` on macOS, and search for `contains`.
+3. In **Method Summary**, find `boolean contains(CharSequence s)`. A **parameter** is an input to a method. Here, `s` is the text to find. The return type `boolean` means the result is either `true` or `false`.
+4. Open the method name and read **Method Details**. The detail says what counts as a match and lists any documented exceptions or special cases.
+5. Check the documentation version. This page is for Java 25. A robot project may use a different Java version supplied by WPILib.
 
-Also check **Deprecated** notices, **Since** labels, inherited members, and the documentation version. Search boxes and source links vary by site.
+For this example, `contains` reports `true` because `"ready"` occurs inside `"auto-ready"`. `CharSequence` is an input type that accepts text such as a `String`; you do not need to learn interfaces to use this lookup. An **exception** reports a failure while a program runs.
 
-VS Code can show available documentation on hover and in completion. Confirm the project dependency version before assuming the online page matches it.
+The summary is an index of documented members, not a tutorial. The detail for one method may contain a full explanation, a short sentence, or only generated information. Inherited methods may appear in a separate list that links to a parent class.
 
-### Reading a guide page
+A **constructor** creates an object. A **signature** identifies a method or constructor and its input types; **overloads** share a name but accept different input lists. Constructor summaries work the same way. Each constructor signature is a different accepted set of inputs. One overload may offer a convenience default, while another may accept different data or behave differently. Read the detail for each candidate instead of assuming the extra parameters are optional.
 
-Use the documentation navigation and search to locate the topic, then confirm its version:
+VS Code can also show documentation when you hover over a name or choose **Go to Definition**. `F12` is a common default shortcut, but keybindings can change. A dependency may open source, generated information, or decompiled code depending on what the library and editor have available. Confirm behavior in the versioned online reference when the editor view is incomplete.
 
-- **Check the version.** The version switcher (bottom left on WPILib docs, top of the page on most others) should match the library you have. An article from a newer version describes methods you do not have yet; from an older version, methods that have been renamed.
-- **Read the code samples as code, not as pictures.** Type them, do not paste them, and read every line as you go. A sample that uses a constant it never defines, or a class you have not imported, is telling you what else you need.
+## Check the Version
 
-Vendor sites organize guides and API references differently. Identify which type of page you are reading and whether its examples match the installed library version.
+Before using an example, find the dependency version in the project. For a robot project, vendor dependencies are recorded in files under `vendordeps`, and WPILib has its own yearly release. Compare that version with the guide or API page.
 
-### Reading a repository
+On GitHub, a tag marks a point in repository history, and a release can add notes and downloadable files around a tag. Projects choose how they use tags and releases, so a dependency version may not have a matching public release name. Follow the vendor's documentation for mapping an installed version to source.
 
-A repository can provide implementation details, examples, tests, and decision history. Start with its README and build instructions, then inspect the relevant paths:
+## Read a Guide
 
-- **README first.** What it is, how to build it, where to start. If a README does not say how to build the project, expect trouble.
-- **The folder layout says what the author thinks the parts are.** `src/main/java/frc/robot/subsystems` is a promise about what is inside.
-- **`t` on the repository page opens a file finder**; the search box at the top searches code across the repository. Both beat clicking through folders.
-- **Blame** (the button on any file) says who last changed each line and in which commit. Click the commit to read *why*. **History** lists every change to the file.
-- **Issues and pull requests** are where the discussion is. An open issue that matches your problem saves you a day; a closed one usually has the fix in the last comment.
-- **Tags and releases** are the versions. The version in your `vendordeps` file corresponds to one of them, and its source is what `F12` shows you.
+Find the page's prerequisites before copying an example. Check which application or project should be open, which library version it uses, and whether the code is a complete program or only part of one. Read each line and identify names supplied elsewhere, such as imports, constants, or existing objects. Typing a sample yourself is optional; understanding what it requires is the useful step.
 
-### Reading an error before searching for it
+Follow one small part of the example in a practice project, compare the result with the guide, and record any difference. If the page does not explain where the code belongs, look for its surrounding example project or ask a mentor before changing robot code.
 
-<ReferenceImage
-  src="/media/tools/vscode-debugging.png"
-  alt="Visual Studio Code debugger with the variables, call stack, editor, and debug controls visible"
-  caption="When a program stops, read the exception, the first relevant stack frame, and the nearby variable values before changing code."
-  sourceUrl="https://code.visualstudio.com/docs/debugtest/debugging"
-  sourceLabel="Visual Studio Code debugging documentation"
-/>
+## Read a Repository
 
-An error message reports what a tool observed. Read its complete context before searching or changing code:
+Open the repository's **Code** page and read its README, the introductory document usually displayed below the file list. Look for setup instructions, supported versions, and links to documentation. A missing instruction is a gap to resolve, not proof that the project is broken.
 
-1. **Find the first error.** Compilers and build tools cascade: one missing semicolon produces fifteen errors below it. Start with the first relevant error; later messages may be consequences. [Squiggles and the Problems panel](/tools/vscode-editing-java#squiggles-and-the-problems-panel) covers the common Java messages; [Shell Troubleshooting](/tools/shell-troubleshooting#reading-a-java-stack-trace) covers stack traces and Gradle output.
-2. **Read the whole sentence.** `cannot find symbol` is half a message; the next lines say *which* symbol and *where*. `Index 5 out of bounds for length 5` describes the bug: something has five elements and the code asked for the sixth.
-3. **Separate the message from the noise.** File paths, timestamps, thread names and hex addresses are specific to your machine and will match nobody else's search. The words in between are the message.
-4. **Ask what it is a symptom of.** A `NullPointerException` identifies where a null value was used. Trace where that reference was expected to receive a value. The stack trace's *caller* frames say where to look.
+Use **Go to file** to find a known filename. Open the file and inspect nearby declarations and comments. GitHub's [Code Navigation guide](https://docs.github.com/en/repositories/working-with-files/using-files/navigating-code-on-github) explains file navigation and the **Blame** view. Blame identifies changes associated with lines; their commit messages and linked discussions may explain the reason, but the author's name alone does not.
 
-After extracting the error type, relevant name, location, and versions, search for the specific problem.
+Compare the selected branch or tag with your dependency version before treating the file as evidence. Read linked issues, pull requests, and release notes for context. Source shows an implementation in that revision; tests cover particular cases and do not prove every possible use works.
 
-### Searching for relevant answers
+## Read an Error
 
-- **Quote the exact message**, minus the noise from step 3: `"cannot find symbol" "SparkMaxConfig"` finds people with your problem; `spark max not working` finds everyone.
-- **Add the library and the year.** WPILib changes every season; a 2022 answer about `CANSparkMax` may not apply to the current `SparkMax` API. `wpilib 2026` or `phoenix 6` in the query filters most of the stale results.
-- **Evaluate the source.** Prefer current official documentation and API references for defined behavior. Issues and Chief Delphi can explain bugs and field experience; check dates, versions, evidence, and author context.
-- **Search the library's GitHub issues directly** (`is:issue "your message"`). Issues can contain reproduction steps, maintainers' responses, fixes, and version information.
-- **Search the source.** GitHub's code search across `wpilibsuite/allwpilib` for a method name can find implementations and tests. Treat tests as evidence of intended or checked behavior in that revision, not as a complete usage guide.
+VS Code shows diagnostics as underlines in the editor and as entries in the Problems panel. Open **View → Problems**, or press `Ctrl+Shift+M` on Windows/Linux or `Cmd+Shift+M` on macOS. Select a problem to open its file and line. To copy one diagnostic, right-click its Problems entry and choose **Copy Message**. For build output, open **View → Terminal** and choose the terminal that ran the build. Drag across the relevant lines to select them. Copy with `Ctrl+C` on Windows, `Ctrl+Shift+C` on Linux, or `Cmd+C` on macOS. Select the text first: without a selection, `Ctrl+C` can stop a running command. Paste into a new text document and check that the error and its surrounding lines are present.
 
-If results do not match, return to the evidence. Reproduce the issue in the smallest practical example and confirm that the search terms describe the actual failure.
+Start with the first relevant error. One mistake can cause several later messages, so fix or investigate one cause before treating the entire list as separate problems.
 
-### Asking a clear question
+This illustrative compiler output shows a misspelled method name. It assumes a text variable named `mode` already exists. The filename and line number will differ in your project:
 
-When asking a teammate, mentor, or community, provide enough information for someone else to reproduce or narrow the issue:
+```text
+Robot.java:18: error: cannot find symbol
+    boolean ready = mode.contain("ready");
+                        ^
+  symbol:   method contain(String)
+  location: variable mode of type String
+```
+
+Read it from top to bottom:
+
+1. `Robot.java:18` identifies the file and line where the compiler could not continue.
+2. `cannot find symbol` is the error category. A **symbol** is a name in the program, such as a class, variable, or method.
+3. The caret `^` points near the text the compiler could not resolve.
+4. `method contain(String)` says Java looked for a method named `contain` that accepts a `String` input.
+5. `variable mode of type String` says the lookup happened on a `String` value named `mode`.
+
+Those lines establish that the compiler cannot find that method on `String`. They do not yet establish why. Check the spelling in the Java `String` reference. The documented method is `contains(CharSequence s)`, with an `s` at the end. Change the name, rebuild, and use the new result as evidence that the change worked.
+
+A **stack trace** lists the method calls involved in a failure; each listed call is a **frame**. Runtime failures need a similar reading process. For a Java stack trace, read the exception type and message, then find the first relevant frame in code you own. That frame shows where the failure became visible. Caller frames show how execution reached it; the value that caused the problem may have originated earlier. Follow [Read a Java Stack Trace](/tools/shell-troubleshooting#read-a-java-stack-trace) for a worked example.
+
+## Search the Exact Message
+
+Search after you have read and saved the error. Begin with a quoted, distinctive part of the message:
+
+```text
+"cannot find symbol" "method contain(String)" Java
+```
+
+Quotes ask a search engine to keep those words together. If the full query finds nothing, remove one quoted part and keep the error category, missing name, language, and relevant library. Add the season or library version for FRC tools, such as `WPILib 2026` or `Phoenix 6 26.1.0`.
+
+Leave out changing details that will not help another person find the same problem, such as timestamps and your full home-folder path. Keep class names, method names, exception types, and the lines around the failure.
+
+For GitHub issues, use the repository's Issues search and include the exact message. Read the issue's status, closing reason, linked pull requests, comments, affected versions, and evidence. A matching title alone does not show that the same cause applies to your project.
+
+## Ask for Help
+
+Keep one complete local copy of the evidence. When sharing in a public forum, make a second copy and redact private information such as passwords, access tokens, personal names in file paths, private server addresses, and code that FRC 4451 has not made public. Mark replacements clearly, such as `<user>` or `<private address>`, so readers know text was removed. Do not rewrite the technical message or remove version information that someone needs to diagnose the failure.
+
+Include these details when asking a teammate, mentor, or community:
 
 <ContentTable
-  headers={["Include", "Because"]}
+  headers={["Include", "Why It Helps"]}
   rows={[
-    ["<strong>What you are trying to do</strong>, in one sentence", "So the answer can be \"do it differently\" rather than \"here is how to make the wrong approach work\""],
-    ["<strong>The exact error</strong>, as text, not a photo of a screen", "So it can be searched and read. Text is searchable, copyable, and accessible; include an image only when layout or graphics matter"],
-    ["<strong>The smallest code that shows it</strong>, and the versions", "Include the smallest practical reproduction and the relevant WPILib, vendor, Java, and operating-system versions"],
-    ["<strong>What you already tried</strong>, and what happened", "This shows which hypotheses were tested and what evidence remains"]
+    ["<strong>Your goal</strong>, in one sentence", "The helper can check whether a different approach fits the goal."],
+    ["<strong>The exact error as text</strong>", "Text can be searched, copied, and read with accessibility tools. Add an image only when the visual layout matters."],
+    ["<strong>The relevant code and location</strong>", "A small surrounding section gives names and types that the message may leave out."],
+    ["<strong>The versions</strong>", "Java, WPILib, vendor-library, and operating-system versions can change the answer."],
+    ["<strong>What you tried and what changed</strong>", "Observed results distinguish tested ideas from guesses."]
   ]}
 />
 
-After solving the problem, record the environment, observed failure, cause, change, and evidence that the change worked. Link the source that supported the decision and note anything still uncertain.
+Copy this template into your question and replace each bracketed instruction. Paste the error as text below it:
 
-<RulesBox title="Common mistakes">
+```text
+Goal: [What I expected to do]
+Project and versions: [Project, Java, libraries, and operating system]
+Steps: [The actions that produced the problem]
+Expected: [What I expected to see]
+Observed: [What happened, including the exact error]
+Location: [File, line, and relevant code]
+Tried: [One change and its result]
+```
 
-- **Wrong source type.** Use a guide for a workflow and an API reference for exact members and units.
-- **Wrong version.** Compare the documentation version with project dependencies.
-- **Searching machine-specific noise.** Keep the distinctive message, class, and method; omit irrelevant paths and timestamps.
-- **Sharing only an image of text.** Copy errors as text and include an image only when visual layout matters.
-- **Losing the result.** Record the cause, change, versions, and confirming evidence.
+After solving the problem, record the observed failure, cause, change, versions, and check that passed. Link the source that supported the decision. This gives the next student a tested starting point.
+
+<RulesBox title="Investigation Check">
+
+- Save the original error before changing code.
+- Open the named file and line, then read the whole message.
+- Check the official guide or API reference for the project's version.
+- Treat source, tests, and issue discussions as evidence from a specific revision and context.
+- Change one relevant thing, repeat the failing action, and record the result.
+- Keep complete evidence locally and redact private details only in the copy shared publicly.
 
 </RulesBox>
 
 <Sources items={[
-  {"source": "wpilib-javadoc", "note": "The WPILib Javadoc used as the Javadoc-reading example."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/controller/PIDController.html", "note": "The page walked through."},
-  {"source": "wpilib", "note": "WPILib guide pages."},
-  {"source": "ctre-javadoc", "note": "Phoenix 6 Javadoc."},
-  {"source": "ctre", "note": "Phoenix 6 guide pages."},
-  {"source": "revlib", "path": "com/revrobotics/spark/SparkMax.html", "note": "A vendor Javadoc page."},
-  {"source": "photonvision", "note": "PhotonVision docs."},
-  {"source": "wpilib", "path": "docs/software/basic-programming/reading-stacktraces.html", "note": "Reading an error before searching for it."},
-  {"url": "https://www.chiefdelphi.com/", "label": "Chief Delphi", "note": "Where to search and ask."},
-  {"url": "https://docs.github.com/en/get-started/start-your-journey/hello-world", "label": "GitHub: Hello World", "note": "Reading a repository."}
+  {"source": "github", "path": "repositories/working-with-files/using-files/navigating-code-on-github", "note": "Finding files and inspecting line history with Blame."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "The beginner Javadoc lookup, including <code>String.contains</code>, member summaries, constructor overloads, parameters, and return types."},
+  {"source": "java-api", "path": "help-doc.html", "note": "Javadoc navigation, search, and the kinds of declarations an API document can expose."},
+  {"source": "vscode", "path": "editing/editingevolved", "note": "Opening the Problems panel, selecting diagnostics, and editor navigation."},
+  {"source": "vscode", "path": "java/java-editing", "note": "Java hover information and Go to Definition behavior."},
+  {"source": "vscode", "path": "terminal/basics", "note": "Selecting and copying build output from the integrated terminal."},
+  {"url": "https://github.com/microsoft/vscode/issues/133408", "label": "Visual Studio Code issue 133408", "note": "The Problems view's per-diagnostic <strong>Copy Message</strong> action and its limitation to individual messages."},
+  {"source": "github", "path": "issues/tracking-your-work-with-issues/administering-issues/closing-an-issue", "note": "Closed issues can represent completed work or work that is not planned."},
+  {"source": "github", "path": "search-github/searching-on-github/searching-issues-and-pull-requests", "note": "Issue-search qualifiers and quoted searches."},
+  {"source": "github", "path": "repositories/releasing-projects-on-github/about-releases", "note": "The relationship between GitHub releases and Git tags."},
+  {"source": "wpilib", "path": "docs/software/basic-programming/reading-stacktraces.html", "note": "Reading exception types, messages, relevant frames, and caller frames in robot-code stack traces."}
 ]} />
 
 <LinkGrid title="Next" section="tools" links={[
   {"label":"Shell Troubleshooting","id":"shell-troubleshooting"},
   {"label":"VS Code: Editing Java","id":"vscode-editing-java"},
   {"label":"FRC: Cobra Repository Tour","url":"/frc/cobra-repository-tour"},
-  {"label":"WPILib Javadoc","url":"https://github.wpilib.org/allwpilib/docs/release/java/"},
-  {"label":"Chief Delphi","url":"https://www.chiefdelphi.com/"}
+  {"label":"Java 25 String API","url":"https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html"},
+  {"label":"WPILib Java API","url":"https://github.wpilib.org/allwpilib/docs/release/java/"}
 ]} />

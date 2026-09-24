@@ -1,0 +1,176 @@
+---
+title: "Ligaments and Components"
+lessonId: ligaments-and-components
+section: frc
+group: frc-mechanism-visualization
+groupLabel: "Mechanism Visualization"
+groupOrder: 18
+order: 2
+difficulty: intermediate
+duration: 25 min
+description: "The component layer of a mechanism drawing: a class that owns one ligament and one update method, read from Cobra's PivotMechanism and ElevatorMechanism, extended to linear rails, and the reason it owns no canvas and calls no Logger."
+---
+
+A mechanism drawing has two layers, and keeping them apart is what makes the whole thing reusable. This lesson builds the lower one: a small class per component that owns a single ligament and knows how to move it. The next lesson assembles those ligaments into a robot.
+
+### One ligament, one update
+
+Cobra already has this layer. `PivotMechanism` is the entire pattern in thirty lines:
+
+```java
+public class PivotMechanism {
+  @Builder
+  public record PivotMechanismConfig(
+      @NonNull String name, Angle initialAngle, double length, double width, Color8Bit color) {
+    public PivotMechanismConfig {
+      if (initialAngle == null) {
+        initialAngle = Degrees.zero();
+      }
+      if (color == null) {
+        color = new Color8Bit();
+      }
+    }
+  }
+
+  @Getter public final LoggedMechanismLigament2d pivotMech;
+
+  public PivotMechanism(PivotMechanismConfig config) {
+    pivotMech =
+        new LoggedMechanismLigament2d(
+            config.name(),
+            config.length(),
+            config.initialAngle().in(Degrees),
+            config.width(),
+            config.color());
+  }
+
+  public void update(Angle newAngle) {
+    pivotMech.setAngle(newAngle.in(Degrees));
+  }
+}
+```
+
+Three things are worth naming, because each one is a decision rather than an accident.
+
+**The ligament is exposed.** `@Getter public final LoggedMechanismLigament2d pivotMech` hands the raw ligament to whoever holds the component. That is the only way a parent can call `root.append(pivot.getPivotMech())` or hang a second component off this one. A component that hid its ligament could not be composed.
+
+**`update()` takes a unit type, not a double.** `update(Angle)` cannot be handed a distance, and the conversion to degrees happens in one place. `ElevatorMechanism.update(Distance)` is the same idea on the other axis:
+
+```java
+public void update(Distance newHeight) {
+  elevatorMech.setLength(newHeight.in(Meters));
+}
+```
+
+The elevator sets a length where the pivot sets an angle. That is the only difference between the two classes, and it is the difference between the two kinds of motion.
+
+**The config carries the geometry, not the class.** `length`, `width` and `color` arrive from a `PivotMechanismConfig` that lives beside the subsystem's other constants. Ember2024 put the geometry inside the visualizer instead, with a comment admitting the numbers were guesses, and the numbers stayed guesses because nobody editing `IntakeConstants` ever saw them. Constants belong with the constants.
+
+### What the component does not do
+
+`PivotMechanism` has no `LoggedMechanism2d` and no `Logger` call. That is deliberate, and it is the difference between this design and Ember's.
+
+A ligament has to be appended to a parent to appear anywhere. If a component owned its own canvas, every component would be its own picture, and two components on one assembly could never be drawn touching. Ember's `PivotVisualizer` and `ElevatorVisualizer` each build a 3.0 by 3.0 canvas, so the 2024 robot's arm and elevator were two separate drawings of two separate robots.
+
+The logging follows the same rule. If each component logged itself, a four-component subsystem would write four trees per loop and you would drag four entries onto the Mechanism tab to see one arm. One canvas per subsystem means one key and one call.
+
+<RulesBox title="The component contract">
+
+- Owns exactly one `LoggedMechanismLigament2d`, exposed for a parent to append.
+- Takes its geometry from a config record, alongside the subsystem's other constants.
+- Has one `update()` that accepts the same unit type the component's goal uses.
+- Constructs no `LoggedMechanism2d` and calls no `Logger` method.
+
+</RulesBox>
+
+### The linear rail
+
+[Mechanism Components](/frc/linear-rail-example) builds a horizontal rail alongside the pivot and elevator, and Cobra's library has no mechanism class for it. The missing class is an elevator rotated onto its side, so it sets a length in exactly the same way. Only the angle it is appended at differs, and that belongs to the parent rather than the component.
+
+This class does not exist in Cobra today. It is proposed code, written to the same contract:
+
+```java
+// Proposed. No equivalent exists in the ROBOTZ Garage library yet.
+public class LinearRailMechanism {
+  @Builder
+  public record LinearRailMechanismConfig(
+      @NonNull String name, Distance initialPosition, double width, Color8Bit color) {
+    public LinearRailMechanismConfig {
+      if (initialPosition == null) {
+        initialPosition = Meters.zero();
+      }
+      if (color == null) {
+        color = new Color8Bit();
+      }
+    }
+  }
+
+  @Getter public final LoggedMechanismLigament2d railMech;
+
+  public LinearRailMechanism(LinearRailMechanismConfig config) {
+    railMech =
+        new LoggedMechanismLigament2d(
+            config.name(),
+            config.initialPosition().in(Meters),
+            0.0,
+            config.width(),
+            config.color());
+  }
+
+  public void update(Distance newPosition) {
+    railMech.setLength(newPosition.in(Meters));
+  }
+}
+```
+
+The config drops `length` and gains `initialPosition`, because on a rail the length is the measurement rather than a fixed dimension. The angle is fixed at 0 so the rail runs along its parent's direction, and a parent that wants it vertical appends it to a ligament that already points up.
+
+### A carriage that travels without stretching
+
+`setLength` grows a ligament from its anchor, which draws an elevator correctly and draws a carriage on a rail wrongly. A carriage keeps its size and moves along the rail. Riptide solves this with a ligament that has a length but no line weight:
+
+```java
+// Riptide: an invisible spacer that positions the pivot along the elevator
+coralPosition =
+    new LoggedMechanismLigament2d(
+        "coralPosition",
+        MechanismConstants.coralPositionOffset,
+        0.0,
+        0.0, // Hides the line
+        new Color8Bit(Color.kWhite));
+elevator.append(coralPosition);
+coralPivot = ...;
+coralPosition.append(coralPivot);
+```
+
+A width of `0.0` draws nothing, so the ligament contributes an offset and no ink. Changing its length slides everything appended after it. The comment left in Riptide's source next to this code asks why there are no plain nodes with offsets, which is a fair complaint: the spacer exists because a ligament is the only positioning primitive the API offers.
+
+Use a spacer whenever a component sits at a distance from its parent's anchor rather than starting at it. A carriage on a rail, a roller mounted partway along an arm, and a shooter hood offset from the turret's pivot all need one.
+
+### Where the numbers come from
+
+Every length in this layer is a real dimension on the robot, and a drawing is only worth trusting if they match. Take them from the CAD model, not from a tape measure held against a moving assembly, and convert once:
+
+- **Pivot length:** the distance from the pivot axis to the far end of the arm. Cobra's intake uses `Units.inchesToMeters(12.0)` against a `PivotConfig` whose `armLength` is `Feet.of(1)`, so the drawing and the physics model agree.
+- **Elevator length:** the carriage travel, added to a fixed offset for the stage that never moves. Riptide adds measured height to `elevatorInitialHeight` rather than setting it alone, so the drawing starts at the real resting height.
+- **Line weight:** unrelated to the robot. It is screen thickness, and the next lesson uses it to tell overlaid drawings apart.
+
+If the drawn arm and the real arm disagree at the same encoder reading, the length or the initial angle is wrong. That check is worth running once on hardware, because after it passes the drawing becomes a tool you can trust to tell you about the robot.
+
+<Sources items={[
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/pivot/PivotMechanism.java", "note": "The component pattern read line by line: a config record, one exposed ligament, one <code>update(Angle)</code>."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/ElevatorMechanism.java", "note": "The same contract setting a length from a <code>Distance</code> instead of an angle."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/IntakeConstants.java", "note": "Geometry kept with the subsystem constants: a 12 inch drawn arm against a <code>Feet.of(1)</code> physics arm."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/superstructure/mechanism/SuperStructureMechanism.java", "note": "The zero-width spacer ligament used to offset a child component, and the source comment about it."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/superstructure/mechanism/MechanismConstants.java", "note": "The offset and initial height constants the spacer and elevator read."},
+  {"source": "ember", "path": "src/main/java/frc/robot/subsystems/elevator/ElevatorVisualizer.java", "note": "The 2024 approach that put a canvas and hardcoded geometry inside the component class."},
+  {"source": "advantagekit", "path": "javadoc/org/littletonrobotics/junction/mechanism/LoggedMechanismLigament2d.html", "note": "<code>setAngle</code>, <code>setLength</code> and the line weight argument."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Mechanisms per Subsystem","id":"mechanisms-per-subsystem"},
+  {"label":"What a Mechanism Drawing Shows","id":"what-a-mechanism-drawing-shows"},
+  {"label":"Pivots","id":"pivot-example"},
+  {"label":"Elevators","id":"elevator-example"},
+  {"label":"Linear Rails","id":"linear-rail-example"}
+]} />

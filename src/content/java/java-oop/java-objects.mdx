@@ -7,215 +7,230 @@ groupLabel: "Object-Oriented Programming"
 groupOrder: 4
 order: 2
 difficulty: intermediate
-duration: 20 min
+duration: 30 min
 description: "Creating objects with new, giving each its own state, sharing behaviour through the class, and what happens when an object is passed to a method."
 ---
 
-### Creating and using objects
+## Create Separate Objects
 
-<ReferenceImage
-  src="/media/java/java-object.png"
-  alt="Software object represented by fields for state and methods for behavior"
-  caption="Each object keeps state in fields and exposes behavior through methods."
-  sourceUrl="https://dev.java/learn/oop/"
-  sourceLabel="official Dev.java tutorial"
-  contain
-/>
+The [Classes](/java/fundamentals/java-classes) lesson introduced fields, constructors, `new`, and instance methods. An **object** is one instance of a class. Each use of `new` creates a separate object and returns a reference that identifies it.
 
-An object is an **instance** of a class: one concrete thing built from the class's definition. You create one with `new` followed by a constructor call. Each object has its own state (the values in its fields) and shares the behaviour (the methods) defined by its class.
+The complete program below creates two `Robot` objects. This small class is only an educational data model: its name and task count are stored values, not data measured from hardware, and its methods do not control a physical robot.
 
-### Object instantiation
+`Robot` is nested inside `Main` so the browser playground can run the example as one file. The `static` on the nested class only allows `main` to create a `Robot` without first creating a `Main`; each `Robot` still has its own instance fields.
 
-```java norun
-// Creating objects from a class
-FRCRobot robot1 = new FRCRobot("CompetitionBot", 12345);
-FRCRobot robot2 = new FRCRobot("PracticeBot", 67890);
-FRCRobot robot3 = new FRCRobot("BackupBot", 11111);
+In the browser, select **Run** beneath the complete program. To run it locally, replace the entire contents of `Main.java`, save the file, and follow [Compile And Run](/java/fundamentals/java-setup#compile-and-run).
 
-// Each object has its own state
-robot1.setBatteryLevel(95.0);
-robot2.setBatteryLevel(60.0);
-robot3.setBatteryLevel(100.0);
+```java
+public class Main {
+    public static class Robot {
+        private String name;
+        private int taskCount;
 
-// All objects share the same methods
-robot1.activate();
-robot2.activate();
-robot3.runDiagnostics();
+        public Robot(String name, int taskCount) {
+            this.name = name;
+            this.taskCount = taskCount;
+        }
 
-System.out.println(robot1);  // Uses toString method
-System.out.println(robot2);
-System.out.println(robot3);
-```
+        public void setTaskCount(int taskCount) {
+            this.taskCount = taskCount;
+        }
 
-### Object state and behavior
+        public String status() {
+            return name + " tasks: " + taskCount;
+        }
+    }
 
-Each object keeps its own **state** in its instance variables, while every object of the class shares the same **behaviour** through its methods. Two `Robot` objects have the same methods and different field values.
-
-### Multiple objects example
-
-```java norun
-public class RobotDemo {
     public static void main(String[] args) {
-        // Create three different robot objects
-        FRCRobot speedBot = new FRCRobot("SpeedBot", 1001);
-        FRCRobot strongBot = new FRCRobot("StrongBot", 1002);
-        FRCRobot precisionBot = new FRCRobot("PrecisionBot", 1003);
-        
-        // Each robot can have different configurations
-        speedBot.setMaxSpeed(100);
-        speedBot.setBatteryLevel(85);
-        
-        strongBot.setMaxSpeed(60);
-        strongBot.setBatteryLevel(95);
-        strongBot.setLiftCapacity(50);
-        
-        precisionBot.setMaxSpeed(40);
-        precisionBot.setBatteryLevel(90);
-        precisionBot.enablePrecisionMode(true);
-        
-        // All robots can perform the same actions
-        speedBot.activate();
-        strongBot.activate();
-        precisionBot.activate();
-        
-        // But their behavior might differ based on their state
-        speedBot.moveForward(10);    // Moves fast
-        strongBot.liftObject();      // Uses high lift capacity
-        precisionBot.moveToCoordinate(15.5, 22.3);  // Precise movement
-        
-        // Display each robot's current state
-        System.out.println(speedBot);
-        System.out.println(strongBot);
-        System.out.println(precisionBot);
+        Robot practiceBot = new Robot("Practice", 2);
+        Robot competitionBot = new Robot("Competition", 5);
+
+        practiceBot.setTaskCount(3);
+
+        System.out.println(practiceBot.status());
+        System.out.println(competitionBot.status());
     }
 }
 ```
 
-### Understanding object references
+The output is:
 
-A variable of an object type does not contain the object. It contains a **reference** to where the object is in memory. Several variables can hold references to the same object, and a change made through one is visible through all of them.
+```text
+Practice tasks: 3
+Competition tasks: 5
+```
 
-### Object references explained
+Both objects use the fields and methods declared by `Robot`, but their field values are independent. Changing `practiceBot` does not change `competitionBot`.
 
-```java norun
-// Create one robot object
-FRCRobot mainRobot = new FRCRobot("TeamBot", 12345);
+## Store And Copy References
 
-// Create another reference to the SAME robot object
-FRCRobot robotAlias = mainRobot;
+A **class-type variable** is a variable whose declared type names a class. For example, `Robot first` declares `first` with the class type `Robot`. A class-type variable stores a **reference**, a value that identifies an object. Assigning one reference variable to another copies that value. It does not create another object.
 
-// Both variables point to the same object
-mainRobot.setBatteryLevel(75);
-System.out.println(robotAlias.getBatteryLevel());  // Prints 75!
+Replace `Main.java` with this complete program:
 
-// Changes through either reference affect the same object
-robotAlias.setMaxSpeed(80);
-System.out.println(mainRobot.getMaxSpeed());  // Prints 80!
+```java
+public class Main {
+    public static class Robot {
+        private String name;
+        private int taskCount;
 
-// Comparing references vs. creating new objects
-FRCRobot robot1 = new FRCRobot("Bot1", 1111);
-FRCRobot robot2 = new FRCRobot("Bot2", 2222);
-FRCRobot robot3 = robot1;  // Same reference as robot1
+        public Robot(String name, int taskCount) {
+            this.name = name;
+            this.taskCount = taskCount;
+        }
 
-System.out.println(robot1 == robot2);  // false (different objects)
-System.out.println(robot1 == robot3);  // true (same object)
-System.out.println(robot2 == robot3);  // false (different objects)
+        public void setTaskCount(int taskCount) {
+            this.taskCount = taskCount;
+        }
 
-// null reference - doesn't point to any object
-FRCRobot nullRobot = null;
-if (nullRobot != null) {
-    nullRobot.activate();  // This would cause NullPointerException!
-} else {
-    System.out.println("Robot reference is null");
+        public String status() {
+            return name + " tasks: " + taskCount;
+        }
+    }
+
+    public static void main(String[] args) {
+        Robot first = new Robot("Practice", 2);
+        Robot alias = first;
+
+        alias.setTaskCount(3);
+
+        System.out.println(first.status());
+        System.out.println(alias.status());
+        System.out.println(first == alias);
+    }
 }
 ```
 
-<RulesBox title="Object reference rules">
+The output is:
 
-- A variable stores a reference, not the object
-- Many variables can refer to the same object
-- A reference can be `null`, meaning it refers to nothing
-- `==` compares references; `.equals()` compares content
-- A change made through any reference is visible through every reference to that object
+```text
+Practice tasks: 3
+Practice tasks: 3
+true
+```
+
+Only one `Robot` object exists. `first` and `alias` both identify it, so a change made through either variable is visible through the other.
+
+## Compare References
+
+For class types, `==` answers one narrow question: do these two values refer to the same object, or are both values `null`? Two separately created objects are different objects even when their fields currently hold matching values.
+
+Add these statements at the end of `main` in the previous program:
+
+```java norun
+Robot sameValues = new Robot("Practice", 3);
+
+System.out.println(first == alias);       // true: one object
+System.out.println(first == sameValues);  // false: two objects
+```
+
+Do not assume that `equals` always compares field contents. Every class inherits an `equals` method from `Object`, and that default method treats two references as equal only when they identify the same object. A class can define a different meaning for `equals`. A later lesson develops object comparison after you learn more about references.
+
+## Use Null Carefully
+
+A class-type variable can hold `null`, which means it does not refer to an object. Calling an instance method through `null` causes a `NullPointerException`.
+
+This guarded example does not call a method unless the reference identifies an object:
+
+```java
+public class Main {
+    public static class Robot {
+        public void printReady() {
+            System.out.println("Ready");
+        }
+    }
+
+    public static void main(String[] args) {
+        Robot selectedRobot = null;
+
+        if (selectedRobot != null) {
+            selectedRobot.printReady();
+        } else {
+            System.out.println("No robot selected");
+        }
+    }
+}
+```
+
+The output is `No robot selected`. Removing the guard and evaluating `selectedRobot.printReady()` would cause the exception.
+
+## Pass A Reference Value
+
+The [Parameters And Arguments](/java/fundamentals/java-methods#parameters-and-arguments) section established that Java copies each argument's value into its parameter. An object argument follows the same rule: Java copies the reference value. The parameter and the caller's variable then identify the same object, so the method can call that object's methods and change its state.
+
+Replace `Main.java` with this complete program:
+
+```java
+public class Main {
+    public static class Robot {
+        private String name;
+        private int taskCount;
+
+        public Robot(String name, int taskCount) {
+            this.name = name;
+            this.taskCount = taskCount;
+        }
+
+        public void setTaskCount(int taskCount) {
+            this.taskCount = taskCount;
+        }
+
+        public String status() {
+            return name + " tasks: " + taskCount;
+        }
+    }
+
+    public static void updateRobot(Robot robot) {
+        robot.setTaskCount(10);
+        robot = new Robot("Temporary", 99);
+    }
+
+    public static void main(String[] args) {
+        Robot practiceBot = new Robot("Practice", 2);
+
+        updateRobot(practiceBot);
+
+        System.out.println(practiceBot.status());
+    }
+}
+```
+
+The output is `Practice tasks: 10`. The call first copies the reference stored in `practiceBot` into the parameter `robot`, so `robot.setTaskCount(10)` changes the object that the caller can see. The next assignment makes only the local parameter identify a new `Robot`. It does not change the reference stored in `practiceBot`, so the caller still identifies the original object with a task count of 10. Java passes the argument **by value** because it copies the reference value itself.
+
+<RulesBox title="Object Reference Rules">
+
+- Each `new` expression creates a separate object.
+- A class-type variable stores a reference that identifies an object, or it stores `null`.
+- Copying a non-null reference into another variable makes both variables identify the same object.
+- For references, `==` is true when both values identify the same object or when both are `null`.
+- A method parameter receives a copy of the argument's reference value.
 
 </RulesBox>
 
-### Objects as method parameters
-
-When you pass an object to a method, the method receives a copy of the reference, not a copy of the object. The method can change the object's state, and the caller sees the change.
-
-### Objects as parameters
-
-```java norun
-public class RobotManager {
-    
-    // Method that takes robot objects as parameters
-    public void initializeRobot(FRCRobot robot, String configuration) {
-        System.out.println("Initializing " + robot.getName() + " with " + configuration);
-        
-        robot.setBatteryLevel(100);  // Modify the robot object
-        robot.activate();
-        
-        if (configuration.equals("competition")) {
-            robot.setMaxSpeed(90);
-            robot.enableCompetitionMode(true);
-        } else if (configuration.equals("practice")) {
-            robot.setMaxSpeed(60);
-            robot.enableSafetyLimits(true);
-        }
-        
-        System.out.println("Robot initialization complete");
-    }
-    
-    // Method that compares two robot objects
-    public void compareRobots(FRCRobot robot1, FRCRobot robot2) {
-        System.out.println("Comparing robots:");
-        System.out.println(robot1.getName() + " vs " + robot2.getName());
-        
-        if (robot1.getBatteryLevel() > robot2.getBatteryLevel()) {
-            System.out.println(robot1.getName() + " has higher battery");
-        } else if (robot1.getBatteryLevel() < robot2.getBatteryLevel()) {
-            System.out.println(robot2.getName() + " has higher battery");
-        } else {
-            System.out.println("Both robots have equal battery levels");
-        }
-    }
-    
-    // Method that works with an array of robot objects
-    public void manageRobotTeam(FRCRobot[] robotTeam) {
-        System.out.println("Managing team of " + robotTeam.length + " robots:");
-        
-        for (int i = 0; i < robotTeam.length; i++) {
-            FRCRobot robot = robotTeam[i];
-            
-            if (robot != null) {
-                if (robot.getBatteryLevel() < 30) {
-                    System.out.println("⚠️ " + robot.getName() + " needs charging!");
-                    robot.returnToBase();
-                } else if (!robot.isActive()) {
-                    System.out.println("▶️ Activating " + robot.getName());
-                    robot.activate();
-                } else {
-                    System.out.println("✅ " + robot.getName() + " is ready");
-                }
-            } else {
-                System.out.println("❌ Robot slot " + i + " is empty (null)");
-            }
-        }
-    }
-}
-```
+Read [Objects And References](/java/fundamentals/java-objects-and-references) next for a deeper reference model.
 
 <JavaPlayground id="java-objects" />
 
+The playground supplies `Bot` and `Main` together. A **package** is a group of related Java classes. Because the supplied `Bot` constructor and `name` field have no access modifier, code in the same package can use them, so `main` can create a `Bot` and read `name` directly. Complete only `main`. In classes you design, prefer private fields and public methods when the class should control access to its state.
+
+<ExerciseBox title="Practice">
+
+1. Complete the playground by creating separate `Bot` objects named `Alpha` and `Beta`, then print each supplied `name` field.
+2. In the first complete example, create a third `Robot` named `Backup` with a task count of 0 and print its status.
+3. Predict the result of `practiceBot == competitionBot`, then run the code and explain the result in terms of how many objects `new` created.
+4. Make an alias for `practiceBot`, change the task count through the alias, and confirm that both variables report the same state.
+
+</ExerciseBox>
+
 <Sources items={[
-  {"source": "csce145", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "classes-objects/creating-objects/", "note": "Creating objects."},
-  {"source": "java-tutorial", "path": "java/javaOO/objectcreation.html", "note": "Object creation."},
-  {"source": "jls", "path": "jls-15.html", "note": "Class instance creation (section 15.9)."},
-  {"source": "jls", "path": "jls-4.html", "note": "Reference types (section 4.3)."},
-  {"source": "java-api", "path": "java.base/java/lang/Object.html", "note": "<code>Object</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/Objects.html", "note": "<code>Objects</code> API reference."}
+  {"source":"csce145","label":"Course Materials","note":"The course whose structure this lesson follows."},
+  {"source":"dev-java","path":"classes-objects/creating-objects/","label":"Creating And Using Objects","note":"Creating separate objects with new, constructor initialization, fields, method calls, and multiple references to one object."},
+  {"source":"jls","path":"jls-15.html#jls-15.9","label":"JLS §15.9: Class Instance Creation Expressions","note":"The new expression creates a class instance and produces a reference to that object."},
+  {"source":"jls","path":"jls-4.html#jls-4.3.1","label":"JLS §4.3.1: Objects","note":"Class instances are objects, and reference values point to objects or are null."},
+  {"source":"jls","path":"jls-15.html#jls-15.12.4.2","label":"JLS §15.12.4.2: Evaluate Arguments","note":"Method invocation creates parameter variables and initializes each with its argument value."},
+  {"source":"jls","path":"jls-15.html#jls-15.21.3","label":"JLS §15.21.3: Reference Equality Operators","note":"Reference equality is true when both values are null or refer to the same object."},
+  {"source":"java-api","path":"java.base/java/lang/Object.html#equals(java.lang.Object)","label":"Object.equals","note":"The inherited Object implementation uses the same-object relation; subclasses may override it with another equality relation."},
+  {"source":"java-api","path":"java.base/java/lang/NullPointerException.html","label":"NullPointerException","note":"Invoking an instance method through a null reference causes this runtime exception."}
 ]} />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Objects and References", "id": "java-objects-and-references"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label":"Objects And References","id":"java-objects-and-references"}]} />

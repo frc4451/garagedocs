@@ -79,7 +79,7 @@ const FRC_PART_LABELS: Readonly<Record<string, string>> = {
   'frc-cobra': 'Part 2: From Kit Bot to Competition Code',
   'frc-runtime-and-io': 'Part 3: IO, Simulation, and Debugging',
   'frc-control-theory': 'Part 4: Mechanism Control',
-  'frc-pose-foundations': 'Part 5: Pose and Competition Architecture',
+  'frc-drivetrain-fundamentals': 'Part 5: Pose and Competition Architecture',
   'frc-autonomous': 'Part 6: Autonomous and Robot Coordination',
 };
 

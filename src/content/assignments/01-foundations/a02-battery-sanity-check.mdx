@@ -20,7 +20,7 @@ description: "Predict the voltage at the motor terminals under load, with format
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A02: Battery Sanity Check`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Estimate a voltage drop from a supplied resistance and current, then subtract it from the resting voltage:
 
@@ -28,11 +28,17 @@ Estimate a voltage drop from a supplied resistance and current, then subtract it
 vAtMotor = vRest - (current x resistance)
 ```
 
-Use volts, amps, and ohms. The x in the formula means multiplication; write * in Java.
+Use volts for voltage, amps for current, and ohms for resistance. The `x` in the formula means multiplication; write `*` in Java. The supplied resistance represents opposition to current flow in this model. For optional background on voltage and current, read [Electrical Basics](/hardware/electrical-basics-voltage-current#start-with-three-quantities). You only need the supplied numbers and arithmetic for this console assignment.
 
 This is a classroom circuit model. Its fixed resistance and current do not describe every change in a real battery or drivetrain. The verdict strings are exercise labels, not a battery health test or approval to use a battery.
 
-### What to build
+The thresholds classify the **calculated motor-terminal voltage** from this one simplified
+model. They do not classify the resting voltage by itself, measure battery capacity, or
+replace your team's battery-testing and electrical-safety procedures. In this assignment,
+`Healthy.` means only that the calculated result is at least 9.0 V; `Replace immediately.`
+is required exercise output for a result below 7.0 V.
+
+## What To Build
 
 A single file `BatterySanity.java` with one class and one `main`. It should:
 
@@ -54,7 +60,12 @@ A single file `BatterySanity.java` with one class and one `main`. It should:
 Worked example: resting 12.6 V, resistance 0.025 ohm, current 150 A predicts 8.85 V, which
 is marginal.
 
-### Requirements
+Work through that example in two steps: `150.0 * 0.025` gives a modeled drop of `3.75 V`,
+then `12.6 - 3.75` gives `8.85 V`. Compare `8.85` with the named thresholds only after
+the calculation. Exactly `9.0` is healthy, while exactly `7.0` is marginal because the
+table includes 7.0 in the middle interval.
+
+## Requirements
 
 - Use `double` for every number. `int` is wrong here: see the hint on division
 - Use `printf` or `String.format`. Two decimal places everywhere
@@ -64,14 +75,54 @@ is marginal.
 
 <JavaPlayground id="a02-battery-sanity-check" />
 
+The automated checks look for the predicted voltage and verdict for five supplied input
+sets. They do not prove that you printed all three input values, used one `Scanner`, named
+both thresholds as `final double` constants, or wrote the requested assumption comment.
+Use the rubric and inspect your code for those requirements.
+
+## Run A Sample
+
+In the browser, paste these three lines into **Sample input**, then select **Run**. Locally,
+save the browser starter or your completed program as `BatterySanity.java` in the assignment
+folder, save these lines as `in.txt` in the same folder, and run the commands below.
+
+```text
+12.6
+0.025
+150
+```
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac BatterySanity.java
+Get-Content -LiteralPath in.txt | java BatterySanity
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac BatterySanity.java
+java BatterySanity < in.txt
+```
+
+</CodeTab>
+</CodeTabs>
+
+The prediction should be `8.85 V`, followed later by the exact marginal verdict from the
+table. Also read the three printed input values and confirm each has two decimal places.
+
 <RulesBox title="Hints" items={[
   "<strong>Keep decimal inputs.</strong> Use double because the inputs can have fractional values. Integer division truncates when both operands are integers; mixing an int with a double uses floating-point arithmetic.",
   "<strong>Reading three numbers.</strong> <code>Scanner</code> has <code>nextDouble()</code>. Call it three times; no loop needed. All three reads are numeric, so you sidestep the leftover-newline gotcha entirely.",
   "<strong>Two decimals.</strong> <code>System.out.printf(\"%.2f%n\", value)</code>: <code>%.2f</code> is a decimal with two places, <code>%n</code> is a newline. <code>%8.2f</code> right-aligns in eight columns if you want the numbers to line up.",
+  "<strong>Use a decimal point everywhere.</strong> For predictable sample input and output on computers with different regional settings, import <code>java.util.Locale</code>, call <code>in.useLocale(Locale.US)</code> before reading doubles, and pass <code>Locale.US</code> as the first argument to <code>printf</code> or <code>String.format</code>. This is a portability recommendation, not an extra rubric item.",
   "<strong>Picking the branch.</strong> Three buckets, one <code>if / else if / else</code> chain. Order matters: write the highest threshold first."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -84,23 +135,27 @@ is marginal.
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
 
-- Add a fourth prompt for the **expected** current draw, beyond stall current. Print two
+Keep the checked required version unchanged. Try either stretch goal in a separate source
+copy with a matching class name so its extra input or output cannot affect **Check**.
+
+- Add a fourth prompt for the **expected** current draw, in addition to the worst-case current. Print two
   predictions and pick the verdict from the worse of the two.
-- Reject negative voltage, resistance or current with a clear message. That is a preview of
-  [Try/Catch](/java/fundamentals/java-try-catch#why-use-trycatch), which gives you cleaner tools for it.
+- Reject negative voltage, resistance, or current with a clear message. A conditional is
+  enough because the values have already been read as numbers. [Try/Catch](/java/fundamentals/java-try-catch#why-use-trycatch)
+  becomes useful later when you also want to recover from text that is not a number.
 
-### References
+## References
 
-- JavaDoc: [`java.util.Scanner`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Scanner.html)
-- JavaDoc: [`java.util.Formatter`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Formatter.html): the full grammar for `%.2f`, `%8.2f` and `%n`
+- Javadoc: [`java.util.Scanner`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Scanner.html)
+- Javadoc: [`java.util.Formatter`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Formatter.html): the full grammar for `%.2f`, `%8.2f` and `%n`
 - Wikipedia: [Ohm's law](https://en.wikipedia.org/wiki/Ohm%27s_law)
 
 <Sources items={[
-  {"source": "csce145", "note": "Arithmetic and formatted output exercises."},
-  {"source": "dev-java", "path": "language-basics/primitive-types/", "note": "Primitive types and integer division."},
-  {"source": "jls", "path": "jls-15.html", "note": "Integer division and operators (chapter 15)."},
-  {"source": "java-api", "path": "java.base/java/util/Formatter.html", "note": "<code>printf</code> / <code>String.format</code> syntax."},
+  {"source": "csce145", "label": "CSCE 145 Course Materials", "note": "Arithmetic and formatted output exercises."},
+  {"source": "dev-java", "path": "language-basics/primitive-types/", "label": "Primitive Types", "note": "Primitive types and integer division."},
+  {"source": "jls", "path": "jls-15.html", "label": "JLS Chapter 15: Expressions", "note": "Integer division and operators."},
+  {"source": "java-api", "path": "java.base/java/util/Formatter.html", "label": "Formatter", "note": "<code>printf</code>, <code>String.format</code>, decimal precision, and locale-sensitive formatting."},
   {"url": "/java/fundamentals/java-setup", "label": "Setting Up Java", "note": "Java 25 install, javac/java from the command line, feeding input from a file."}
 ]} />

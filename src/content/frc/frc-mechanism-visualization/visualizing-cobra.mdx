@@ -1,0 +1,195 @@
+---
+title: "Visualizing Cobra"
+lessonId: visualizing-cobra
+section: frc
+group: frc-mechanism-visualization
+groupLabel: "Mechanism Visualization"
+groupOrder: 18
+order: 7
+difficulty: advanced
+duration: 35 min
+description: "The design exercise that closes the group: what each of Cobra's four subsystems puts on a canvas, finishing the intake configs the repository already carries, adding the hood from nothing, the canvas decision between them, and what to check before calling it done."
+---
+
+Cobra carries a half-finished mechanism visualization. The library classes exist, one subsystem's constants are fully configured, and nothing constructs a canvas. This exercise finishes it, which is the closest thing in the curriculum to the work an Automation Team member does on the competition robot in January.
+
+Read the repository before writing anything. The file paths in the sources block are the ones this page was written against, and they are on `main`.
+
+### What is already there
+
+<ContentTable
+  headers={["File", "State"]}
+  rows={[
+    ["<code>org/robotzgarage/frc2026/subsystems/pivot/PivotMechanism.java</code>", "Complete. One ligament, a config record, <code>update(Angle)</code>."],
+    ["<code>org/robotzgarage/frc2026/subsystems/elevator/ElevatorMechanism.java</code>", "Complete. The same contract for a <code>Distance</code>."],
+    ["<code>org/robotzgarage/frc2026/util/MechanismConfigs.java</code>", "Complete. <code>RootMechanismConfig</code> with a bottom-centre default."],
+    ["<code>frc/robot/subsystems/intake/IntakeConstants.java</code>", "A root config and three pivot ligament configs named Measured, Setpoint and Goal."],
+    ["<code>frc/robot/subsystems/intake/Intake.java</code>", "No canvas, no mechanism field, no update. The configs above are unused."],
+    ["<code>frc/robot/subsystems/hood/HoodConstants.java</code>", "No mechanism configs at all."],
+    ["Every other subsystem", "Nothing."]
+  ]}
+/>
+
+A search for `Mechanism` across the robot package returns gear-ratio constants and one comment. That is the gap.
+
+### What Cobra draws
+
+Four subsystems, and [what each component shows](/frc/what-a-mechanism-drawing-shows#what-every-component-draws) decides what goes on each canvas:
+
+<ContentTable
+  headers={["Subsystem", "Components", "On the canvas"]}
+  rows={[
+    ["<code>Intake</code>", "<code>Pivot endeffector</code>, plus rollers", "A ligament at the pivot's angle on a 1 foot arm, with a spinner at its end for the rollers."],
+    ["<code>Hood</code>", "<code>Pivot hood</code>", "A ligament sweeping the 28 to 50 degree range. Its angle is the launch angle."],
+    ["<code>Shooter</code>", "<code>FlywheelFollower shooter</code>", "A spinner. It is the one velocity-controlled component on the robot, so its colour can also carry whether it is at speed."],
+    ["<code>Feeder</code>", "Tower and spindexer", "Two spinners. Both run on voltage, percent output and torque current, so direction and running is their whole state."]
+  ]}
+/>
+
+Two of those are position mechanisms with a goal to miss, and the overlay from [Measured Against Goal](/frc/measured-against-goal) is aimed at them. The spinners carry no overlay, because there is no position to be wrong about. They are on the canvas so the picture is complete: a deployed intake with a stopped roller is a bug you see rather than one you go looking for.
+
+The graphs stay either way. `Flywheel.periodic()` and `Pivot.periodic()` already log current and velocity, and a current trace still gives the number a drawing only gestures at.
+
+### Step 1: finish the intake
+
+The constants are written. The subsystem needs a canvas, three ligaments from the configs, and one update.
+
+```java
+// Intake.java
+private final LoggedMechanism2d mechanism;
+private final PivotMechanism measuredMech;
+private final PivotMechanism setpointMech;
+private final PivotMechanism goalMech;
+
+public Intake(SingleRollerIO intakeIO, SingleRollerIO endeffectorIO) {
+  rollers = new Flywheel(name + "/Intake", intakeIO, IntakeConstants.flywheelConfig);
+  endeffector = new Pivot(name + "/Endeffector", endeffectorIO, IntakeConstants.pivotConfig);
+
+  RootMechanismConfig rootConfig = IntakeConstants.rootMechanismConfig;
+  mechanism =
+      new LoggedMechanism2d(
+          rootConfig.displayWidth(), rootConfig.displayHeight(), new Color8Bit(Color.kWhite));
+  LoggedMechanismRoot2d root =
+      mechanism.getRoot(
+          "endeffector", rootConfig.rootPosition().getX(), rootConfig.rootPosition().getY());
+
+  goalMech = new PivotMechanism(IntakeConstants.goalPivotMechanismConfig);
+  setpointMech = new PivotMechanism(IntakeConstants.setpointPivotMechanismConfig);
+  measuredMech = new PivotMechanism(IntakeConstants.measuredPivotMechanismConfig);
+
+  root.append(goalMech.getPivotMech());
+  root.append(setpointMech.getPivotMech());
+  root.append(measuredMech.getPivotMech());
+}
+
+@Override
+public void periodic() {
+  rollers.periodic();
+  endeffector.periodic();
+
+  Logger.recordOutput(
+      name + "/Endeffector/IsNearGoal",
+      endeffector.isNear(endeffector.getGoalPosition(), Degrees.of(8.0)));
+
+  goalMech.update(endeffector.getGoalPosition());
+  setpointMech.update(endeffector.getPositionSetpoint());
+  measuredMech.update(endeffector.getPosition());
+  Logger.recordOutput(name + "/Mechanism2d", mechanism);
+}
+```
+
+The three `update` calls read three different accessors. Feeding two of them from the same one is the mistake that produces a drawing which always agrees with itself.
+
+One change to the constants goes with this. All three configs are `width(10)` in `kGreen`, `kLawnGreen` and `kLightGreen`, so the three ligaments are the same thickness in three shades of one hue and the overlay is unreadable. Widen the goal, narrow the measurement, and keep the hue difference as a secondary cue rather than the only one:
+
+```java
+// IntakeConstants.java, widths changed
+.name("Goal")      .width(10) .color(new Color8Bit(Color.kLightGreen))
+.name("Setpoint")  .width(6)  .color(new Color8Bit(Color.kLawnGreen))
+.name("Measured")  .width(3)  .color(new Color8Bit(Color.kDarkGreen))
+```
+
+### Step 2: add the hood
+
+`HoodConstants` has no mechanism configs, so this one is built from nothing. The geometry comes from the `pivotConfig` already in the file: `armLength(Feet.of(1))`, `initialAngle(Degrees.of(28))`, `minAngle(Degrees.of(28))`, `maxAngle(Degrees.of(50))`.
+
+Two things about that range change the design. The hood travels 22 degrees, so a canvas sized like the intake's leaves a sweep barely wider than the line weight. And the arm never reaches below 28 degrees, so a bottom-centre root wastes most of the picture.
+
+<StepsBox title="Adding the hood drawing">
+
+1. Add a `RootMechanismConfig` to `HoodConstants`. Size the canvas around the arc the hood sweeps rather than around the robot, and place the root so the 28 to 50 degree fan fills the frame.
+2. Add three `PivotMechanismConfig` entries named `Measured`, `Setpoint` and `Goal`, with `initialAngle(pivotConfig.initialAngle())` and `length` converted from `pivotConfig.armLength()` so the drawing and the physics model cannot drift apart.
+3. Give them line weights of 3, 6 and 10 and a colour family that is not the intake's green.
+4. Build the canvas and the three ligaments in the `Hood` constructor, following step 1.
+5. Update all three from `hood.getPosition()`, `hood.getPositionSetpoint()` and `hood.getGoalPosition()` at the end of `periodic()`, after `hood.periodic()`, then record the canvas.
+
+</StepsBox>
+
+`Hood.periodic()` already logs `name + "/State"`. Keep that. The state name and the drawing answer different questions, and the pair is more useful than either alone: `MID` next to an arm that has not moved says the command ran and the mechanism did not.
+
+### Step 3: decide whether they share a canvas
+
+Two position mechanisms, two subsystems. One canvas each, or one canvas holding both?
+
+The test from [Mechanisms per Subsystem](/frc/mechanisms-per-subsystem#when-a-subsystem-is-the-wrong-owner) is whether one mechanism's safe range depends on where the other one is. Answer it from the CAD and the robot, not from this page: check whether the intake end effector at any angle between -2 and 90 degrees can reach the space the hood sweeps between 28 and 50 degrees.
+
+If they cannot touch, two canvases is right, and each subsystem stays self-contained. If they can, the canvas belongs to whatever coordinates them, and the two ligament chains go on one root at their real relative positions so the picture answers the collision question. On a state-driven robot that owner is the superstructure from [A Superstructure for Cobra](/frc/superstructure-for-cobra).
+
+Write the answer and the reason into a comment next to the root config. The next person to add a mechanism needs to know which rule was applied.
+
+### Step 4: the 3D view, if the model exists
+
+`generate3dMechanism()` needs a forward-facing canvas and a robot model whose components pivot about their own origins. Cobra's intake canvas is a side view, so the intake qualifies once a model with an articulated end effector exists in AdvantageScope's assets.
+
+Log the components robot-relative, named as arrows:
+
+```java
+Logger.recordOutput(
+    name + "/Components",
+    mechanism.generate3dMechanism().toArray(new Pose3d[0]));
+```
+
+This step needs a model, and the model is its own job: a `config.json` plus a `model.glb` per component, laid out as [Mechanisms in 3D](/frc/mechanisms-in-3d#the-model-the-poses-attach-to) describes. Until one exists, a component array has nothing to attach to, and the 2D drawing is the part that pays for itself.
+
+### What to check before calling it done
+
+<StepsBox title="Verification">
+
+1. Run the simulator. Drag `Intake/Mechanism2d` onto a Mechanism tab and confirm three distinguishable arms.
+2. Command the intake to deploy. The goal arm should jump, the setpoint arm should sweep, and the measured arm should follow the setpoint. All three ending up on top of each other at rest is the passing result.
+3. Command the hood through `DOWN`, `MID` and `UP`. Confirm the drawn arm moves and stays inside the 28 to 50 degree fan.
+4. Check the drawn angle against `Intake/Endeffector/CurrentAngleDegrees` on a graph at a few positions. They are the same number, and a disagreement means the config's `initialAngle` or `length` is wrong.
+5. On hardware, compare the drawn arm to the real arm at the deployed and stowed positions. This is the check that makes the drawing trustworthy, and it is worth the five minutes once.
+6. Confirm the loop time did not move. Three ligaments per subsystem is small, and confirming it is cheap.
+
+</StepsBox>
+
+<RulesBox title="What to leave alone">
+
+- The `Flywheel` and `SingleRoller` logging. It already covers the rollers and the shooter.
+- `PivotMechanism` and `ElevatorMechanism`. They are complete and nothing in this exercise needs them changed.
+- The commented-out state machine in `Intake.periodic()`. It belongs to a different decision, covered in [State-Driven Robot Code](/frc/why-state-machines).
+- The existing `IsNearGoal` and `State` outputs. The drawing adds to them rather than replacing them.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "The subsystem as it stands: components constructed, <code>periodic()</code> calling both, no mechanism anywhere."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/IntakeConstants.java", "note": "The root config and the three pivot ligament configs, all at <code>width(10)</code> in three greens, and the pivot range from -2 to 90 degrees."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/Hood.java", "note": "A single <code>Pivot</code> and the existing <code>State</code> output the drawing sits beside."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/HoodConstants.java", "note": "The hood's 1 foot arm and its 28 to 50 degree range, with no mechanism configs present."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "The one velocity-controlled flywheel on the robot, whose spinner can also carry whether it is at speed."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/feeder/Feeder.java", "note": "The tower and spindexer running on effort rather than a velocity goal."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/pivot/Pivot.java", "note": "The three accessors the three drawings read, and the existing per-component logging."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/MechanismConfigs.java", "note": "<code>RootMechanismConfig</code>, the record the hood needs an entry for."},
+  {"source": "akit-source", "path": "akit/src/main/java/org/littletonrobotics/junction/mechanism/LoggedMechanism2d.java", "note": "<code>getRoot</code> and <code>generate3dMechanism()</code> as used in the steps above."},
+  {"source": "advantagescope", "path": "tab-reference/mechanism/", "note": "The tab the verification steps read the result on."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Mechanisms in 3D","id":"mechanisms-in-3d"},
+  {"label":"Measured Against Goal","id":"measured-against-goal"},
+  {"label":"A Superstructure for Cobra","id":"superstructure-for-cobra"},
+  {"label":"Cobra Repository Tour","id":"cobra-repository-tour"},
+  {"label":"Composing Mechanism Subsystems","id":"composing-mechanism-subsystems"}
+]} />

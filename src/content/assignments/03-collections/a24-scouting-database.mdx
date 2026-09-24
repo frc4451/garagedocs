@@ -20,13 +20,17 @@ description: "Move scouting data off arrays and onto an ArrayList: add, remove, 
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A24: Scouting Database`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Use an ArrayList to hold a changing collection of scouting entries. Add, remove, search, filter, and sort the entries through methods on ScoutingDatabase.
 
+The six seeded teams are deterministic practice fixtures for this program. Do
+not treat their names, drivetrains, or scores as current competition scouting
+data.
+
 Return an unmodifiable view from all() so callers can read the list without adding or removing entries through that view.
 
-### What to build
+## What To Build
 
 **`TeamEntry`**: a record holding `teamNumber`, `teamName`, `drivetrain`, `avgPoints`
 and `climbsHigh`, with a compact constructor that validates: team number 1 to 99999,
@@ -48,22 +52,96 @@ not negative. `pickScore()` is `avgPoints`, plus 25 when the team climbs high.
   ]}
 />
 
-### The one that matters
+## A Live View
 
-`all()` is the decision worth arguing about. Returning the internal list directly lets
-any caller add to your database or clear it without going through a single line of
-your validation. `Collections.unmodifiableList(entries)` returns a wrapper that reads
-straight through to your data and throws on any attempt to write.
+Returning the internal list directly would let callers change the database without
+using its methods. The record constructor still validates newly created entries,
+but a caller could clear the database or insert null through the exposed list.
+`Collections.unmodifiableList(entries)` provides a read-through wrapper whose
+mutation operations throw `UnsupportedOperationException`.
 
-It is a *view*, not a copy: later additions through `add` show up in a view somebody
-already holds. That is usually what you want, and it is worth knowing that it is what
-you are getting.
+It is a *view*, not a snapshot: later additions through `add` show up in a view
+somebody already holds. This assignment deliberately requires that live
+behavior. `List.copyOf(entries)` would instead make an unmodifiable snapshot,
+which would not change when the database changes. Unmodifiable describes the list
+operations; it does not freeze arbitrary mutable objects stored in a list.
 
-<RulesBox title="How the browser version differs" items={[
-  "Two files locally, one here, with only <code>ScoutingCLI</code> declared <code>public</code>.",
-  "The full assignment prompts field by field when you add a team. Here each command is <strong>one line</strong>: the letter, then its argument, so a session can be pasted into the input box. <code>a 5000,New Team,TANK,30.0,false</code> adds a row.",
+<RulesBox title="Browser And Local Files" items={[
+  "The assignment has three top-level types in three local files: <code>TeamEntry.java</code>, <code>ScoutingDatabase.java</code>, and <code>ScoutingCLI.java</code>. Declare each matching type public. The playground starter keeps all three in one editor tab, so only <code>ScoutingCLI</code> is public there.",
+  "The browser and local CLI both use <strong>one line per command</strong>: the letter, then its argument. That lets the same session work in <code>input.txt</code> and the browser input box. <code>a 5000,New Team,TANK,30.0,false</code> adds a row.",
   "<code>main</code> seeds six teams so every command has something to work on. It and its helpers are written for you."
 ]} />
+
+## Build Locally
+
+Create `assignments/a24-scouting-database/TeamEntry.java`,
+`assignments/a24-scouting-database/ScoutingDatabase.java`,
+`assignments/a24-scouting-database/ScoutingCLI.java`, and
+`assignments/a24-scouting-database/input.txt`. Put one public type in each
+matching source file. Make the record's compact constructor and `pickScore`
+public, and make the database's assignment methods public. Put the supplied
+`main` and helper methods in `ScoutingCLI.java`.
+
+Use this sample in `input.txt`. It exercises listing, sorting, both Optional
+outcomes, both predicate paths, rejection of mutation through `all()`, adding,
+removing, and quitting:
+
+```text
+l
+s
+f 1339
+f 9999
+d SWERVE
+h
+u
+a 5000,New Team,TANK,30.0,false
+r 2468
+l
+q
+```
+
+Open a terminal in the assignment folder, compile all three source files, and run
+the input through `ScoutingCLI`:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac TeamEntry.java ScoutingDatabase.java ScoutingCLI.java
+Get-Content input.txt | java ScoutingCLI
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac TeamEntry.java ScoutingDatabase.java ScoutingCLI.java
+java ScoutingCLI < input.txt
+```
+
+</CodeTab>
+</CodeTabs>
+
+In the browser, the editor tab is named `ScoutingCLI`, the class that contains
+`main`. Paste the same lines into the input box, leave the supplied CLI and
+helpers unchanged, then select **Run**.
+
+The add command separates five fields with commas. For this supplied CLI, use
+a team name without a comma; it does not implement quoted CSV fields. After
+adding team 5000 and removing team 2468, the final list should include 5000 and
+exclude 2468. Use the named checks for the complete required test sessions.
+
+## Optional And Predicate Bridge
+
+`findByTeamNumber` always returns an `Optional<TeamEntry>`. Start with
+`Optional.empty()`, return `Optional.of(entry)` when the loop finds the matching
+team, and never return `null`. The supplied CLI then uses `map` to turn a found
+entry into display text and `orElse` to supply the missing case.
+
+`Predicate<TeamEntry>` is a yes-or-no test passed into `filter`. For each entry,
+call `test.test(entry)` and append only accepted entries to a fresh result list.
+Then `filterByDrivetrain` can pass a drivetrain lambda to that same method, and
+the `h` command can pass a different lambda without duplicating the loop.
 
 <ContentTable
   headers={["Command", "Does"]}
@@ -81,9 +159,16 @@ you are getting.
 />
 
 
-<RulesBox title="Plan it as sessions" items={[
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>The list keeps insertion order</em>, <em>Sorting ranks by pick score and leaves the database alone</em>, <em>Find answers with an Optional either way</em>, <em>Remove reports whether it removed anything</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Filtering by drivetrain finds all of them, or none</em>, <em>A lambda predicate reaches the same list</em>, <em>Adding goes through the compact constructor</em>, <em>all() hands back a view callers cannot write to</em>."
+  "<strong>Session 2.</strong> Finish the remaining browser checks: <em>Filtering by drivetrain finds all of them, or none</em>, <em>A lambda predicate reaches the same list</em>, <em>Adding goes through the compact constructor</em>, <em>all() hands back a view callers cannot write to</em>. Then complete the manual rubric review below."
+]} />
+
+<RulesBox title="Browser Checks And Manual Rubric" items={[
+  "The browser checks the eight named behaviors in the session plan and results panel with supplied command sessions. Keep those test names and the supplied CLI output unchanged while implementing the two types above it.",
+  "The checks recognize printed results. They do not inspect that there is exactly one <code>private final ArrayList&lt;TeamEntry&gt;</code> field, that <code>removeIf</code> and delegation are used, that visibility and comments meet the rubric, or that every validation boundary is covered. Review those items manually.",
+  "The <em>all() hands back a view callers cannot write to</em> check proves that <code>add</code> through the returned list throws <code>UnsupportedOperationException</code>. It does not distinguish a live view from an unmodifiable snapshot. Locally, save <code>List&lt;TeamEntry&gt; view = db.all()</code>, call <code>db.add(...)</code>, and confirm the saved view's size increases while <code>view.add(...)</code> still throws.",
+  "Also test team numbers 1 and 99999, a spaces-only name, a negative average, every accepted drivetrain, and an unknown drivetrain. The supplied browser checks cover 0 and one unknown drivetrain, but not all rubric boundaries."
 ]} />
 
 <JavaPlayground id="a24-scouting-database" />
@@ -96,12 +181,12 @@ you are getting.
   "<strong>Write <code>filterByDrivetrain</code> last.</strong> Once <code>filter</code> takes a predicate, the drivetrain version is that method called with one lambda. If you find yourself writing a second loop, you have written the same method twice."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
   rows={[
-    ["Functionality", "60", "Every command works. <code>add</code> validates through the compact constructor. <code>remove</code> reports whether it removed. <code>find</code> returns <code>Optional</code>. <code>filter</code> works with any lambda. <code>sortedByPickScore</code> does not reorder the database."],
+    ["Functionality", "60", "Every command works. The CLI constructs each added <code>TeamEntry</code> through its validating compact constructor before calling <code>add</code>. <code>remove</code> reports whether it removed. <code>find</code> returns <code>Optional</code>. <code>filter</code> works with any lambda. <code>sortedByPickScore</code> does not reorder the database."],
     ["Edge cases", "15", "Removing a number that is not there returns <code>false</code> rather than crashing. Finding in an empty database gives an empty <code>Optional</code>. Filtering for a drivetrain nobody runs gives an empty list, not <code>null</code>."],
     ["Code quality", "20", "<code>removeIf</code> rather than a hand-rolled loop. <code>all()</code> returns an unmodifiable view. One list field. <code>filterByDrivetrain</code> delegates to <code>filter</code>. No indexed <code>for</code> where a for-each would read better."],
     ["Comments", "5", "Author header, and a note on why <code>all()</code> is unmodifiable."],
@@ -109,30 +194,29 @@ you are getting.
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+Finish and grade the required version first. Copy all three source files and the
+input file into a separate `stretch/` folder before trying a goal below. Compile
+and run that copy so extra commands or output cannot change the required checks.
 
 - Add `top(int k)` returning the k best by pick score. Write it once with `sorted` +
   `limit` and once by sorting and taking a sublist, then decide which you would rather
   read during a code review.
 - Wire this to `CsvIO` from [A21](/java/assignments/a21-scouting-csv): `load(String)` and
-  `save(String)` commands that round-trip the whole database to disk.
+  `save(String)` commands that round-trip the whole database to disk. A21's
+  `TeamEntry` also has a `notes` component, so decide how this assignment's
+  five-component record maps to that six-column CSV before reusing the code.
 - Give `filter` a sibling that takes two predicates and ands them. Then notice that
   `Predicate` already has `and`, and delete it again.
 
-### References
-
-- JavaDoc: [`java.util.List<E>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/List.html)
-- JavaDoc: [`java.util.ArrayList<E>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayList.html)
-- JavaDoc: [`Collection.removeIf`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Collection.html#removeIf(java.util.function.Predicate))
-- JavaDoc: [`Collections.unmodifiableList`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Collections.html#unmodifiableList(java.util.List))
-- JavaDoc: [`java.util.Optional<T>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Optional.html)
-- Wikipedia: [Dynamic array](https://en.wikipedia.org/wiki/Dynamic_array)
-
 <Sources items={[
-  {"source": "csce146", "note": "Collections and Optional."},
-  {"source": "dev-java", "path": "api/collections-framework/lists/", "note": "Lists."},
-  {"source": "java-api", "path": "java.base/java/util/Optional.html", "note": "<code>Optional</code>: <code>map</code>, <code>orElse</code>, <code>ifPresent</code>."},
-  {"source": "java-api", "path": "java.base/java/util/function/Predicate.html", "note": "<code>Predicate</code>."},
-  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/Collections.html", "note": "<code>Collections</code> API reference."}
+  {"source": "csce146", "label": "CSCE 146: Data Structures And Algorithms", "note": "Course context for lists and Optional results."},
+  {"source": "dev-java", "path": "api/collections-framework/lists/", "label": "The List Interface", "note": "List operations, ordering, and implementations."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "label": "ArrayList", "note": "Resizable-list operations used by the database."},
+  {"source": "java-api", "path": "java.base/java/util/Collection.html#removeIf(java.util.function.Predicate)", "label": "Collection.removeIf", "note": "Predicate-based removal and its boolean result."},
+  {"source": "java-api", "path": "java.base/java/util/Collections.html#unmodifiableList(java.util.List)", "label": "Collections.unmodifiableList", "note": "A live unmodifiable view whose reads reflect changes to the backing list."},
+  {"source": "java-api", "path": "java.base/java/util/Optional.html", "label": "Optional", "note": "Empty and present results plus <code>map</code> and <code>orElse</code>."},
+  {"source": "java-api", "path": "java.base/java/util/function/Predicate.html", "label": "Predicate", "note": "The <code>test</code> contract used by general filtering."},
+  {"source": "java-api", "path": "java.base/java/util/Comparator.html", "label": "Comparator", "note": "<code>comparingDouble</code> and reversed ordering."}
 ]} />

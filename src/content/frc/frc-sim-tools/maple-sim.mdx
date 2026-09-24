@@ -1,0 +1,218 @@
+---
+title: "maple-sim"
+lessonId: maple-sim
+section: frc
+group: frc-sim-tools
+groupLabel: "Simulation Specific Tools"
+groupOrder: 20
+order: 3
+difficulty: advanced
+duration: 35 min
+description: "The rigid-body arena: installing the vendordep, the 2026 Rebuilt field, replacing a module simulation with SwerveDriveSimulation, intakes and projectiles, reading the score, and an honest account of what adopting it costs a project that already has a working simulator."
+---
+
+maple-sim puts the robot inside a physics engine. Where [FuelSim](/frc/fuelsim) takes your pose and bounces fuel off a rectangle, maple-sim runs the drivetrain, the field obstacles, the game pieces and any opponent robots as rigid bodies in dyn4j, and gives you back the pose that results.
+
+That is a larger claim and a larger commitment. This lesson covers what the library provides for 2026 and what it displaces in a project that already simulates.
+
+<RulesBox title="Before you start">
+
+[Simulating the Game](/frc/simulating-the-game) for the comparison with FuelSim, [Physics in the IO Layer](/frc/physics-in-the-io-layer) and [IO Layers](/frc/io-layers) for the simulation this replaces, and [Wheel Odometry](/frc/wheel-odometry), because maple-sim becomes the source of truth the odometry is checked against.
+
+</RulesBox>
+
+### Installing it
+
+maple-sim ships as a vendordep. Add the JSON URL through the WPILib palette's **Manage Vendor Libraries**, the same way [Environment Setup](/frc/environment-setup) adds Phoenix and PhotonVision:
+
+```text
+https://shenzhen-robotics-alliance.github.io/maple-sim/vendordep/maple-sim.json
+```
+
+The vendordep declares `frcYear` 2026 and pulls two artifacts: `org.ironmaple:maplesim-java` and the `org.dyn4j:dyn4j` engine underneath it. The current version is a beta, which is worth stating plainly to whoever maintains the project after you.
+
+### The arena
+
+Everything hangs off one object. `SimulatedArena` is abstract, so you pick a season:
+
+```java
+// once, during robot construction, simulation only
+SimulatedArena.overrideInstance(new Arena2026Rebuilt());
+```
+
+Then one call per loop, in the method that never runs on hardware:
+
+```java
+@Override
+public void simulationPeriodic() {
+  SimulatedArena.getInstance().simulationPeriodic();
+}
+```
+
+The Javadoc is explicit that this belongs in `simulationPeriodic()` and is called once. `SimulatedArena.ALLOW_CREATION_ON_REAL_ROBOT` defaults to false, so the library refuses to start on a roboRIO rather than quietly burning loop time there.
+
+The 2026 package provides `Arena2026Rebuilt`, `RebuiltFuelOnField`, `RebuiltFuelOnFly`, `RebuiltHub` and `RebuiltOutpost`, alongside the 2024 Crescendo and 2025 Reefscape arenas and an evergreen arena with no game-specific elements.
+
+`Arena2026Rebuilt` also models things FuelSim does not: an outpost that can dump or throw fuel (`outpostDump`, `outpostThrow`), a match clock, and an `efficiencyMode` for trading fidelity against loop time.
+
+### Putting fuel on the field
+
+```java
+SimulatedArena.getInstance().addGamePiece(new RebuiltFuelOnField(new Translation2d(2, 2)));
+```
+
+`placeGamePiecesOnField()` on the arena sets up the season's starting configuration, and `addPieceWithVariance` scatters pieces with a random offset, which is closer to a real field than a grid of exact positions.
+
+`getGamePiecesPosesByType(String)` returns a `List<Pose3d>` for logging. Unlike FuelSim, nothing is published for you, so this is where the fuel becomes visible:
+
+```java
+Logger.recordOutput(
+    "FieldSimulation/Fuel",
+    SimulatedArena.getInstance().getGamePiecesPosesByType("Fuel").toArray(new Pose3d[0]));
+```
+
+That goes through AdvantageKit, so unlike FuelSim's raw NetworkTables publish it lands in the log and comes back on [replay](/frc/log-replay).
+
+### The drivetrain, and what it costs
+
+This is the part that is not additive.
+
+```java
+DriveTrainSimulationConfig config = DriveTrainSimulationConfig.Default()
+    .withRobotMass(Pounds.of(115))
+    .withBumperSize(Inches.of(34), Inches.of(34))
+    .withTrackLengthTrackWidth(Inches.of(24), Inches.of(24))
+    .withSwerveModule(() -> new SwerveModuleSimulation(
+        COTS.ofMark4i(
+            DCMotor.getKrakenX60Foc(1), // drive
+            DCMotor.getFalcon500(1),    // steer
+            1.2,                        // wheel coefficient of friction
+            2)))                        // SDS gearing level, 6.75:1 on an MK4i
+    .withGyro(COTS.ofPigeon2());
+
+SwerveDriveSimulation driveSim = new SwerveDriveSimulation(config, new Pose2d(3, 3, new Rotation2d()));
+SimulatedArena.getInstance().addDriveTrainSimulation(driveSim);
+```
+
+From that point the simulation owns the robot's motion. `driveSim.getModules()` returns `SwerveModuleSimulation` objects that a `ModuleIO` implementation reads and writes, and `getGyroSimulation()` replaces the simulated gyro.
+
+For Cobra that means `ModuleIOSim` and the sim branch of `GyroIO` are rewritten against maple-sim's objects rather than WPILib's `DCMotorSim`. The drive subsystem, the pose estimator and everything above them stay as they are, because they only ever see the `ModuleIO` interface. That is the IO layer paying off.
+
+**You do not write that layer from scratch.** maple-sim publishes four template projects with the drivetrain already wired:
+
+<ContentTable
+  headers={["Template", "For a project built on"]}
+  rows={[
+    ["<code>CTRE-Swerve-MapleSim</code>", "CTRE's <code>SwerveDrivetrain</code> from Tuner X, no AdvantageKit"],
+    ["<code>AdvantageKit-TalonSwerveTemplate-MapleSim</code>", "The AdvantageKit TalonFX swerve template, which is the shape Cobra's drive is in"],
+    ["<code>AdvantageKit-TalonSwerveTemplate-MapleSim-Enhanced</code>", "The same with more of the library's features turned on"],
+    ["<code>AdvantageKit-SparkSwerveTemplate-MapleSim</code>", "The AdvantageKit SPARK swerve template"]
+  ]}
+/>
+
+Two teams run the CTRE one, and both keep it in a file called `MapleSimSwerveDrivetrain`. FRC 3847's copy carries maple-sim's own header naming Iron Maple 5516 and the MIT licence; FRC 2910 keep theirs under `utils/simulation/` in an MIT-licensed repository. Neither wrote it. Starting from the template that matches your drive is the difference between an afternoon of wiring and a rebuild.
+
+What the template does is inject maple-sim's simulated module state into CTRE's `SwerveDrivetrain` rather than replacing it: it wraps each `TalonFX` in a `SimulatedMotorController`, feeds `TalonFXSimState`, `CANcoderSimState` and `Pigeon2SimState` from the physics, and regulates the module constants into the ranges maple-sim expects. Reading 2910's copy alongside 3847's is a good way to see which parts are the template and which parts a team changed.
+
+There is still a real cost, and it is worth naming: the template replaces the layer the whole simulation rests on, in a season where the simulator working is not optional.
+
+There is a second source of truth to keep straight. maple-sim knows the robot's actual pose; your pose estimator computes an estimate from simulated encoders and vision. Those two should be logged separately and compared, because their difference is the odometry error you would otherwise have no way to measure. Feeding the simulation's true pose back into the estimator makes the estimator look perfect and tests nothing.
+
+### Intakes
+
+An intake is a fixture on the drivetrain body rather than a bounding box in your own coordinates:
+
+```java
+IntakeSimulation intake = IntakeSimulation.OverTheBumperIntake(
+    "Fuel", driveSim, Inches.of(28), Inches.of(6), IntakeSimulation.IntakeSide.FRONT, 1);
+```
+
+`InTheFrameIntake` is the other factory. `startIntake()` and `stopIntake()` gate it, `getGamePiecesAmount()` reports what is held, and `obtainGamePieceFromIntake()` removes one and returns whether there was one to remove. That last method is the natural hook for the shooter: it returns false when the robot is empty, so the launch is skipped.
+
+Because the intake is attached to the physics body, a game piece that touches it while it is running is detected by the engine's contact listener rather than by a rectangle test. A piece approaching at an angle behaves differently from one approaching head on, which is the fidelity you are paying the adoption cost for.
+
+### Launching fuel
+
+```java
+SimulatedArena.getInstance().addGamePieceProjectile(new RebuiltFuelOnFly(
+    driveSim.getSimulatedDriveTrainPose().getTranslation(),
+    new Translation2d(0.2, 0),        // shooter position on the robot
+    driveSim.getDriveTrainSimulatedChassisSpeedsFieldRelative(),
+    driveSim.getSimulatedDriveTrainPose().getRotation(),
+    Inches.of(20),                    // launch height
+    MetersPerSecond.of(12),           // launch speed
+    Degrees.of(40)));                 // shooter pitch
+```
+
+The chassis speeds parameter is field-relative, exactly as in FuelSim, and the same trap applies: a robot-relative value compiles and produces a shot that leads in the wrong direction.
+
+`RebuiltFuelOnFly` sets its own ground-touch height and becomes a `RebuiltFuelOnField` when it lands, so a missed shot stays on the field to be collected. `setHitTargetCallBack` fires when a projectile reaches the hub, which is where a shot counter or a rumble goes.
+
+### Reading the score
+
+The arena counts, per alliance:
+
+```java
+SimulatedArena.getInstance().getScore(Alliance.Blue);
+SimulatedArena.getInstance().getScore(true); // isBlue
+```
+
+`redScoringBreakdown` and `blueScoringBreakdown` hold a per-category map, and `enableBreakdownPublishing()` sends it to NetworkTables. The arena also publishes a match clock.
+
+### Deciding whether to adopt it
+
+The honest summary, for a project that already has a working simulator:
+
+<ContentTable
+  headers={["You get", "You pay"]}
+  rows={[
+    ["A robot that collides with the field, the trench and other robots instead of driving through them", "Swapping <code>ModuleIOSim</code> and the simulated gyro for the template that matches your drive"],
+    ["An independent true pose to measure odometry error against", "A second pose to keep straight, and a real temptation to cheat with it"],
+    ["Intakes detected by contact rather than by a rectangle", "A vendordep on a beta version during a season"],
+    ["Opponent robots and defence", "More loop time, with <code>efficiencyMode</code> as the lever"],
+    ["Three seasons of arenas plus an evergreen one, so the work carries over", "The 2026 arena classes are new, so expect to read the source"]
+  ]}
+/>
+
+The recommendation from [Simulating the Game](/frc/simulating-the-game) stands. Run FuelSim during the season because it costs an afternoon and touches nothing. Adopt maple-sim in the off-season, when rewriting the simulation layer is a project rather than a risk, and when a beta version moving under you is an inconvenience instead of a competition.
+
+<RulesBox title="Common mistakes">
+
+- Call `SimulatedArena.getInstance().simulationPeriodic()` once, in `simulationPeriodic()`.
+- Pass field-relative chassis speeds to a projectile.
+- Log the simulation's true pose and the estimator's pose separately, and never feed the first into the second.
+- Pin the vendordep version and write down that it is a beta.
+- Log the game-piece poses yourself. Nothing is published for you.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "maple-sim", "path": "installing-maple-sim/", "note": "The vendordep URL and installation."},
+  {"source": "maple-sim", "path": "using-the-simulated-arena/", "note": "Creating an arena, the periodic call, and adding game pieces."},
+  {"source": "maple-sim", "path": "swerve-simulation-overview/", "note": "How the drivetrain simulation replaces a module simulation."},
+  {"source": "maple-sim", "path": "swerve-sim-hardware-abstraction/", "note": "Driving <code>SwerveModuleSimulation</code> from an IO implementation."},
+  {"source": "maple-sim-source", "path": "templates", "note": "The four template projects: CTRE swerve, and AdvantageKit Talon, Talon Enhanced and SPARK swerve."},
+  {"source": "spectrum-2026", "path": "src/main/java/frc/spectrumLib/swerve/MapleSimSwerveDrivetrain.java", "note": "FRC 3847 running the CTRE template against <code>Arena2026Rebuilt</code>; the file carries maple-sim's own MIT header crediting Iron Maple 5516."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/utils/simulation/MapleSimSwerveDrivetrain.java", "note": "FRC 2910 running the same template: the simulated motor controllers that drive <code>TalonFXSimState</code>, <code>CANcoderSimState</code> and <code>Pigeon2SimState</code>, and the module-constant regulation."},
+  {"source": "maple-sim", "path": "simulating-intake/", "note": "<code>IntakeSimulation</code> attached to the drivetrain body."},
+  {"source": "maple-sim", "path": "simulating-projectiles/", "note": "Launching a game piece and what happens when it lands."},
+  {"source": "maple-sim", "path": "rebuilt/", "note": "The 2026 season classes, adding fuel to the field, and <code>setHitTargetCallBack</code> for hub detection."},
+  {"source": "maple-sim-source", "path": "project/src/main/java/org/ironmaple/simulation/SimulatedArena.java", "note": "<code>overrideInstance</code>, <code>simulationPeriodic</code> and its once-per-loop note, <code>addGamePiece</code>, <code>addGamePieceProjectile</code>, <code>getScore</code>, the scoring breakdown maps and <code>ALLOW_CREATION_ON_REAL_ROBOT</code>."},
+  {"source": "maple-sim-source", "path": "project/src/main/java/org/ironmaple/simulation/seasonspecific/rebuilt2026/Arena2026Rebuilt.java", "note": "The 2026 arena, <code>placeGamePiecesOnField</code>, <code>addPieceWithVariance</code>, <code>getGamePiecesPosesByType</code>, the outpost methods and <code>setEfficiencyMode</code>."},
+  {"source": "maple-sim-source", "path": "project/src/main/java/org/ironmaple/simulation/seasonspecific/rebuilt2026/RebuiltFuelOnFly.java", "note": "The projectile constructor's parameters, including the field-relative chassis speeds, and that it becomes a fuel on the field after touching the ground."},
+  {"source": "maple-sim-source", "path": "project/src/main/java/org/ironmaple/simulation/IntakeSimulation.java", "note": "<code>OverTheBumperIntake</code>, <code>InTheFrameIntake</code>, <code>startIntake</code>, <code>getGamePiecesAmount</code> and <code>obtainGamePieceFromIntake</code>."},
+  {"source": "maple-sim-source", "path": "project/src/main/java/org/ironmaple/simulation/drivesims/configs/DriveTrainSimulationConfig.java", "note": "The builder methods used in the config example, including <code>withSwerveModule</code> taking a supplier."},
+  {"source": "maple-sim-source", "path": "project/src/main/java/org/ironmaple/simulation/drivesims/COTS.java", "note": "<code>ofMark4i</code> and its gearing levels, and the <code>ofPigeon2</code> gyro factory."},
+  {"source": "maple-sim-source", "path": "project/src/main/java/org/ironmaple/simulation/drivesims/SwerveDriveSimulation.java", "note": "<code>getModules()</code> and <code>getGyroSimulation()</code>, the objects an IO implementation reads."},
+  {"source": "maple-sim-source", "path": "project/src/main/java/org/ironmaple/simulation/drivesims/AbstractDriveTrainSimulation.java", "note": "<code>getSimulatedDriveTrainPose()</code> and the robot-relative and field-relative chassis speeds accessors sitting next to each other."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOSim.java", "note": "The WPILib-based module simulation maple-sim would replace."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIO.java", "note": "The interface that keeps the rewrite inside the IO layer."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Simulating the Game","id":"simulating-the-game"},
+  {"label":"FuelSim","id":"fuelsim"},
+  {"label":"IO Layers","id":"io-layers"},
+  {"label":"Physics in the IO Layer","id":"physics-in-the-io-layer"},
+  {"label":"Log Replay","id":"log-replay"}
+]} />

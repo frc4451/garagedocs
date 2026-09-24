@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isExternalWebsite } from './external-links';
+import { isExternalWebsite, isPdfLink } from './external-links';
 
 describe('external website links', () => {
   const current = 'http://localhost:5173/badges/badge-1';
@@ -12,5 +12,15 @@ describe('external website links', () => {
   });
   it('does not mistake a lookalike host for GarageDocs', () => {
     expect(isExternalWebsite('https://frc4451.github.io.example.com', current, published)).toBe(true);
+  });
+});
+
+describe('PDF links', () => {
+  const current = 'http://localhost:5173/badges/badge-1';
+  it.each(['/documents/form.pdf', '../form.PDF', '/form.pdf?download=1#page=2', 'https://frc4451.github.io/form.pdf'])('recognizes %s as a PDF', href => {
+    expect(isPdfLink(href, current)).toBe(true);
+  });
+  it.each(['/badges/badge-1', '/search?q=form.pdf', '/form.pdf/preview', 'mailto:form.pdf'])('does not treat %s as a PDF document', href => {
+    expect(isPdfLink(href, current)).toBe(false);
   });
 });

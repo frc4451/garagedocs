@@ -10,130 +10,106 @@ difficulty: intermediate
 description: "Use breakpoints, stepping, watches, and logpoints to inspect Java code and robot simulation."
 ---
 
-### Inspecting program state
+## Inspect a Running Program
 
-<ReferenceImage
-  src="/media/tools/vscode-debugging.png"
-  alt="Diagram of a program moving through source code, compilation, running, and a debugging cycle"
-  caption="Debugging adds a controlled inspection loop to the normal edit, build, and run cycle."
-  sourceUrl="https://code.visualstudio.com/docs/debugtest/debugging"
-  sourceLabel="Visual Studio Code documentation"
-/>
+A debugger can pause a program before a selected statement runs. While paused, you can inspect variables and the chain of method calls that reached that point. Start with a small local Java program. Use WPILib VS Code 2026 only when you later apply these controls to a 2026 robot project.
 
-A debugger can pause a program so you can inspect variables and follow method calls. Logs record behavior over time; a debugger is useful when you need to examine a particular execution state.
+Before creating the example, complete [VS Code: Tour](/tools/vscode-tour#open-the-folder-not-the-file) and the stock-editor steps in [Java Setup](/java/fundamentals/java-setup). You need stock VS Code with Java support and the curriculum's Java 25 JDK. The example does not use WPILib or robot hardware.
 
-Start with a local Java example, then apply the same controls to robot simulation.
+## Make a Safe Practice Program
 
-<YouTubeEmbed id="3HiLLByBWkg" title="Getting started with debugging in Visual Studio Code" />
+Create a new folder named `debug-practice`, open that folder in stock VS Code, and create `Main.java`. This example is independent of robot hardware:
 
-### Debugger controls
+```java
+public class Main {
+    public static void main(String[] args) {
+        int total = 0;
+        for (int count = 1; count <= 3; count++) {
+            total = total + count;
+            System.out.println(total);
+        }
+    }
+}
+```
 
-<ContentTable
-  headers={["Thing", "What it is"]}
-  rows={[
-    ["<strong>Breakpoint</strong>", "A line where the program pauses <em>before</em> running it. Click in the gutter left of the line number, or press <code>F9</code> on the line. A red dot appears"],
-    ["<strong>Stepping</strong>", "Running one line at a time from a pause. Step over, into and out are explained below"],
-    ["<strong>Variables</strong>", "Every variable in scope at the pause, with its current value. Objects expand to show their fields"],
-    ["<strong>Call Stack</strong>", "The chain of method calls that got here: <code>main</code> called <code>run</code> called <code>compute</code>. Click any frame to see <em>its</em> variables"]
-  ]}
-/>
+Save the file. Wait for Java loading to finish. **Run | Debug** should appear above `main`; if it does not, confirm that the containing folder is open, the file ends in `.java`, and the Java extensions are installed.
 
-### A first session
+## A First Session
 
-Open a lesson folder with a `Main` class in it, such as any file from [Java Training](/java) that you have saved locally.
+<StepsBox title="First Debug Session">
 
-1. Click in the gutter next to a line inside a loop or a method. A red dot.
-2. Click **Debug** in the *Run | Debug* links above `main`, or open the Run and Debug view (`Ctrl+Shift+D` / `Cmd+Shift+D`) and press `F5`, choosing *Java* if asked.
-3. The program runs until the red dot and stops. The line is highlighted yellow; the Debug toolbar appears at the top of the window; the Side Bar switches to **Variables**, **Watch**, **Call Stack**, **Breakpoints**.
-4. Read the variables. Expand an object. Hover over any name in the editor to show its value in a tooltip.
-5. Press `F10` a few times and watch the highlight move and the values change.
-6. Press `F5` to run on to the next breakpoint, or to the end.
+1. Select line 5, `total = total + count;`.
+2. Click in the gutter to the left of that line number. A red breakpoint dot appears. You can also use **Run → Toggle Breakpoint**.
+3. Select **Debug** above `main`. If that link is not visible, select **Run and Debug** in the Activity Bar (the play symbol with a bug), then choose **Run and Debug** and select **Java** if VS Code asks for a debugger. The program runs until it reaches the breakpoint.
+4. Confirm that line 5 is highlighted. The highlight marks the **next statement to execute**. At the first pause, `count` is `1` and `total` is `0` in the Variables view.
+5. Select **Step Over** in the Debug toolbar or press `F10`. Line 5 runs, the highlight moves to line 6, and `total` becomes `1`.
+6. Select **Step Over** again. The first number prints in the Terminal, and execution advances through the loop.
+7. Select **Continue** or press `F5`. The debugger stops again when the next loop iteration reaches the breakpoint.
+8. Select **Stop** or press `Shift+F5`. The debug toolbar disappears.
 
-The sections below explain how to select the pause point and inspect the relevant values.
+</StepsBox>
 
-### Stepping
+If execution never pauses, confirm that the breakpoint dot is solid, the debugger started rather than a normal Run, the saved source matches the program, and execution reaches that line.
 
-| Key | Name | What happens |
-|---|---|---|
-| `F10` | **Step over** | Run this line completely, stop at the next. If the line calls a method, the whole method runs |
-| `F11` | **Step into** | If this line calls a method you wrote, stop at its first line instead |
-| `Shift+F11` | **Step out** | Finish the current method and stop back in the caller |
-| `F5` | **Continue** | Run until the next breakpoint |
-| `Shift+F5` | Stop | End the program |
-| `Ctrl+Shift+F5` / `Cmd+Shift+F5` | Restart | Stop and start again from the top |
+## Stepping
 
-Use Step Over to run a call without entering it, Step Into to inspect its execution, and Step Out to return to the caller. Java step filters can skip selected classes and methods; behavior depends on their configuration.
+- **Variables** shows values available at the selected stack frame. Expand an object to inspect its fields.
+- **Watch** reevaluates expressions at each pause. Add `total + count` with the plus button. Prefer expressions that do not call methods or change state.
+- **Call Stack** shows which methods called the current method. Select a frame to see its source and variables.
+- **Breakpoints** lists pause points. Clear a checkbox to disable a breakpoint without deleting it.
+- **Debug Console** evaluates expressions in the paused program. Method calls can have side effects, so begin with arithmetic and comparisons.
 
-The **Debug Console** can evaluate Java expressions while paused. Start with values such as `x * 2 > limit`. Method calls can have side effects, so evaluate only expressions whose behavior you understand.
+If the Side Bar does not show these sections while paused, select **Run and Debug** in the Activity Bar. Select the small arrow beside a collapsed section name such as **Variables** to open it.
 
-### Watch
+**Step Over** runs the highlighted statement and stops at the next statement in the same frame. **Step Into** enters a method call when the debugger has usable source. **Step Out** finishes the current method and returns to its caller. **Continue** runs until another breakpoint or program completion.
 
-**Watch** displays selected expressions at each pause. Add an expression with `+`, or use **Add to Watch** from the editor. Prefer observations that do not change program state.
+## Use Conditional Breakpoints and Logpoints
 
-### Breakpoints that only sometimes fire
+Right-click a breakpoint and choose **Edit Breakpoint...**. Choose **Expression** to pause when a Java expression such as `count == 3` is true, or **Hit Count** to pause after the line has been reached a selected number of times.
 
-Use a conditional breakpoint to pause on a particular iteration or value. Right-click a breakpoint and choose **Edit Breakpoint** to configure it:
+A **logpoint** writes to the Debug Console without pausing or editing source. To replace the practice breakpoint, first right-click its red dot and choose **Remove Breakpoint**. Then right-click the gutter beside the same line, choose **Add Logpoint...**, enter `count is {count}, total is {total}`, and press Enter. A diamond-shaped logpoint marker replaces the red breakpoint dot. Start debugging again and open **Debug Console** in the bottom Panel. The message should appear for each loop iteration without pausing. Java logpoints use braces around expressions. Logpoints still add debugger work and can change timing in a frequent loop.
 
-<ContentTable
-  headers={["Kind", "Fires when", "Example"]}
-  rows={[
-    ["<strong>Expression</strong>", "The Java expression is true", "<code>i == 812</code>, <code>name.equals(\"intake\")</code>, <code>speed &gt; 1.0</code>"],
-    ["<strong>Hit Count</strong>", "The line has been reached this many times", "<code>500</code>"],
-    ["<strong>Logpoint</strong>", "Never pauses. Prints a message to the Debug Console instead", "<code>speed is {speed} at {i}</code>"]
-  ]}
-/>
+If a condition never fires, confirm the expression uses names available on that line and that the workspace contains the correct Java project. In a workspace with multiple Java projects, the debugger may need an explicit project configuration for expression evaluation.
 
-A **logpoint** writes a message without a source-code edit or an intentional breakpoint pause. It still adds debugger work and can affect timing, especially in a frequent loop.
+## Stop on Exceptions
 
-The **Breakpoints** pane lists them all with checkboxes: untick one to keep it without it firing; the *Deactivate All* button at its top switches them all off, which is faster than removing them before a normal run.
+The **Breakpoints** section can include exception breakpoints. Enable **Uncaught Exceptions** to stop when an exception would leave the current code without being handled. Enable **Caught Exceptions** only for a specific investigation because libraries may throw and handle many exceptions during normal work. When the debugger stops, read the exception type and message, then select the first relevant frame in your own code.
 
-### Exceptions
+## Debug Robot Code Safely
 
-Enable **Uncaught Exceptions** to stop when an exception is not handled. Enable **Caught Exceptions** only when you need to inspect exceptions that a library or your code handles internally.
+Robot code has timing requirements and can command hardware. Practice in desktop simulation first. Follow [Running the Simulator](/frc/running-the-simulator) and use its documented debug path. A breakpoint pauses the Java program; other processes or wall-clock-driven simulation may continue. A paused session is not evidence of normal loop timing.
 
-### Debugging robot code
+WPILib also supports **Debug Robot Code**, which deploys and attaches to the roboRIO. Treat this as a supervised hardware procedure:
 
-Robot code runs periodic tasks with timing requirements. Use simulation for debugger practice and account for timing changes caused by pauses.
+- Disable the robot and mechanically secure every mechanism before attaching.
+- Keep a mentor at the Driver Station Disable control.
+- Do not rely on a breakpoint or motor-safety timeout to make hardware safe. The last commanded output may persist, and other processes may continue.
+- Stop the debug session before returning the robot to normal operation.
 
-**Simulation:** use the WPILib simulation workflow and select the debug option when offered. Breakpoints can then pause the Java program. Other processes and wall-clock-based simulation components may continue while Java is paused, so a paused run is not evidence of normal timing. See [Running the simulator](/frc/running-the-simulator).
+These are safety requirements for following this lesson. The WPILib documentation establishes deploy-and-attach behavior and that breakpoints pause execution; it does not promise that pausing Java makes every actuator safe.
 
-**On the roboRIO:** WPILib supports deploying and attaching a debugger, but pausing changes control timing. Follow the team's hardware safety procedure, disable the robot, and secure mechanisms before attaching. Do not depend on a breakpoint or motor-safety timeout to make the mechanism safe. Use [recorded telemetry](/frc/reading-a-match-log#where-the-record-comes-from) for normal operation.
+## Practice Without Losing Work
 
-Logpoints also affect execution and may evaluate expressions. They are not a guarantee of safe debugging on moving hardware. Test in simulation first and use deliberate logging for hardware observations.
+Copy the `Main.java` example to `MainBroken.java`, rename its class to `MainBroken`, and make the intentional mistake only in the copy. Change `count <= 3` to `count <= 4`, then add a conditional breakpoint for `count == 4`. Inspect the values, stop the session, and undo the change. Keep `Main.java` as the known-good copy.
 
-<RulesBox title="Common mistakes">
+<RulesBox title="Recovery Checks">
 
-- **An unverified breakpoint.** Check that the debugger is attached, the source matches the running code, and execution reaches the line.
-- **Unexpected stepping.** Check step filters or use Step Out to return to the caller.
-- **Editing during a session.** Restart to ensure the running program matches the saved source.
-- **Leftover breakpoints.** Review the Breakpoints pane before a shared simulation session.
-- **Timing assumptions.** A paused or instrumented run may behave differently from normal execution.
+- A hollow or grey breakpoint can mean the running code does not match the saved source.
+- Unexpected stepping can come from step filters or generated code. Use Step Out to return to your code.
+- After editing during a session, stop and restart unless you deliberately use and understand Hot Code Replace.
+- Remove or disable practice breakpoints before a shared simulation session.
 
 </RulesBox>
 
-<ExerciseBox title="Practice">
-
-Use a sorting solution from [Common Algorithms](/java/fundamentals/java-sorting-algorithms#insertion-sort), saved locally in a folder.
-
-1. Set a breakpoint inside the inner loop. Debug. Step with `F10` ten times, reading the indices and the array in Variables each time.
-2. Add a Watch for the array element currently being compared. Step again.
-3. Turn the breakpoint into a conditional one that fires only when the two elements are out of order.
-4. Replace it with a logpoint that prints the two indices, and run with `F5`. Read the Debug Console.
-5. Introduce a deliberate `ArrayIndexOutOfBoundsException`. With *Uncaught Exceptions* ticked, debug it and read the value of the index when the exception occurs, then fix it.
-
-</ExerciseBox>
-
 <Sources items={[
-  {"source": "vscode", "path": "debugtest/debugging", "note": "Breakpoints, stepping, watch, call stack."},
-  {"source": "vscode", "path": "java/java-debugging", "note": "Java debugging in VS Code."},
-  {"source": "wpilib", "path": "docs/software/vscode-overview/debugging-robot-program.html", "note": "Debugging a robot program, and why pausing changes timing."},
-  {"source": "wpilib", "path": "docs/software/vscode-overview/viewing-console-output.html", "note": "Console output."}
+  {"source": "vscode", "path": "debugtest/debugging", "note": "Breakpoint state, stepping, Variables, Watch, Call Stack, and logpoint syntax."},
+  {"source": "vscode", "path": "java/java-debugging", "note": "Java Run and Debug, conditional breakpoints, logpoints, expression evaluation, and project configuration."},
+  {"source": "wpilib", "path": "docs/software/vscode-overview/debugging-robot-program.html", "note": "Deploying and attaching the robot debugger and breakpoint timing effects."},
+  {"source": "wpilib", "path": "docs/software/vscode-overview/viewing-console-output.html", "note": "Robot console output."}
 ]} />
 
 <LinkGrid title="Next" section="tools" links={[
   {"label":"VS Code: Source Control","id":"vscode-source-control"},
-  {"label":"VS Code: Editing Java","id":"vscode-editing-java"},
-  {"label":"Hotkeys: Debugging","url":"/tools/vscode-keyboard-shortcuts#debugging"},
   {"label":"FRC: Running the Simulator","url":"/frc/running-the-simulator"},
-  {"label":"VS Code docs: Debugging","url":"https://code.visualstudio.com/docs/debugtest/debugging"}
+  {"label":"VS Code: Java Debugging","url":"https://code.visualstudio.com/docs/java/java-debugging"}
 ]} />

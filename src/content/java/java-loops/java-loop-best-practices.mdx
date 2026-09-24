@@ -11,248 +11,271 @@ duration: 35 min
 description: "Where loop variables live, structuring a program around its loops, choosing for versus while, tracing execution by hand, and building incrementally."
 ---
 
-### Variable scope in loops
+This lesson combines the loop skills from the previous lessons into programs that are easier to test and change. You will keep values in the scope where they are needed, separate repeated work from final results, trace a loop before running it, and build one working step at a time.
 
-Variables declared inside a loop only exist within that loop. To use values after the loop ends, declare variables before the loop starts.
+## Separate Scope From Resetting
 
-### Variable scope: wrong way
+A local variable's **scope** is the part of a block where its name can be used. A variable declared in a loop body is in scope from its declaration to that body's closing brace. Code after the loop cannot use its name.
 
-```java
-Scanner scanner = new Scanner(System.in);
+There is a second issue to check: Java executes a declaration with an initializer each time it reaches that statement. If `int ones = 0;` is inside a loop body, each pass creates and initializes that pass's `ones` variable to zero. It cannot accumulate a total across passes.
 
-while (true) {
-    int ones = 0;  // [BAD] Variable declared inside loop
-    
-    System.out.println("Input a number (0 exits): ");
-    int number = Integer.valueOf(scanner.nextLine());
-    
-    if (number == 0) {
-        break;
-    }
-    
+The next bounded numeric example shows both problems. Read it without running it because the final `println` would be a compile error if it were uncommented.
+
+```java norun
+int[] numbers = {1, 1, 2};
+
+for (int number : numbers) {
+    int ones = 0;
+
     if (number == 1) {
         ones = ones + 1;
     }
 }
 
-// [BAD] This won't work - 'ones' doesn't exist here!
+// Compile error: ones is outside its scope here.
 // System.out.println("Total ones: " + ones);
 ```
 
-### Variable scope: correct way
+Moving `ones` before the loop solves both problems. Its scope now includes the loop and the final print, and its initializer runs only once.
+
+## Count Input Safely
+
+This complete program counts how many entered integers are `1`. It stops at the sentinel `0` or at end-of-input. Invalid lines are reported and skipped, just as in [Loop Control](/java/fundamentals/java-loop-control#skip-invalid-input).
+
+To run it in the browser, place all input lines in **Sample input** before selecting **Run**. To run it locally, replace the contents of `Main.java`, save the file, and follow the [terminal input instructions](/java/fundamentals/java-while-loops#run-with-terminal-input).
 
 ```java
-Scanner scanner = new Scanner(System.in);
-int ones = 0;  // [GOOD] Variable declared before loop
+import java.util.Scanner;
 
-while (true) {
-    System.out.println("Give a number (end with 0): ");
-    int number = Integer.valueOf(scanner.nextLine());
-    
-    if (number == 0) {
-        break;
-    }
-    
-    if (number == 1) {
-        ones = ones + 1;
+public class Main {
+    public static void main(String[] args) {
+        Scanner input = new Scanner(System.in);
+        int ones = 0;
+
+        System.out.println("Enter integers. Enter 0 to stop.");
+
+        while (input.hasNextLine()) {
+            String line = input.nextLine();
+            int number;
+
+            try {
+                number = Integer.parseInt(line);
+            } catch (NumberFormatException exception) {
+                System.out.println("Skipped invalid integer: " + line);
+                continue;
+            }
+
+            if (number == 0) {
+                break;
+            }
+
+            if (number == 1) {
+                ones = ones + 1;
+            }
+        }
+
+        System.out.println("Total ones: " + ones);
+        input.close();
     }
 }
-
-// [GOOD] Now we can access 'ones' after the loop
-System.out.println("The total of ones: " + ones);
 ```
 
-### Program structure best practices
+For sample input `1`, `4`, `1`, and `0`, the final line is `Total ones: 2`. With `0` first or with empty browser input, it is `Total ones: 0`. The value remains available after the loop because it was declared in the surrounding `main` block.
 
-Keep the work of collecting data inside the loop and the work of reporting it after the loop. A total printed inside the loop prints once per pass; printed after it, once.
+## Keep Final Results After The Loop
 
-### Poor structure (avoid)
+An input loop usually performs one pass for each input item. Instructions belong before that repeated work. Reading, validation, and accumulation belong inside it. A final summary belongs after it so the program prints the summary once.
+
+This program accepts positive integers, treats malformed and negative entries as invalid, and prints one summary after input ends. The sentinel `0` is not included in either count.
 
 ```java
-// [BAD] Poor structure - processing inside loop
-Scanner scanner = new Scanner(System.in);
-int sum = 0;
-int validNumbers = 0;
-int invalidNumbers = 0;
+import java.util.Scanner;
 
-while (true) {
-    int input = Integer.valueOf(scanner.nextLine());
-    
-    if (input == 0) {
-        // [BAD] Final processing inside the loop - hard to maintain
+public class Main {
+    public static void main(String[] args) {
+        Scanner input = new Scanner(System.in);
+        long sum = 0;
+        int validNumbers = 0;
+        int invalidNumbers = 0;
+
+        System.out.println("Enter positive integers. Enter 0 to stop.");
+
+        while (input.hasNextLine()) {
+            String line = input.nextLine();
+            int number;
+
+            try {
+                number = Integer.parseInt(line);
+            } catch (NumberFormatException exception) {
+                System.out.println("Skipped invalid integer: " + line);
+                invalidNumbers = invalidNumbers + 1;
+                continue;
+            }
+
+            if (number == 0) {
+                break;
+            }
+
+            if (number < 0) {
+                System.out.println("Skipped negative integer: " + number);
+                invalidNumbers = invalidNumbers + 1;
+                continue;
+            }
+
+            sum = sum + number;
+            validNumbers = validNumbers + 1;
+        }
+
         System.out.println("Sum: " + sum);
-        System.out.println("Valid: " + validNumbers);
-        System.out.println("Invalid: " + invalidNumbers);
-        break;
+        System.out.println("Valid numbers: " + validNumbers);
+        System.out.println("Invalid entries: " + invalidNumbers);
+
+        if (validNumbers > 0) {
+            double average = (double) sum / validNumbers;
+            System.out.println("Average: " + average);
+        } else {
+            System.out.println("Average: no valid numbers");
+        }
+
+        input.close();
     }
-    
-    if (input < 0) {
-        invalidNumbers++;
-        continue;
-    }
-    
-    sum += input;
-    validNumbers++;
 }
 ```
 
-### Good structure (recommended)
+For this browser sample input:
 
-```java
-// [GOOD] Good structure - clean separation
-Scanner scanner = new Scanner(System.in);
-
-// Variables for loop processing
-int sum = 0;
-int validNumbers = 0;
-int invalidNumbers = 0;
-
-System.out.println("Enter numbers (negative invalid, 0 to stop):");
-
-while (true) {
-    int input = Integer.valueOf(scanner.nextLine());
-    
-    // Exit condition - clean break
-    if (input == 0) {
-        break;
-    }
-    
-    // Handle invalid input
-    if (input < 0) {
-        invalidNumbers++;
-        System.out.println("Invalid number: " + input);
-        continue;
-    }
-    
-    // Process valid input
-    sum += input;
-    validNumbers++;
-    System.out.println("Added: " + input);
-}
-
-// [GOOD] All final processing after loop
-System.out.println("\n=== Final Results ===");
-System.out.println("Sum of valid numbers: " + sum);
-System.out.println("Valid numbers entered: " + validNumbers);
-System.out.println("Invalid numbers entered: " + invalidNumbers);
-
-if (validNumbers > 0) {
-    double average = (double) sum / validNumbers;
-    System.out.println("Average: " + average);
-}
+```text
+5
+-2
+no
+7
+0
 ```
 
-<RulesBox title="Recommended loop structure" subtitle="Clean code pattern">
+the exact summary is:
 
-- **Before loop:** Initialize variables and give instructions
-- **Start of loop:** Read input or get next data
-- **Early exit:** Check break conditions first
-- **Validation:** Handle invalid input with continue
-- **Processing:** Handle valid input
-- **After loop:** Display results and final calculations
+```text
+Sum: 12
+Valid numbers: 2
+Invalid entries: 2
+Average: 6.0
+```
+
+With `0` as the first line, or with empty browser input, the summary reports a sum of 0, zero valid numbers, zero invalid entries, and `Average: no valid numbers`.
+
+The check `validNumbers > 0` prevents division by zero. The cast to `double` makes the division keep a fractional part. The calculation assumes the accumulated sum fits in a `long`.
+
+<RulesBox title="Organize An Input Loop" subtitle="One job in each place">
+
+- **Before the loop:** Initialize totals and print instructions.
+- **Start of each pass:** Read one input item.
+- **Validation:** Report and skip an invalid item with `continue`.
+- **Exit:** Leave on the sentinel with `break`, or let the condition detect end-of-input.
+- **Processing:** Update totals for an accepted item.
+- **After the loop:** Print the final results and calculations once.
 
 </RulesBox>
 
-### When to use which loop type
+## Choose A Loop From The Repetition
 
-The loop type follows from what you know before the loop starts.
+Choose the loop form from what controls the repetition:
 
-<RulesBox title="Loop selection guide" subtitle="Choosing the right loop">
+- Use a `for` loop when a counter describes the repetition clearly, such as five trials or every valid index in an array.
+- Use a `while` loop when another condition decides whether work remains, such as whether another input line is available.
+- Use `break` for an exit discovered inside the body, such as a sentinel.
+- Use `continue` when the current item should skip the rest of its pass while later items still need processing.
 
-- **For loop:** When you know the exact number of iterations
-- **While with condition:** When you have a clear end condition
-- **While (true) with break:** For user input or complex exit conditions
-- **Continue:** Skip invalid input without exiting the loop
+The choice does not make a loop safe by itself. Trace every path and make sure it reaches the update, the next condition check, or an explicit exit.
 
-</RulesBox>
+## Trace Before Running
 
-### Simulating program execution
-
-```java
-// Practice tracing through this loop
-int result = 0;
-
-for (int i = 0; i < 4; i++) {
-    result += 3;
-}
-
-/*
-Execution trace table:
-
-Step | result | i | i < 4 | Action
------|--------|---|-------|--------
-  1  |   0    | 0 | true  | result = 0 + 3 = 3
-  2  |   3    | 1 | true  | result = 3 + 3 = 6
-  3  |   6    | 2 | true  | result = 6 + 3 = 9
-  4  |   9    | 3 | true  | result = 9 + 3 = 12
-  5  |  12    | 4 | false | Exit loop
-
-Final result: 12
-*/
-
-System.out.println("Result: " + result);
-```
-
-### Incremental development
-
-Build a program in steps, running it after each one. When something breaks, start by checking the most recent step.
-
-### Step-by-step development
+Tracing means recording the relevant values at each condition check and pass. It can reveal an incorrect starting value, boundary, or update before you run the program.
 
 ```java
-// Robot calibration program - build incrementally
+public class Main {
+    public static void main(String[] args) {
+        int result = 0;
 
-// Step 1: Basic loop structure
-// for (int i = 0; i < 5; i++) {
-//     System.out.println("Step " + i);
-// }
+        for (int i = 0; i < 4; i = i + 1) {
+            result = result + 3;
+        }
 
-// Step 2: Add sensor reading simulation
-// for (int i = 0; i < 5; i++) {
-//     int reading = (int)(Math.random() * 100);
-//     System.out.println("Calibration step " + i + ": " + reading);
-// }
-
-// Step 3: Add processing and validation
-System.out.println("=== Robot Sensor Calibration ===");
-int totalReadings = 0;
-int validReadings = 0;
-double sum = 0;
-
-for (int step = 1; step <= 5; step++) {
-    System.out.println("\nCalibration step " + step + " of 5");
-    
-    // Simulate sensor reading
-    double reading = Math.random() * 120;  // 0-120 range
-    totalReadings++;
-    
-    System.out.println("Raw sensor reading: " + String.format("%.2f", reading));
-    
-    // Validate reading
-    if (reading < 0 || reading > 100) {
-        System.out.println("[WARNING] Reading out of range - skipping");
-        continue;
+        System.out.println("Result: " + result);
     }
-    
-    // Process valid reading
-    validReadings++;
-    sum += reading;
-    System.out.println("[GOOD] Valid reading accepted");
-}
-
-// Final calibration results
-System.out.println("\n=== Calibration Complete ===");
-System.out.println("Total attempts: " + totalReadings);
-System.out.println("Valid readings: " + validReadings);
-
-if (validReadings > 0) {
-    double average = sum / validReadings;
-    System.out.println("Average calibration value: " + String.format("%.2f", average));
-    System.out.println("[GOOD] Calibration successful!");
-} else {
-    System.out.println("[BAD] Calibration failed - no valid readings");
 }
 ```
+
+| Check | `i` | Test | Action | Result |
+| --- | ---: | --- | --- | ---: |
+| First | 0 | `true` | Add 3 | 3 |
+| Second | 1 | `true` | Add 3 | 6 |
+| Third | 2 | `true` | Add 3 | 9 |
+| Fourth | 3 | `true` | Add 3 | 12 |
+| Fifth | 4 | `false` | Leave the loop | 12 |
+
+Predict `Result: 12`, then run the program. If your prediction differs, compare the first row where your trace and the program disagree.
+
+## Build In Small Working Steps
+
+Incremental development means adding one small behavior to a working program, then running it again. When a new run fails, the most recent change gives you a focused place to inspect.
+
+Suppose five practice readings must be checked against an allowed range of 0 through 100. Fixed values make the example repeatable: every run can be compared with the same prediction.
+
+Start with a loop that prints each reading:
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        double[] readings = {82.5, 101.0, 79.5, -2.0, 88.0};
+
+        for (int index = 0; index < readings.length; index = index + 1) {
+            System.out.println("Reading " + (index + 1) + ": " + readings[index]);
+        }
+    }
+}
+```
+
+Run that step and confirm that all five values print in order. Then add the range check, accepted count, and average:
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        double[] readings = {82.5, 101.0, 79.5, -2.0, 88.0};
+        int validReadings = 0;
+        double sum = 0.0;
+
+        for (int index = 0; index < readings.length; index = index + 1) {
+            double reading = readings[index];
+            System.out.println("Reading " + (index + 1) + ": " + reading);
+
+            if (reading < 0.0 || reading > 100.0) {
+                System.out.println("Skipped: outside 0 through 100");
+                continue;
+            }
+
+            validReadings = validReadings + 1;
+            sum = sum + reading;
+            System.out.println("Accepted");
+        }
+
+        System.out.println("Total readings: " + readings.length);
+        System.out.println("Valid readings: " + validReadings);
+
+        if (validReadings > 0) {
+            double average = sum / validReadings;
+            System.out.println("Average: " + average);
+        } else {
+            System.out.println("Average: no valid readings");
+        }
+    }
+}
+```
+
+The practice readings `101.0` and `-2.0` are outside the allowed range, so the program accepts three readings. Their sum is `250.0`, and the final average is `83.33333333333333`.
+
+Change one thing at a time to test the boundaries: replace `101.0` with `100.0`, then replace every value with an invalid value. Predict the accepted count and whether an average prints before each run.
+
+The playground below is a smaller check of accumulator placement: declare `total` before the loop, add 1 through 4 inside the loop, and print `10` after the loop. Complete it before the broader Practice tasks.
 
 <JavaPlayground id="java-loop-best-practices" />
 
@@ -267,14 +290,15 @@ Predict each result, run the code, and explain any difference before continuing.
 </ExerciseBox>
 
 <Sources items={[
-  {"source": "csce145", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "language-basics/variables/", "note": "Scope."},
-  {"source": "jls", "path": "jls-6.html", "note": "Scope of a local variable (section 6.3)."},
-  {"source": "java-api", "path": "java.base/java/util/Scanner.html", "note": "<code>Scanner</code> in an input loop."},
-  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Math.html", "note": "<code>Math</code> API reference."}
+  {"source": "csce145", "label": "Course Materials", "note": "The beginner course structure that inspired this lesson's loop practice and incremental-development sequence."},
+  {"source": "dev-java", "path": "language-basics/variables/", "label": "Variables And Naming", "note": "Local variable declarations, initialization, and block scope."},
+  {"source": "dev-java", "path": "language-basics/controlling-flow/", "label": "Control Flow Statements", "note": "Choosing and controlling <code>while</code> and <code>for</code> loops."},
+  {"source": "jls", "path": "jls-6.html#jls-6.3", "label": "§6.3: Scope Of A Declaration", "note": "The scope of a local variable declared in a block."},
+  {"source": "jls", "path": "jls-14.html#jls-14.4", "label": "§14.4: Local Variable Declaration Statements", "note": "A local variable declaration with an initializer executes when control reaches it."},
+  {"source": "jls", "path": "jls-14.html#jls-14.12", "label": "§14.12: The while Statement", "note": "A <code>while</code> loop evaluates its condition before each body execution."},
+  {"source": "jls", "path": "jls-14.html#jls-14.14", "label": "§14.14: The for Statement", "note": "A basic <code>for</code> loop's initialization, condition, body, and update order."},
+  {"source": "java-api", "path": "java.base/java/util/Scanner.html#hasNextLine()", "label": "Scanner.hasNextLine", "note": "Checking for another complete input line before reading it, including end-of-input behavior."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html#parseInt(java.lang.String)", "label": "Integer.parseInt", "note": "Converting a complete input line to an <code>int</code> and reporting invalid text with <code>NumberFormatException</code>."}
 ]} />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Classes", "id": "java-classes"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "Classes", "id": "java-classes"}]} />

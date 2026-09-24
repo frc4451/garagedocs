@@ -1,0 +1,165 @@
+---
+title: "Swerve Drive Math"
+lessonId: swerve-drive-math
+section: frc
+group: frc-drivetrain-fundamentals
+groupLabel: "Drivetrain Fundamentals"
+groupOrder: 13.5
+order: 3
+difficulty: intermediate
+description: "Calculate module speed and angle from translation, rotation, and geometry."
+---
+
+Read [Differential Drive Math](/frc/differential-drive-math) first. Swerve keeps the same forward and turning requests, then adds sideways travel and a steering target for each wheel.
+
+## Drive and Azimuth
+
+Each conventional swerve module has two motor controls. Both involve rotation, but they rotate different parts:
+
+| Control | What Moves | Target From the Math | Feedback |
+| --- | --- | --- | --- |
+| **Drive** | The wheel spins around its axle, rolling along the floor. | Signed wheel speed in meters per second | Drive encoder velocity, converted from motor or wheel rotations to wheel speed |
+| **Azimuth**, also called **steer**, **turn**, or module **rotation** | The wheel assembly swivels around its vertical steering axis, changing where the wheel points. | Steering angle, such as 0° forward or +90° left | Steering position from an absolute encoder, or a relative encoder referenced to it |
+
+Think of pushing a shopping cart wheel: pointing the wheel and rolling it are separate motions. Swerve needs both controls to produce the requested velocity arrow. Azimuth chooses the arrow's direction; drive produces motion along it. With the module pointing left, positive drive speed moves along that leftward direction. Negative drive speed rolls the opposite way without requiring another steering turn.
+
+In WPILib's `SwerveModuleState`, `speedMetersPerSecond` is the **drive** target and `angle` is the **azimuth** target. The controllers compare those targets with measured wheel speed and steering angle, then adjust motor output. A requested angle of 30° means reach and hold that orientation; it does not mean keep rotating at 30 degrees per second.
+
+The chassis request `omega` describes the turning rate of the **whole robot**. It is not a steering-motor speed command. The kinematics calculation uses `omega` and each module's location to find that module's drive speed and azimuth angle.
+
+## Locate Each Module
+
+Swerve adds a sideways rate and a steering angle for each module. A **module state** is its wheel speed and steering angle together. Locate each module relative to the robot's center: `x` is its forward offset and `y` is its left offset, both in meters. The calculations below use the robot's center as the center of rotation.
+
+For each module, combine the requested translation with the motion caused by turning:
+
+```text
+module forward velocity = vx - omega × y
+module left velocity    = vy + omega × x
+```
+
+The turning contribution depends on where that module sits. A module at the front moves left during a counterclockwise turn; a module on the left moves backward. The two equations express those directions. Apply them separately to every module.
+
+These two components describe an arrow. Its length gives wheel speed, and its direction gives steering angle:
+
+```text
+speed = sqrt(forward velocity² + left velocity²)
+angle = atan2(left velocity, forward velocity)
+```
+
+`sqrt` means square root. `atan2` finds the arrow's direction while accounting for the signs of both components, including a zero forward component. Java's result is in radians; the tables below show degrees. Zero degrees points forward and +90 degrees points left. You can use a calculator for these operations; [Vector Math](/java/fundamentals/java-vector-math#magnitude-and-normalization) explains the length calculation.
+
+Consider a square robot whose modules are 0.30 meters forward/backward and 0.30 meters left/right of its center. Use the same request as the tank example: `vx = 1.0`, `vy = 0.0`, and `omega = 1.0`.
+
+| Module | Location `(x, y)` in Meters | Velocity `(forward, left)` in m/s | Speed in m/s | Angle |
+| --- | --- | --- | --- | --- |
+| Front left | `(0.30, 0.30)` | `(0.70, 0.30)` | 0.762 | +23.2° |
+| Front right | `(0.30, -0.30)` | `(1.30, 0.30)` | 1.334 | +13.0° |
+| Back left | `(-0.30, 0.30)` | `(0.70, -0.30)` | 0.762 | -23.2° |
+| Back right | `(-0.30, -0.30)` | `(1.30, -0.30)` | 1.334 | -13.0° |
+
+For the front-left module, the speed is `sqrt(0.70² + 0.30²)`, about 0.762 m/s. Its forward component matches the tank's left-side result, but the module also needs a leftward component because it sits ahead of the turning center. The azimuth controller points the wheel to +23.2°, while the drive controller requests 0.762 m/s along that direction. Swerve needs both targets to produce the combined arrow.
+
+`SwerveDriveKinematics.toSwerveModuleStates(robotRelativeSpeeds)` performs the conversion using the module locations supplied to its constructor. Keep the returned array in that same module order.
+
+## Work Through One Angle
+
+For the front-left module, `0.70² + 0.30² = 0.58`. The square root is about 0.762. Its leftward component is positive, so the wheel points left of forward. Calculating `atan2(0.30, 0.70)` gives about 0.405 radians, or 23.2 degrees after multiplying by `180 / pi`.
+
+If your calculator has only ordinary inverse tangent, `atan(0.30 / 0.70)` gives the same angle for this particular pair of positive components. Use `atan2` in code because other quadrants and a zero forward component need correct handling. [Vector Math](/java/fundamentals/java-vector-math) explains components and directions in more detail.
+
+For pure leftward travel, request `(vx, vy, omega) = (0, 1, 0)`. Every module receives forward component 0 and left component 1. Each therefore needs 1 m/s at +90 degrees. Module location has no effect because the turning contribution is zero.
+
+For pure counterclockwise turning at 1 rad/s, the front-left components become `(-0.30, +0.30)`. The speed is about 0.424 m/s and the angle is +135 degrees. The other modules point along different directions around the same center; they do not all point forward while the chassis turns.
+
+## Keep Module Order Consistent
+
+Each location supplied to `SwerveDriveKinematics` is a `Translation2d` in meters. If the constructor receives front left, front right, back left, back right, the returned states use that order too. Keep that order when connecting states to physical modules and when providing module measurements to odometry.
+
+Draw and label the four locations before copying configuration values. The example uses a 0.60 m square between module centers; it is not a recommendation for your robot dimensions.
+
+## Define Steering Zero
+
+The angle calculation assumes every module agrees on **robot-relative zero**: the direction in which positive wheel speed would move the robot forward. Positive steering angles increase counterclockwise when viewed from above. A wheel can look aligned front-to-back at either 0° or 180°, so its appearance alone does not establish the positive drive direction.
+
+An encoder measures rotation. A **relative encoder** tracks changes from an initial reference; an arbitrary startup reading does not establish where the module points. A **single-turn absolute encoder** reports its position within one revolution, including after power returns. It can identify the module's orientation without first driving the module to a stop, provided its mounting and calibration are correct.
+
+The absolute encoder does not know which way your robot calls forward. Its magnet or shaft may report, for example, 123° when the wheel is aligned forward. A stored **zero offset** connects that sensor reading to the physical reference. Each module needs its own calibration.
+
+## Calibrate the Absolute Encoder
+
+Use the procedure for your module and control library. The steps below explain what calibration establishes; the linked vendor instructions supply the exact alignment fixture, settings, and buttons.
+
+1. Identify the module, its drive controller, its steering controller, and its absolute encoder. Record the device IDs so a front-left reading cannot be mistaken for front right.
+2. With motor output disabled, place the module in the manufacturer's reference orientation using its alignment tool or specified method. Follow the vendor's handling procedure. Keep hands and tools clear before any powered test.
+3. Open the encoder reading in the vendor tool or robot telemetry. Confirm its units: one rotation is 360° or `2 × pi` radians. Check the configured sensor direction before recording the offset; the final robot-relative angle should increase when the module turns counterclockwise.
+4. Record or set the offset using the library's convention. Preserve it in the configuration used after restart. Check whether startup code overwrites a setting made in the vendor tool.
+5. Verify the final **robot-relative module angle**, after all sensor and mounting corrections. It should read approximately 0° when positive wheel travel points forward, +90° when it points left, and 180° or -180° when it points backward.
+6. Restart with the module in a different known orientation and verify that the reported angle still matches. Do not declare whatever position it occupies at startup to be zero. Recheck calibration after replacing or moving an encoder or its mechanical connection.
+
+[CTRE's module configuration procedure](https://v6.docs.ctr-electronics.com/en/stable/docs/tuner/tuner-swerve/configuring-your-modules.html) guides device selection and CANcoder offset calibration. Follow its required module alignment. [REV's swerve calibration procedure](https://docs.revrobotics.com/rev-hardware-client-2/guides/swerve-calibration) uses the module's calibration tool and the steering controller's absolute-encoder settings. A manufacturer's module reference can differ from robot-forward; the robot template may also apply a chassis mounting offset for each module. Preserve that distinction rather than assuming the vendor's raw zero is already robot-relative zero.
+
+## Calculate an Offset
+
+For this illustrative calculation, assume the sensor already increases counterclockwise, its reading is in degrees, and its physical reference is robot-forward. Define the offset as the reading recorded at that reference:
+
+```text
+robot-relative angle = wrap(raw absolute angle - zero offset)
+```
+
+Here, `wrap` adds or subtracts full turns to express the same direction between -180° inclusive and +180° exclusive. It does not change the physical orientation.
+
+| Raw Reading | Stored Offset | Corrected Angle | Meaning |
+| --- | --- | --- | --- |
+| 123° | 123° | 0° | Forward |
+| 213° | 123° | +90° | Left |
+| 33° | 123° | -90° | Right |
+| 303° | 123° | -180° | Backward |
+
+Some APIs add a configured offset instead of subtracting it, so they would need a different signed value for this example. Follow the API's definition. Apply each correction once: subtracting the same zero offset in code after the encoder has already applied it produces the wrong angle. A separate chassis mounting correction has a different purpose and may still be required.
+
+## Use Zero at Startup
+
+Some steering controllers use the calibrated absolute reading directly. Others initialize, synchronize, or fuse a motor's relative position with the absolute sensor. Follow the template's feedback configuration and wait for a valid sensor reading before accepting it as a reference. If relative feedback is used, its units and steering gear ratio must map to the same module angle as the absolute reading. [CTRE's remote-sensor documentation](https://v6.docs.ctr-electronics.com/en/stable/docs/api-reference/device-specific/talonfx/remote-sensors.html) explains its supported feedback choices.
+
+Calibration tells the program where the module **is**. Commanding an azimuth target of zero asks it to **move** forward. Those are separate actions. A zero chassis-speed request may retain previous module headings, so it is not a calibration test that all wheels point forward. Likewise, optimization can represent forward wheel motion as 180° with negative drive speed; inspect the signed speed along with the angle.
+
+Resetting drive distance establishes a wheel-travel reference for odometry. Zeroing the gyro establishes a robot-heading reference. Neither calibrates module azimuth. Keep these three references separate when diagnosing unexpected motion.
+
+## Limit Speed and Steering Travel
+
+The swerve angles are the unoptimized kinematic results. A module can produce the same motion by reversing its wheel speed and turning its target angle by 180°. WPILib's module-state optimization uses that equivalence to reduce steering travel. If a log shows a different angle, compare the signed speed as well. When the whole requested motion is zero, WPILib retains the previous module headings rather than calculating a new direction for a zero-length arrow.
+
+For example, +170 degrees at +1 m/s describes the same wheel motion as -10 degrees at -1 m/s. Optimization chooses between equivalent states based on the module's current angle. Compare both angle and signed speed when inspecting a log.
+
+If one calculated speed exceeds the allowed maximum, `SwerveDriveKinematics.desaturateWheelSpeeds` can scale all wheel speeds by a common factor. With a largest calculated speed of 1.334 m/s and a 1.0 m/s limit, that factor is about `1.0 / 1.334 = 0.750`. The smaller 0.762 m/s speed becomes about 0.571 m/s. Scaling preserves their ratios; clipping only the largest wheel would change the requested motion.
+
+## Practice With Geometry
+
+Change all four offset magnitudes from 0.30 m to 0.40 m. Predict pure leftward travel and pure turning again. Translation still produces 1 m/s at +90 degrees. Pure turning at 1 rad/s produces about 0.566 m/s at the same four angles because every module is farther from the center.
+
+Next, calculate the back-right state for `(1, 0, 1)` with the original geometry. You should find components `(1.30, -0.30)`, speed about 1.334 m/s, and angle about -13.0 degrees. Explain each sign before moving to [Drivetrain Checks](/frc/drivetrain-checks).
+
+<Sources items={[
+{"url": "https://docs.wpilib.org/en/stable/docs/software/hardware-apis/sensors/encoders-software.html", "label": "WPILib: Encoder Measurements", "note": "Relative and absolute position measurements and encoder units."},
+{"url": "https://v6.docs.ctr-electronics.com/en/stable/docs/tuner/tuner-swerve/configuring-your-modules.html", "label": "CTRE: Configure Swerve Modules", "note": "Separate drive/steer device assignments, alignment, and CANcoder offset calibration."},
+{"url": "https://docs.revrobotics.com/rev-hardware-client-2/guides/swerve-calibration", "label": "REV: Swerve Calibration", "note": "Module-specific alignment tools and absolute-encoder calibration through the steering controller."},
+{"url": "https://v6.docs.ctr-electronics.com/en/stable/docs/api-reference/device-specific/talonfx/remote-sensors.html", "label": "CTRE: Remote Sensor Feedback", "note": "Absolute-sensor feedback and synchronization/fusion with motor position."},
+  {
+    "source": "wpilib",
+    "path": "docs/software/kinematics-and-odometry/swerve-drive-kinematics.html",
+    "note": "Module geometry, ordering, optimization, and coordinate conversion."
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "src-html/edu/wpi/first/math/kinematics/SwerveDriveKinematics.html",
+    "note": "Module component equations, retained headings, and speed desaturation."
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/math/kinematics/SwerveModuleState.html",
+    "note": "Equivalent speed/angle states and optimization."
+  }
+]} />
+
+<LinkGrid links={[{"label":"Drivetrain Checks","id":"drivetrain-checks"}]} title="Next" section="frc" />

@@ -10,53 +10,100 @@ duration: 10 min
 description: Choose one follow-up project based on a specific need in the working Kit Bot.
 ---
 
+After the [capstone](/kit-bot/rc-capstone), choose a follow-up project from a behavior you can observe in your working robot. This catalog is optional; selecting a project does not add a requirement to the simulation capstone or Badge 1.
 
-The capstone produces a working simulated Kit Bot with distance-based launcher settings, checked `kS` and `kV` calculations, a field pose, and timed autonomous routines. This page is a follow-up catalog, not another requirement for the simulation capstone. Choose one change from a behavior you have observed.
+## Before You Start
 
-### Project guide
+Keep the working capstone as a reference before changing it. Use a [Git branch](/tools/branching-and-merging) to keep the experiment separate, and ask a mentor to review the proposed change. If the project needs new wiring or equipment, read the relevant [Hardware guide](/hardware) with that mentor before buying, connecting, or operating it.
 
-| Need you observed | Project | Preparation | Start here |
-|---|---|---|---|
-| Autonomous distance changes between runs | Add encoder-based distance control and a gyro for heading | Encoders, feedback control, drivetrain safety | [WPILib differential-drive odometry](https://docs.wpilib.org/en/stable/docs/software/kinematics-and-odometry/differential-drive-odometry.html) |
-| Launcher speed drops as fuel enters | Add a velocity target with feedforward and feedback | R09 results, launcher RPM telemetry | [WPILib feedforward and feedback](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/combining-feedforward-feedback.html) |
-| You need complete replayable logs | Add AdvantageKit after the base robot is understood | IO interfaces, AdvantageScope | [AdvantageKit documentation](https://docs.advantagekit.org/) |
-| The launcher needs settings for additional field locations | Add measured distance and speed pairs | [R08 Part 3](/kit-bot/r08-launcher-calibration) and the current test logs | [A10](/java/assignments/a10-shooter-lookup-table) |
-| A mechanism needs its position after reboot | Add an absolute encoder or homing routine | Sensors, mechanism safety | [CTRE CANcoder](https://v6.docs.ctr-electronics.com/en/latest/docs/hardware-reference/cancoder/index.html) |
-| The robot needs to detect fuel or a hard limit | Add a beam break or limit switch | Digital input wiring | [WPILib digital inputs](https://docs.wpilib.org/en/stable/docs/software/hardware-apis/sensors/digital-inputs-software.html) |
-| Drivers need clear robot-state feedback | Add addressable LEDs | A small subsystem and state definitions | [WPILib addressable LEDs](https://docs.wpilib.org/en/stable/docs/software/hardware-apis/misc/addressable-leds.html) |
-| You need to diagnose brownouts or high current | Add power-distribution telemetry | AdvantageScope graphs | [WPILib power distribution](https://docs.wpilib.org/en/stable/docs/software/can-devices/power-distribution-module.html) |
+The links below introduce topics beyond this course. Start with one row and its first experiment. A **feedback controller** compares a measurement with a target and changes the output to reduce the difference. A sensor supplies the measurement; adding the sensor alone does not create that control behavior.
 
-### Pick a project from evidence
+## Choose a Project
 
-Write down:
+| Observed Need | Project and Preparation | First Experiment |
+|---|---|---|
+| Timed autonomous runs stop at different distances | Use wheel-distance measurements with [feedback control](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/pidcontroller.html). Review R07's distance units and stopping behavior. | In simulation, graph the target and measured distance. Choose a tolerance with a mentor, then repeat the run and record the stopping error. |
+| The drivetrain does not hold its heading | Add a measured heading and a heading controller. [Differential-drive odometry](https://docs.wpilib.org/en/stable/docs/software/kinematics-and-odometry/differential-drive-odometry.html) combines a gyro angle and wheel distances to estimate pose; it does not steer the robot. | Use R13's simulated heading to compare a target angle with the measured angle. Test a correction at limited output before choosing a physical gyro. |
+| Launcher speed falls when fuel enters | Add a velocity target with [feedforward and feedback](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/combining-feedforward-feedback.html). Review R09's units and launcher RPM telemetry. | Graph target and measured velocity during a simulated speed change. Fuel contact and recovery still need a supervised physical test. |
+| You want to rerun code against recorded inputs | Investigate [AdvantageKit IO interfaces](https://docs.advantagekit.org/data-flow/recording-inputs/io-interfaces/). Review the existing IO classes and R13 logging first. | Migrate one subsystem on a branch and compare its recorded inputs during replay. This changes the logging architecture; opening a WPILOG in AdvantageScope only replays the recorded display. |
+| The launcher needs settings for more distances | Extend the table from [R08's Distance Table](/kit-bot/r08-launcher-calibration). Its entries pair distance with requested voltage. [A10: Shooter Lookup Table](/java/assignments/a10-shooter-lookup-table) offers related Java practice. | Check interpolation between two new entries and behavior outside the table. Simulation cannot establish which voltage scores fuel at a real field location. |
+| A mechanism needs a position reference after reboot | Compare an absolute encoder, such as [CANcoder](https://v6.docs.ctr-electronics.com/en/latest/docs/hardware-reference/cancoder/index.html), with a homing routine that moves to a known reference. Review travel limits and sensor mounting with a mentor. | Simulate startup at several positions, including a missing reference. Confirm the mechanism does not move until the program has the information it needs. Choose hardware only after that review. |
+| The robot needs to detect fuel or a travel limit | Read a beam break or limit switch through a [digital input](https://docs.wpilib.org/en/stable/docs/software/hardware-apis/sensors/digital-inputs-software.html). Review the selected sensor's wiring and meaning of true and false. | Simulate both input states and confirm the intended response. Check actual polarity and the physical limit under mentor supervision. |
+| Drivers need visible robot-state feedback | Add [addressable LEDs](https://docs.wpilib.org/en/stable/docs/software/hardware-apis/misc/addressable-leds.html). Define the states and their priority before selecting the strip or power connection. | Test which pattern each state selects, including two simultaneous states. Have a mentor check the power and signal wiring before connecting LEDs. |
+| You need to investigate low voltage or high current | Add [power-distribution telemetry](https://docs.wpilib.org/en/stable/docs/software/can-devices/power-distribution-module.html) for the device installed on the robot. Review [AdvantageScope graphs](/tools/advantagescope-tour#make-a-first-graph). | Test the graph layout with available simulated or recorded values. On hardware, record voltage and current during a supervised run; a current spike alone does not identify its cause. |
 
-1. The behavior you observed.
-2. The measurement that would show improvement.
-3. The smallest change that can affect that measurement.
-4. The simulation check and the later hardware check.
+## Write a Proposal
 
-Example: "The time-based auto stops at different distances. We will graph wheel distance, add a heading sensor, and replace the timed drive command with a distance target. Simulation must stop within the chosen tolerance before hardware testing."
+Create a Markdown file named `next-project.md` in the project folder. Use these headings to organize a proposal for your mentor:
 
-### Keep season-specific choices separate
+1. **Observed Behavior:** Describe one run and link its log or screenshot.
+2. **Baseline:** Record the current measurement, its units, and the test conditions.
+3. **Proposed Change:** Name the smallest change you will try and the primary documentation you will use.
+4. **Simulation Check:** State the input, expected result, and how you will measure it. Agree on any tolerance before testing.
+5. **Hardware Check:** Identify the equipment and mentor review needed before physical testing.
+6. **Return to the Baseline:** Record the working branch or commit so the experiment can be set aside without losing the capstone.
 
-Sensors, motor controllers, and game rules change. Record the season and library version when adding one. Keep the subsystem's general behavior separate from the configuration for a specific robot.
+For example: "Our timed drive command stops at different distances under the conditions recorded in these logs. We will compare a distance target with the wheel-distance readings and test a command that stops near that target. We will record the error from repeated simulation runs before planning a physical test."
 
-### Read other teams' code carefully
+## Trace a Reference
 
-Public robot repositories can show how experienced teams organize similar features. Start with one file and trace its inputs and outputs. Recreate the idea in your own project only after you can explain each dependency and safety condition.
+Read one example from the documentation linked in your chosen row. Identify its inputs, outputs, units, dependencies, and stop conditions. Then compare those with your IO interface and subsystem. A matching class name does not mean an example can replace your file unchanged.
 
-- [Scorpion 2026](https://github.com/frc4451/Scorpion2026/tree/main/src/main/java/frc/robot)
-- [FRC 6328 Mechanical Advantage](https://github.com/Mechanical-Advantage)
-- [FRC 254 The Cheesy Poofs](https://github.com/Team254)
+Record the documentation version and date in the proposal. Separate general behavior from season-specific hardware settings. Check the applicable rules and electrical design with a mentor before choosing equipment.
 
-<RulesBox title="Done when">
+<RulesBox title="Done When">
 
-You selected one project, named the observed problem it addresses, linked its primary documentation, and wrote separate simulation and hardware checks.
+You selected one project, named the observed problem it addresses, linked its primary documentation, and wrote separate simulation and hardware checks. This is optional work after the capstone.
 
 </RulesBox>
 
 <Sources items={[
-  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/combining-feedforward-feedback.html", "note": "Combining measured feedforward gains with feedback for a velocity target."},
-  {"source": "ctre", "path": "docs/hardware-reference/cancoder/index.html", "note": "CANcoder hardware."},
-  {"url": "https://github.com/frc4451/Scorpion2026/tree/main/src/main/java/frc/robot", "label": "Scorpion 2026 robot code", "note": "A team example of the later controls and logging work that can follow the Kit Bot capstone."}
+  {
+    "source": "wpilib",
+    "path": "docs/software/advanced-controls/controllers/pidcontroller.html",
+    "label": "Feedback Control",
+    "note": "Comparing a measured value with a target and checking error tolerances."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/kinematics-and-odometry/differential-drive-odometry.html",
+    "label": "Differential-Drive Odometry",
+    "note": "Pose estimation from heading and wheel-distance measurements, separate from control."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/advanced-controls/controllers/combining-feedforward-feedback.html",
+    "label": "Feedforward and Feedback",
+    "note": "Combining feedforward output with feedback correction."
+  },
+  {
+    "source": "advantagekit",
+    "path": "data-flow/recording-inputs/io-interfaces/",
+    "label": "AdvantageKit IO Interfaces",
+    "note": "Recording inputs through IO interfaces for replay."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/hardware-reference/cancoder/index.html",
+    "label": "CANcoder",
+    "note": "An example of an absolute position sensor; selection depends on the mechanism."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/hardware-apis/sensors/digital-inputs-software.html",
+    "label": "Digital Inputs",
+    "note": "Reading sensor states and interpreting input values."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/hardware-apis/misc/addressable-leds.html",
+    "label": "Addressable LEDs",
+    "note": "Controlling addressable LED patterns."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/can-devices/power-distribution-module.html",
+    "label": "Power-Distribution Telemetry",
+    "note": "Reading voltage and current from supported power-distribution devices."
+  }
 ]} />

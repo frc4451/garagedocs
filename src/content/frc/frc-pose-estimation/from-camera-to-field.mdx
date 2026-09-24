@@ -1,0 +1,139 @@
+---
+title: "From Camera to Field"
+lessonId: from-camera-to-field
+section: frc
+group: frc-pose-foundations
+groupLabel: "Vision and Sensor Fusion"
+groupOrder: 15
+order: 1
+difficulty: intermediate
+duration: 25 min
+description: "The three arrows a vision system is built from, drawn rather than derived: the mount you measure with a tape, the observation the camera makes, and the sum that turns a picture of an AprilTag into a position on the field."
+---
+
+A camera on a robot does not know where the robot is. It knows that a square of black and white appeared in the upper left of its image, tilted, about this big. Turning that into "the robot is at 4.1 metres by 2.3 metres, facing 40 degrees" takes three pieces of information, and two of them have nothing to do with the camera.
+
+This page is the picture behind that. Everything here is a vector and a rotation, and you can drag each one.
+
+<RulesBox title="Before you start">
+
+[Pose Geometry](/frc/pose-geometry) for the WPILib types and the arrow naming rule these diagrams use. This page is the visual version of that page's vision chain: the same arrows, with sliders on them.
+
+</RulesBox>
+
+### The naming rule, in one line
+
+Every geometric value is an arrow named `AToB`, read as "from A to B". Chained arrows add, and the inner names cancel:
+
+```text
+RobotToCamera + CameraToAprilTag = RobotToAprilTag
+```
+
+That is not a mnemonic. It is how the arithmetic behaves, and the reason the convention is worth the extra characters is that a wrong chain becomes visibly wrong in the variable names before it becomes wrong on the field.
+
+### Arrow one: RobotToCamera, which you measure with a tape
+
+The first arrow has nothing to do with software. It is where the camera is bolted, relative to the robot's origin, and which way it points.
+
+It has two halves. The **translation** is three numbers: how far forward, how far left, how far up the camera sits from the robot origin. In WPILib's robot frame that is +X forward, +Y left, +Z up, so a camera mounted on the front right of the robot, high up, has a positive X, a negative Y and a positive Z.
+
+The **rotation** is three more numbers: yaw, pitch and roll. Yaw swings the camera left and right, pitch tilts it up and down, roll rotates the image about the lens axis. WPILib applies them in that order, yaw then pitch then roll, which matters because rotations do not commute: yawing 90 degrees then pitching down is a different camera from pitching down then yawing 90 degrees.
+
+Get the signs from the axes rather than from intuition. Yaw is a rotation about +Z, so **positive yaw turns the camera left**. Pitch is a rotation about +Y, so **positive pitch tilts the camera down**. A camera aimed up at a tag on a wall therefore has a *negative* pitch, which catches people every season.
+
+Together the six numbers are a `Transform3d`. Drag the sliders and watch what each one does to the frustum:
+
+<PoseViewer
+  stage="robot-to-camera"
+  title="RobotToCamera: the mount"
+  caption="The purple arrow is the translation from the robot origin to the camera. The small axes at the camera are its own frame after the yaw, pitch and roll are applied; the dashed cone is what it can see. The default mount is pitched to -15 degrees, which aims the optical axis upward at tag height, and yawed 20 degrees to the left."
+/>
+
+Two things are worth noticing while you drag.
+
+**Pitch is measured in the camera's frame, not the robot's.** Yaw the camera 90 degrees to the left, then pitch it. The cone tips toward the robot's left side rather than its front, because pitch is applied after yaw and acts on the already-rotated camera.
+
+**Small angle errors are large position errors at range.** Set the pitch to zero, then move it by one degree. At a tag four metres away, one degree of mount error moves the implied tag position by about seven centimetres. That is the whole reason this arrow is measured carefully rather than estimated, and the reason [Pose Estimation Calibration](/frc/pose-estimation-calibration) exists.
+
+### Arrow two: CameraToAprilTag, which the camera measures
+
+The second arrow is the one the vision software produces. The camera sees a tag, knows how big that tag is in real life, knows how its own lens distorts the image because it was calibrated, and solves for where the tag must be for the picture to look like that. The answer comes back as a transform from the camera to the tag, expressed in the camera's own coordinate frame.
+
+The important word is *own*. This measurement knows nothing about the robot. Move the camera on its mount and the same tag in the same place produces a completely different `CameraToAprilTag`, because the frame it is measured in moved.
+
+<PoseViewer
+  stage="camera-to-tag"
+  title="CameraToAprilTag: the observation"
+  caption="The tag sliders move the tag in the world. The orange arrow is what the camera reports, and the numbers under the diagram are that arrow in camera coordinates. Move the mount sliders without touching the tag: the tag has not moved, and every number changes."
+/>
+
+That last exercise is the one to do by hand. Leave the tag alone, change the camera yaw, and watch the reported numbers swing. The tag did not move. This is why a vision measurement is useless on its own, and why a mount error and a bad measurement look identical in the log.
+
+Two practical consequences fall out of this arrow:
+
+- **A tag outside the cone produces nothing.** There is no partial credit for a tag at the edge of the frame that the detector missed. Camera placement is a coverage problem before it is an accuracy problem.
+- **Distance is the weak axis.** The solver reads range from how large the tag appears, and apparent size changes slowly with distance once the tag is far away. Sideways position is comparatively strong. This asymmetry is why [Fused Pose Estimation](/frc/fused-pose-estimation) weights vision measurements rather than trusting them equally in every direction.
+
+### Arrow three: RobotToAprilTag, which is the other two added
+
+Now the payoff. The robot does not care where the tag is relative to the camera. It cares where the tag is relative to itself, and that is the two arrows added nose to tail:
+
+```text
+RobotToCamera + CameraToAprilTag = RobotToAprilTag
+```
+
+The `Camera` in the middle cancels. Whatever the mount is, whatever the camera reported, the sum is a statement about the robot and the tag with the camera eliminated from it.
+
+<PoseViewer
+  stage="robot-to-tag"
+  title="RobotToAprilTag, and the step to the field"
+  caption="Purple is the mount, orange is the observation, teal is the sum. Change the mount and watch purple and orange both change while teal stays put: the robot's relationship to the tag does not depend on where you bolted the camera. That invariance is the whole point of the chain."
+/>
+
+**Drag the mount sliders and watch the teal arrow.** It does not move. The purple arrow changes because you moved the camera, the orange arrow changes because the camera now sees the tag from somewhere else, and the two changes cancel exactly. That cancellation is what a correct mount buys you, and when a mount is wrong it is precisely what fails: two cameras looking at the same tag produce two different teal arrows, and the disagreement between them is the size of the mount error.
+
+### Closing the chain: from the tag to the field
+
+One arrow remains, and it comes from a file rather than from the robot. The field layout published each season lists where every AprilTag is, which gives `FieldToAprilTag` for free. Flip it and you have `AprilTagToField`. Add it on the end:
+
+```text
+RobotToAprilTag + AprilTagToField = RobotToField
+```
+
+Inner names cancel again, and `RobotToField` inverted is `FieldToRobot`, the robot's pose on the field, which is the number the whole vision system exists to produce. The readout in the last diagram shows it.
+
+Written out in full, with every arrow named, the chain is:
+
+```text
+RobotToCamera  + CameraToAprilTag + AprilTagToField = RobotToField
+  measured         observed           looked up        answer
+  with a tape      by the camera      in the layout
+```
+
+Three sources, three kinds of error. The tape measure is a one-time error you can eliminate by being careful. The camera measurement is noisy every frame and gets noisier with distance. The layout is exact, though the real field is built to a tolerance and the tags are not always exactly where the file says.
+
+### Why this is worth the trouble
+
+A robot with wheel odometry alone knows where it started and how far its wheels have turned. That estimate is smooth, it updates every loop, and it drifts: wheels slip, carpet compresses, a collision knocks it sideways and the odometry never finds out.
+
+A vision measurement is the opposite. It is absolute, it does not care what happened earlier in the match, and it is available only when a tag happens to be in frame, arrives late, and is noisy in range.
+
+Neither is good enough alone. The chain on this page is what makes them comparable: it converts a picture of a tag into exactly the same quantity odometry produces, a `Pose2d` on the field, so the two can be fused instead of chosen between. [Wheel Odometry](/frc/wheel-odometry) builds the smooth estimate, [PhotonVision](/frc/photonvision) produces the observations, and [Fused Pose Estimation](/frc/fused-pose-estimation) combines them with the weights the error analysis above implies.
+
+<RulesBox title="What to carry forward">
+
+- Name every transform `AToB`, and check a chain by reading whether the inner names cancel.
+- `RobotToCamera` is measured off the robot, not tuned. Angle errors dominate at range.
+- `CameraToAprilTag` is in the camera's frame and means nothing without the mount.
+- Two cameras that disagree about `RobotToAprilTag` for the same tag are reporting a mount error, not a vision error.
+- The field layout supplies the last arrow, and inverting it is what turns a tag sighting into a field pose.
+
+</RulesBox>
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"PhotonVision","id":"photonvision"},
+  {"label":"Vision Subsystem","id":"vision-subsystem"},
+  {"label":"Fused Pose Estimation","id":"fused-pose-estimation"},
+  {"label":"Pose Geometry","id":"pose-geometry"},
+  {"label":"Wheel Odometry","id":"wheel-odometry"}
+]} />

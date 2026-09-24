@@ -1,4 +1,4 @@
-/** Only web links outside the current or published GarageDocs origin open a new tab. */
+/** Identify web links outside the current or published GarageDocs origin. */
 export function isExternalWebsite(href: string, currentUrl: string, siteUrl: string): boolean {
   try {
     const url = new URL(href, currentUrl);
@@ -9,9 +9,18 @@ export function isExternalWebsite(href: string, currentUrl: string, siteUrl: str
   }
 }
 
+/** PDF documents open separately so readers keep their place in the lesson. */
+export function isPdfLink(href: string, currentUrl: string): boolean {
+  try {
+    const url = new URL(href, currentUrl);
+    return /^https?:$/.test(url.protocol) && /\.pdf$/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
 export function initializeExternalLinks(siteUrl: string): void {
   const update = (link: HTMLAnchorElement) => {
-    if (isExternalWebsite(link.href, location.href, siteUrl)) {
+    if (isExternalWebsite(link.href, location.href, siteUrl) || isPdfLink(link.href, location.href)) {
       if (link.target !== '_blank') link.target = '_blank';
       link.relList.add('noopener', 'noreferrer');
     } else if (link.target === '_blank' && /^https?:$/.test(link.protocol)) {

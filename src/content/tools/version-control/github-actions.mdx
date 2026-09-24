@@ -10,15 +10,15 @@ difficulty: intermediate
 description: "Read a GitHub Actions result, understand FRC 4451's robot build workflow, and investigate common failures."
 ---
 
-### What the tick means
+## What a Check Proves
 
-A pull request or commit can show a status icon for GitHub Actions checks. Open the check details to see which workflow and job produced the result. FRC 4451's robot repository runs a build workflow on pushes and pull requests.
+GitHub Actions runs automated workflows after selected repository events. A pull request or commit can show a status for each check. A green check means the configured steps completed successfully for that commit. It does not prove behavior that the workflow never checked.
 
-This automated build is an example of **continuous integration** (CI): changes are checked on a separate runner as they are shared.
+FRC 4451 uses continuous integration (CI) to build shared robot code on a separate runner after a push or pull request. Run relevant checks locally first, then treat CI as a second, clean-environment check of committed files.
 
-### FRC 4451's workflow
+## The Verified Cobra Workflow
 
-FRC 4451's robot repository defines this workflow in `.github/workflows/build.yml`:
+The following is the complete `main` version of `.github/workflows/build.yml` fetched from the public `frc4451/Cobra2026Private` repository during this revision:
 
 ```yaml
 name: Build
@@ -41,84 +41,113 @@ jobs:
         run: ./gradlew build
 ```
 
-Line by line:
-
 <ContentTable
-  headers={["Line", "Means"]}
+  headers={["Workflow Entry", "What This File Does"]}
   rows={[
-    ["<code>name: Build</code>", "What the check is called on GitHub. This is the word next to the tick"],
-    ["<code>on: push / pull_request</code>", "When to run: every push to any branch, and every pull request. Both, so a branch is checked as you work and again when you propose merging it"],
-    ["<code>jobs: build:</code>", "A workflow can have several jobs; this one has one"],
-    ["<code>runs-on: ubuntu-latest</code>", "Selects a GitHub-hosted Ubuntu runner"],
-    ["<code>container: wpilib/roborio-cross-ubuntu:…</code>", "Runs the job steps inside the specified WPILib container image on the runner"],
-    ["<code>uses: actions/checkout@v4</code>", "A ready-made step from GitHub: clone the repository at the commit being tested"],
-    ["<code>run: chmod +x gradlew</code>", "Linux needs the Gradle wrapper marked executable. Git from Windows sometimes loses that bit; this step puts it back"],
-    ["<code>run: ./gradlew build</code>", "Runs the Gradle build. In the current Cobra project, that includes compilation, Spotless application, and configured tests"]
+    ["<code>on: push</code> and <code>pull_request</code>", "Starts this workflow for pushes and pull-request activity covered by GitHub's event defaults"],
+    ["<code>jobs: build</code>", "Defines one job with the displayed name <em>Build</em>"],
+    ["<code>runs-on: ubuntu-latest</code>", "Provides a GitHub-hosted Ubuntu runner"],
+    ["<code>container: ...:2024-22.04</code>", "Runs this job's steps in the exact WPILib container version pinned by Cobra"],
+    ["<code>actions/checkout@v4</code>", "Uses the exact checkout action major version pinned by Cobra to place the tested commit on the runner"],
+    ["<code>chmod +x gradlew</code>", "Marks the Gradle wrapper executable in the Linux job"],
+    ["<code>./gradlew build</code>", "Runs Cobra's Gradle build against the committed checkout"]
   ]}
 />
 
-The YAML file defines the events that start the workflow and the steps the runner executes. A `run:` entry executes a shell command; a `uses:` entry invokes a published action. The result covers only the commands in the workflow.
+The checkout and container versions above describe the checked-in Cobra workflow. They are not timeless recommendations for a new workflow. Current GitHub and WPILib guidance must be reviewed before changing those pins.
 
-### Reading a result
+The verified Cobra `build.gradle` uses GradleRIO 2026.2.1 and Java 17, configures JUnit Platform tests, and makes `compileJava` depend on `createVersionFile` and `spotlessApply`. Therefore this repository's `./gradlew build` can compile code, run configured tests, generate build metadata, and apply Spotless formatting. Because CI starts from a committed checkout, formatting applied only on the runner does not update the contributor's branch. A contributor should run the project build locally, review any formatting changes, commit them, and push the result.
 
-Open the check details from the commit or pull request. Select the job and expand the failed step to read its output. Interface labels can change, so use the Actions tab if the status menu is unclear.
+## Open a Pull Request Result
 
-For a compile failure, find the first relevant `error:` line. For another Gradle failure, read the failing task and the `What went wrong` block. Download the log when you need to preserve or share the complete output.
+1. Open the pull request in a browser.
+2. Select the area that lists checks. GitHub may show it near the merge section or under the pull request's **Checks** tab.
+3. Select the named check, such as **Build**, then open **Details**. If that route is unclear, select the repository's **Actions** tab, choose the matching workflow run, and confirm its branch and commit.
+4. Select the failed job in the left side of the run page.
+5. Expand the first failed step. Read from the start of that step, not only the final red summary.
 
-A pending status means the check has not finished. A skipped, cancelled, neutral, or stale status has a different meaning; open the details instead of inferring the cause from the icon alone.
+Confirm that the run's commit matches the latest commit in the pull request. A result for an older commit does not describe newer changes.
 
-### Common failures
+## Find the First Actionable Failure
+
+Build output often ends with a summary caused by an earlier message. Keep the later context, but start at the first error tied to the failing task. A shortened example looks like this:
+
+```text
+> Task :compileJava FAILED
+src/main/java/frc/robot/RobotContainer.java:42: error: cannot find symbol
+    launcher.setTargetSpeed(targetRpm);
+            ^
+  symbol:   method setTargetSpeed(double)
+
+FAILURE: Build failed with an exception.
+* What went wrong:
+Execution failed for task ':compileJava'.
+```
+
+The actionable location is `RobotContainer.java:42`; the missing symbol is `setTargetSpeed(double)`; and `:compileJava` is the failing task. Open that file and line, then check the method spelling, receiver type, imports, dependency version, and whether a required file was committed.
+
+## Common Result States
 
 <ContentTable
-  headers={["What the log says", "What happened", "Fix"]}
+  headers={["Visible State", "Meaning", "First Check"]}
   rows={[
-    ["<code>The following files had format violations</code> (from <code>spotlessCheck</code>)", "Spotless reported a formatting mismatch", "<code>./gradlew spotlessApply</code> locally, commit the result, push. Review the formatting change produced by the project task before committing it"],
-    ["<code>error: cannot find symbol</code> / any <code>compileJava FAILED</code>", "The compiler could not resolve the named symbol or another compile step failed", "Read the file, line, and symbol. Check spelling, imports, dependencies, and required files"],
-    ["<code>Permission denied: ./gradlew</code>", "The runner cannot execute the Gradle wrapper", "Confirm that the workflow grants permission or that the repository records the executable bit"]
+    ["Success", "Every configured step in that job completed", "Confirm the run is for the latest intended commit and remember which behavior is outside the workflow"],
+    ["Failure", "At least one step returned a failure", "Open the first failed step and find the task, file, line, or configuration message"],
+    ["Pending or queued", "The run is waiting or still executing", "Open the run for its queue, runner, or current-step details"],
+    ["Cancelled", "A person or GitHub stopped the run", "Open the run summary and identify who or what cancelled it"],
+    ["Skipped or neutral", "The check did not run normally or did not report success/failure", "Read the job condition and detailed annotation instead of inferring from the icon"],
+    ["Stale", "A newer commit or review state made the earlier result outdated", "Open the latest commit's checks"]
   ]}
 />
 
-The runner starts from a checkout of the committed files. It cannot see an uncommitted file or an unsaved editor buffer. Build and review the intended commit locally before pushing, then use the remote result as another check.
+## Diagnose Cobra Build Failures
 
-### Why a red cross matters
+- For `compileJava FAILED`, start with the first compiler error. Later Java errors may result from it.
+- For a missing file or class that exists locally, run `git status` and confirm the required file was saved and committed. The runner cannot see an unsaved buffer or uncommitted file.
+- For formatting changes, run Cobra's configured build locally, inspect the diff produced by `spotlessApply`, and commit only the intended result.
+- For `Permission denied: ./gradlew`, inspect whether the workflow's execute-permission step ran and succeeded before changing repository file modes.
+- For a dependency download or runner failure, distinguish a transient service/network message from a source-code error before editing code.
 
-A failed check reports that one or more workflow steps failed. Repository rules can require selected status checks before a pull request is merged. Check the repository rules rather than assuming every failure blocks the merge.
+Repository rules can require named status checks before merge. Open the repository's current rules or ask an owner which checks are required rather than assuming every workflow is a merge requirement.
 
-Treat required formatting, compilation, and test failures as work to resolve or explain before merge.
+## Change a Workflow Only When Assigned
 
-### Anatomy, for when you need to change it
+Workflow YAML changes automation and can affect every branch or pull request. A student who is only fixing robot code should report an automation problem rather than editing the workflow speculatively.
 
-Edit workflow files when the automation itself needs to change. Review the repository's current file and documentation first:
+For an assigned workflow change:
 
-- **Run the tests only, or a second job.** Add another item under `jobs:` with its own `steps:`; jobs run in parallel on separate machines.
-- **The container tag.** The image tag (`2024-22.04` above) is a WPILib year. FRC 4451's file still pins 2024 and builds 2026 code fine, because GradleRIO downloads the roboRIO toolchain it needs during the build; what the image really provides is a JDK that WPILib is happy with. When WPILib changes its Java version, update the tag. Available tags are listed on [Docker Hub](https://hub.docker.com/r/wpilib/roborio-cross-ubuntu/tags).
-- **Cache Gradle downloads when repeated downloads are a measured bottleneck.** A `uses: gradle/actions/setup-gradle@v4` step before the build keeps dependencies between runs and can reduce download time; measure the workflow before and after.
-- **Secrets.** Put private values such as tokens and passwords in *Settings → Secrets* and reference them as `${{ secrets.NAME }}`, never typed into the file. The file is public to everyone who can read the repository.
+- Read GitHub's current workflow syntax and the current WPILib CI example.
+- Preserve YAML indentation; indentation defines the structure.
+- Review action versions and container tags from their primary release sources rather than copying the historical Cobra pins.
+- Test through an authorized branch or disposable repository. Do not edit the default branch to experiment.
+- Store private values in GitHub Actions secrets. In workflow syntax, a secret reference has the form `${{ secrets.NAME }}`. Never put the secret value in YAML, logs, or lesson text.
+- Limit workflow and token permissions to the operations the job needs.
 
-Workflow files are YAML, so indentation controls structure. GitHub reports workflow syntax and configuration problems in the Actions interface.
+No workflow run, repository setting, or secret is changed by this lesson.
 
-<RulesBox title="Common mistakes">
+<RulesBox title="Read the Evidence">
 
-- **Reading only the status icon.** Open the job and identify the failed step.
-- **Pushing without local checks.** Run the checks relevant to the change and review the committed files.
-- **Reading only the bottom of a build log.** Locate the failing task and its first relevant error.
-- **Testing workflow edits only on the default branch.** Use a branch or pull request when the workflow triggers there.
-- **Putting credentials in YAML.** Store secrets through repository or environment settings and limit their permissions.
+- Match the workflow run to the branch and commit under review.
+- Open the failed job and first failed step.
+- Preserve the task summary and caused-by context while fixing the earliest relevant error.
+- Confirm required files are saved, committed, and pushed.
+- Treat workflow edits and secrets as owner-reviewed repository changes.
 
 </RulesBox>
 
 <Sources items={[
-  {"source": "github", "path": "actions/about-github-actions/understanding-github-actions", "note": "Workflows, jobs, steps, runners."},
-  {"source": "github", "path": "actions/writing-workflows/workflow-syntax-for-github-actions", "note": "The YAML keys in the team workflow."},
-  {"source": "wpilib", "path": "docs/software/advanced-gradlerio/robot-code-ci.html", "note": "WPILib's CI workflow for robot code and the roboRIO container image."},
-  {"url": "https://hub.docker.com/r/wpilib/roborio-cross-ubuntu/tags", "label": "wpilib/roborio-cross-ubuntu tags", "note": "The container image tags."},
-  {"source": "cobra", "path": ".github/workflows/", "note": "FRC 4451's robot build workflow."},
-  {"source": "cobra", "path": "build.gradle", "note": "What the workflow builds."}
+  {"source": "github", "path": "actions/about-github-actions/understanding-github-actions", "note": "Workflows, events, jobs, steps, runners, and run results."},
+  {"source": "github", "path": "actions/writing-workflows/workflow-syntax-for-github-actions", "note": "Workflow YAML structure, events, jobs, containers, run steps, and uses steps."},
+  {"source": "github", "path": "actions/how-tos/monitor-workflows/view-workflow-run-history", "note": "Finding workflow runs, jobs, steps, logs, branches, and commits."},
+  {"source": "github", "path": "actions/security-guides/using-secrets-in-github-actions", "note": "Creating and referencing Actions secrets without placing values in workflow files."},
+  {"source": "wpilib", "path": "docs/software/advanced-gradlerio/robot-code-ci.html", "note": "WPILib robot-code CI structure and current container guidance."},
+  {"source": "cobra", "path": ".github/workflows/build.yml", "note": "Exact triggers, runner, pinned container, checkout action, permission step, and build command on public main."},
+  {"source": "cobra", "path": "build.gradle", "note": "GradleRIO and Java versions, JUnit configuration, generated version file, and compileJava dependency on spotlessApply."}
 ]} />
 
 <LinkGrid title="Next" section="tools" links={[
   {"label":"Pull Requests","id":"pull-requests"},
-  {"label":"Reading a Gradle failure","url":"/tools/shell-troubleshooting#reading-a-gradle-failure"},
-  {"label":"GitHub docs: Understanding GitHub Actions","url":"https://docs.github.com/en/actions/about-github-actions/understanding-github-actions"},
-  {"label":"WPILib: Using a GitHub Action to build","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-gradlerio/robot-code-ci.html"}
+  {"label":"Read a Gradle Failure","url":"/tools/shell-troubleshooting#read-a-gradle-failure"},
+  {"label":"GitHub: View Workflow Runs","url":"https://docs.github.com/en/actions/how-tos/monitor-workflows/view-workflow-run-history"},
+  {"label":"WPILib: Robot Code CI","url":"https://docs.wpilib.org/en/stable/docs/software/advanced-gradlerio/robot-code-ci.html"}
 ]} />

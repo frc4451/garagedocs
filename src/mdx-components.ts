@@ -14,6 +14,7 @@ import TextBlock from '@/components/blocks/TextBlock.astro';
 import YouTubeEmbed from '@/components/blocks/YouTubeEmbed.astro';
 import ReferenceImage from '@/components/blocks/ReferenceImage.astro';
 import Sources from '@/components/blocks/Sources.astro';
+import PoseViewer from '@/components/blocks/PoseViewer.astro';
 import JavaPlayground from '@/components/java-playground/JavaPlayground.astro';
 
 export const components: MDXComponents = {
@@ -33,5 +34,6 @@ export const components: MDXComponents = {
   LogicalOperators,
   ContentTable,
   Sources,
+  PoseViewer,
   EmphasisBox: RulesBox,
 };

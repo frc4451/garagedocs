@@ -1,0 +1,93 @@
+---
+title: "Step 13: Integration Capstone"
+lessonId: badge-2-capstone
+section: badges
+group: badge-2
+groupLabel: "Badge 2: Intermediate FRC"
+groupOrder: 2
+order: 13
+difficulty: advanced
+description: "The final Badge2Robot demonstration: swerve simulation running either the PathPlanner or the BLine routine from a chooser, a composed subsystem from the student's library, simulated AprilTag observations, a BobotState fact driving a decision, logging of all of it, a clean stop on interruption, and the data-flow explanation from simulated hardware to sim state."
+---
+
+In Step 13, the student integrates the library, composition, path, vision, and robot-state work already completed in `Badge2Robot` and explains the data flow through it. Both swerve routines come from Step 10; the capstone registers them with the chooser and demonstrates them together with the existing mechanisms, cameras, and derived state. The only added diagnostic is the output used to prove replay. The project is demonstrated from a clean clone, twice, without a source change between runs.
+
+## References to Review
+
+- [Autonomous Simulation](/frc/autonomous-simulation)
+- [Log Replay](/frc/log-replay)
+- [Simulation in AdvantageScope](/frc/simulation-in-advantagescope)
+- [Command Groups](/frc/command-groups#autonomous-routines)
+
+## Guided Example
+
+Prepare the existing Step 10 PathPlanner routine as the first integrated run. Trace a mechanism action from the chooser selection through the composed subsystem and IO request, then trace one camera observation through the estimator and Step 12 derived fact. Save the log and replay it successfully before registering the existing BLine routine in the same chooser.
+
+### Capstone Requirements
+
+| # | Requirement | From | Done when |
+|---|---|---|---|
+| 13.1 | Swerve simulation from the AdvantageKit template | [Step 3](/badges/badge-2-project-architecture) | The chassis drives in the Sim GUI from a clean clone |
+| 13.2 | A PathPlanner swerve autonomous with three paths and two mechanism actions | [Step 10](/badges/badge-2-path-following#pathplanner-on-swerve) | The routine completes with the actions visible in the log |
+| 13.3 | A BLine swerve autonomous with three paths and two mechanism actions | [Step 10](/badges/badge-2-path-following#bline-on-swerve) | The routine completes with the actions visible in the log |
+| 13.4 | An autonomous chooser | [Command Groups](/frc/command-groups#autonomous-routines) | Either routine is selected from the dashboard chooser without a source change |
+| 13.5 | At least one composed subsystem from the student's library | [Step 8](/badges/badge-2-mechanism-composition) | The subsystem the routines' actions use is built from the Step 7 components |
+| 13.6 | AprilTag simulation with accepted observations | [Step 11](/badges/badge-2-photonvision) | The simulated cameras see tags along the route and accepted observations reach the estimator |
+| 13.7 | A `BobotState`-style fact used by a trigger or command | [Step 12](/badges/badge-2-robot-state) | One derived fact changes what a command does during the run, visible in the log |
+| 13.8 | Logging | [AdvantageKit](/frc/advantagekit#logging) | The log carries drivetrain pose, planned path, component inputs and goals, vision observations, and the derived robot state |
+| 13.9 | A clean stop | [Command Groups](/frc/command-groups) | When either routine ends or is interrupted, the drivetrain stops and every mechanism enters its documented safe state |
+| 13.10 | Replay | [Log Replay](/frc/log-replay#replaying-a-match) | The saved log replays through the current code in `REPLAY` mode, and a new output added during replay appears in the replayed log |
+
+Row 13.10 depends on the project keeping the template's replay structure. If a `Timer` read outside an IO, a random value, or a background thread makes replay differ, the student fixes that boundary and repeats the replay. A successful replay is required for the badge.
+
+## Independent Change
+
+Integrate the Step 10 BLine routine without changing its route and action points or the mechanisms, camera integration, and robot-state interfaces it uses. The chooser must run either existing swerve routine from the same clean clone. The earlier path-following evidence still includes all three routines: PathPlanner on the differential Kit Bot, PathPlanner on swerve, and BLine on swerve.
+
+### Data-Flow Explanation
+
+The student explains the data flow, not only runs the program. The chain, in the student's words and with a file named for each arrow:
+
+```text
+simulated hardware
+  -> IO inputs
+  -> component or subsystem
+  -> pose and vision observations
+  -> BobotState derived facts
+  -> command decision
+  -> IO request
+  -> simulation state
+```
+
+The last arrow closes the loop: the request the command produced reaches `TalonFXSimState` or `TalonFXSSimState`, moves the physics model, and appears in the next loop's IO inputs.
+
+## Badge Check
+
+<StepsBox title="Capstone badge check">
+
+1. The mentor clones `<yourname>Badge02` into a new folder and builds `Badge2Robot`. No edits.
+2. The student selects the PathPlanner routine in the chooser, enables autonomous in the Sim GUI, and the routine runs to a stop. AdvantageScope shows the path, the mechanism actions, the camera observations and the derived state on one timeline.
+3. The student selects the BLine routine and runs it the same way, without touching source.
+4. The mentor interrupts one routine at an arbitrary point by disabling the robot. The drivetrain stops and every mechanism enters its documented safe state; the student shows the state in the log.
+5. The student walks the data-flow chain above from one simulated encoder to the sim state, naming the file at each arrow.
+6. The student replays the saved log successfully through the current code in `REPLAY` mode and shows the newly recorded output in the replayed log.
+
+</StepsBox>
+
+<Sources items={[
+  {"source": "advantagekit", "path": "data-flow/built-in-logging/", "note": "What AdvantageKit records by default and what the project adds."},
+  {"source": "advantagekit", "path": "data-flow/recording-outputs/", "note": "Recording the derived state and mechanism goals row 13.8 asks for."},
+  {"source": "advantagekit", "path": "getting-started/template-projects/talonfx-swerve-template/", "note": "Deterministic replay as a feature of the template the capstone keeps intact."},
+  {"source": "advantagekit-templates", "path": "talonfx_swerve/src/main/java/frc/robot/RobotContainer.java", "note": "The <code>LoggedDashboardChooser</code> the capstone's chooser extends."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/simulation-gui.html", "note": "Enabling autonomous and disabling the robot from the Sim GUI."},
+  {"source": "wpilib", "path": "docs/software/commandbased/command-compositions.html", "note": "End and interruption behavior of a composed routine."},
+  {"source": "advantagescope", "path": "tab-reference/2d-field", "note": "The field view for the planned and measured poses."},
+  {"source": "advantagescope", "path": "tab-reference/line-graph", "note": "The timeline the mentor reads the run on."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Badge 2: Sign-Off Sheet","id":"badge-2-sign-off"},
+  {"label":"Step 12: Robot State","id":"badge-2-robot-state"},
+  {"label":"Autonomous Simulation","url":"/frc/autonomous-simulation"},
+  {"label":"Log Replay","url":"/frc/log-replay"}
+]} title="Next" section="badges" />

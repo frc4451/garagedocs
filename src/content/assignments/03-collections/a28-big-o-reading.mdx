@@ -19,13 +19,13 @@ description: "Tag ten snippets by complexity, then compare your reasoning with m
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A28: Big-O Reading`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Label ten snippets with their growth in work as the input grows. Explain the loops, searches, or recursive calls supporting each label.
 
 Then measure several input sizes. Timings can illustrate growth, but warmup, garbage collection, and system load mean a few measurements cannot prove a Big-O bound.
 
-### Part 1: tag the snippets
+## Part 1: Tag The Snippets
 
 For each of the ten methods in the starter, write a comment above it giving:
 
@@ -34,8 +34,13 @@ For each of the ten methods in the starter, write a comment above it giving:
 3. Whether best, average and worst differ
 
 The snippets are already written; the `// TAG:` lines are where your answers go. Nothing
-in the editor grades these. You must assess your own reasoning. Getting them right is between you and
-the timing table in Part 2.
+in the editor grades these. You must assess your own reasoning. Compare your reasoning with the linked Big-O lesson and discuss uncertain tags with your mentor. The timing table measures only three snippets and cannot validate all ten tags.
+
+State which case your label describes. For snippets whose work can end early, give
+the best and worst cases separately. For hash-based work, distinguish expected or
+average O(1) membership from a worst-case guarantee. Assume valid inputs for the
+snippets as written: `a` receives a non-empty array, `g` receives an ascending sorted
+array, and `h` receives a non-negative `n`. Use positive `n` for `f` and `i`. Analyze `i` for values below the point where doubling its `int` counter can overflow; do not use huge inputs to test its mathematical growth. For array methods, `n` means the array length.
 
 <ContentTable
   headers={["Snippet", "What it does"]}
@@ -53,79 +58,139 @@ the timing table in Part 2.
   ]}
 />
 
-### Part 2: make one tag pay off
+## Part 2: Make One Tag Pay Off
 
-Snippet `j` is the one with a fix. `List.contains` is O(n) and it runs once per element,
-so the whole thing is quadratic. Rewrite it:
+Snippet `j` is the one with a fix. `List.contains` is O(n) in the worst case and it
+runs once per element, so the whole method has quadratic worst-case growth, reached
+when many values are distinct and the growing result list must be scanned. Rewrite it:
 
 - **`jFast(int[])`**: the same distinct values in the same first-occurrence order, with
   a `HashSet` doing the membership test. O(1) average per check makes the whole method
-  linear.
+  linear on average. A hash table does not promise constant-time checks in every
+  possible worst case.
 - **`median(long[])`**: the median of the samples, the mean of the middle two when the
-  count is even, **without reordering the caller's array**. Timing noise is the entire
-  reason you take a median rather than one reading.
+  count is even, **without reordering the caller's array**. The median gives one middle value from repeated measurements and reduces the influence of an unusually high or low reading.
+
+`median` receives at least one non-negative timing sample. Because it returns `long`,
+an even sample count uses integer division for the mean of the two middle values. The
+provided samples stay far below overflow.
 
 `main` then times three snippets at three sizes using your `median`, and prints the
-table.
+table. Treat that table as an observation from one machine and one run. The ratios
+may be zero, unstable, or unlike the predicted curve at these small sizes because the
+timer resolution, just-in-time compilation, garbage collection, and other processes
+can dominate the work. Derive Big-O from the code, not from a benchmark result.
 
-<RulesBox title="How the browser version differs" items={[
-  "The full assignment times at n = 1 000, 10 000 and 100 000. Here the sizes are <strong>500, 1 000 and 2 000</strong>, and the median is over 3 runs rather than 5: a quadratic snippet at n = 100 000 is ten billion operations, which is a long wait anywhere and an unreasonable one in a browser tab.",
-  "<code>h</code> is not timed at all, at any size. Work out from your own tag why not: the answer is the whole reason that snippet is on the list.",
-  "The browser's timings are noisier than a local JVM's, and CheerpJ warms up differently. <strong>Read the ratios, not the digits</strong>, and do the careful version of this part locally on Java 25."
+<RulesBox title="Browser And Local Versions" items={[
+  "The required supplied program uses <strong>n = 500, 1 000 and 2 000</strong> and takes the median of 3 runs in both the browser and your local copy. A quadratic snippet at n = 100 000 can require about ten billion inner operations, so larger sizes belong in a separate local experiment after the required version passes.",
+  "<code>h</code> is not timed at all. Its naive recursive call tree grows so quickly that a large input can make the page appear stuck or exhaust the call stack. Reason about its code; do not add it to the required timing loop.",
+  "The browser's timings are noisier than a local JVM's, and CheerpJ warms up differently. Treat the rows as observations, not proof and not a reliable speed comparison. An optional longer local experiment can use more warmup and samples, but it will still contain noise."
 ]} />
 
 
-<RulesBox title="Plan it as sessions" items={[
+## Build Locally
+
+In the browser, open the assignment and choose **Reset** if you need the supplied ten
+snippets and test driver again. The public class is `BigOReading`, so the local source
+file must be named `BigOReading.java`. Add comments at the existing `// TAG:` lines,
+then complete only `jFast` and `median`; the snippets, `main`, `ramp`, and `runSnippet`
+are supplied. Page examples are explanatory and do not run automatically.
+
+For the repository copy, create `assignments/a28-big-o-reading/`, save the complete
+source as `BigOReading.java`, open a terminal in that folder, and run:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac BigOReading.java
+java BigOReading
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac BigOReading.java
+java BigOReading
+```
+
+</CodeTab>
+</CodeTabs>
+
+Run it several times and keep the timing rows with your notes, including runs that do
+not resemble the expected ratios. This is a console experiment with generated arrays;
+no robot or other hardware is required.
+
+## Check Coverage
+
+The browser reports these checks by name: *jFast returns exactly what j returned*,
+*jFast keeps first-occurrence order*, *median handles an odd and an even count*,
+*median sorts a copy, not the caller’s array*, and *The timing table runs all three
+snippets at all three sizes*. They match the supplied program's printed structure and
+values. They do not grade any `// TAG:` comment, decide whether your complexity
+reasons are sound, verify your best/average/worst discussion, or judge the written
+explanation of surprising timings. Those manual items account for most of the rubric,
+so review all ten tags and your timing notes even after every browser check passes.
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>jFast returns exactly what j returned</em>, <em>jFast keeps first-occurrence order</em>, <em>median handles an odd and an even count</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>median sorts a copy, not the caller’s array</em>, <em>The timing table runs all three snippets at all three sizes</em>."
+  "<strong>Session 2.</strong> Finish the remaining named checks: <em>median sorts a copy, not the caller’s array</em>, <em>The timing table runs all three snippets at all three sizes</em>. Then review the ten ungraded tags and your timing explanation."
 ]} />
 
 <JavaPlayground id="a28-big-o-reading" />
 
 <RulesBox title="Hints" items={[
   "<strong>A triangular nested loop is still O(n²).</strong> Snippet <code>e</code> runs about n²/2 iterations. Dropping the constant leaves n². For this triangular loop, the changed inner bound keeps quadratic growth. Other inner bounds can change the growth class. That distinction is exactly what Big-O is for.",
-  "<strong>Halving means log.</strong> Snippet <code>f</code> divides by 2 until it hits 1, so it runs log₂(n) times. The inner loop of snippet <code>i</code> has the same shape, and multiplying it by the outer loop is where n log n comes from.",
-  "<strong><code>Set.add</code> returns a boolean.</strong> It returns <code>true</code> if the value was not already there. That single return value collapses the check and the insert into one line. It also explains why <code>jFast</code> is shorter than <code>j</code>, as well as faster.",
+  "<strong>Halving means log.</strong> Snippet <code>f</code> divides by 2 until it hits 1, so it runs floor(log₂(n)) times for positive integer n. Here floor means rounding down to a whole number. The inner loop of snippet <code>i</code> has the same shape, and multiplying it by the outer loop is where n log n comes from.",
+  "<strong><code>Set.add</code> returns a boolean.</strong> It returns <code>true</code> if the value was not already there. That single return value collapses the check and the insert into one line. Use the set for membership and append first-seen values to a list. Iterating the set to build the answer would lose the required order. The expected improvement concerns growth; a small timing run need not be faster.",
   "<strong>Sort a copy in <code>median</code>.</strong> <code>Arrays.copyOf</code> then <code>Arrays.sort</code>. Sorting the caller's array is a side effect nobody asked for, and a check here is watching for exactly that.",
   "<strong>Compare growth with measurements.</strong> Doubling the input often roughly doubles linear work and quadruples quadratic work once the main computation dominates. If timings differ, inspect the algorithm, input, warmup, and measurement noise. Timings alone do not prove or disprove the bound.",
   "<strong>Allow for warmup and noise.</strong> Early runs can include class loading and compilation. Later runs can also be slower because of garbage collection or other work. Repeat measurements and report the median; no run is guaranteed to be fastest or slowest."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
   rows={[
     ["Tags", "50", "At least 8 of the 10 correct. Each carries a one-sentence reason. Best / average / worst noted where they differ; they differ for only some snippets."],
     ["Empirical timings", "30", "Three snippets timed at three sizes, printed as a clean table, median of several runs rather than a single reading."],
-    ["Surprises", "10", "Any prediction the timings contradicted, written down and explained. If every prediction held, say so and cite the ratios that confirm it."],
+    ["Surprises", "10", "Any prediction the timings appeared to contradict, written down and explained. If none did, say so and report the observed ratios as supporting observations, not proof of the bounds."],
     ["Code quality", "5", "<code>jFast</code> uses a <code>HashSet</code> and keeps first-occurrence order. <code>median</code> leaves its argument alone."],
     ["Comments", "5", "Author header, and the tag comments live above the snippets rather than in a separate block."],
     ["Total", "100", ""]
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
 
-- Time `j` against `jFast` at the same three sizes and watch the gap widen. That is the
-  assignment's whole argument in one table: one tag, one rewrite, a different curve.
+First save a passing copy of the required `BigOReading.java`. Use a separate copy for
+each stretch experiment so extra timing output cannot break the required output
+checks.
+
+- Time `j` against `jFast` at the same three sizes and record whether the gap widens in
+  your runs. Explain the predicted quadratic and expected-linear growth from the code
+  even if noise hides the pattern at these small sizes.
 - Add a snippet of your own that mixes two shapes the ten do not cover: two sequential
   O(n) loops (still O(n); write down why), or an O(n) loop around
   an O(log n) recursion.
 - Take `h` and memoize it, then time `h(35)` before and after. Then work out what the
   complexity became, and why it is harder to see from the code.
 
-### References
+## References
 
 - JavaDoc: [`System.nanoTime`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/System.html#nanoTime())
 - JavaDoc: [`java.util.HashSet<E>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashSet.html)
 - Wikipedia: [Big O notation](https://en.wikipedia.org/wiki/Big_O_notation)
 - Wikipedia: [Analysis of algorithms](https://en.wikipedia.org/wiki/Analysis_of_algorithms)
-- Wikipedia: [Amortized analysis](https://en.wikipedia.org/wiki/Amortized_analysis): why `ArrayList.add` is O(1) despite occasionally copying everything
+- Wikipedia: [Amortized analysis](https://en.wikipedia.org/wiki/Amortized_analysis): why `ArrayList.add` is O(1) amortized despite occasionally copying everything
 
 <Sources items={[
-  {"source": "csce146", "note": "Algorithm analysis."},
-  {"url": "/java/fundamentals/java-big-o", "label": "Big-O in the Java track", "note": "The lesson this assignment follows."},
-  {"source": "java-api", "path": "java.base/java/util/HashSet.html", "note": "<code>HashSet</code>: constant-time <code>contains</code>."},
-  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code>: linear <code>contains</code>."}
+  {"source": "csce146", "label": "Course Materials", "note": "The course sequence that inspired this algorithm-analysis assignment."},
+  {"url": "/java/fundamentals/java-big-o", "label": "Big-O In The Java Track", "note": "Growth classes, hidden library work, case analysis, and the limits of stopwatch measurements."},
+  {"source": "java-api", "path": "java.base/java/util/HashSet.html", "label": "HashSet API", "note": "Expected constant-time basic operations, assuming a well-distributed hash function."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "label": "ArrayList API", "note": "The linear-time <code>contains</code> operation used inside snippet <code>j</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "label": "System API", "note": "The <code>nanoTime</code> contract for measuring elapsed time rather than wall-clock time."},
+  {"url": "https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html#sort(long%5B%5D)", "label": "Arrays.sort(long[]) API", "note": "Sorting the copied timing samples before selecting their median."}
 ]} />

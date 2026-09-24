@@ -19,17 +19,19 @@ description: "Turn measured distance and RPM pairs into a sorted lookup table wi
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A10: Shooter Lookup Table`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Build a lookup table from example distance and RPM pairs. For a distance between two samples, calculate an estimate using linear interpolation.
 
 The supplied numbers are practice data. A working calculation does not establish that a physical launcher will score at that speed.
 
-### What to build
+## What To Build
 
 A single file `ShooterLookup.java` with these `public static` methods:
 
-```java
+This is an API checklist, not a complete Java class. Each declaration still needs a body:
+
+```java norun
 public static double[][] readSamples(Scanner in, int n);
 public static void       sortSamples(double[][] samples);
 public static int        upperIndex(double[][] samples, double distance);
@@ -42,7 +44,25 @@ public static double     rpmFor(double[][] samples, double distance);
 1 is RPM, sorts by distance ascending, prints the sorted table, then loops: read a distance,
 print its RPM, stop on a negative distance.
 
-### Behaviour of `rpmFor`
+Each `samples[row]` is a two-value `double[]`: the distance and RPM are one paired row.
+That is why sorting must move an entire row reference together. `readSamples` creates and
+returns the table; `sortSamples` changes that table in place; `upperIndex` returns an
+index; `interpolate` and `rpmFor` return calculated RPM values; and `printSamples` formats
+the sorted table. `rpmFor` must make the three-case numeric decision required below. The
+query loop in `main` can then print `RPM = ...` followed by the applicable clamp label by
+comparing the same query with the first and last distances. That reporting does not move
+the RPM decision out of `rpmFor`. Declare all six methods `public static`, inside
+`ShooterLookup` and outside `main`, exactly as shown above.
+
+You do not need to finish the later sorting course before this assignment. Use this
+insertion-sort process: begin with row 1, save that whole row as the current pair, and
+compare its distance with rows to its left. Shift each larger row one position to the
+right, then place the saved pair in the open position. Repeat for rows 2 through
+`samples.length - 1`. Compare `samples[row][0]`, the distance column, but move or save
+`samples[row]`, the whole paired row. The linked [Sorting](/java/fundamentals/java-sorting-algorithms)
+lesson provides the full insertion-sort explanation if you need it.
+
+## Behaviour Of `rpmFor`
 
 <ContentTable
   headers={["Distance", "Result"]}
@@ -53,15 +73,53 @@ print its RPM, stop on a negative distance.
   ]}
 />
 
+For the required supplied practice numbers, write an honest comment such as “supplied
+exercise data, not measured on a robot.” If you replace them with data your team actually
+measured, record where and when that measurement happened. Do not invent measurement
+provenance to satisfy the comment rubric.
+
 Print results as `RPM = 3150.00`, and the sorted table as `1.00 m -> 2200.00 rpm`.
 
 Worked example: samples at 1.0 m / 2200 rpm, 2.0 m / 2800 rpm, 3.0 m / 3500 rpm, 4.0 m /
 4100 rpm. A query at 2.5 m sits halfway between the second and third samples, so the answer
 is 3150.00.
 
+Here is that calculation one step at a time. The first sorted distance at or above `2.5`
+is `3.0`, so `upperIndex` identifies the 3.0 m row and the lower row is the 2.0 m row.
+The fraction across the bracket is `(2.5 - 2.0) / (3.0 - 2.0) = 0.5`. The RPM rise is
+`3500 - 2800 = 700`, so the estimate is `2800 + 0.5 * 700 = 3150`.
+
+Boundary order matters. `rpmFor` first handles `distance <= firstDistance`, then
+`distance >= lastDistance`, and only then calls `interpolate`. For a query exactly on an
+interior sample, `upperIndex` finds that sample because it searches for the first distance
+that is **at or above** the query. The interpolation fraction becomes `1.0` for the lower
+bracket, returning that sample's RPM apart from possible floating-point rounding. You may return a matching sample directly to preserve its stored value. Do not call `interpolate` for either outer
+boundary.
+
 Use at least two samples with distinct distances for the required exercise. Duplicate-distance handling is an extension below.
 
-### Requirements
+Paste this complete practice session into the browser input box and select **Run**. It enters
+the four worked-example pairs out of order, asks for an interpolated value and both clamps,
+then uses the negative sentinel to stop:
+
+```text
+4
+1.0 2200
+3.0 3500
+2.0 2800
+4.0 4100
+2.5
+0.5
+5.0
+-1
+```
+
+Save the local public class as `ShooterLookup.java` and use [Compile And Run](/java/fundamentals/java-setup#compile-and-run), substituting `javac ShooterLookup.java` and `java ShooterLookup` for the setup example's commands. Start by stubbing all six
+methods with compilable bodies, then implement and check one method at a time. Do the
+required version first; keep duplicate-distance rejection and binary search in the
+separate stretch work so they do not change required output while you are testing it.
+
+## Requirements
 
 - Sort with a sort you write yourself. Insertion sort is plenty at this size
 - `rpmFor` decides which of the three cases applies; `interpolate` only ever handles the
@@ -69,12 +127,17 @@ Use at least two samples with distinct distances for the required exercise. Dupl
 - The table is printed after sorting, so the user can check the data went in correctly
 
 
-<RulesBox title="Plan it as sessions" items={[
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Samples come back sorted by distance</em>, <em>Interpolates between two samples</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Clamps below and above the table</em>, <em>A distance exactly on a sample needs no interpolation</em>."
+  "<strong>Session 2.</strong> Complete these checks, then review the remaining rubric items: <em>Clamps below and above the table</em>, <em>A distance exactly on a sample needs no interpolation</em>."
 ]} />
 
 <JavaPlayground id="a10-shooter-lookup-table" />
+
+The automated checks cover sorting, one midpoint, both clamps, and one exact interior
+sample. They do not verify every method signature directly, row-reference swaps, named
+column constants, the location note in the comments, rejection of invalid `n`, or
+duplicate distances. Duplicate-distance handling remains the separate stretch goal.
 
 <RulesBox title="Hints" items={[
   "<strong>Linear interpolation.</strong> Given a bracket of two samples and a target x between them: start at y1, work out what fraction of the way from x1 to x2 the target sits, take that fraction of the rise from y1 to y2, and add it on. The formula is <code>y1 + (x - x1) * (y2 - y1) / (x2 - x1)</code>.",
@@ -83,7 +146,7 @@ Use at least two samples with distinct distances for the required exercise. Dupl
   "<strong>Clamp before you interpolate.</strong> Handle the two out-of-range cases first and return early. Then <code>upperIndex</code> is guaranteed to find a real bracket, and <code>interpolate</code> never has to defend against an index of 0 or one past the end."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -96,21 +159,24 @@ Use at least two samples with distinct distances for the required exercise. Dupl
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+Save the checked required version first. Keep stretch work in a separate folder so changed input or output does not replace the required submission.
 
 - Replace the linear scan in `upperIndex` with a binary search and confirm it gives identical
   answers on every query. See [Finding a boundary](/java/fundamentals/java-searching#finding-a-boundary).
 - Reject a table with two samples at the same distance, since interpolating between them
   divides by zero. Decide whether to refuse the input or drop the duplicate.
 
-### References
+## References
 
-- JavaDoc: [`java.util.Scanner`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Scanner.html)
+- Javadoc: [`java.util.Scanner`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Scanner.html)
 - WPILib: [`InterpolatingDoubleTreeMap`](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/controllers/interpolated-tree-map.html): what you are hand-rolling here
 - Wikipedia: [Linear interpolation](https://en.wikipedia.org/wiki/Linear_interpolation)
 
 <Sources items={[
-  {"source": "csce145", "note": "Arrays and search."},
-  {"source": "dev-java", "path": "language-basics/arrays/", "note": "Parallel arrays."},
+  {"source": "csce145", "label": "Course Materials", "note": "Introductory two-dimensional arrays, linear search, and hand-written sorting practice."},
+  {"source": "dev-java", "path": "language-basics/arrays/", "label": "Arrays", "note": "Arrays of arrays, zero-based row and column access, and moving paired row references."},
+  {"url": "/java/fundamentals/java-calculations", "label": "Calculations", "note": "Operator order and <code>double</code> division used for the interpolation fraction and weighted rise."},
   {"url": "/frc/math-toolbox-units-and-interpolation", "label": "Interpolation on the robot", "note": "The <code>InterpolatingDoubleTreeMap</code> that replaces this by hand."}
 ]} />

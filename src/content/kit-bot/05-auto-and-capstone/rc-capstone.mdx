@@ -12,149 +12,185 @@ durationFixed: true
 ---
 
 
-The capstone is one working WPILib project. You will demonstrate its behavior in simulation and explain how its main pieces connect.
+The capstone brings your existing Kit Bot work into one demonstration. You will run the project in simulation, show the evidence you collected in earlier lessons, and explain how a command reaches a subsystem and its IO implementation. The capstone does not add a new mechanism or calculation.
 
-### Required behavior
+## Before You Start
 
-| Check | Observable result |
+Complete the simulation path from R00 through R14. R00 Parts 2 and 3 and R12 Part 2 are physical-hardware work and are not prerequisites for this simulation capstone. Keep your R09 calculation notes, saved WPILOG, and evidence files available.
+
+Open the Kit Bot repository folder in WPILib VS Code. Close unrelated projects so the Explorer and build task point to the Kit Bot. Your project should already have:
+
+- teleop-only driver controls from R11;
+- `IO: sim` runtime selection from R12;
+- launcher telemetry and simulated pose from R13;
+- the three Glass autonomous options from R14.
+
+Real-hardware operation is [Badge 1 Step 7](/badges/badge-1-hardware). Simulation can verify code paths, command sequencing, software motor models, telemetry, and pose updates. It cannot verify physical motor direction, CAN health, braking distance, or fuel movement.
+
+## Required Behavior
+
+| Check | Observable Result |
 |---|---|
-| Build | `./gradlew build` finishes successfully. |
-| Teleop drive | A controller drives forward, reverse, and turns. The robot stays still inside the deadband. |
-| Launcher and intake | Left bumper intakes, right bumper launches, and A ejects. The independent feeder and intake-launcher motors follow the correct sequence and both stop on release. Two distance settings produce different launch speeds. |
-| Characterization | The drivetrain and launcher print steady-state samples and calculated `kS` and `kV` values. One result is checked with a hand-written sample table. |
-| Runtime selection | Simulation constructs the simulation IO implementations. The real-hardware branch is visible in `RobotContainer`. |
-| Telemetry and pose | AdvantageScope graphs separate RPM, current, and applied voltage for the feeder and intake-launcher motors. Its field view shows the simulated robot pose moving and turning. |
-| Autonomous | Glass shows the chooser, and each required option runs and stops. |
-| Repository | The project has a README and is pushed to its own Kit Bot repository. A00 explains the GitHub workflow; the `<yourname>Badge01` assignments repository stays separate. |
+| Build | `./gradlew build` finishes with `BUILD SUCCESSFUL`. |
+| Teleop drive | A controller requests forward, reverse, and turning motion. Centered sticks stay inside the deadband. Drive controls do nothing outside teleop. |
+| Launcher and intake | Left bumper intakes, right bumper launches, and A ejects during teleop. The feeder and intake-launcher motors follow the sequence from R08 and both requests return to zero on release. Two D-pad settings produce different launch requests. |
+| Characterization | The drivetrain and launcher show the accepted samples and `kS` and `kV` results already required by R09. One result is checked with the saved hand-written sample table. |
+| Runtime selection | Simulation prints `IO: sim`. `RobotContainer` also contains the real-hardware branch; that branch is code-review evidence until a hardware deployment. |
+| Telemetry and pose | AdvantageScope separates RPM, current, and applied voltage for both launcher motors. Its field view shows `Drive/Pose` translating and rotating. |
+| Autonomous | Glass lists **Do nothing**, **Drive forward**, and **Drive then shoot**. Each produces its named behavior and every request stops. Driver controls stay inactive during autonomous. |
+| Repository | The project has a README and is pushed to its own Kit Bot repository by following [A00: Practice Repository Setup](/java/assignments/a00-practice-repository-setup). The `<yourname>Badge01` assignments repository stays separate. |
 
-Real-hardware operation is a later confirmation with a mentor. It is not required when a safe Kit Bot is unavailable.
+## Map the Project
 
-### Required project organization
+Before demonstrating, fill in this table in your notes or README with the names used by your project. This organizes existing code; it is not another graded artifact.
 
-Your names may differ, but the project needs these responsibilities:
+| Responsibility | File or Class to Find | What to Explain |
+|---|---|---|
+| Robot lifecycle | `Robot.java` | Where the scheduler runs and autonomous starts and stops |
+| Construction and bindings | `RobotContainer.java` | Where IO is selected, triggers are gated, and the chooser is published |
+| Drivetrain boundary | Drive subsystem and IO files | How one drive request reaches the real or simulated implementation |
+| Launcher boundary | Launcher subsystem and IO files | How one launcher command controls both simulated motors |
+| Driver logic | `TeleopDrive` | Why controller input stays outside `Drive` |
+| Autonomous composition | `AutoRoutines` | How existing subsystem commands form one sequence |
 
-- `Robot.java` starts logging and runs the command scheduler.
-- `RobotContainer.java` creates subsystems, chooses real or simulation IO, configures bindings, and publishes the autonomous chooser.
-- Each mechanism has a subsystem, an IO interface, a real implementation, a simulation implementation, and its constants.
-- A command that operates one mechanism is returned by that subsystem, such as `Launcher.launchFuel()`.
-- `TeleopDrive` owns controller-specific drive logic because controllers do not belong inside `Drive`.
-- `AutoRoutines` composes subsystem commands into autonomous routines.
+Names may differ. Extra files are acceptable when you can explain their responsibility. Remove abandoned experiments and unused classes before the demonstration.
 
-Extra files are acceptable when you can explain their purpose. Remove abandoned experiments and unused classes before the demonstration.
+## Review the Code
 
-### Code review checklist
-
-#### Java and project basics
+### Java and Project Basics
 
 - [ ] Package declarations match folder paths.
-- [ ] Fields are private unless they are constants or the public measurements in an IO inputs class.
+- [ ] Fields are private unless they are constants or public measurements in an IO inputs class.
 - [ ] Overridden methods use `@Override`.
-- [ ] Objects stored in fields, such as the IO implementation, are `private final` when the field is not reassigned.
+- [ ] Stored objects are `private final` when the field is not reassigned.
 - [ ] VS Code reports no unused imports.
 - [ ] `.gitignore` excludes build output and local editor files.
 
-#### IO boundary
+### IO Boundary
 
-- [ ] Real IO files contain the REVLib calls.
-- [ ] Simulation IO files contain the WPILib simulation calls.
+- [ ] Real IO files contain REVLib calls, and simulation IO files contain WPILib simulation calls.
 - [ ] Subsystems depend on their IO interfaces.
-- [ ] `RobotContainer` is the place that selects real or simulation implementations.
+- [ ] `RobotContainer` selects real or simulation implementations.
 
-#### Command ownership
+### Command Ownership and Modes
 
-- [ ] Left bumper binds to `launcher.intakeFuel()`, right bumper binds to `launcher.launchFuel()`, and A binds to `launcher.ejectFuel()`.
-- [ ] Commands that operate one mechanism are created by that subsystem and automatically require it.
-- [ ] `RobotContainer` chooses triggers but does not repeat mechanism voltage or stop logic.
-- [ ] Commands that coordinate several mechanisms compose the subsystem commands outside those subsystems.
+- [ ] Left bumper uses `launcher.intakeFuel()`, right bumper uses `launcher.launchFuel()`, and A uses `launcher.ejectFuel()`.
+- [ ] Commands for one mechanism are created by that subsystem and require it.
+- [ ] `RobotContainer` chooses triggers without repeating mechanism voltage or stop logic.
+- [ ] Every driver trigger uses the R11 teleop gate.
+- [ ] `AutoRoutines` composes subsystem commands outside the subsystems.
+- [ ] `Robot.java` schedules the chooser result in `autonomousInit()` and cancels it in `teleopInit()`.
 
-#### Behavior and evidence
+### Existing Evidence
 
-- [ ] Teleop drive stops when disabled.
-- [ ] The feeder and intake-launcher outputs both stop when each mechanism button is released.
-- [ ] Autonomous drive stops when its timeout ends.
-- [ ] Telemetry topics include their units in the name.
+- [ ] Teleop drive and both launcher outputs stop when their commands end or the robot is disabled.
+- [ ] Autonomous drive and launcher requests stop at their timeouts.
+- [ ] Telemetry topic names include units.
 - [ ] A saved WPILOG opens after simulation ends.
-- [ ] The drivetrain and launcher each produce at least two accepted steady-state samples.
-- [ ] One `kS` and `kV` result is checked with the regression sums from R09 Part 2.
-- [ ] Recorded gains name their mechanism, units, environment, voltage steps, settle time, and test date.
-- [ ] The simulated pose moves and rotates in AdvantageScope's field view.
+- [ ] Drivetrain and launcher samples and recorded metadata match the requirements in R09.
+- [ ] One `kS` and `kV` result includes the four regression sums from R09 Part 2.
+- [ ] `Drive/Pose` moves and rotates in AdvantageScope's field view.
 
-### README
+## Prepare the README
 
-The root `README.md` should tell another student how to:
+At the repository root, open `README.md`. It should guide another student through these existing steps:
 
-1. Open the project in WPILib VS Code.
-2. Build it.
-3. Start simulation.
-4. Connect a controller or use the keyboard mapping.
-5. Open AdvantageScope and Glass for the required checks, and keep the R09 console output available.
+1. Open the repository folder in WPILib VS Code.
+2. Build the project and identify `BUILD SUCCESSFUL`.
+3. Start simulation and identify `IO: sim`.
+4. Assign a controller to joystick port 0, or use the documented keyboard mapping.
+5. Open AdvantageScope, connect to simulation, and find the saved launcher and pose views.
+6. Open Glass, set **NetworkTables Settings** → **Team/IP** to `localhost`, find `SmartDashboard` → `Auto Chooser`, and run the three options.
+7. Find the R09 console output, calculation notes, and evidence files.
 
-Link the README to the GarageDocs lessons instead of copying their full explanations.
+Link to the GarageDocs lessons for full explanations. Include the dependency or vendor-library versions another student needs to open the project. Follow [A00: Practice Repository Setup](/java/assignments/a00-practice-repository-setup) when you save and share the repository.
 
-### Evidence to save
+## Check the Evidence Files
 
-Save these simulation results in the repository or link them from the README:
+Keep the three simulation results already required by the curriculum in the repository, or link them from the README:
 
-1. An AdvantageScope screenshot with separate feeder and intake-launcher RPM, current, and applied voltage visible during intake and launch.
-2. The drivetrain and launcher characterization output, including the accepted samples and calculated `kS` and `kV` values.
-3. A screenshot of the selected autonomous option and an AdvantageScope trace showing its motion and stop. The routine does not print a completion message by default.
+1. An AdvantageScope screenshot with separate feeder and intake-launcher RPM, current, and applied voltage during intake and launch.
+2. The drivetrain and launcher characterization output, including accepted samples and calculated `kS` and `kV` values.
+3. A Glass screenshot showing the selected autonomous option, paired with an AdvantageScope trace showing motion settling to a stop. You can graph the position fields within `Drive/Pose`; the temporary R11 console check is also useful for distinguishing a zero request from coasting. The routine does not print a completion message by default.
 
-Give each file a useful name and date. These three items can be collected before a physical Kit Bot is available.
+Use descriptive names with dates, such as `2026-09-24-launcher-telemetry.png`. Before the demonstration, follow each README link and confirm the file opens from the repository folder.
 
-When you have access to a physical Kit Bot and a mentor, add the hardware evidence:
+When a physical Kit Bot and mentor are available, Badge 1 Step 7 adds the labeled CAN-ID photo, drive video, and intake-and-launch side view. Those files do not block the simulation capstone.
 
-1. An overhead photo with each motor controller and CAN ID labeled.
-2. A short video showing forward drive, reverse drive, and a turn.
-3. A side view showing one intake and one launch.
+## Run the Demonstration
 
-The simulation capstone can be reviewed before the hardware session. Add the physical evidence after completing the hardware bring-up and first-deploy lessons.
+The time suggestions help you rehearse. They are not additional requirements.
 
-### Ten-minute demonstration
+### Show the Project Map (1 Minute)
 
-#### 1. Show the project map
+In the VS Code Explorer, point to one subsystem, its IO interface, and its real and simulation implementations. Trace one command call to the subsystem method and then to the selected IO object.
 
-Point to one subsystem, its IO interface, and its real and simulation implementations. Explain that the subsystem uses the same methods in either environment.
+### Show Runtime Selection (1 Minute)
 
-#### 2. Show runtime selection
+Open `RobotContainer.java` and point to the real/simulation branch. Start simulation and show `IO: sim` in the terminal. State that this proves the simulation branch was constructed; the physical branch needs the later hardware check.
 
-Open `RobotContainer`. Show where the program chooses the IO implementation. Start simulation and show the console confirmation from R12.
+### Drive, Intake, and Launch (2 Minutes)
 
-#### 3. Drive, intake, and launch
+In the Sim GUI, enable teleop. Drive forward, reverse, and turn, then center the sticks. Hold and release the left bumper, right bumper, and A. Demonstrate both D-pad distance settings. In AdvantageScope, show all six launcher topics and the moving `Drive/Pose` field object. Describe these as software-model results, not fuel scoring or physical direction.
 
-Enable teleop. Drive forward, reverse, and turn. Hold and release the left bumper, right bumper, and A to demonstrate intake, launch, and eject. Explain why all three commands belong to the same `Launcher` subsystem. Demonstrate two launcher distance settings. Show the launcher graph and moving field pose in AdvantageScope.
+### Show the Characterization Record (2 Minutes)
 
-#### 4. Show the characterization record
+Open the saved R09 output and your calculation notes. For one mechanism, show the four regression sums and compare your hand-calculated `kS` and `kV` with the Java output. State the velocity unit and explain why physical hardware needs its own samples.
 
-You may use notes, the R09 equations, and a calculator. Show the drivetrain and launcher voltage-and-velocity samples. For one mechanism, show the four regression sums and compare your hand-calculated `kS` and `kV` with the Java output. State the velocity unit and explain why real hardware needs its own test data.
+### Run Autonomous (2 Minutes)
 
-#### 5. Run autonomous
+Open Glass, set **Team/IP** to `localhost`, and confirm the title bar shows a connection. While disabled, select and run **Do nothing**, **Drive forward**, and **Drive then shoot**, disabling between selections. Use the R11 console output and launcher telemetry to show that targets return to zero. Start one routine again and switch to teleop before it finishes to show cancellation.
 
-Open Glass, select each required autonomous option, and run it. Show that the drivetrain and launcher stop at the end of their commands.
+### Explain One Failure Check (2 Minutes)
 
-#### 6. Explain one failure check
+Choose one prompt below. Describe the observation first, the first place you would check, and the evidence that would confirm or reject that possible cause. The prompt does not prescribe one answer because several causes can produce the same symptom.
 
-Choose one example:
+- A driver button produces no motor request.
+- A forward request produces opposite left and right wheel motion.
+- One telemetry topic remains at zero during its command.
+- An autonomous request continues past its timeout.
 
-- A button does nothing.
-- The robot turns when commanded forward.
-- A telemetry topic stays at zero.
-- An autonomous command does not stop.
+## Separate Badge 1 Fresh-Clone Check
 
-Describe what you would observe, what you would check first, and what evidence would confirm the cause.
+The [Badge 1 simulation check](/badges/badge-1-simulation#badge-check) later requires a formal fresh-clone demonstration. It is separate from this capstone's Done When conditions. A fresh clone is a new copy in a different folder; running it checks that another student can retrieve the repository's tracked files and documented dependencies.
 
-### Continue after the capstone
+If it fails, keep the first error visible. Check whether it names a missing file, vendor library, WPILib version, or unavailable download before changing code.
 
-Use [R15: Choose Your Next Project](/kit-bot/r15-where-to-next) to select the next change from evidence you observed during the demonstration.
+<RulesBox title="Done When">
 
-<RulesBox title="Done when">
-
-The required behavior works in simulation, the `kS` and `kV` calculation is checked, the evidence is visible in the console, AdvantageScope, and Glass, the repository is available to the mentor, and you can explain how a command reaches a subsystem and its IO implementation.
+The project builds and runs in simulation. Teleop controls, telemetry, pose, characterization records, and all three autonomous choices produce the required evidence. The project is pushed to its own Kit Bot repository, the README leads a mentor to each saved file, and you can explain one command's path through the subsystem and selected IO implementation. The Badge 1 fresh-clone check and physical evidence remain separate checks.
 
 </RulesBox>
 
 <Sources items={[
-  {"source": "wpilib", "path": "docs/zero-to-robot/introduction.html", "note": "The broader WPILib setup and robot workflow."},
-  {"source": "wpilib", "path": "docs/software/commandbased/index.html", "note": "Command-based project structure."},
-  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/introduction.html", "note": "Robot simulation."},
-  {"source": "advantagescope", "path": "overview/live-sources/", "note": "Live simulation telemetry."}
+  {
+    "source": "wpilib",
+    "path": "docs/zero-to-robot/introduction.html",
+    "note": "The WPILib project, build, deploy, and simulation workflow.",
+    "label": "Getting Started With WPILib"
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/commandbased/index.html",
+    "note": "Command-based project structure and scheduler responsibilities.",
+    "label": "Command-Based Programming"
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/wpilib-tools/robot-simulation/introduction.html",
+    "note": "What desktop robot simulation can exercise.",
+    "label": "Robot Simulation"
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/dashboards/glass/widgets.html",
+    "note": "The SendableChooser display used for autonomous evidence.",
+    "label": "Glass Widgets"
+  },
+  {
+    "source": "advantagescope",
+    "path": "overview/live-sources/",
+    "note": "Live simulation telemetry and saved log sources.",
+    "label": "Live Data Sources"
+  }
 ]} />

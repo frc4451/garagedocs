@@ -1,0 +1,152 @@
+---
+title: "Measured Against Goal"
+lessonId: measured-against-goal
+section: frc
+group: frc-mechanism-visualization
+groupLabel: "Mechanism Visualization"
+groupOrder: 18
+order: 5
+difficulty: intermediate
+duration: 25 min
+description: "Drawing the same mechanism two or three times from the measurement, the profile setpoint and the goal: the two ways to overlay them, colour and line weight that keep all of them readable, five failures and the shape each one makes, and whether to log the drawing on the real robot."
+---
+
+A single drawing of where a mechanism is tells you less than a graph of the same number. The drawing earns its place when you draw the mechanism twice, once from the measurement and once from the goal, and the distance between the two shapes becomes the error.
+
+### Three values, already in the log
+
+The IO layer reports three positions for a profiled mechanism, and Cobra's `Pivot` exposes all three:
+
+<ContentTable
+  headers={["Value", "Accessor", "What it means"]}
+  rows={[
+    ["Measured", "<code>getPosition()</code>", "Where the mechanism is, from the encoder."],
+    ["Setpoint", "<code>getPositionSetpoint()</code>", "Where the motion profile says it should be this loop, on its way to the goal."],
+    ["Goal", "<code>getGoalPosition()</code>", "Where the code asked it to end up."]
+  ]}
+/>
+
+Each one drawn as its own ligament gives three shapes on one picture. Measured against setpoint is a control question: is the mechanism following its profile. Setpoint against goal is a planning question: is the profile still running, or has it arrived and left the mechanism short.
+
+A robot without motion profiles has only two values, and a two-drawing overlay is the normal case. Add the third when a profile exists and you want to see it separately from the destination.
+
+### Two ways to overlay
+
+**One canvas, several ligaments.** Append every version to the same root. One key, one drag onto the Mechanism tab, and all the drawings share a root and a scale by construction. Cobra's constants are written for this: `IntakeConstants` defines `measuredPivotMechanismConfig`, `setpointPivotMechanismConfig` and `goalPivotMechanismConfig`, three ligament configs that differ only in name and colour and are meant to hang off the one root in `rootMechanismConfig`.
+
+```java
+// Cobra's three configs, appended to the same root
+LoggedMechanismRoot2d root = mechanism.getRoot("intake", 0.5, 0.5);
+
+measuredMech = new PivotMechanism(IntakeConstants.measuredPivotMechanismConfig);
+setpointMech = new PivotMechanism(IntakeConstants.setpointPivotMechanismConfig);
+goalMech = new PivotMechanism(IntakeConstants.goalPivotMechanismConfig);
+
+root.append(goalMech.getPivotMech());
+root.append(setpointMech.getPivotMech());
+root.append(measuredMech.getPivotMech());
+```
+
+**One canvas each, several keys.** Construct the whole assembly class more than once, each with its own canvas, and log each under its own key. Riptide builds two and 6328 builds three:
+
+```java
+// Riptide
+private final SuperStructureMechanism goalMechanism =
+    new SuperStructureMechanism("Goal", Color.kLightBlue, Color.kLightGreen, 10.0);
+private final SuperStructureMechanism measuredMechanism =
+    new SuperStructureMechanism("Measured", Color.kDarkBlue, Color.kDarkGreen, 3.0);
+
+// 6328
+private final SuperstructureVisualizer measuredVisualizer = new SuperstructureVisualizer("Measured");
+private final SuperstructureVisualizer setpointVisualizer = new SuperstructureVisualizer("Setpoint");
+private final SuperstructureVisualizer goalVisualizer = new SuperstructureVisualizer("Goal");
+```
+
+The separate-canvas form costs one drag per drawing and lets you hide one from the tab without touching code, which is useful when three overlaid chains get crowded. The single-canvas form costs less code and cannot drift out of alignment. For one component, use one canvas. For a chain of three or four, the separate canvases are easier to read and easier to turn off.
+
+### Colour and line weight
+
+Overlaid drawings sit on top of each other, so the one underneath has to be wider than the one on top or it disappears. Riptide sets this deliberately: the goal drawing is `10.0` wide in light blue and light green, the measured drawing is `3.0` wide in dark blue and dark green. The thin dark measurement reads clearly against the thick pale goal behind it, and when the two agree the dark line sits centred in the pale one.
+
+Cobra's three configs all use `width(10)`, in `kGreen`, `kLawnGreen` and `kLightGreen`. Three shades of green at the same width is hard to read for anyone, and unreadable for the roughly one in twelve men with a red-green colour vision deficiency. Widths that differ do more work than hues that differ:
+
+<ContentTable
+  headers={["Drawing", "Line weight", "Colour", "Why"]}
+  rows={[
+    ["Goal", "10", "Pale", "Widest and faintest, drawn as a backdrop for the others."],
+    ["Setpoint", "6", "Mid", "Between the two, visible on either side of the measurement."],
+    ["Measured", "3", "Dark or saturated", "Thinnest and strongest. This is the one you read."]
+  ]}
+/>
+
+### Five failures and the shape each one makes
+
+The overlay is worth building because these five look different at a glance, and on a line graph three of them look similar.
+
+<ContentTable
+  headers={["What you see", "What it usually means", "The check"]}
+  rows={[
+    ["The measured arm trails the setpoint arm by a roughly constant angle for the whole motion, then catches up at the end.", "Following error. The feedback gain is low for the profile's speed.", "Graph measured against setpoint and read the gap in the units. Raise <code>kP</code>, or slow the profile, and watch the gap close. <a href=\"/frc/manual-tuning-arm-and-elevator\">Manual tuning</a> has the procedure."],
+    ["The setpoint arm is on top of the goal arm from the first loop, and the measured arm crawls after both.", "No motion profile is running. The controller was handed the goal directly.", "Confirm Motion Magic or a trapezoid profile is configured for that control request, not a plain position request."],
+    ["The measured arm stops a few degrees short of the setpoint and stays there after the setpoint stops moving.", "Steady-state error. Gravity or friction is holding it out of tolerance.", "Check <code>kG</code> and the gravity type for a pivot, <code>kS</code> for stiction. The <code>atGoal()</code> tolerance may also be wider than the gap."],
+    ["The goal arm never moves when the button is pressed, and the other two sit with it.", "A command or binding problem, not a control problem.", "The drawing is telling you the goal was never set. Check the binding and whether another command owns the subsystem."],
+    ["The goal and setpoint arms sweep across, and the measured arm does not move at all.", "The mechanism is not moving. The drawing is correct and the robot is stuck.", "Check applied voltage and current in the log. Zero current points at a disabled or unconfigured motor; high current at a stalled mechanism, a brake, or a hard limit."]
+  ]}
+/>
+
+The fourth row is the one that repays the whole build. A goal drawing that never moves says the failure is upstream of the controller, and that is the case where tuning gains for an afternoon changes nothing.
+
+### Reading it in AdvantageScope
+
+Drag the `Mechanism2d` entry from `RealOutputs` or `ReplayOutputs` onto a **Mechanism** tab. With several keys, drag each one onto the same tab; the control pane lists them with visibility toggles, so a crowded picture can be thinned without editing code.
+
+The Mechanism tab plays back with the scrubber like every other tab, so a log from a match replays the arm's motion at the moment the driver reported the problem. That is the same reason the drawing is logged rather than sent to a live dashboard: [Logs and Replay](/frc/log-replay) can rerun it.
+
+A mechanism drawing can also sit inside the 2D field view as a child of the robot, which projects the side-on drawing onto the robot's footprint. That is covered with the other pose objects in [Poses on the Field](/tools/advantagescope-poses-on-the-field).
+
+### Logging it on the real robot
+
+FRC 6328 records the 2D mechanism only when the robot is not running for real:
+
+```java
+if (Constants.getMode() != Mode.REAL) {
+  elevatorMechanism.setLength(...);
+  pivotMechanism.setAngle(...);
+  Logger.recordOutput("Mechanism2d/" + name, mechanism);
+}
+```
+
+The 3D component poses in the same method are logged in every mode. The reasoning is bandwidth: a mechanism tree writes a field per ligament per property per loop, and three overlaid chains multiply that. On a robot with several assemblies it is real traffic, and on the field the 3D poses answer the same questions.
+
+The counter-argument is that the drawing is most valuable in a match log, which is the one log you cannot rerun. FRC 4451's mechanisms are small enough that the traffic is not the deciding factor. Log it in every mode, keep the count of overlaid drawings to what you read, and revisit if the log size or the loop time moves.
+
+Either choice is defensible. Making it deliberately is the point, because the failure mode is discovering after an elimination match that the drawing you wanted was gated off.
+
+<RulesBox title="Common mistakes">
+
+- Draw the goal wider and paler than the measurement, so the measurement stays readable on top of it.
+- Avoid telling the drawings apart by hue alone.
+- Feed the measured drawing from the encoder and the goal drawing from the goal, never both from the same accessor. Two identical drawings always agree and always lie.
+- Add the setpoint drawing only when a motion profile is running, otherwise it duplicates the goal.
+- Decide whether the drawing is logged on the real robot, and write the decision down.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/pivot/Pivot.java", "note": "<code>getPosition</code>, <code>getPositionSetpoint</code> and <code>getGoalPosition</code>, the three values the overlaid drawings read."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/IntakeConstants.java", "note": "The Measured, Setpoint and Goal ligament configs, all at <code>width(10)</code> in three shades of green."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/superstructure/SuperStructure.java", "note": "Two whole assemblies constructed as Goal at line weight 10 and Measured at line weight 3, updated from the goal and the measurement."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/superstructure/mechanism/SuperStructureMechanism.java", "note": "The assembly class taking its key, colours and line weight as constructor arguments so it can be built more than once."},
+  {"source": "mech-adv", "path": "src/main/java/org/littletonrobotics/frc2025/subsystems/superstructure/Superstructure.java", "note": "Three visualizers named Measured, Setpoint and Goal."},
+  {"source": "mech-adv", "path": "src/main/java/org/littletonrobotics/frc2025/subsystems/superstructure/SuperstructureVisualizer.java", "note": "The <code>Mode.REAL</code> gate on the 2D mechanism, with the 3D poses logged in every mode."},
+  {"source": "advantagescope", "path": "tab-reference/mechanism/", "note": "Dragging several mechanisms onto one tab, and the visibility toggles in the control pane."},
+  {"source": "advantagekit", "path": "data-flow/recording-outputs/", "note": "Outputs land under <code>RealOutputs</code> or <code>ReplayOutputs</code>."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Mechanisms in 3D","id":"mechanisms-in-3d"},
+  {"label":"Mechanisms per Subsystem","id":"mechanisms-per-subsystem"},
+  {"label":"Manual Tuning: Arm and Elevator","id":"manual-tuning-arm-and-elevator"},
+  {"label":"Reading a Match Log","id":"reading-a-match-log"},
+  {"label":"Poses on the Field","url":"/tools/advantagescope-poses-on-the-field"}
+]} />

@@ -7,19 +7,21 @@ groupLabel: "Phase 3: Hardware via IO"
 groupOrder: 3
 order: 6
 duration: 20 min
-description: Learn the four motor-controller ideas used by the launcher and drivetrain lessons.
+description: Explain CAN IDs, voltage requests, current limits, and relative encoder readings before writing drivetrain IO.
 ---
 
 
-Robot code does not power a motor directly. It sends a request to a **motor controller**. The controller switches battery power, protects the motor, and reports sensor measurements.
+Robot code does not power a motor directly. It sends a request to a **motor controller**. The controller switches battery power and, when configured, can limit current and report measurements. Breakers and correctly sized wiring provide separate protection in the power circuit.
 
-The Kit Bot uses REV Robotics SparkMax controllers with NEO brushless motors. Focus on four ideas: CAN IDs, voltage commands, current limits, and encoder readings.
+This curriculum uses REV Robotics SPARK MAX controllers with NEO brushless motors. Focus on four ideas: CAN IDs, voltage commands, current limits, and encoder readings.
 
 The snippets below explain API calls. Do not paste them into the project yet; R07 provides complete files with imports.
 
-**Refreshers:** [Voltage, Current, and Power](/hardware) and [R03: Constants](/kit-bot/r03-constants). Use the Hardware overview to find the electrical topic you need.
+## Before You Start
 
-### 1. CAN IDs identify devices
+Review [Voltage and Current](/hardware/electrical-basics-voltage-current), [Power Wiring and CAN](/hardware/power-wiring-and-can), [R03: Constants](/kit-bot/r03-constants), and the [R00 WPILib setup](/kit-bot/r00-wpilib-setup). You will read examples in this lesson. You will not edit the robot project or power hardware.
+
+## CAN IDs Identify Devices
 
 The **controller area network (CAN)** bus is a shared two-wire network. Each device needs its own numeric CAN ID so robot code can address the correct controller.
 
@@ -35,16 +37,16 @@ Store IDs in the mechanism's constants class. Name the device as well as its num
 public static final int LEFT_LEADER_CAN_ID = 40;
 ```
 
-### 2. Voltage controls motor effort
+## Voltage Controls Motor Effort
 
-The two common SparkMax output methods are:
+Two common `SparkMax` output methods are:
 
 | Call | Meaning |
 |---|---|
 | `motor.set(0.5)` | Request half of the available bus voltage. |
 | `motor.setVoltage(6.0)` | Request six volts. |
 
-This curriculum uses `setVoltage` because the request stays in volts when battery voltage changes. A voltage request describes motor effort. It does not guarantee a particular speed.
+This curriculum uses `setVoltage` because the requested value stays in volts when battery voltage changes. The controller can only apply voltage available from the battery, and battery sag or a current limit can reduce the measured applied voltage. A voltage request describes motor effort. It does not guarantee a particular speed.
 
 REVLib accepts a bare `double`:
 
@@ -54,18 +56,18 @@ motor.setVoltage(voltage.in(Volts));
 
 The subsystem uses a typed `Voltage`. The IO implementation converts it to the raw number REVLib expects.
 
-### 3. Current limits protect hardware
+## Current Limits Reduce Sustained Current
 
-Current rises when a motor works hard or cannot turn. A current limit tells the controller to reduce output before sustained current overheats a motor or trips a breaker.
+Current rises when a motor works hard or cannot turn. A current limit tells the controller to reduce output when the configured threshold is reached. The motor, wiring, and breaker still need ratings appropriate for the circuit.
 
 ```java
 SparkMaxConfig config = new SparkMaxConfig();
 config.smartCurrentLimit(60);
 ```
 
-The correct limit depends on the motor, mechanism, wiring, breaker, and team rules. Use the value approved for the robot's hardware configuration. Treat the Kit Bot values in later lessons as configuration for that documented build, not universal defaults.
+The correct limit depends on the motor, mechanism, wiring, breaker, and team rules. Use the value approved for the robot's hardware configuration. The later lessons provide simulation starter values. A mentor must approve the values for the physical robot before deployment.
 
-### 4. Encoders measure motion
+## Encoders Measure Motion
 
 The NEO includes a relative encoder. It reports motor-shaft position and velocity:
 
@@ -85,7 +87,7 @@ distance = wheel rotations × π × wheel diameter
 
 R07 keeps this conversion inside `DriveIOReal`, so the rest of the program reads meters and meters per second.
 
-### Leaders and followers
+## Leaders and Followers
 
 Each Kit Bot drivetrain side has two motors. Code commands the leader, and the follower mirrors it over CAN. This pattern applies to the drivetrain only. The feeder and intake-launcher motors in R08 perform different jobs and receive separate commands.
 
@@ -94,9 +96,9 @@ SparkMaxConfig followerConfig = new SparkMaxConfig();
 followerConfig.follow(leaderCanId);
 ```
 
-Follower inversion depends on how the motors are mounted and how the leader is configured. Verify direction with the robot supported safely before driving on the floor.
+The second argument to `follow(leaderCanId, invertRelativeToLeader)` selects whether a follower mirrors or opposes its leader. Motor mounting, leader inversion, and this follower relationship all affect wheel direction. R07 records the intended sign contract in simulation. Real direction remains unverified until the mentor-led First Deploy procedure.
 
-### Configuration happens once
+## Configuration Happens Once
 
 Create and apply motor configuration when the IO implementation is constructed. Do not reconfigure a controller every 20 ms.
 
@@ -114,13 +116,15 @@ motor.configure(
 
 `kBrake` makes a stopped drivetrain resist motion. `kCoast` lets a mechanism spin down more freely. Choose the mode for the mechanism's intended behavior.
 
-### See how teams laid out the hardware
+## Save This for the Hardware Session
 
-During a mentor-supervised hardware session, trace the controller before entering its CAN ID. Find its power wires, the two CAN wires, and the motor cable. A label on the controller should agree with the constant in code.
+Do not identify, configure, or power controllers during this lesson. After [R12: First Deploy](/kit-bot/r12-first-deploy), a mentor can lead the checks below with the robot supported according to that procedure.
+
+During that session, trace the controller before entering its CAN ID. Find its power wires, the two CAN wires, and the motor cable. A label on the controller should agree with the constant in code.
 
 These photo-rich build threads show several workable layouts. Compare them to your robot instead of copying a wire position from a photo.
 
-<LinkGrid title="Electrical layout examples" links={[
+<LinkGrid title="Electrical Layout Examples" links={[
   {"label":"YETI Robotics KitBot","url":"https://www.chiefdelphi.com/t/frc-3506-yeti-robotics-2026-build-thread/511666","description":"Photos of a wired KitBot plus shooter tests and motor-speed evidence."},
   {"label":"Robocubs KitBot","url":"https://www.chiefdelphi.com/t/frc-1701-robocubs-2026-build-thread-open-alliance/511402?page=2","description":"Chassis, electrical-board, and programming progress photos."},
   {"label":"Garage Gang KitBot","url":"https://www.chiefdelphi.com/t/frc-11025-garage-gang-2026-build-thread-open-alliance/510259","description":"Assembly photos and notes from diagnosing CAN communication."}
@@ -128,22 +132,33 @@ These photo-rich build threads show several workable layouts. Compare them to yo
 
 For the hardware session, take one clear overhead photo before the first powered test. Mark each controller's CAN ID on a copy of the photo. A mentor should still inspect the real wiring before power is applied.
 
-### Why the next lessons use an IO interface
+## Check Your Understanding
+
+For each observation, name the first fact you would check:
+
+| Observation | Check |
+|---|---|
+| Code reports that CAN device 40 is missing. | Confirm the controller label and configured CAN ID. |
+| A 6 V request produces a different speed as the mechanism load changes. | Compare requested voltage with speed; voltage is effort, not a speed command. |
+| Current rises while the shaft stops turning. | Check for a stall or mechanical obstruction before running again. |
+| A 10.71:1 reduction reports 10.71 motor rotations. | Calculate `10.71 / 10.71 = 1` wheel rotation. |
+
+## Why the Next Lessons Use an IO Interface
 
 REVLib types belong in the real IO implementation. Simulation types belong in the simulation implementation. The subsystem calls the small interface shared by both. This keeps motor configuration, unit conversion, and sensor reads in one place.
 
-<RulesBox title="Done when">
+<RulesBox title="Done When">
 
 You can explain what a CAN ID identifies, why a voltage request is not a speed guarantee, what a current limit protects, and what the NEO encoder reports. No project file changes are required.
 
 </RulesBox>
 
 <Sources items={[
-  {"source": "wpilib", "path": "docs/software/hardware-apis/motors/index.html", "note": "Motor controllers in WPILib."},
-  {"source": "wpilib", "path": "docs/software/can-devices/can-addressing.html", "note": "CAN addressing."},
-  {"source": "rev", "path": "brushless/spark-max/gs", "note": "SparkMax setup and device configuration."},
-  {"source": "revlib", "path": "com/revrobotics/spark/SparkMax.html", "note": "SparkMax output and encoder access."},
-  {"source": "revlib", "path": "com/revrobotics/spark/config/SparkMaxConfig.html", "note": "Current limit, idle mode, inversion, and follower configuration."},
+  {"source": "wpilib", "path": "docs/software/hardware-apis/motors/index.html", "label": "WPILib: Motor Controllers", "note": "Motor controllers in WPILib."},
+  {"source": "wpilib", "path": "docs/software/can-devices/can-addressing.html", "label": "WPILib: CAN Addressing", "note": "CAN addressing."},
+  {"source": "rev", "path": "brushless/spark-max/gs", "label": "REV: SparkMax Getting Started", "note": "SparkMax setup and device configuration."},
+  {"source": "revlib", "path": "com/revrobotics/spark/SparkMax.html", "label": "REVLib JavaDoc: SparkMax", "note": "SparkMax output and encoder access."},
+  {"source": "revlib", "path": "com/revrobotics/spark/config/SparkMaxConfig.html", "label": "REVLib JavaDoc: SparkMaxConfig", "note": "Current limit, idle mode, inversion, and follower configuration."},
   {"url": "https://www.chiefdelphi.com/t/frc-3506-yeti-robotics-2026-build-thread/511666", "label": "YETI Robotics 2026 build thread", "note": "Photo-rich KitBot wiring and launcher testing examples."},
   {"url": "https://www.chiefdelphi.com/t/frc-1701-robocubs-2026-build-thread-open-alliance/511402?page=2", "label": "Robocubs 2026 build thread", "note": "KitBot electrical-board and chassis examples."},
   {"url": "https://www.chiefdelphi.com/t/frc-11025-garage-gang-2026-build-thread-open-alliance/510259", "label": "Garage Gang 2026 build thread", "note": "Assembly and CAN troubleshooting examples."}

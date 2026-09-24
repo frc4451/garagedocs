@@ -10,75 +10,96 @@ difficulty: intermediate
 description: "Write useful commit messages and keep changes focused, reviewable, and documented."
 ---
 
-### Writing good commit messages
+## Write Useful Commit Messages
 
-Describe the behavior or purpose of the change. Use a short first line, followed by a blank line and details when the reason or tradeoff needs explanation.
+A commit message should let another student understand the recorded change without opening every file. Name the behavior or purpose in the first line.
 
-<CodeTabs>
-<CodeTab label="PowerShell">
+| Weak Message | Useful Message | Why It Helps |
+|---|---|---|
+| `updates` | `Add launcher ready-speed check` | Names the added behavior. |
+| `fix stuff` | `Fix drivetrain inversion in teleop` | Names the affected system and failure. |
+| `more changes` | `Document encoder units for arm setpoint` | Names the documentation and the value it protects. |
 
-```powershell
+Use an imperative verb such as **Add**, **Fix**, **Remove**, or **Document** for consistency. A short first line is easier to scan in a log. Git does not impose a 50-character summary limit, so preserve the specific behavior instead of cutting useful meaning.
+
+The following are separate examples, not a sequence to run:
+
+```text
 git commit -m "Add autonomous scoring sequence"
 git commit -m "Fix drivetrain calibration in teleop"
 ```
 
-</CodeTab>
-<CodeTab label="Terminal">
+When the reason or tradeoff is not clear from the summary, write a body after a blank line through your editor or pull-request description. Include an issue, requirement, or test result when it helps future readers understand why the change exists.
 
-```bash
-git commit -m "Add autonomous scoring sequence"
-git commit -m "Fix drivetrain calibration in teleop"
-```
+## Name Focused Branches
 
-</CodeTab>
-</CodeTabs>
+Names such as `feature/autonomous-scoring` and `fix/drivetrain-inversion` identify the work. Follow the repository's established convention. Add a season or subsystem only when it helps distinguish the branch.
 
-These are separate message examples, not commands to run in sequence. Use an imperative verb such as "Add" or "Fix" for consistency. About 50 characters is a useful target for the summary, not a Git requirement. Reference an issue or test result when it helps explain the change.
+Keep one branch focused enough that a reviewer can explain its purpose and run the relevant checks. Before editing, read the branch name in VS Code's Status Bar or run `git branch --show-current`. Before deleting a merged branch, confirm that its work is present on the intended destination branch.
 
-### Branch naming and organization
+## Update With Intent
 
-Names such as `feature/autonomous-scoring` and `fix/drivetrain-issue` identify the work. Choose a convention with the team and follow it. Add a season to the name only when it helps distinguish the work.
+Read [GitHub Remotes](/tools/github-remotes#fetch-pull-and-push) before updating from a remote. Use **fetch** when you want updated remote information without changing the current branch. Use **pull** when you intend to fetch and integrate remote commits into the current branch.
 
-Keep each branch focused enough to review and test. Delete a merged branch when it is no longer needed.
+Before either action, inspect the current branch and `git status`. Preserve unfinished work before switching branches or integrating commits. If Git reports a conflict or would overwrite local work, stop and read the named paths instead of forcing the operation.
 
-### Team workflow practices
+## Make Reviewable Commits
 
-Before starting new work, inspect the current branch and local changes, then fetch or pull as appropriate. Preserve unfinished work before switching branches or integrating changes.
+Build a commit around one behavior, correction, or documentation purpose when practical. Related code, tests, configuration, and documentation can belong together because they are needed for the same result. Unrelated formatting or feature work is easier to review in a separate commit.
 
-Make focused commits as the work progresses. Before proposing a merge, run the relevant checks and explain the results in the pull request. For robot behavior, develop and check it in simulation before hardware confirmation. Keep `main` aligned with the team's review and testing policy.
+Before committing:
 
-<RulesBox title="Record changes that affect the robot">
+1. Save the files.
+2. Run `git status` and identify every path.
+3. Read the unstaged and staged diffs.
+4. Stage explicit files or selected ranges.
+5. Confirm that new files needed for the build are staged.
+6. Run the checks appropriate to the change and record the actual result.
 
-Document hardware replacements, configuration changes, units, and calibration procedures alongside the code. Record the reason and evidence so a later student can understand the setting instead of copying it without context.
+Simulation can check supported robot behavior before hardware. It cannot verify wiring, motor direction, mechanism limits, or real-world performance. Record what still needs hardware confirmation.
+
+<RulesBox title="Record Robot-Affecting Changes">
+
+Document hardware replacements, configuration changes, units, coordinate frames, calibration procedures, and the evidence used to choose a value. A later student should be able to tell what the setting controls and when it must be measured again.
 
 </RulesBox>
 
-### File and repository organization
+## Protect Project Files and Credentials
 
-Use [`.gitignore`](/tools/gitignore) for generated build output and temporary files. Keep
-source code and configuration files that the project needs under version control.
-Organize them so a reader can find related code and settings together.
+Use [`.gitignore`](/tools/gitignore) for generated build output and local machine files. `.gitignore` does not make a credential safe: tracked files remain in history, and anyone can bypass an ignore rule.
 
-The README should explain the project, how to build it, and where to start. Keep credentials such as tokens and passwords out of tracked files. Use the platform's supported credential or secret storage.
+Keep passwords, personal access tokens, private keys, and recovery codes out of project files. Use the supported credential manager for Git authentication and GitHub's secrets settings for automated workflows. If a credential is committed or pushed, revoke or rotate it first, then follow [GitHub's sensitive-data removal procedure](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository) with the repository owner.
 
-### Review before sharing
+The repository README should explain the project, how to build it, and where a new contributor should start. Keep required source, build scripts, vendordep files, and shared configuration under version control.
 
-- Read the staged diff and check that it contains only the intended change.
-- Include new files required to build the project.
-- Explain the reason for changes that are not clear from the diff.
-- Record what was tested and what still needs checking.
-- Push the commits so teammates can access them.
+## Review Before Sharing
+
+Use this checklist before a push or pull request:
+
+- Confirm the current branch and the remote destination.
+- Read the staged diff and commit list.
+- Confirm each commit message describes its change.
+- Build, simulate, or run the relevant checks and record their results accurately.
+- State any known limitation or check still needed.
+- Check that no credential, generated output, or unrelated file is included.
+
+Push normally. If a push is rejected, read the complete message and check for incoming commits, authentication, permissions, or branch rules. Do not answer an unexplained rejection with a force push. See [Push Troubleshooting](/tools/github-remotes#troubleshooting-a-push) for the first check for each symptom.
+
+## Prepare a Pull Request
+
+Confirm the compare branch contains your work and the base branch is where it should merge. Describe the resulting behavior, why the change is needed, the checks performed, and what remains unverified. Keep follow-up fixes on the same branch so reviewers can see the updated result.
+
+After GitHub Actions runs, open the check rather than reading only the icon. A passing workflow proves only the commands configured in that workflow. Reviewer feedback and hardware checks can still identify issues outside that automation.
 
 <Sources items={[
-  {"source": "git", "path": "book/en/v2/Distributed-Git-Contributing-to-a-Project", "note": "Commit guidelines."},
-  {"url": "https://www.conventionalcommits.org/", "label": "Conventional Commits", "note": "The message convention referenced."},
-  {"source": "github", "path": "get-started/using-github/github-flow", "note": "Branch naming and flow."},
-  {"url": "https://github.com/thoughtbot/guides/tree/main/code-review", "label": "thoughtbot code review guide", "note": "Review practice."}
+  {"source": "git", "path": "book/en/v2/Distributed-Git-Contributing-to-a-Project", "note": "Focused commits, commit-message summaries and bodies, and contributor workflow."},
+  {"source": "github", "path": "get-started/using-github/github-flow", "note": "Branch, commit, pull-request, review, and merge flow."},
+  {"source": "github", "path": "authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository", "note": "Credential rotation, history cleanup, and collaborator effects after sensitive data is pushed."},
+  {"source": "git", "path": "book/en/v2/Git-Basics-Working-with-Remotes", "note": "Fetch, pull, push, and rejected-push context."}
 ]} />
 
 <LinkGrid links={[
-    {"label":"Conventional Commits Specification","url":"https://www.conventionalcommits.org/"},
-    {"label":"GitHub Docs: GitHub flow","url":"https://docs.github.com/en/get-started/using-github/github-flow"},
-    {"label":"Git Best Practices","url":"https://git-scm.com/book/en/v2/Distributed-Git-Contributing-to-a-Project"},
-    {"label":"Code Review Best Practices","url":"https://github.com/thoughtbot/guides/tree/main/code-review"}
-  ]} title="Further reading" section="tools" />
+  {"label":"GitHub Flow","url":"https://docs.github.com/en/get-started/using-github/github-flow"},
+  {"label":"Pro Git: Contributing","url":"https://git-scm.com/book/en/v2/Distributed-Git-Contributing-to-a-Project"},
+  {"label":"Review Pull Requests","url":"/tools/pull-requests#reviewing-pull-requests"}
+]} title="Further Reading" section="tools" />

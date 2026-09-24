@@ -10,13 +10,75 @@ difficulty: beginner
 description: "Find and manage files, redirect output, use pipes, and configure environment variables and PATH."
 ---
 
-### Where this picks up
+## Before You Begin
 
-[The command line](/tools/command-line-basics) introduces prompts, folders, and arguments. This page covers file operations, output redirection, pipes, and the environment used to locate programs.
+[Command Line Basics](/tools/command-line-basics) teaches you to open the correct shell, identify its prompt, and check your current folder. Complete those steps first. This page uses a disposable folder named `garagedocs-shell-practice` so you can see each file change without risking a project.
+
+Create the practice folder, enter it, and confirm its name before continuing:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+cd ~
+if (Test-Path garagedocs-shell-practice) {
+  Write-Warning "Stop: garagedocs-shell-practice already exists. Inspect it or choose another name."
+} else {
+  New-Item -ItemType Directory garagedocs-shell-practice
+  Set-Location garagedocs-shell-practice
+  Get-Location
+}
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+cd ~
+if [ -e garagedocs-shell-practice ]; then
+  printf '%s\n' 'Stop: garagedocs-shell-practice already exists. Inspect it or choose another name.'
+else
+  mkdir garagedocs-shell-practice && cd garagedocs-shell-practice && pwd
+fi
+```
+
+</CodeTab>
+</CodeTabs>
+
+Continue only when the final line ends in `garagedocs-shell-practice`. If the warning appears, nothing was created and the command did not enter that folder. Inspect the existing folder or repeat the block with a different empty name.
+
+Create the small files used by the examples below. These commands write only inside the practice folder:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+New-Item -ItemType Directory src
+Set-Content src\Intake.java 'public class Intake { void setVoltage(double volts) {} void run() { setVoltage(4.0); } }'
+Set-Content build.log 'starting build','error: sample motor error','build stopped'
+Set-Content old.txt 'practice file'
+Get-ChildItem -Recurse
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+mkdir -p src
+printf '%s\n' 'public class Intake { void setVoltage(double volts) {} void run() { setVoltage(4.0); } }' > src/Intake.java
+printf '%s\n' 'starting build' 'error: sample motor error' 'build stopped' > build.log
+printf '%s\n' 'practice file' > old.txt
+find . -print
+```
+
+</CodeTab>
+</CodeTabs>
+
+The listing should contain `src`, `src/Intake.java`, `build.log`, and `old.txt`. Stop here and check the location if those names appear somewhere else.
 
 Choose the PowerShell or Terminal tab for your shell. Similar command names can accept different options and produce different output.
 
-### Finding files
+## Find Files
 
 <CodeTabs>
 <CodeTab label="PowerShell">
@@ -41,7 +103,7 @@ find . -iname "*intake*"               # by part of the name, case-insensitive
 
 The pattern `*.java` is a **wildcard**. The `*` matches anything. On Terminal, quote it so the shell hands the pattern to `find` instead of expanding it first.
 
-### Searching inside files
+## Search Inside Files
 
 Search for a name or message to find the files that contain it:
 
@@ -49,7 +111,7 @@ Search for a name or message to find the files that contain it:
 <CodeTab label="PowerShell">
 
 ```powershell
-Select-String -Pattern "setVoltage" -Path *.java                        # this folder
+Select-String -Pattern "setVoltage" -Path src\*.java                    # this folder's src directory
 Get-ChildItem -Recurse -Filter *.java | Select-String "setVoltage"      # the whole tree
 Select-String "error" build.log -Context 2                              # two lines either side
 ```
@@ -58,8 +120,8 @@ Select-String "error" build.log -Context 2                              # two li
 <CodeTab label="Terminal">
 
 ```bash
-grep -n "setVoltage" *.java                    # this folder, with line numbers
-grep -rn "setVoltage" --include=*.java .       # the whole tree
+grep -n "setVoltage" src/*.java                # this folder's src directory, with line numbers
+find . -name "*.java" -exec grep -n "setVoltage" {} +   # the whole tree
 grep -n -C 2 "error" build.log                 # two lines either side
 grep -in "error" build.log                     # case-insensitive
 ```
@@ -69,7 +131,7 @@ grep -in "error" build.log                     # case-insensitive
 
 VS Code's Search view (`Ctrl+Shift+F` / `Cmd+Shift+F`) searches the open project. Shell commands are useful for logs, other folders, or a remote session.
 
-### Reading files without opening them
+## Read Files in the Terminal
 
 <CodeTabs>
 <CodeTab label="PowerShell">
@@ -97,7 +159,7 @@ less build.log                # page through it; space for next page, / to searc
 
 `tail -f` and `Get-Content -Wait` show new lines as a file grows. Leave one running while reproducing a problem, then interrupt it when finished.
 
-### Making, copying, moving, deleting
+## Practice File Changes
 
 <CodeTabs>
 <CodeTab label="PowerShell">
@@ -107,8 +169,8 @@ New-Item -ItemType Directory logs          # make a folder ("mkdir logs" works t
 Copy-Item build.log logs\                  # copy a file into it
 Copy-Item -Recurse src src-backup          # copy a whole folder
 Move-Item old.txt new.txt                  # move, which is also how you rename
-Remove-Item old.txt                        # delete a file
-Remove-Item -Recurse build                 # delete a folder and everything in it
+Get-ChildItem src-backup                    # inspect the practice copy
+Remove-Item -Recurse -Confirm src-backup    # delete only that practice copy
 ```
 
 </CodeTab>
@@ -119,20 +181,20 @@ mkdir -p logs                 # make a folder (-p: and any parents; no error if 
 cp build.log logs/            # copy a file into it
 cp -r src src-backup          # copy a whole folder
 mv old.txt new.txt            # move, which is also how you rename
-rm old.txt                    # delete a file
-rm -r build                   # delete a folder and everything in it
+ls src-backup                 # inspect the practice copy
+rm -r -i src-backup           # confirm items in that practice copy
 ```
 
 </CodeTab>
 </CodeTabs>
 
-<RulesBox title="Delete does not mean recycle">
+<RulesBox title="Delete Does Not Mean Recycle">
 
-`rm` and `Remove-Item` bypass the Recycle Bin or Trash. Confirm the current folder and target before deleting. Copy anything you need to retain first.
+`rm` and `Remove-Item` bypass the Recycle Bin or Trash. Run the location command and list the exact target immediately before deletion. The examples delete only the practice copy created in this section. Do not substitute a project folder.
 
 </RulesBox>
 
-### Sending output somewhere else
+## Save Command Output
 
 Many commands write normal output and errors to separate streams. `>` redirects normal output to a file, replacing its contents. `>>` appends instead.
 
@@ -140,26 +202,26 @@ Many commands write normal output and errors to separate streams. `>` redirects 
 <CodeTab label="PowerShell">
 
 ```powershell
-ipconfig /all > network.txt              # write the output to a file (replaces it)
-ipconfig /all >> network.txt             # append instead
-.\gradlew build > build.log 2>&1         # errors too: 2>&1 folds the error stream into the output
+Write-Output "network check" > network.txt    # replace the file with harmless sample output
+Write-Output "second check" >> network.txt    # append instead
+.\gradlew build > build.log 2>&1               # in a Gradle project: save output and errors
 ```
 
 </CodeTab>
 <CodeTab label="Terminal">
 
 ```bash
-ifconfig > network.txt                   # write the output to a file (replaces it)
-ifconfig >> network.txt                  # append instead
-./gradlew build > build.log 2>&1         # errors too: 2>&1 folds the error stream into the output
+printf '%s\n' "network check" > network.txt    # replace the file with harmless sample output
+printf '%s\n' "second check" >> network.txt    # append instead
+./gradlew build > build.log 2>&1                 # in a Gradle project: save output and errors
 ```
 
 </CodeTab>
 </CodeTabs>
 
-`ifconfig` is the macOS command; current Linux distributions ship `ip addr` instead, and it works in the same places. For native programs, `2>&1` combines standard error with standard output. PowerShell also has additional streams; `*>` can redirect all its redirectable streams. If a saved log is incomplete, check which stream the missing messages use.
+The Gradle command is a project example; it will fail in this practice folder because there is no wrapper here. For native programs, `2>&1` combines standard error with standard output. PowerShell also has additional streams; `*>` can redirect all its redirectable streams. If a saved log is incomplete, check which stream the missing messages use.
 
-### Pipes
+## Pipes
 
 A **pipe**, written `|`, passes one command's output to another command. Use it to filter, count, sort, or select results.
 
@@ -178,10 +240,10 @@ Get-Process | Sort-Object CPU -Descending | Select-Object -First 5       # highe
 <CodeTab label="Terminal">
 
 ```bash
-ifconfig | grep "inet "                     # only the lines that matter
+grep -i "error" build.log                   # only matching lines
 find . -name "*.java" | wc -l               # how many files
 grep -i "error" build.log | head -1         # the first error
-git log --oneline | head -10                # the last ten commits
+git log --oneline | head -10                # in a Git repository: the last ten commits
 ps aux | sort -k3 -nr | head -5             # what is eating the CPU
 ```
 
@@ -190,9 +252,11 @@ ps aux | sort -k3 -nr | head -5             # what is eating the CPU
 
 Read the first command's output before adding a filter. Then add commands such as `Select-String`, `grep`, or `Select-Object` to select the information you need.
 
+The Git examples require a Git repository, and the Gradle example requires a project containing its wrapper. Run them in the intended project only after checking the current folder; use the practice-folder examples for the exercise on this page.
+
 bash and zsh pipes carry byte streams, commonly text. PowerShell commands can pass structured objects. For example, `Get-Process` produces objects with properties that `Sort-Object` can use.
 
-### Environment variables
+## Environment Variables
 
 The **environment** contains named values that a process can pass to programs it starts. `JAVA_HOME` commonly identifies a JDK for build tools, and `PATH` lists directories searched for executable programs.
 
@@ -219,7 +283,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home 
 
 A setting made in the shell affects that process and programs it starts. To retain it across sessions, use Windows user environment settings or the startup file for your bash/zsh configuration. Restart applications that need the new environment. Substitute your installed JDK path in these examples; the Terminal path shown is for macOS.
 
-### PATH, and "command not found"
+## PATH and Command Not Found
 
 When resolving an external command such as `java`, the shell searches directories in **PATH**. Aliases, functions, and built-in commands may take precedence. A command-not-found error means the shell could not resolve the entered command; check its spelling, installation, and search path.
 
@@ -262,7 +326,7 @@ Add a directory without deleting the existing PATH entries. In Windows user envi
 
 When the current folder is not on PATH, run a local program with an explicit path: `./gradlew` in bash/zsh or `.\gradlew` in PowerShell. This selects the project's wrapper rather than another command found through PATH.
 
-### Installing things from the shell
+## Install Software
 
 A package manager can install and update programs from configured sources. The examples below show common choices; install the appropriate package manager first if it is not available. Review the package and version before installing or upgrading.
 
@@ -274,7 +338,6 @@ winget search temurin                              # find the package name
 winget install Git.Git                             # Git
 winget install Microsoft.VisualStudioCode          # VS Code
 winget install EclipseAdoptium.Temurin.25.JDK      # a JDK for the Java lessons
-winget upgrade --all                               # update everything it installed
 ```
 
 </CodeTab>
@@ -285,7 +348,6 @@ winget upgrade --all                               # update everything it instal
 brew install git
 brew install --cask visual-studio-code
 brew install --cask temurin@25             # Java 25 for the Java lessons
-brew upgrade
 
 # Debian / Ubuntu Linux
 sudo apt update && sudo apt install git
@@ -294,9 +356,9 @@ sudo apt update && sudo apt install git
 </CodeTab>
 </CodeTabs>
 
-Use the WPILib installer for the robot toolchain and follow [R00](/kit-bot/r00-wpilib-setup#step-1-download-and-install-wpilib). It supplies the supported tools and JDK for that WPILib version.
+Use the WPILib installer for the robot toolchain and follow [R00](/kit-bot/r00-wpilib-setup#step-1-install-wpilib). It supplies the supported tools and JDK for that WPILib version.
 
-<RulesBox title="Common mistakes">
+<RulesBox title="Common Mistakes">
 
 - **<code>rm -r</code> without looking first.** <code>pwd</code>, <code>ls</code>, then delete.
 - **A log with no errors in it.** You forgot <code>2>&1</code>. The errors went to the screen and scrolled away.

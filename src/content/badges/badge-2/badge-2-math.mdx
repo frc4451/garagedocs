@@ -1,0 +1,190 @@
+---
+title: "Step 9: Pose and Motion"
+lessonId: badge-2-math
+section: badges
+group: badge-2
+groupLabel: "Badge 2: Intermediate FRC"
+groupOrder: 2
+order: 9
+difficulty: advanced
+description: "Drivetrain reading and checks, then how discrete and vector math become pose, motion, filtering, and residual calculations in WPILib, followed by an independent runnable check."
+---
+
+In Step 9, the student connects selected Java lessons to the pose, path, and vision code used in Steps 10 through 12. [Discrete Math Foundations](/java/fundamentals/java-discrete-math) supplies the language for a **filter**: a set of observations, each admitted only when every predicate is true. [Vector Math](/java/fundamentals/java-vector-math) supplies the language for a **residual**: the vector from a reference position to an observed one, and its magnitude. [Pose Geometry](/frc/pose-geometry) supplies the WPILib types used to express those ideas. These Java lessons are reviewed here, when the project first needs them, instead of as a separate survey of every Java topic.
+
+Start with [Tank to Swerve](#tank-to-swerve) to connect the familiar Kit Bot drivetrain to the swerve project. Then use the geometry, filter, and odometry work below to explain the measurements both drivetrains produce.
+
+## References to Review
+
+- [Discrete Math Foundations](/java/fundamentals/java-discrete-math)
+- [Vector Math](/java/fundamentals/java-vector-math)
+- [Pose Geometry](/frc/pose-geometry)
+- [Math Toolbox: Geometry](/frc/math-toolbox-geometry)
+- [Math Toolbox: Units and Interpolation](/frc/math-toolbox-units-and-interpolation)
+- [Introduction to Pose Estimation](/frc/introduction-to-pose-estimation)
+- [Wheel Odometry](/frc/wheel-odometry)
+
+## Tank to Swerve
+
+The detailed bridge lives in [FRC Drivetrain Fundamentals](/frc/tank-and-swerve). The student completes these readings before the odometry exercise in row 9.11:
+
+1. [Tank and Swerve](/frc/tank-and-swerve): review the hardware and motion requests introduced during Step 3.
+2. [Differential Drive Math](/frc/differential-drive-math): predict left and right wheel speeds.
+3. [Swerve Drive Math](/frc/swerve-drive-math): predict each module's speed and steering angle.
+4. [Drivetrain Checks](/frc/drivetrain-checks): compare predictions with WPILib and distinguish requests from measurements.
+
+The student explains forward travel, sideways travel, and turning using the four practice requests. The explanation identifies the coordinate frame, geometry, and units, and accounts for optimization or speed limiting when comparing outputs. These are preparation for the existing badge evidence, not additional numbered sign-off rows.
+
+Then the student follows [Introduction to Pose Estimation](/frc/introduction-to-pose-estimation), [Pose Geometry](/frc/pose-geometry), and [Wheel Odometry](/frc/wheel-odometry). Row 9.11 uses measured wheel travel and gyro values to predict pose updates; requested wheel speeds alone are not pose evidence.
+
+## Guided Example
+
+Work through the filter and residual below with one known reference pose and one observation. Write the expected Boolean results and residual magnitude before running the code.
+
+### A Vision Filter Is a Set of Predicates
+
+A PhotonVision camera produces a stream of candidate robot poses. Only the ones the robot can trust reach the pose estimator. In the language of [sets](/java/fundamentals/java-discrete-math#sets), the accepted observations are a subset of all observations, and membership is decided by predicates. An observation is in the accepted set only when every required predicate is true:
+
+| Predicate | True when |
+|---|---|
+| `hasTags` | The observation used at least one AprilTag |
+| `ambiguityOk` | The single-tag ambiguity is below the configured limit; a multi-tag observation passes by definition |
+| `onField` | The estimated position is inside the field boundary |
+| `onFloor` | The estimated height is plausible for a robot on the carpet |
+| `timestampOk` | The timestamp is newer than the last accepted one and inside the estimator's usable history |
+| `residualOk` | The translation residual is below the configured gate |
+
+`accepted = hasTags ∧ ambiguityOk ∧ onField ∧ onFloor ∧ timestampOk ∧ residualOk`. Written as Boolean logic the rule is one line; written as code it is one method that returns the **first predicate that failed**, or nothing. Logging that name is what lets a student open a log and say why a sample was thrown out. The discrete-math lesson's [relations and functions](/java/fundamentals/java-discrete-math#cartesian-products-and-relations) describe the same thing: the filter is a function from observations to `{accepted, rejected-for-reason}`. Its [probability](/java/fundamentals/java-discrete-math#probability-and-expected-value) section explains why a gate is not proof: an observation that passes every predicate can still be wrong, and the estimator's uncertainty weights, not the filter, decide how much an accepted observation moves the pose. The introductory lesson does not derive WPILib's estimator, and this step does not ask the student to.
+
+### A Residual Is a Vector
+
+The **residual** is the difference between where the camera says the robot is and where the reference (odometry, or the current estimate) says it is. In the language of [Vector Math](/java/fundamentals/java-vector-math#points-and-displacement-vectors):
+
+1. Both positions are points in the Field frame, in metres.
+2. Their difference, observed minus reference, is a displacement vector, `referenceToObserved`.
+3. Its [magnitude](/java/fundamentals/java-vector-math#magnitude-and-normalization) is the translation error, a single distance.
+4. Normalize it only when the code needs the direction without the distance; the residual gate does not.
+5. A [dot product](/java/fundamentals/java-vector-math#dot-products) answers a later question, such as whether the residual points along the robot's motion or across it.
+6. The frame and the unit stay attached to the vector's name and its log key.
+
+The residual threshold is a gate whose limit can depend on observation quality. The code logs the residual whether the sample passes or fails so the student can inspect the chosen limit against the tag count, distance, and resulting estimate.
+
+### Vector Ideas in WPILib Types
+
+The student does not write a vector class for the robot; WPILib supplies the translation and geometry types below. What the Vector Math lesson taught by hand appears in them like this:
+
+| Vector-math idea | WPILib representation | Odometry use |
+|---|---|---|
+| Two components in a named frame | `Translation2d` | Robot position on the field, or displacement between two positions |
+| Vector subtraction | `end.getTranslation().minus(start.getTranslation())` | Translation change, or a vision residual |
+| Vector magnitude | `translation.getNorm()` | Distance travelled, or residual size |
+| Scaling | `translation.times(scale)` | Scale a displacement without changing its direction |
+| Rotating a vector | `translation.rotateBy(rotation)` | Convert a translation between orientations |
+| Orientation | `Rotation2d` | Robot heading from the gyro or the pose estimate |
+| Position plus orientation | `Pose2d` | The robot's estimated state on the field |
+| Finite change in position and orientation | `Transform2d` | The difference between two poses, or a change applied to a pose |
+| Small motion along an arc | `Twist2d` | The increment odometry integrates with the pose exponential |
+| Velocity components in a named frame | `ChassisSpeeds` | Robot-relative or field-relative motion for drive control and estimation |
+
+The boundaries matter as much as the correspondences:
+
+- A `Translation2d` behaves like a two-dimensional vector, and its meaning still depends on the named frame. `fieldToRobot.getTranslation()` and `robotToCamera.getTranslation()` are both `Translation2d`; the axes differ.
+- A `Rotation2d` is an orientation or an angular change. It is not a two-component vector, even though it stores a cosine and a sine.
+- A `Pose2d` is a state: a translation and a rotation from a fixed frame.
+- A `Transform2d` is the finite change that connects two poses.
+- A `Twist2d` is a small body-frame motion, integrated along an arc.
+- `ChassisSpeeds` is a rate. It is not a position or a displacement, and dividing a `Twist2d` by the loop time is how one becomes the other.
+
+### Measures and Geometry
+
+WPILib has two families that both hold numbers with meaning. A **measure** is a physical amount with a unit. A **geometry type** is a position, orientation or change in a named frame. The units API holds the first, the geometry types hold the second, and the conversion happens once, at the edge where a distance becomes a coordinate:
+
+| Type family | Meaning | Examples |
+|---|---|---|
+| Units and measures | A physical amount with a unit | `Distance`, `Angle`, `AngularVelocity`, `Voltage`, `Current` |
+| Translation | Position offset or displacement without orientation | `Translation2d`, `Translation3d` |
+| Rotation | Orientation or angular change | `Rotation2d`, `Rotation3d` |
+| Transform | Change from one pose or frame to another | `Transform2d`, `Transform3d` |
+| Pose | Position and orientation together | `Pose2d`, `Pose3d` |
+
+An elevator's height is a `Distance`. A camera's place on the robot is a `Transform3d`. A tag's place on the field is a `Pose3d`. The mount height inside that transform was measured as a `Distance` and converted once, with `.in(Meters)`, when the transform was built. [Math Toolbox: Units and Interpolation](/frc/math-toolbox-units-and-interpolation#the-units-library) has the convert-at-the-edge rule.
+
+### From Encoders to a Pose
+
+The vector operations describe the values that flow through WPILib's odometry. The student uses the library classes and reads the numbers:
+
+1. Encoders measure wheel or module motion.
+2. Kinematics converts those measurements into robot motion (`DifferentialDriveKinematics` or `SwerveDriveKinematics`).
+3. The gyro supplies the heading, or constrains it.
+4. Odometry integrates the measured change into a new `Pose2d`: `DifferentialDriveOdometry.update(gyroAngle, leftMeters, rightMeters)` for the Kit Bot; `SwerveDriveOdometry.update(gyroAngle, modulePositions)` for the swerve robot.
+5. A pose estimator (`DifferentialDrivePoseEstimator`, `SwerveDrivePoseEstimator`) starts from that odometry result and can apply timestamped vision corrections.
+6. The vision filter compares a new observation with the reference pose by subtracting translations and measuring the residual vector.
+
+Students use WPILib's tested geometry, kinematics, odometry and estimator classes. The vector work explains the values moving through those APIs and helps the student catch a frame, sign or unit error. It is not an instruction to replace odometry with handwritten integration.
+
+## Independent Change
+
+Complete the rows below in the student's own check. The student chooses the numeric inputs and expected results, then explains each frame, unit, and operation without copying a finished check from another project.
+
+| # | Work | Lesson | Done when |
+|---|---|---|---|
+| 9.1 | Name every frame | [Pose Geometry](/frc/pose-geometry#frames-and-arrows-between-them) | Every example in the student's check names its frame in the variable name (`fieldToRobot`, `robotToCamera`, `cameraToAprilTag`) |
+| 9.2 | Convert measures | [Math Toolbox: Units and Interpolation](/frc/math-toolbox-units-and-interpolation#the-units-library) | A `Distance` in inches and an `Angle` in degrees become a `Translation2d` and a `Rotation2d` through `.in(Meters)` and `Rotation2d.fromDegrees`, at one place in the code |
+| 9.3 | Apply a transform | [Pose Geometry](/frc/pose-geometry#change-how-one-state-differs-from-another) | `fieldToRobot.plus(robotToShooter)` gives `fieldToShooter`, checked by hand first |
+| 9.4 | Pose relative to pose | [Pose Geometry](/frc/pose-geometry#which-one-do-i-have) | `fieldToHub.relativeTo(fieldToRobot)` gives `robotToHub` in Robot axes, and the student distinguishes that relative pose's orientation from the bearing of `fieldToHub.getTranslation().minus(fieldToRobot.getTranslation()).getAngle()` in Field axes |
+| 9.5 | Invert a transform | [Pose Geometry](/frc/pose-geometry#change-how-one-state-differs-from-another) | `robotToCamera.inverse()` is `cameraToRobot`; the student explains what changed in the numbers |
+| 9.6 | Build the 3D chain | [Pose Geometry](/frc/pose-geometry#the-3d-versions) | `fieldToAprilTag.plus(cameraToAprilTag.inverse()).plus(robotToCamera.inverse())` gives `fieldToRobot`, with the inner names written out and cancelled |
+| 9.7 | Swap a transform | [Pose Geometry](/frc/pose-geometry#which-one-do-i-have) | The student shows the result of using `cameraToRobot` where `robotToCamera` belongs and describes where the robot appears on the field |
+| 9.8 | Write the acceptance predicate | [Discrete Math Foundations](/java/fundamentals/java-discrete-math#sets) | A method combines the six predicates above and returns the failed predicate's name |
+| 9.9 | Calculate a residual | [Vector Math](/java/fundamentals/java-vector-math#points-and-displacement-vectors) | `observed.getTranslation().minus(reference.getTranslation()).getNorm()` for one reference and one vision pose, checked by hand |
+| 9.10 | Explain the gate | [Vision Subsystem](/frc/vision-subsystem#reject-measurements-for-stated-reasons) | The student explains why one numeric residual is acceptable at one distance and tag count and unreliable at another |
+| 9.11 | Trace odometry | [Wheel Odometry](/frc/wheel-odometry#differential-drive-odometry) | One `DifferentialDriveOdometry` update and one `SwerveDriveOdometry` update, each from stated encoder and gyro values to a predicted `Pose2d` |
+| 9.12 | Name the operation | [Vector Math](/java/fundamentals/java-vector-math#common-vector-operations) | Asked what happens when two pose translations are compared, the student says "subtraction, then magnitude" and points at the two calls |
+
+2D comes first. Add the 3D chain in rows 9.6 and 9.7 once the 2D rows are done.
+
+## Badge Check
+
+The evidence is a small runnable check in `Badge2Robot`: a JUnit test under `src/test/java`, as [Unit Tests in Simulation](/frc/unit-tests-in-simulation#where-tests-live-and-how-they-run) sets one up, or a `main` method the student runs from VS Code. The expected numbers are written in the test before the code runs.
+
+<StepsBox title="Pose and motion badge check">
+
+1. The student opens the check and shows the expected values written as literals beside each assertion, with the frame named in each variable.
+2. The check runs green. It contains one differential odometry update and one swerve odometry update, each from stated wheel or module values and a gyro angle.
+3. The check contains at least one accepted observation, at least one rejected observation with its failed predicate named, and one calculated translation residual.
+4. The mentor changes one input (a wheel distance, a module position, the gyro angle, a pose, a transform, or a filter limit) and asks the student to predict the new result before running the check again.
+5. The student explains, in the words of this page, what a residual is, what the gate does, and why passing the gate is not proof the observation is correct.
+
+</StepsBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/differential-drive-kinematics.html", "note": "The track-width input and conversion between chassis motion and left/right wheel speeds."},
+  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/swerve-drive-kinematics.html", "note": "Module locations and ordering, chassis-to-module conversion, and the difference between translation and rotation."},
+  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/intro-and-chassis-speeds.html", "note": "The meanings and units of vx, vy, and omega."},
+  {"source": "wpilib-javadoc", "path": "src-html/edu/wpi/first/math/kinematics/DifferentialDriveKinematics.html", "note": "The left/right equations, reverse calculation, and effective track-width caveat used in the worked example."},
+  {"source": "wpilib-javadoc", "path": "src-html/edu/wpi/first/math/kinematics/SwerveDriveKinematics.html", "note": "The module velocity components vx - omega*y and vy + omega*x used to derive the original numerical examples."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/kinematics/SwerveDriveKinematics.html", "note": "Uniform wheel-speed desaturation and retaining module headings for zero chassis motion."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/kinematics/SwerveModuleState.html", "note": "Speed/angle representation and reversing speed to reduce steering travel."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/kinematics/ChassisSpeeds.html", "note": "Field-relative to robot-relative conversion before kinematics."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/geometry/transformations.html", "note": "<code>Translation2d</code>, <code>Rotation2d</code>, <code>Transform2d</code> and <code>Twist2d</code>, and the operations the table maps vector ideas onto."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/geometry/pose.html", "note": "<code>Pose2d</code> as state, <code>plus</code>, <code>relativeTo</code> and the pose exponential."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/geometry/coordinate-systems.html", "note": "The field coordinate system every frame name refers back to."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/geometry/Translation2d.html", "note": "<code>minus</code>, <code>getNorm</code>, <code>times</code>, <code>rotateBy</code> and <code>getAngle</code>."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/geometry/Transform3d.html", "note": "The 3D transform and its <code>inverse()</code> used in the camera chain."},
+  {"source": "wpilib", "path": "docs/software/basic-programming/java-units.html", "note": "The units API: <code>Distance</code>, <code>Angle</code>, <code>.of</code> and <code>.in</code>."},
+  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/differential-drive-odometry.html", "note": "<code>DifferentialDriveOdometry.update</code> from gyro angle and left and right distances."},
+  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/swerve-drive-odometry.html", "note": "<code>SwerveDriveOdometry.update</code> from gyro angle and module positions."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/state-space/state-space-pose-estimators.html", "note": "Pose estimators as odometry plus timestamped vision corrections."},
+  {"source": "photonvision", "path": "docs/apriltag-pipelines/3D-tracking.html", "note": "Single-tag ambiguity, the predicate that needs a limit."},
+  {"source": "photonvision", "path": "docs/programming/photonlib/robot-pose-estimator.html", "note": "The estimated robot pose and timestamp the filter checks."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/vision/SingleTagAlgorithms.java", "note": "A public FRC 4451 filter: <code>isUsable</code> is three predicates (known tag, ambiguity below a cutoff, camera-to-tag distance below a cutoff), the last one a <code>getNorm()</code> on a translation."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/vision/AprilTagIOPhoton.java", "note": "Rejected observations kept in their own logged list beside the accepted ones."},
+  {"url": "https://thornef.github.io/math374/index.html", "label": "USC MATH 374: Discrete Structures", "note": "The sets, relations and functions the filter description uses."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Step 10: Path Following","id":"badge-2-path-following"},
+  {"label":"Step 8: Mechanism Composition","id":"badge-2-mechanism-composition"},
+  {"label":"Pose Geometry","url":"/frc/pose-geometry"},
+  {"label":"Vector Math","url":"/java/fundamentals/java-vector-math"}
+]} title="Next" section="badges" />

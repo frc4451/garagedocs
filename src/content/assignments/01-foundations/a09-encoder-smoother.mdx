@@ -19,13 +19,13 @@ description: "Smooth a noisy encoder trace with a trailing moving average, and h
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A09: Encoder Smoother`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 A trailing moving average replaces each reading with the mean of recent readings. It reduces short-term variation but delays the response to a change.
 
 At the beginning of the array, average only the readings available. Do not fill the missing positions with zeros.
 
-### What to build
+## What To Build
 
 A single file `SmoothOne.java`:
 
@@ -33,7 +33,7 @@ A single file `SmoothOne.java`:
 2. Read `window`, an `int` from 1 to `n` inclusive
 3. Build `double[] smoothed` where `smoothed[i]` is the mean of `readings` from index
    `max(0, i - window + 1)` through index `i`, inclusive at both ends
-4. Print the index, the raw value and the smoothed value, each to two decimals
+4. Print the index as an integer, then the raw and smoothed values to two decimal places.
 
 ```text
 i   raw     smoothed
@@ -45,11 +45,48 @@ i   raw     smoothed
 5    8.00    9.13
 ```
 
-<RulesBox title="How the browser version differs" items={[
+## First Window
+
+For the sample window of 3, follow the array indices before writing the nested loops:
+
+<ContentTable
+  headers={["Index", "Start", "Included Indices", "Count"]}
+  rows={[
+    ["0", "0", "0", "1"],
+    ["1", "0", "0 through 1", "2"],
+    ["2", "0", "0 through 2", "3"],
+    ["3", "1", "1 through 3", "3"]
+  ]}
+/>
+
+Paste this matching sample into the browser input box and select **Run**. It supplies `n`, the
+six readings, and then the window size:
+
+```text
+6
+10.1
+12.2
+11.8
+9.4
+10.0
+8.0
+3
+```
+
+Save the local public class as `SmoothOne.java` and use [Compile And Run](/java/fundamentals/java-setup#compile-and-run), substituting `javac SmoothOne.java` and `java SmoothOne` for the setup example's commands. Put the smoothing method inside
+`SmoothOne` and outside `main`; `main` should read input, call it, and print the returned
+array values.
+
+An array of length `n` has valid indices `0` through `n - 1`. The inner loop must start
+at `lower`, stop after including `i`, and never use a negative index. Divide the sum by
+`i - lower + 1`, the number of entries actually visited. In particular, the first output
+divides by 1, not by the full window size.
+
+<RulesBox title="Browser And Local Files" items={[
   "The browser checks SmoothOne only. For an optional local extension, create SmoothFleet.java: store two arrays of readings, apply the same window to each row independently, and print each row’s raw and smoothed values. A window of 1 should leave both rows unchanged."
 ]} />
 
-### Requirements
+## Requirements
 
 - The smoothing works on any window from 1 to `n`, for every valid input, beyond the sample
 - The first entries average fewer than `window` values; they must not read past the start of
@@ -57,21 +94,25 @@ i   raw     smoothed
 - Print both columns to two decimals
 
 
-<RulesBox title="Plan it as sessions" items={[
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Trailing average over a window of three</em>, <em>A window of one changes nothing</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>A full-length window averages everything so far</em>."
+  "<strong>Session 2.</strong> Complete these checks, then review the remaining rubric items: <em>A full-length window averages everything so far</em>."
 ]} />
 
 <JavaPlayground id="a09-encoder-smoother" />
+
+The automated checks cover windows of 1, 3, and `n`. They do not verify the required
+smoothing helper, named bounds, table heading, exact row layout, comments, or behavior
+for every other valid window.
 
 <RulesBox title="Hints" items={[
   "<strong>The ragged start.</strong> At <code>i = 0</code> with a window of 3 there is only one reading to average, not three. <code>Math.max(0, i - window + 1)</code> gives you the correct lower bound at every index, so you never index into negative territory and never pad with zeros.",
   "<strong>Divide by the values you summed.</strong> The count is <code>i - lower + 1</code>, not <code>window</code>. Dividing by <code>window</code> at the start of the array drags the first few values toward zero. The result looks plausible enough on a noisy trace that you might not notice.",
   "<strong>Two loops, not one.</strong> An outer loop over output positions and an inner loop over the window behind each one. Getting the inner loop bounds right is easier if you compute the lower bound into its own named variable first.",
-  "<strong>Check it against a window of 1.</strong> With a window of 1 the smoothed column must equal the raw column exactly. If it does not, the bug is in your bounds, and you have found it on the simplest possible case."
+  "<strong>Check it against a window of 1.</strong> With a window of 1 the smoothed column must equal the raw column when both are printed to two decimals. If it does not, trace the lower bound, inner loop, sum, count, and formatting on this simplest case."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -84,25 +125,32 @@ i   raw     smoothed
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+Save the checked required version first. Keep stretch work in a separate folder so changed input or output does not replace the required submission.
 
 - Make each output O(1) instead of O(window): keep a running sum, add the reading that
   enters the window and subtract the one that leaves. The whole smoother becomes O(n),
   and the difference is the whole point of [Big-O](/java/fundamentals/java-big-o#the-hidden-loop). Check it still
-  matches your two-loop version exactly, including the ragged start.
+  matches your two-loop version to two printed decimal places, including the ragged start.
+  The two versions may accumulate floating-point additions in a different order, so their
+  unrounded `double` values can differ by a tiny amount even when both calculations are
+  correct. O(1) here means a constant amount of update work for each new output after the
+  running sum has been initialized; the complete pass is O(n).
 - Add a centred moving average that looks both ways, and describe what it costs you on a
   live robot. The answer involves the word *latency*.
 - Report the standard deviation of the raw readings alongside the smoothed trace, so you can
   say how noisy the encoder was.
 
-### References
+## References
 
-- JavaDoc: [`java.lang.Math.max`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html#max(int,int))
-- JavaDoc: [`java.util.Arrays`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html)
+- Javadoc: [`java.lang.Math.max`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html#max(int,int))
+- Javadoc: [`java.util.Arrays`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html)
 - Wikipedia: [Moving average](https://en.wikipedia.org/wiki/Moving_average)
 
 <Sources items={[
-  {"source": "csce145", "note": "Arrays."},
-  {"source": "dev-java", "path": "language-basics/arrays/", "note": "Arrays."},
-  {"source": "java-api", "path": "java.base/java/util/Arrays.html", "note": "<code>Arrays.toString</code>, <code>copyOf</code>."}
+  {"source": "csce145", "label": "Course Materials", "note": "Introductory arrays, indexed loops, and summary-statistic practice."},
+  {"source": "dev-java", "path": "language-basics/arrays/", "label": "Arrays", "note": "Zero-based indexing, array length, traversal, and bounds used by the trailing window."},
+  {"source": "java-api", "path": "java.base/java/lang/Math.html#max(int,int)", "label": "Math.max For Integers", "note": "The lower-bound operation that keeps the startup window at index zero or above."},
+  {"source": "java-api", "path": "java.base/java/util/Arrays.html", "label": "Arrays API", "note": "Array utilities relevant to inspecting or copying the optional extended implementation."}
 ]} />

@@ -7,211 +7,189 @@ groupLabel: "Programming Logic"
 groupOrder: 2
 order: 5
 difficulty: intermediate
-duration: 45 min
-description: "Handling errors instead of crashing: try/catch structure, the common Java exceptions, multiple catch blocks, and finally."
+duration: 30 min
+description: "Handle expected runtime failures with specific catch blocks and use finally for bounded cleanup."
 ---
 
-### What an exception is
+## Follow A Failure Path
 
-An exception is an error raised while the program runs: a division by zero, an array index past the end, a `null` reference used as an object. If no matching handler is found, the thread running that code terminates. In these single-threaded console examples, that ends the program.
+Some valid Java programs encounter a problem while they run. You saw one example in [Console Input](/java/fundamentals/java-console-input#read-input-failures): `Integer.parseInt("twelve")` cannot produce an `int`, so it throws a `NumberFormatException`.
 
-A try/catch block lets the program notice the error and decide what to do instead.
+An **exception** is an object that reports this kind of runtime failure. When a statement inside a `try` block throws an exception, Java stops that path through the block and looks for a matching `catch` block. Without a matching handler, Java continues looking through the active method calls. If none provides one, Java reports the exception and ends these console programs.
 
-### Why use try/catch
+A compiler error is different. It means Java could not turn the source into a program, so the program never started. A missing semicolon is a compiler error. Text that cannot be converted to an `int` is a runtime failure in a program that did compile.
 
-An exception can interrupt required robot work. Learn the error-handling pattern with these console examples; robot recovery also depends on the framework and where the exception occurred.
+<span id="why-use-trycatch"></span>
 
-Catch an exception when the code has a specific fallback, such as a default value, a skipped step, or a logged message. Catching an exception without a fallback hides the problem. The section on multiple catch blocks below shows how to handle specific failures.
+## Handle An Expected Failure
 
-### Basic try/catch structure
-
-```java norun
-// Basic try-catch syntax
-try {
-    // Code that might throw an exception
-    // This is the "risky" code
-} catch (ExceptionType e) {
-    // Code to handle the exception
-    // This runs if an exception occurs
-}
-
-// Simple example with division
-try {
-    int result = 10 / 0;  // This will throw ArithmeticException
-    System.out.println("Result: " + result);
-} catch (ArithmeticException e) {
-    System.out.println("Error: Cannot divide by zero!");
-    System.out.println("Exception message: " + e.getMessage());
-}
-
-System.out.println("Program continues...");
-```
-
-### Common Java exceptions
-
-These are the exceptions you will meet most often, with what usually raises each:
-
-### Common exception examples
-
-```java norun
-// 1. NumberFormatException - Invalid string to number conversion
-try {
-    String userInput = "abc";  // Invalid number
-    int number = Integer.parseInt(userInput);
-} catch (NumberFormatException e) {
-    System.out.println("Invalid number format: " + userInput);
-}
-
-// 2. ArrayIndexOutOfBoundsException - Invalid array access
-try {
-    int[] motorPowers = {0, 1, 2, 3};
-    int power = motorPowers[5];  // Index 5 doesn't exist
-} catch (ArrayIndexOutOfBoundsException e) {
-    System.out.println("Motor index out of range!");
-}
-
-// 3. NullPointerException - Accessing null object
-try {
-    String sensorName = null;
-    int length = sensorName.length();  // Calling method on null
-} catch (NullPointerException e) {
-    System.out.println("Sensor object is null!");
-}
-```
-
-### Multiple catch blocks
-
-A try block can have several catch blocks, one per exception type, so each kind of failure gets its own handling. Java tries them in order and runs the first that matches.
-
-### Multiple catch example
+Use `try` and `catch` when an operation has a known failure that the program can respond to. This complete `Main.java` file tries two fixed inputs, so both paths are repeatable. To run it locally, replace the entire contents of `Main.java`, save the file, and follow [Compile And Run](/java/fundamentals/java-setup#compile-and-run).
 
 ```java
-import java.util.Scanner;
-
-public class RobotSensorReader {
+public class Main {
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String[] sensorNames = {"Ultrasonic", "Color", "Touch", "Gyro"};
-        
+        printCount("12");
+        printCount("twelve");
+        System.out.println("Program continues");
+    }
+
+    public static void printCount(String countText) {
         try {
-            System.out.print("Enter sensor index (0-3): ");
-            String input = scanner.nextLine();
-            int index = Integer.parseInt(input);  // Could throw NumberFormatException
-            
-            String selectedSensor = sensorNames[index];  // Could throw ArrayIndexOutOfBoundsException
-            System.out.println("Selected sensor: " + selectedSensor);
-            
-            double reading = readSensor(selectedSensor);
-            System.out.println("Sensor reading: " + reading);
-            
+            int count = Integer.parseInt(countText);
+            System.out.println("Count: " + count);
         } catch (NumberFormatException e) {
-            System.out.println("[ERROR] Error: Please enter a valid number!");
-            
-        } catch (ArrayIndexOutOfBoundsException e) {
-            System.out.println("[ERROR] Error: Sensor index out of range!");
-            System.out.println("   Valid range: 0 to " + (sensorNames.length - 1));
-            
-        } catch (Exception e) {
-            // Generic catch for any other exceptions
-            System.out.println("[ERROR] Unexpected error: " + e.getMessage());
+            System.out.println("Cannot use as a count: " + countText);
         }
-    }
-    
-    public static double readSensor(String sensorName) {
-        return Math.random() * 100;
     }
 }
 ```
 
-### The finally block
+The output is:
 
-A `finally` block runs when execution leaves the try/catch statement, including after a return or exception. It does not guarantee cleanup after the process is forcibly stopped. Use it to release resources; it is not a substitute for robot safety controls.
+```text
+Count: 12
+Cannot use as a count: twelve
+Program continues
+```
 
-### Finally block example
+For `"12"`, the conversion succeeds, the `catch` block is skipped, and the method ends normally. For `"twelve"`, `parseInt` throws `NumberFormatException`. Java skips the rest of the `try` block and runs the matching handler. After the handler finishes, execution continues after the complete try/catch statement.
+
+The declaration `NumberFormatException e` has two parts:
+
+- `NumberFormatException` is the type this handler catches.
+- `e` is a local variable that refers to the caught exception object. The name can be different, but `e` is a common short name.
+
+The first handler does not need to inspect `e`. It prints the value that the program was trying to use, which gives the reader enough context to correct the input.
+
+## Use The Exception Message Carefully
+
+An exception provides a `getMessage()` method. It returns the exception's detail text. Some exceptions have no detail text, in which case the method returns the special value `null`. For now, read that value as “no detail message.” The exact message is useful for a log or investigation, but it is not a stable user instruction to build program logic around.
+
+This partial snippet can replace the try/catch block inside `printCount` from the first program:
+
+```java norun
+try {
+    int count = Integer.parseInt(countText);
+    System.out.println("Count: " + count);
+} catch (NumberFormatException e) {
+    System.out.println("Could not convert countText to an int");
+    System.out.println("Java reported: " + e.getMessage());
+}
+```
+
+The first line records what the program was doing. The second adds Java's detail. A useful handler can also choose a documented default, skip an optional action, or ask the caller for a new value. The next lesson, [While Loops](/java/fundamentals/java-while-loops), teaches the repetition needed to ask again until an input is valid.
+
+## Catch The Intended Type
+
+A `try` block can have several `catch` blocks. Java checks them in order and runs the first one whose declared type can handle the thrown exception. This complete file has one handler for invalid number text and another for integer division by zero:
 
 ```java
-public class RobotMotorTest {
+public class Main {
     public static void main(String[] args) {
-        boolean motorStarted = false;
-        
+        printShare("12", "3");
+        printShare("twelve", "3");
+        printShare("12", "0");
+    }
+
+    public static void printShare(String totalText, String groupCountText) {
         try {
-            System.out.println("Starting motor test...");
-            startMotor();
-            motorStarted = true;
-            
-            // Simulate motor test that might fail
-            performMotorTest();
-            
-            System.out.println("Motor test completed successfully!");
-            
-        } catch (Exception e) {
-            System.out.println("[ERROR] Motor test failed: " + e.getMessage());
-            
-        } finally {
-            // Always stop the motor, even if test fails
-            if (motorStarted) {
-                System.out.println("[STOP] Stopping motor for safety...");
-                stopMotor();
-            }
-            System.out.println("Motor test cleanup completed.");
+            int total = Integer.parseInt(totalText);
+            int groupCount = Integer.parseInt(groupCountText);
+            int share = total / groupCount;
+            System.out.println("Share: " + share);
+        } catch (NumberFormatException e) {
+            System.out.println("Both values must be integers");
+        } catch (ArithmeticException e) {
+            System.out.println("Group count cannot be zero");
         }
-    }
-    
-    public static void startMotor() {
-        System.out.println("[START] Motor started");
-    }
-    
-    public static void stopMotor() {
-        System.out.println("[STOPPED] Motor stopped");
-    }
-    
-    public static void performMotorTest() {
-        // Simulate a test that might fail randomly
-        if (Math.random() > 0.5) {
-            throw new RuntimeException("Motor overheated during test!");
-        }
-        System.out.println("Motor test passed");
     }
 }
 ```
 
-<RulesBox title="Exception handling guidelines">
+The output is:
 
-- **Catch the specific type.** `catch (Exception e)` also swallows bugs you wanted to see.
-- **Log what the program was doing**, not only the exception message.
-- **Have a fallback** before you catch: a default value, a skipped step, a stopped mechanism.
-- **Never leave a catch block empty.** An exception that is caught and ignored is a bug that will show up somewhere else.
-- **Put cleanup in `finally`** so it runs on both paths.
+```text
+Share: 4
+Both values must be integers
+Group count cannot be zero
+```
+
+Only one handler runs for each call. A `NumberFormatException` reaches the first handler. An `ArithmeticException` from integer division by zero does not match the first type, so Java checks and runs the second handler.
+
+Catch the specific failures the program knows how to handle. A broad `catch (Exception e)` also catches many programming defects and unrelated failures. It can hide the location of a bug or let the program continue with missing results. Let an unexpected exception remain visible unless this part of the program has a deliberate recovery or reporting policy for it.
+
+Fix a preventable mistake at its source when you can. For example, a condition can reject a zero divisor before division. Exception handling does not replace correct conditions, input checks, or debugging.
+
+## Run Cleanup With Finally
+
+An optional `finally` block runs when execution leaves its `try` and `catch` blocks. That includes a normal path, a matching handler, a return, or an unmatched exception that will continue to an outer method. It is useful for cleanup that belongs to this operation. This complete program makes the normal and handled paths visible without a loop:
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("Result: " + readCount("12"));
+        System.out.println("Result: " + readCount("twelve"));
+    }
+
+    public static int readCount(String countText) {
+        try {
+            return Integer.parseInt(countText);
+        } catch (NumberFormatException e) {
+            System.out.println("Using a default count");
+            return 0;
+        } finally {
+            System.out.println("Finished count attempt");
+        }
+    }
+}
+```
+
+The output is:
+
+```text
+Finished count attempt
+Result: 12
+Using a default count
+Finished count attempt
+Result: 0
+```
+
+Each `return` chooses a value, then the `finally` block runs before control returns to `main`, provided that `finally` finishes normally. The second call also runs its matching `catch` block before `finally`.
+
+`finally` has limits. It may not run if the Java Virtual Machine exits or the process is forcibly stopped while the `try` or `catch` block is running. Code inside `finally` can fail too. A `return` or thrown exception from `finally` can replace the result or failure that was already in progress, so keep control-flow decisions out of cleanup code. These console examples do not control hardware, and a `finally` block by itself is not a robot safety system.
+
+<RulesBox title="Choose A Handler">
+
+- Catch a specific exception type when this code has a planned response to that failure.
+- Include the failed operation or value in a diagnostic message when that information is safe and useful.
+- Keep unexpected failures visible so they can be debugged.
+- Use `finally` for cleanup that should run on normal and handled-failure paths, while respecting its limits.
 
 </RulesBox>
 
 <JavaPlayground id="java-try-catch" />
 
+The playground reads one supplied line. Put the `parseInt` call in a `try` block. Catch only `NumberFormatException`, print `bad` in that handler, and print the parsed number on the successful path. The two checks cover one valid integer and one invalid value.
+
 <ExerciseBox title="Practice">
 
-1. Parse the text "12" as an int and print it.
-2. Handle NumberFormatException for "twelve" and print a useful message.
-3. Add a finally block that prints "Finished". Confirm it runs for both inputs.
+1. Write a complete `Main.java` program that stores `"12"` in a String, parses it as an `int`, and prints the number.
+2. Change the stored text to `"twelve"`. Catch `NumberFormatException` and print a message that names the failed value.
+3. Add a `finally` block that prints `Finished`. Run the program once with each input and confirm that line appears on both paths.
+4. Restore a valid input, remove one semicolon, and compile. Explain why `catch` cannot handle that compiler error, then restore the semicolon.
 
 Predict each result, run the code, and explain any difference before continuing.
 
 </ExerciseBox>
 
 <Sources items={[
-  {"source": "csce145", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "exceptions/", "note": "Exceptions."},
-  {"source": "dev-java", "path": "exceptions/catching-handling/", "note": "try, catch, finally."},
-  {"source": "java-tutorial", "path": "essential/exceptions/index.html", "note": "The exceptions tutorial."},
-  {"source": "jls", "path": "jls-11.html", "note": "Exceptions (chapter 11)."},
-  {"source": "java-api", "path": "java.base/java/lang/Throwable.html", "note": "<code>Throwable</code> hierarchy."},
-  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/IllegalArgumentException.html", "note": "<code>IllegalArgumentException</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Exception.html", "note": "<code>Exception</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Thread.html", "note": "<code>Thread</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/Scanner.html", "note": "<code>Scanner</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/RuntimeException.html", "note": "<code>RuntimeException</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Math.html", "note": "<code>Math</code> API reference."}
+  {"source":"csce145","label":"Course Materials","note":"The course whose structure this lesson follows."},
+  {"source":"dev-java","path":"exceptions/catching-handling/","label":"Catching And Handling Exceptions","note":"The roles and execution order of try, catch, multiple catch blocks, and finally, including the JVM-exit limit and failures from finally."},
+  {"source":"java-api","path":"java.base/java/lang/Integer.html#parseInt(java.lang.String)","label":"Integer.parseInt","note":"Successful String-to-int conversion and NumberFormatException when the text is not a parsable integer."},
+  {"source":"java-api","path":"java.base/java/lang/ArithmeticException.html","label":"ArithmeticException","note":"The runtime exception used for exceptional arithmetic conditions, including integer division by zero."},
+  {"source":"java-api","path":"java.base/java/lang/Throwable.html#getMessage()","label":"Throwable.getMessage","note":"The caught exception object's detail message and its possible null result."},
+  {"source":"jls","path":"jls-14.html#jls-14.20","label":"JLS §14.20: The try Statement","note":"Language rules for matching catch clauses, executing finally, and resuming after a try statement."},
+  {"source":"jls","path":"jls-11.html#jls-11.3","label":"JLS §11.3: Run-Time Handling Of An Exception","note":"Abrupt transfer from the failed expression and the search for a matching handler."}
 ]} />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "While Loops", "id": "java-while-loops"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label":"While Loops","id":"java-while-loops","description":"Repeat work while a condition remains true"}]} />

@@ -1,0 +1,89 @@
+---
+title: "Differential Drive Math"
+lessonId: differential-drive-math
+section: frc
+group: frc-drivetrain-fundamentals
+groupLabel: "Drivetrain Fundamentals"
+groupOrder: 13.5
+order: 2
+difficulty: intermediate
+description: "Calculate differential wheel speeds from forward and turning motion."
+---
+
+The Kit Bot gives you two speed targets to understand: left and right. Start with [Tank and Swerve](/frc/tank-and-swerve) so that the directions and units below have a physical meaning.
+
+## Calculate Wheel Speeds
+
+Let `w` be the track width: the distance between the left and right wheel paths, in meters. In the ideal differential-drive model, the robot can move forward and turn, but cannot slide sideways, so robot-relative `vy` is zero.
+
+```text
+left speed  = vx - omega × w / 2
+right speed = vx + omega × w / 2
+```
+
+During a counterclockwise turn, the right side travels farther than the left, so its speed is higher. Each side is `w / 2` from the center; that distance sets how much wheel speed the turn adds or subtracts. Wheel speeds here describe motion along the floor. Motor inversion is configured separately so positive measured speed has the intended physical direction.
+
+For a 0.60-meter track width, request `vx = 1.0 m/s` and `omega = 1.0 rad/s`:
+
+```text
+turn contribution = 1.0 × 0.60 / 2 = 0.30 m/s
+left speed         = 1.0 - 0.30 = 0.70 m/s
+right speed        = 1.0 + 0.30 = 1.30 m/s
+```
+
+With no turn, both sides receive 1.0 m/s. With no forward motion and the same turn rate, the left side receives -0.30 m/s and the right receives +0.30 m/s, producing an in-place turn. These equations assume rolling without slip; a real skid-steer robot can need a calibrated effective track width because its wheels scrub during turns.
+
+`DifferentialDriveKinematics.toWheelSpeeds(robotRelativeSpeeds)` performs this conversion. The reverse calculation helps explain measured motion:
+
+```text
+vx    = (left speed + right speed) / 2
+omega = (right speed - left speed) / w
+```
+
+Using 0.70 and 1.30 returns 1.0 m/s forward and 1.0 rad/s counterclockwise. Setting a nonzero `vy` in `ChassisSpeeds` does not make a differential robot strafe.
+
+## Connect the Inputs
+
+The width is a distance between wheel paths, not a distance from front to back. Convert centimeters to meters before using it: `60 cm / 100 = 0.60 m`. A positive turning rate means counterclockwise when looking down at the robot.
+
+Work through the units in the turn contribution. Turning rate in radians per second multiplied by distance from the center gives tangential speed in meters per second. The radius for either side is half the track width. A wider robot needs more difference between its left and right speeds to achieve the same turning rate.
+
+Tank and arcade joystick commands can be expressed as normalized motor requests instead of physical velocities. Do not insert a value from -1 to +1 into these equations and label the output meters per second unless the program first converts that value to a physical rate. These equations describe chassis kinematics, not the exact joystick shaping performed by every drive helper.
+
+## Use WPILib
+
+Create a `DifferentialDriveKinematics` object with the measured track width in meters. Give its `toWheelSpeeds` method a robot-relative `ChassisSpeeds` request. Read `leftMetersPerSecond` and `rightMetersPerSecond` from the result. The names identify both the side and the unit.
+
+For the reverse direction, `toChassisSpeeds` takes measured left/right wheel speeds and returns the chassis rates. It does not supply a field position. Position requires measurements over time, which you will study in [Wheel Odometry](/frc/wheel-odometry).
+
+## Practice With Signs
+
+Keep the width at 0.60 m. Predict each pair before checking the answers.
+
+| Forward Rate | Turning Rate | Left Speed | Right Speed |
+| --- | --- | --- | --- |
+| -1 m/s | 0 rad/s | -1 m/s | -1 m/s |
+| 0 m/s | -1 rad/s | +0.30 m/s | -0.30 m/s |
+| 1 m/s | -1 rad/s | 1.30 m/s | 0.70 m/s |
+
+Now increase the width to 0.80 m while requesting 1 m/s forward and 1 rad/s counterclockwise. The turn contribution becomes 0.40 m/s, giving 0.60 m/s on the left and 1.40 m/s on the right. Explain why changing the width has no effect when the turn rate is zero.
+
+<Sources items={[
+  {
+    "source": "wpilib",
+    "path": "docs/software/kinematics-and-odometry/differential-drive-kinematics.html",
+    "note": "Track width and chassis-to-wheel conversion."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/kinematics-and-odometry/intro-and-chassis-speeds.html",
+    "note": "Chassis velocity components, directions, and units."
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "src-html/edu/wpi/first/math/kinematics/DifferentialDriveKinematics.html",
+    "note": "Equations and effective track-width caveat."
+  }
+]} />
+
+<LinkGrid links={[{"label":"Swerve Drive Math","id":"swerve-drive-math"}]} title="Next" section="frc" />

@@ -7,14 +7,18 @@ groupLabel: "Phase 3: Hardware via IO"
 groupOrder: 3
 order: 7.5
 duration: 30 min
-description: "The Drive subsystem on top of DriveIO, wired into RobotContainer and driven from the sim."
+description: "Build the Drive subsystem, connect its default command, and verify drivetrain signs in simulation."
 durationFixed: true
 ---
 
 
-[Part 1](/kit-bot/r07-drive-io) built `DriveIO` with both implementations. This part builds the `Drive` subsystem, wires it in, and drives it.
+[DriveIO Part 1](/kit-bot/r07-drive-io) built `DriveIO` with both implementations. This part builds the `Drive` subsystem, wires it in, and drives it.
 
-### Step 1: create the subsystem
+## Before You Start
+
+Complete [DriveIO Part 1](/kit-bot/r07-drive-io). Review the [R00 WPILib setup](/kit-bot/r00-wpilib-setup) and [R05 commands and triggers](/kit-bot/r05-commands-and-triggers). You will run simulation only. Real motor and encoder signs remain pending until the mentor-led [R12 First Deploy](/kit-bot/r12-first-deploy).
+
+## Create the Subsystem
 
 Create `src/main/java/frc/robot/subsystems/drive/Drive.java`. This is a **complete file**.
 
@@ -94,15 +98,17 @@ public class Drive extends SubsystemBase {
 
 If driving and turning together would put either side above 1.0, `scale` reduces both sides by the same factor. This preserves their ratio and keeps each request within the voltage cap.
 
+For `speed = 0.5` and `rotation = 0.0`, the unscaled left and right requests are both `0.5`. For `speed = 1.0` and `rotation = 0.5`, the raw requests are `1.5` and `0.5`; dividing both by `1.5` produces `1.0` and about `0.33`. The ratio remains 3:1 and neither side exceeds the cap.
+
 `speed` and `rotation` remain `double` values because they are fractions of full input. They have no physical unit. [R03](/kit-bot/r03-constants) made the same distinction between `Distance` and `MAX_DRIVE_PERCENT`.
 
 The teleop deadband and stick scaling are *not* here either. They belong to the command that reads the joystick (R10). The subsystem only does drive math, not driver-input math.
 
 ---
 
-### Step 2: wire it in `RobotContainer`
+## Wire It in RobotContainer
 
-This is a partial snippet. Add the `drive` field and replace the existing `configureBindings()` method. Keep the existing `driver` field; the listing shows it for context. Remove the heartbeat field and bindings when replacing this practice subsystem. Keep the constructor and `getAutonomousCommand()`.
+This is a partial snippet. Add the `drive` field and replace the existing `configureBindings()` method. Keep the `driver` field, the constructor call to `configureBindings()`, and `getAutonomousCommand()`. Remove the heartbeat field and its bindings. If another binding already uses the same control, remove the duplicate before building.
 
 Add imports for `frc.robot.subsystems.drive.Drive`, `frc.robot.subsystems.drive.DriveIOSim`, and `edu.wpi.first.wpilibj2.command.Commands`.
 
@@ -114,8 +120,9 @@ private final CommandXboxController driver =
 
 private void configureBindings() {
     drive.setDefaultCommand(
-        Commands.run(
+        Commands.runEnd(
             () -> drive.arcadeDrive(-driver.getLeftY(), driver.getRightX()),
+            drive::stop,
             drive
         )
     );
@@ -124,12 +131,12 @@ private void configureBindings() {
 
 Two new patterns:
 
-- **Default command** on `drive`. While no other command requires `drive`, this one runs every tick, reading the sticks and calling `arcadeDrive`. Negating left Y makes forward positive. Right X stays positive for a right turn because our `arcadeDrive` adds rotation to the left side and subtracts it from the right.
+- **Default command** on `drive`. While no other command requires `drive`, this one runs every tick, reading the sticks and calling `arcadeDrive`. `runEnd` also calls `drive.stop()` when the command ends, including when the robot disables or another command interrupts it. Negating left Y makes forward positive. Right X stays positive for a right turn because our `arcadeDrive` adds rotation to the left side and subtracts it from the right.
 - **One simulated subsystem** is constructed at the top. R08 will add the launcher beside it, and R12 will select real or simulation IO for both mechanisms.
 
 ---
 
-### Step 3: run it
+## Run the Simulation Check
 
 1. Add `import static edu.wpi.first.units.Units.Meters;` to `Drive.java`.
 2. Add this temporary partial snippet at the end of `Drive.periodic()`:
@@ -139,11 +146,13 @@ System.out.printf("left=%.2f m, right=%.2f m%n",
     leftPosition().in(Meters), rightPosition().in(Meters));
 ```
 
-3. Build and start simulation. Assign your controller to Joystick 0, then enable teleop.
-4. Push the left stick forward with the right stick centered. Both distance values should increase.
-5. Push backward. Both values should decrease.
-6. Center the left stick and push the right stick right. The left distance should increase and the right distance decrease.
-7. Release the sticks, disable, and remove the temporary print after saving your observations.
+3. In VS Code, open the Command Palette and run **WPILib: Build Robot Code**. Continue when the terminal ends with `BUILD SUCCESSFUL`; use the first compiler error and file name if it does not.
+4. Run **WPILib: Simulate Robot Code**. Keep **Sim GUI** selected in the extension dialog and choose **OK**. In the Simulation GUI, drag the controller from **System Joysticks** to the first slot under **Joysticks**. If you do not have a controller, drag **Keyboard 0** instead and configure its axes from **DS > Keyboard 0 Settings**.
+5. In the Simulation GUI's **Robot State** panel, select **Teleoperated** and then **Enabled**.
+6. Push the left stick forward with the right stick centered. Both distance values should increase.
+7. Push backward. Both values should decrease.
+8. Center the left stick and push the right stick right. The left distance should increase and the right distance decrease.
+9. Release the sticks and confirm both requested voltages return to zero. Select **Disabled** in **Robot State** and confirm `runEnd` calls `stop()`. Remove the temporary print after recording your observations.
 
 Compare changes from the starting readings. The distances are totals since simulation began, not a new measurement for each stick movement. Acceleration and model settings affect the distance traveled; an exact distance in two seconds is not a pass condition.
 
@@ -151,7 +160,19 @@ If the signs disagree, inspect the stick sign and the left/right arithmetic befo
 
 ---
 
-### What you now have
+Create `docs/sim-checks/r07-drive-signs.txt` in the VS Code Explorer and record:
+
+```text
+Forward:  left change ___ m, right change ___ m
+Reverse:  left change ___ m, right change ___ m
+Turn right: left change ___ m, right change ___ m
+Stick released: requested volts returned to zero: yes/no
+Disabled: requested volts remained zero: yes/no
+```
+
+These observations verify the simulation contract. They do not verify motor mounting, follower direction, or encoder signs on the physical robot.
+
+## Check the Drivetrain Result
 
 - The drivetrain works in simulation before another mechanism is added.
 - Each subsystem uses a small IO interface.
@@ -162,27 +183,18 @@ R08 repeats the IO pattern with the launcher. Phase 4 then adds real stick math 
 
 ---
 
-<RulesBox title="Done when">
+<RulesBox title="Done When">
 
-Forward increases both distance readings; reverse decreases both; a right turn increases the left reading and decreases the right. Release and disable stop the voltage request. Save the observed signs and remove the temporary print.
+In simulation, forward increases both distance readings, reverse decreases both, and a right turn increases the left reading while decreasing the right. Releasing the sticks requests zero voltage. Disabling ends the default command, calls `stop()`, and leaves the stored requests at zero. Save the observations and remove the temporary print.
 
 </RulesBox>
 
-### References
-
-- [A17: IO Interface](/java/assignments/a17-io-interface)
-- WPILib: [Drivetrain Simulation](https://docs.wpilib.org/en/stable/docs/software/wpilib-tools/robot-simulation/drivesim-tutorial/index.html)
-- WPILib JavaDoc: [`DifferentialDrivetrainSim`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html)
-- WPILib JavaDoc: [`DifferentialDrivetrainSim.createKitbotSim`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html#createKitbotSim(edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotMotor,edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotGearing,edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotWheelSize,edu.wpi.first.math.Matrix))
-- WPILib: [The Java Units Library](https://docs.wpilib.org/en/stable/docs/software/basic-programming/java-units.html)
-- REV: [SparkMax follower mode](https://docs.revrobotics.com/brushless/spark-max/control-interfaces#follower-mode)
-- WPILib: [Differential Drive Robots](https://docs.wpilib.org/en/stable/docs/software/kinematics-and-odometry/differential-drive-kinematics.html)
-
 <Sources items={[
-  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/differential-drive-kinematics.html", "note": "Differential-drive kinematics and <code>ChassisSpeeds</code>."},
-  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/drivesim-tutorial/index.html", "note": "Drivetrain simulation."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html", "note": "<code>createKitbotSim</code>."},
-  {"source": "rev", "path": "brushless/spark-max/control-interfaces", "note": "Follower mode."},
-  {"source": "wpilib", "path": "docs/software/basic-programming/java-units.html", "note": "Typed units."},
-  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "Default commands."}
+  {"source": "wpilib", "path": "docs/software/kinematics-and-odometry/differential-drive-kinematics.html", "label": "WPILib: Differential Drive Kinematics", "note": "Differential-drive kinematics and <code>ChassisSpeeds</code>."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/drivesim-tutorial/index.html", "label": "WPILib: Drivetrain Simulation Tutorial", "note": "Drivetrain simulation."},
+  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/simulation-gui.html", "label": "WPILib: Simulation GUI", "note": "Launching Sim GUI, assigning joysticks, keyboard controls, and changing Robot State."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html", "label": "WPILib JavaDoc: DifferentialDrivetrainSim", "note": "<code>createKitbotSim</code>."},
+  {"source": "rev", "path": "brushless/spark-max/control-interfaces", "label": "REV: SparkMax Control Interfaces", "note": "Follower mode."},
+  {"source": "wpilib", "path": "docs/software/basic-programming/java-units.html", "label": "WPILib: Java Units Library", "note": "Typed units."},
+  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "label": "WPILib: Command-Based Subsystems", "note": "Default commands."}
 ]} />

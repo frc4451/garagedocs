@@ -1,0 +1,123 @@
+---
+title: "Step 11: Observations and Vision"
+lessonId: badge-2-photonvision
+section: badges
+group: badge-2
+groupLabel: "Badge 2: Intermediate FRC"
+groupOrder: 2
+order: 11
+difficulty: advanced
+description: "A replayable AdvantageKit observation contract, one real and simulated PhotonVision camera, named filtering and residuals, measured low-resource simulation, then a second independently configured camera."
+---
+
+In Step 11, the student builds a real and a simulated AprilTag vision IO in `Badge2Robot` and connects accepted observations to the swerve template's pose estimator. The step reuses the vocabulary of [Step 9](/badges/badge-2-math): the filter is a set of named predicates, the residual is a vector magnitude, and every rejected observation is logged with its reason. Object detection is out of scope for Badge 2. Pages that mention it are read for their AprilTag content only.
+
+## References to Review
+
+- [PhotonVision](/frc/photonvision)
+- [Vision Subsystem](/frc/vision-subsystem)
+- [Vision Simulation](/frc/vision-simulation)
+- [Fused Pose Estimation](/frc/fused-pose-estimation)
+- [Pose Estimation Calibration](/frc/pose-estimation-calibration)
+- [Swerve Pose Estimation Example](/frc/swerve-pose-estimation-example)
+
+## Guided Example
+
+Build and test one camera before adding the second. The first pass proves the observation contract, ownership boundary, filter, estimator connection, and simulation update with one name and one transform.
+
+### Architecture
+
+Three classes and a plain Java observation family:
+
+- `AprilTagIO`: the data contract. Its `@AutoLog` inputs carry `Observation[]` and `RejectedObservation[]` arrays produced during that loop. `Logger.processInputs` records those arrays on the robot and restores them from the log during replay. The interface's default `updateInputs` method leaves replayed values in place.
+- `AprilTagIOPhoton`: one real PhotonVision camera. It owns a `PhotonCamera`, a `PhotonPoseEstimator`, the camera's `robotToCamera` transform and the field layout.
+- `AprilTagIOPhotonSim`: extends `AprilTagIOPhoton` and adds the camera to a `VisionSystemSim`. The real class's constructor runs first, so the estimator, the transform and the filter are the ones the robot uses; only the source of pixels changes. This is the [vendor-sim-state pattern](/frc/physics-in-the-io-layer#the-vendor-sim-state-pattern) from Step 6, applied to a camera.
+- Plain Java observation records with the timestamp, pose candidate, tag count, ambiguity, and uncertainty the estimator needs. A rejected observation uses an enum for its first failed predicate. AdvantageKit serializes custom record arrays as structs when every record component is a primitive, enum, struct-compatible WPILib type, or another compatible record. Array-valued record components are not supported, so tag IDs or other repeated values use a separate top-level array.
+
+`AprilTagIOPhoton` reads every unread result once per loop with `getAllUnreadResults()`. Each result becomes an `Optional<Observation>` after pose calculation and filtering. The implementation may collect results in a `List` while processing, then converts them to the record arrays stored in the `@AutoLog` inputs. After `Logger.processInputs` returns, the vision subsystem iterates the restored accepted array and passes each value to a `Consumer<Observation>`. This ordering makes the same observations flow to the estimator during replay. The callback itself does not drain anything. If the integration uses a queue, the drivetrain owns that queue, the consumer appends to it, and the drivetrain drains it before calling `addVisionMeasurement` once per accepted observation, as the [swerve example](/frc/swerve-pose-estimation-example#apply-accepted-observations) does.
+
+### Filter and Residual
+
+The rejection code names each predicate (`hasTags`, `ambiguityOk`, `onField`, `onFloor`, `timestampOk`, `residualOk`), calculates the translation residual as `observed.getTranslation().minus(reference.getTranslation()).getNorm()`, logs the residual for every observation whether it passes or not, and records the first failed predicate for every rejected one. Uncertainty selection is a separate stage after acceptance: the filter decides whether an observation enters the estimator, and the standard deviations decide how much an accepted one moves the pose. The student can explain both stages and point at the code for each.
+
+### Simulation
+
+`AprilTagIOPhotonSim` uses:
+
+- `VisionSystemSim`, the world: the field's tags and every simulated camera's place on the robot;
+- `SimCameraProperties`, one camera's resolution, field of view, frame rate, latency and noise;
+- `PhotonCameraSim`, the camera attached to the world;
+- the official `AprilTagFieldLayout` for the season;
+- a measured or documented `robotToCamera` transform;
+- the simulated drivetrain's pose, passed to `VisionSystemSim.update(pose)` every loop and kept separate from the estimated pose that vision is correcting.
+
+A **low-resource option** is required: a configuration flag that calls `enableRawStream(false)` and `enableProcessedStream(false)` (PhotonLib enables both streams by default) and leaves the wireframe at its default of off (PhotonLib documents its rendering cost). The student measures robot-loop timing during a repeatable simulated drive with streams off and records whether the loop stays within the 20 ms target. The same run must still produce AprilTag detections and pose results. The result applies to the measured setup and is not generalized to every laptop.
+
+### FRC 4451 Reference
+
+The FRC section describes FRC 4451's 2026 vision stack, and this step asks for the same shape: a maintainable multi-camera AprilTag stack with per-camera configuration, real and simulated IO, timestamped observations, filtering, uncertainty, logging and estimator integration. Cobra's own `AprilTagIO`, `AprilTagIOPhoton` and `AprilTagIOPhotonSim` are the model for that shape and are worth reading. Copying them into the student's project does not satisfy the step; the student writes the stack in their own package, from the lessons and the vendor documentation.
+
+One place Badge 2 asks for more than Cobra does: `AprilTagIOPhotonSim` there sets `enableDrawWireframe(true)` and a 10 m sight range with no way to turn the rendering off. Row 11.10 asks the student to make that a configuration choice.
+
+## Independent Change
+
+After the first camera passes its check, add a second camera with a different name and measured transform. Keep each camera's inputs and logs separate while both publish through the same drivetrain-owned integration boundary.
+
+| # | Work | Lesson | Done when |
+|---|---|---|---|
+| 11.1 | The contract | [Vision Subsystem](/frc/vision-subsystem#define-the-observation) | `AprilTagIO` has `@AutoLog` inputs with top-level `Observation[]` and `RejectedObservation[]`; each struct-compatible record carries timestamp, pose, tag count, ambiguity, and standard deviations without an array-valued component |
+| 11.2 | One real camera | [Vision Subsystem](/frc/vision-subsystem#configure-one-camera) | `AprilTagIOPhoton` constructs a `PhotonCamera` and a `PhotonPoseEstimator` from a per-camera configuration record with the camera name and `robotToCamera` |
+| 11.3 | Read once | [Vision Subsystem](/frc/vision-subsystem#process-unread-results-once) | `getAllUnreadResults()` is drained once per loop and each result keeps its own timestamp |
+| 11.4 | Named predicates | [Vision Subsystem](/frc/vision-subsystem#reject-measurements-for-stated-reasons) | The six predicates from Step 9 are methods or named conditions; the first failure is recorded per rejected observation |
+| 11.5 | Residual logged | [Step 9](/badges/badge-2-math#a-residual-is-a-vector) | The translation residual against the current estimate is logged for every observation |
+| 11.6 | Uncertainty separate | [Vision Subsystem](/frc/vision-subsystem#assign-uncertainty) | Standard deviations are chosen after acceptance, from tag count and distance, and attached to the observation |
+| 11.7 | Replay, then publish | [Fused Pose Estimation](/frc/fused-pose-estimation#add-each-accepted-observation-once) | `Logger.processInputs` runs before the accepted array is iterated; a `Consumer<Observation>` accepts each restored result, and any queue is owned and drained by the drivetrain before one `addVisionMeasurement` call per observation |
+| 11.8 | The simulation IO | [Vision Simulation](/frc/vision-simulation#the-three-pieces) | `AprilTagIOPhotonSim extends AprilTagIOPhoton`, calls `super(...)` first, and adds a `PhotonCameraSim` to the shared `VisionSystemSim` |
+| 11.9 | The world moves | [Vision Simulation](/frc/vision-simulation#what-to-watch) | `VisionSystemSim.update` receives the simulated drivetrain pose every loop; the tag layout is added once at startup |
+| 11.10 | Low-resource option | [Vision Simulation](/frc/vision-simulation#what-to-watch) | With streams disabled, the simulated camera still reports tags and poses; a recorded repeatable run checks the robot loop against the 20 ms target |
+| 11.11 | Two cameras | [Pose Estimation Calibration](/frc/pose-estimation-calibration#5-measure-robottocamera) | Two `AprilTagIOPhotonSim` instances with different names and transforms, each logged under its own path |
+
+## Badge Check
+
+<StepsBox title="PhotonVision badge check">
+
+1. The student simulates `Badge2Robot` with the streams disabled and drives near a tag. AdvantageScope's 2D field shows the camera's pose observations landing on the robot; the 3D field shows each camera drawn on the robot where its transform says.
+2. The student resets the estimator to a deliberately wrong pose. Accepted observations pull the estimate back; the log shows the residual shrinking.
+3. The student opens the log and shows rejected observations with their reasons, then changes one filter limit and shows a different predicate rejecting.
+4. Before the check, the mentor plants a wrong `robotToCamera` (a swapped sign, or the inverse transform). The student finds it from the field view, names the symptom, corrects it, and shows the observations landing on the robot again.
+5. The student explains why `AprilTagIOPhotonSim` extends the real implementation instead of copying it, and what would go wrong if the simulation had its own filter.
+
+</StepsBox>
+
+<Sources items={[
+  {"source": "photonvision", "path": "docs/programming/photonlib/robot-pose-estimator.html", "note": "<code>PhotonPoseEstimator</code>, the <code>robotToCamera</code> transform and the timestamped estimate."},
+  {"source": "photonvision", "path": "docs/programming/photonlib/getting-target-data.html", "note": "<code>getAllUnreadResults()</code> and per-target ambiguity."},
+  {"source": "photonvision", "path": "docs/simulation/simulation-java.html", "note": "<code>VisionSystemSim</code>, <code>SimCameraProperties</code>, <code>PhotonCameraSim</code>, and the raw and processed streams."},
+  {"source": "photonlib-javadoc", "path": "release/org/photonvision/simulation/PhotonCameraSim.html", "note": "<code>enableRawStream</code>, <code>enableProcessedStream</code>, <code>enableDrawWireframe</code> and <code>setMaxSightRange</code> behind the low-resource option."},
+  {"source": "photonlib-javadoc", "path": "release/org/photonvision/simulation/VisionSystemSim.html", "note": "<code>addCamera</code>, <code>addAprilTags</code> and <code>update(pose)</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/Record.html", "note": "Records are shallowly immutable carriers with final component fields and accessors; mutable components may need defensive copies."},
+  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "The per-loop observation collection contract."},
+  {"source": "java-api", "path": "java.base/java/util/Optional.html", "note": "Representing a pose calculation that may produce no accepted observation."},
+  {"source": "java-api", "path": "java.base/java/util/function/Consumer.html", "note": "The one-observation callback boundary; queue storage and draining remain separate responsibilities."},
+  {"source": "advantagekit", "path": "data-flow/recording-inputs/annotation-logging/", "note": "<code>@AutoLog</code> generates <code>toLog</code> and <code>fromLog</code> for replayable input fields."},
+  {"source": "advantagekit", "path": "data-flow/supported-types/", "note": "Custom records can be logged as top-level arrays when their components are struct-compatible; array-valued record components are unsupported."},
+  {"source": "advantagekit", "path": "data-flow/recording-inputs/io-interfaces/", "note": "<code>Logger.processInputs</code> records IO inputs on the robot and restores them during replay."},
+  {"source": "wpilib", "path": "docs/software/convenience-features/scheduling-functions.html", "note": "The default 20 ms <code>TimedRobot</code> periodic update rate used as the measured loop-time target."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/apriltag/AprilTagFieldLayout.html", "note": "The official field layout the real and simulated IO share."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/state-space/state-space-pose-estimators.html", "note": "<code>addVisionMeasurement</code> with a timestamp and standard deviations."},
+  {"source": "advantagekit-templates", "path": "talonfx_swerve/src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "The swerve template's <code>SwerveDrivePoseEstimator</code> and <code>addVisionMeasurement</code> the observations feed."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagIOPhotonSim.java", "note": "<code>extends AprilTagIOPhoton</code>, calls <code>super(...)</code> first, then builds the <code>PhotonCameraSim</code> and adds it to the world; also the <code>enableDrawWireframe(true)</code> and <code>setMaxSightRange(10.0)</code> row 11.10 makes configurable."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagIO.java", "note": "The data contract: an interface with an inputs class and a default <code>updateInputs</code>."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/VisionTypes.java", "note": "The record types behind rows 11.1 and 11.2: <code>VisionSource</code>, <code>AprilTagCameraConfig</code>, <code>RobotRelativeTransform</code> and <code>PoseEstimationMethod</code>."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/vision/AprilTagIOPhotonSim.java", "note": "The same inheritance in the 2025 robot."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/vision/AprilTagIOPhoton.java", "note": "Accepted and rejected observations kept in separate logged lists."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/vision/SingleTagAlgorithms.java", "note": "Three named single-tag predicates."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/vision/AprilTagAlgorithms.java", "note": "Uncertainty from tag count and average distance, chosen after acceptance."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Step 12: Robot State","id":"badge-2-robot-state"},
+  {"label":"Step 10: Path Following","id":"badge-2-path-following"},
+  {"label":"Vision Simulation","url":"/frc/vision-simulation"},
+  {"label":"Vision Subsystem","url":"/frc/vision-subsystem"}
+]} title="Next" section="badges" />

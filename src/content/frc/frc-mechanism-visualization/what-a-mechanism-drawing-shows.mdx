@@ -1,0 +1,139 @@
+---
+title: "What a Mechanism Drawing Shows"
+lessonId: what-a-mechanism-drawing-shows
+section: frc
+group: frc-mechanism-visualization
+groupLabel: "Mechanism Visualization"
+groupOrder: 18
+order: 1
+difficulty: intermediate
+duration: 20 min
+description: "The three objects behind a mechanism drawing (canvas, root, ligament), the two conventions that break a first attempt, what each kind of component shows once every one of them is drawn, and the three ways FRC 4451 has built one."
+---
+
+`Intake/Pivot/Position` reads `47.3`. `Intake/Pivot/PositionGoal` reads `0.0`. Both numbers are correct, and neither tells you that the intake is still folded against the bumper while the rollers spin. A drawing does: the arm points up, the goal arm points down, and the gap between them is the thing that is wrong.
+
+That is the whole argument for a mechanism drawing. It does not add information to the log. It puts information you already have into a shape your eye reads in one glance instead of three graphs.
+
+<RulesBox title="Before you start">
+
+[Mechanism Components](/frc/composing-mechanism-subsystems) for the pivots, elevators, rollers and flywheels this group draws, [AdvantageKit](/frc/advantagekit) for `Logger.recordOutput`, and [Watching Simulation](/frc/simulation-in-advantagescope) for the AdvantageScope tabs. This group assembles pieces from those lessons rather than reintroducing them.
+
+</RulesBox>
+
+### Three objects
+
+AdvantageKit ships `LoggedMechanism2d` and its two companions in `org.littletonrobotics.junction.mechanism`. They mirror the WPILib `Mechanism2d` classes and add one thing: the whole tree can be written to a log file as an output, so it replays and survives the match.
+
+<ContentTable
+  headers={["Object", "What it is", "How you get one"]}
+  rows={[
+    ["<code>LoggedMechanism2d</code>", "The canvas. Holds a width, a height, a background colour, and one or more roots.", "<code>new LoggedMechanism2d(width, height, colour)</code>"],
+    ["<code>LoggedMechanismRoot2d</code>", "A fixed anchor point on the canvas. Ligaments hang from it.", "<code>mechanism.getRoot(name, x, y)</code>, never constructed directly"],
+    ["<code>LoggedMechanismLigament2d</code>", "One straight segment with a length, an angle, a line weight and a colour. Can have more ligaments appended to its far end.", "<code>new LoggedMechanismLigament2d(name, length, angleDegrees, width, colour)</code>"]
+  ]}
+/>
+
+A drawing is a tree. The canvas holds roots, a root holds ligaments, and a ligament holds more ligaments. `append()` returns the object you passed in, so the reference you keep for updating is the same one that joins the tree:
+
+```java
+LoggedMechanism2d mechanism = new LoggedMechanism2d(1.0, 1.0, new Color8Bit(Color.kWhite));
+LoggedMechanismRoot2d root = mechanism.getRoot("intake", 0.5, 0.5);
+
+LoggedMechanismLigament2d arm =
+    root.append(new LoggedMechanismLigament2d("arm", 0.30, 90.0, 10, new Color8Bit(Color.kGreen)));
+
+arm.setAngle(measuredAngle.in(Degrees));
+Logger.recordOutput("Intake/Mechanism2d", mechanism);
+```
+
+### Two conventions that break a first attempt
+
+**The origin is the bottom left, and angles run counterclockwise.** The canvas uses the same orientation as `Field2d`: `(0, 0)` is the bottom left corner, `x` grows to the right and `y` grows upward. A ligament at 0 degrees points right, and positive angles rotate counterclockwise. An arm drawn below the floor or swinging the wrong way is almost always a sign convention that disagrees with the encoder, not a broken drawing.
+
+**A ligament's angle is measured from its parent, not from the canvas.** This is the one that costs an afternoon. If an elevator ligament stands at 82 degrees and you append a pivot to its top, setting the pivot's angle to 30 degrees puts it at 112 degrees on the screen. FRC 6328's superstructure has exactly this geometry and subtracts the difference to get an absolute angle back:
+
+```java
+// 6328: elevatorAngle is 82 degrees, and pivotMechanism hangs off elevatorMechanism
+pivotMechanism.setAngle(pivotFinalAngle.minus(elevatorAngle));
+```
+
+Lengths and widths are in the canvas's own units. If the canvas is 1.0 by 1.0 and you pass a 12 inch arm as `12`, the arm is twelve times the size of the canvas and nothing appears. Build the canvas in metres and convert every dimension into metres, or build it in inches and convert every dimension into inches. Cobra's intake picks metres: a 1.0 by 1.0 canvas with a 0.3048 metre arm.
+
+### The drawing is a snapshot
+
+`Logger.recordOutput(key, mechanism)` writes the tree's current angles and lengths once. It does not subscribe to the object. AdvantageKit's own Javadoc is blunt about it: if the position is updated, the method has to be called again.
+
+So every mechanism drawing needs one call per loop, placed after the positions for that loop are known. Putting the call in a constructor produces a drawing frozen at its starting pose, which looks like a mechanism that never moves.
+
+### What every component draws
+
+Draw everything the subsystem owns. A drawing where the pivot appears and the roller beside it does not is a drawing the reader has to hold a caveat about, and the caveat costs more than the ligament saves.
+
+What differs is *what the drawing shows*, because the components carry different kinds of goal:
+
+<ContentTable
+  headers={["Component", "Goal it carries", "What the drawing shows"]}
+  rows={[
+    ["Pivot", "An angle", "A ligament rotates to the measured angle. The gap to the goal drawing is the error."],
+    ["Elevator", "A distance", "A ligament lengthens. Same gap, along one axis."],
+    ["Linear rail", "A distance", "A carriage slides along the rail's own axis."],
+    ["Flywheel", "An angular velocity", "A spinning indicator: direction, and speed relative to its goal. The precise number still belongs on a graph."],
+    ["Roller", "None. It runs at an effort until a command ends.", "Direction and whether it is running. That is the whole state a roller has, and it is worth seeing beside the mechanism it feeds."]
+  ]}
+/>
+
+A spinner needs a trick, because a ligament that rotates at the real rate is a blur. FRC 3847 integrates the simulated velocity into an angle, scales the rate down hard so the motion reads on screen, and colours the wheel by direction: one colour running forward, another reversing, a third stopped. Their own summary of the helper calls it a spinning indicator with direction and relative speed, which is the right claim to make for it. A filled disc drawn from radial ligaments gives the colour somewhere to live.
+
+So the honest division of labour is this. **The drawing answers "what is this assembly doing right now".** A stopped roller next to a deployed intake, or a flywheel still spinning down while the hood moves, is a sentence you read in one glance. **The graph answers "what exactly was the number".** Readiness stays on a `Trigger` either way.
+
+Cobra is a useful check on the vocabulary here. Its `Intake` rollers, and the `Feeder`'s tower and spindexer, are all driven by `runPercentOutput`, `setTorque` and `runVolts`, and never receive a velocity, so they are rollers in the sense this table means. The `Shooter` is the one true flywheel on the robot: it takes `setVelocityTorqueCurrent` and reports readiness with `isNear(velocity, tolerance)`.
+
+### Three ways FRC 4451 has built one
+
+The team has attacked this three times, and the progression is the argument for the design the rest of this group teaches.
+
+**Ember2024 gave every subsystem its own canvas.** `PivotVisualizer` and `ElevatorVisualizer` each construct a 3.0 by 3.0 `Mechanism2d`, append one ligament, and log it. The class also carries the comment `// This is guesswork, Allred can fill this in more accurately.` above a hardcoded 26 inch arm. Two problems follow from the shape rather than the guesswork: the pivot and the elevator can never be seen in the same picture because they live on separate canvases, and the canvas, root and logging code is copied into every new visualizer.
+
+**Riptide2025 gave the superstructure one canvas.** `SuperStructureMechanism` builds the elevator and coral pivot as one chain on one canvas, and `SuperStructure` constructs it twice, once for the goal and once for the measured position. The two drawings overlay, and the gap between them is the error. The chain is written out by hand inside the class, so adding a mechanism means editing the class.
+
+**Cobra2026 broke the chain into reusable pieces and stopped.** `PivotMechanism` and `ElevatorMechanism` each own exactly one `LoggedMechanismLigament2d` and expose it through `@Getter`, which only makes sense if something else is going to append it. `MechanismConfigs.RootMechanismConfig` describes a canvas and a root position. `IntakeConstants` goes further and defines three configured pivot ligaments named `Measured`, `Setpoint` and `Goal` in three shades of green.
+
+Nothing constructs a `LoggedMechanism2d`. The configs are unused today, and finishing them is the exercise that closes this group.
+
+<RulesBox title="What the rest of this group builds">
+
+- A component class owns one ligament and an `update()` method. It never owns a canvas and never calls `Logger`.
+- A subsystem owns the canvas, the root, the assembled chain, and exactly one `recordOutput` call per loop.
+- The whole assembly is constructed more than once, fed from the measurement, the setpoint and the goal, so the drawings overlay.
+- Every component the subsystem owns appears, spinners included, so the picture needs no caveat.
+- A `Pose3d[]` generated from the same tree drives the 3D view without a second set of geometry.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "advantagekit", "path": "javadoc/org/littletonrobotics/junction/mechanism/LoggedMechanism2d.html", "note": "The canvas class, its constructors and <code>getRoot</code>."},
+  {"source": "advantagekit", "path": "javadoc/org/littletonrobotics/junction/mechanism/LoggedMechanismLigament2d.html", "note": "Ligament constructor arguments, <code>setAngle</code>, <code>setLength</code> and <code>setColor</code>."},
+  {"source": "akit-source", "path": "akit/src/main/java/org/littletonrobotics/junction/Logger.java", "note": "The <code>recordOutput</code> overload for a <code>LoggedMechanism2d</code>, and its note that the method has to be called again after the position changes."},
+  {"source": "wpilib", "path": "docs/software/dashboards/glass/mech2d-widget.html", "note": "The coordinate system, the counterclockwise angle convention, and that a ligament's angle is relative to its parent."},
+  {"source": "advantagescope", "path": "tab-reference/mechanism/", "note": "What the Mechanism tab accepts from AdvantageKit."},
+  {"source": "spectrum-2026", "path": "src/main/java/frc/spectrumLib/sim/RollerSim.java", "note": "A spinner drawn by integrating velocity into an angle, scaled down so the motion is readable, with colour set by direction."},
+  {"source": "spectrum-2026", "path": "src/main/java/frc/spectrumLib/sim/Circle.java", "note": "A filled disc built from radial ligaments, which is where the roller's direction colour is shown."},
+  {"source": "spectrum-2026", "path": "docs/tools/simulation.md", "note": "FRC 3847 describing the roller helper as a spinning indicator with direction and relative speed."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/pivot/PivotMechanism.java", "note": "One ligament per component, exposed with <code>@Getter</code> for a parent to append."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/IntakeConstants.java", "note": "The root config and the three pivot ligament configs named Measured, Setpoint and Goal, none of them constructed yet."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/feeder/Feeder.java", "note": "The tower and spindexer run on voltage, percent output and torque current, never a velocity goal."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "The one velocity-controlled flywheel on the robot, with <code>isNear</code> readiness."},
+  {"source": "ember", "path": "src/main/java/frc/robot/subsystems/pivot/PivotVisualizer.java", "note": "FRC 4451's 2024 approach: one canvas per subsystem, with the geometry hardcoded."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/superstructure/mechanism/SuperStructureMechanism.java", "note": "FRC 4451's 2025 approach: one canvas for the whole superstructure chain."},
+  {"source": "mech-adv", "path": "src/main/java/org/littletonrobotics/frc2025/subsystems/superstructure/SuperstructureVisualizer.java", "note": "Subtracting the parent's angle to set an absolute pivot angle."},
+  {"source": "mech-adv", "path": "src/main/java/org/littletonrobotics/frc2025/subsystems/superstructure/SuperstructureConstants.java", "note": "The 82 degree elevator angle used in the parent-relative example."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Ligaments and Components","id":"ligaments-and-components"},
+  {"label":"Mechanisms per Subsystem","id":"mechanisms-per-subsystem"},
+  {"label":"Composing Mechanism Subsystems","id":"composing-mechanism-subsystems"},
+  {"label":"Watching Simulation","id":"simulation-in-advantagescope"},
+  {"label":"AdvantageKit","id":"advantagekit"}
+]} />

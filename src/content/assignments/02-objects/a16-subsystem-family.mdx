@@ -19,13 +19,20 @@ description: "One abstract parent, three subsystems, and a loop that drives all 
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A16: Subsystem Family`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Write three subclasses that respond to the same performStep method. A loop can call that method on each Subsystem reference, and Java selects the implementation for its object.
 
 These classes update console state only. They are a model for learning inheritance, not WPILib subsystems or motor-control code.
 
-### What to build
+## What To Build
+
+This assignment continues the class work from [A14: Robot and Battery
+Composition](/java/assignments/a14-robot-and-battery-composition). There, one
+object held another. Here, three classes *extend* one parent and inherit its name,
+enabled state, and finished methods. Read [Inheritance](/java/fundamentals/java-inheritance)
+before starting. The Badge 1 route places A16 after that lesson; this page explains
+the abstract-method and array pieces needed to finish the assignment.
 
 `Subsystem` is written for you: a `protected final name`, an `enabled` flag with
 `enable()`/`disable()`, a `toString()`, and one `abstract String performStep()`.
@@ -46,16 +53,66 @@ Implement three subclasses. Each calls `super(name)`, marks `performStep` with
 after tick 4 re-enables it and disables the drivetrain, so you can watch state and
 polymorphism interact.
 
-<RulesBox title="How the browser version differs" items={[
+<RulesBox title="Browser And Local Files" items={[
   "Five files locally, one here, with only <code>RobotLoop</code> declared <code>public</code>.",
   "<code>main</code> is written for you, including the exact enable and disable sequence the checks expect."
 ]} />
 
+## Build Locally
 
-<RulesBox title="Plan it as sessions" items={[
+Create `Subsystem.java`, `Drivetrain.java`, `Intake.java`, `Shooter.java`, and
+`RobotLoop.java` in the assignment folder. Put the matching top-level type in each
+file and declare each class `public`. Make each subclass constructor `public` too.
+The browser combines them into one file, so its helper classes remain
+package-private and only `RobotLoop` is public.
+
+Add `import java.util.Locale;` above `Drivetrain`. Format its line with
+`String.format(Locale.ROOT, ...)` so the automated check still sees decimal points
+on a computer whose default locale uses decimal commas. In the browser, place the
+import above every class.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac Subsystem.java Drivetrain.java Intake.java Shooter.java RobotLoop.java
+java RobotLoop
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac Subsystem.java Drivetrain.java Intake.java Shooter.java RobotLoop.java
+java RobotLoop
+```
+
+</CodeTab>
+</CodeTabs>
+
+## Follow One Tick
+
+`Subsystem` is abstract, so it describes shared state but cannot be constructed by
+itself. Its `performStep` declaration ends with a semicolon because each concrete
+subclass must supply the body. In every subclass, store the constructor arguments
+in private fields after `super(name)`, then implement the public method marked
+`@Override`.
+
+The array's declared type is `Subsystem[]`, but each element still refers to its
+real object. On tick 1, `s.performStep()` therefore runs the drivetrain, intake,
+or shooter body for that element. That runtime choice is polymorphism. You do not
+need a type test or cast in the loop.
+
+For the shooter, first remember the old RPM. Then change `currentRPM` toward
+`targetRPM` by no more than 500 and format `old -> new`. Handle both directions,
+including a target below the current value. Do the disabled check before changing
+any subclass state.
+
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>All three subsystems step on tick 1</em>, <em>The intake gate toggles rather than repeating</em>.",
   "<strong>Session 2.</strong> Build on what already passes: <em>A disabled subsystem idles</em>, <em>The shooter stops stepping once it arrives</em>.",
-  "<strong>Session 3.</strong> Finish the edge cases and the rubric items nothing checks: <em>Enable and disable take effect, and toString reports state</em>."
+  "<strong>Session 3.</strong> Complete the named check <em>Enable and disable take effect, and toString reports state</em>. Then review the manual rubric items that output checks cannot inspect."
 ]} />
 
 <JavaPlayground id="a16-subsystem-family" />
@@ -63,11 +120,11 @@ polymorphism interact.
 <RulesBox title="Hints" items={[
   "<strong>The array is the point.</strong> <code>Subsystem[]</code> holds three different classes, and <code>s.performStep()</code> picks the right body at run time. If you find yourself writing <code>instanceof</code> inside the loop, the design has slipped: the subsystem should answer for itself.",
   "<strong>Disabled comes first.</strong> Each <code>performStep</code> starts by checking <code>enabled</code> and returning the idle string. Note what that means for the intake: a disabled tick must <em>not</em> toggle the gate, so the check has to come before the toggle.",
-  "<strong>Two decimals on the drive powers.</strong> <code>String.format(\"Drivetrain: L=%.2f R=%.2f\", left, right)</code>. Plain concatenation gives <code>L=0.5</code>, which is not what the spec asks for.",
+  "<strong>Two decimals on the drive powers.</strong> <code>String.format(Locale.ROOT, \"Drivetrain: L=%.2f R=%.2f\", leftPower, rightPower)</code>. Plain concatenation gives <code>L=0.5</code>, and omitting the locale can produce decimal commas on some computers.",
   "<strong>The shooter clamps its step, not its target.</strong> Move by at most 500 in whichever direction closes the gap, and stop changing once it arrives: the last ticks should read <code>3000 -&gt; 3000</code> rather than overshooting."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -80,23 +137,30 @@ polymorphism interact.
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+Finish and save the required version first. Try stretch work in a copy so added
+state or output cannot interfere with the five-tick checks.
 
 - Add a `Climber` that refuses to run before tick 100, and add it to the array without
   touching the loop. Adding it to the array changes setup; the loop body should stay unchanged.
 - Give `Subsystem` a `periodicCount` that increments on every `performStep`, without
   letting any subclass forget to bump it. That is what the template-method pattern is for.
 
-### References
+<RulesBox title="Manual Checks" items={[
+  "The browser checks compare the five-tick output and final ON/OFF lines. They do not inspect access modifiers, constructor calls, <code>@Override</code>, or the absence of <code>instanceof</code>. The starter's inherited <code>enabled</code> field is protected; keep each new subclass field private as the build table requires.",
+  "Read all three subclasses for those rubric requirements. Temporarily construct a shooter whose current RPM is above its target and confirm one step moves down by at most 500. Remove that probe before submitting."
+]} />
+
+## References
 
 - JavaDoc: [`java.lang.Override`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Override.html)
 - WPILib: [Subsystems](https://docs.wpilib.org/en/stable/docs/software/commandbased/subsystems.html)
 - Wikipedia: [Polymorphism (computer science)](https://en.wikipedia.org/wiki/Polymorphism_(computer_science))
 
 <Sources items={[
-  {"source": "csce146", "note": "Inheritance and abstract classes."},
-  {"source": "dev-java", "path": "inheritance/", "note": "Inheritance."},
-  {"source": "dev-java", "path": "inheritance/abstract-classes/", "note": "Abstract classes."},
-  {"source": "dev-java", "path": "inheritance/polymorphism/", "note": "Polymorphism and <code>@Override</code>."},
-  {"source": "dev-java", "path": "pattern-matching/", "note": "<code>instanceof</code> patterns."}
+  {"source": "csce146", "label": "Data Structures Course Sequence", "note": "Inheritance and abstract classes."},
+  {"source": "dev-java", "path": "inheritance/", "label": "Dev.java: Inheritance", "note": "Inherited state and behavior."},
+  {"source": "dev-java", "path": "inheritance/abstract-classes/", "label": "Dev.java: Abstract Classes", "note": "Abstract methods, concrete subclasses, and shared fields."},
+  {"source": "dev-java", "path": "inheritance/polymorphism/", "label": "Dev.java: Polymorphism", "note": "Java selects an overridden instance method from the object at run time."}
 ]} />

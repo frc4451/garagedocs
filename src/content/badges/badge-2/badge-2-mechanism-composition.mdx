@@ -1,0 +1,111 @@
+---
+title: "Step 8: Mechanism Composition"
+lessonId: badge-2-mechanism-composition
+section: badges
+group: badge-2
+groupLabel: "Badge 2: Intermediate FRC"
+groupOrder: 2
+order: 8
+difficulty: advanced
+description: "Three parent subsystems built from the student's component library (a pivoting intake after Cobra 2026, an elevator, pivot and conveyor with interlocks after Riptide 2025, and a floor intake feeding a flywheel after Ember 2024), the interlocks each one enforces from measured state, and the unit tests that prove a rejected request stops safely."
+---
+
+In Step 8, the student composes the components from [Step 7](/badges/badge-2-mechanism-library) into three parent subsystems in `Badge2Robot`. The parent subsystem owns its components, calls each component's `periodic()` once, assigns the log paths, creates the commands, carries the WPILib requirement, and coordinates the interlocks between components. Commands belong to the parent and call component methods; a component never creates a command.
+
+Each example follows the design intent of one FRC 4451 robot. The intent is named and cited; the interlocks are Badge 2's requirements, and where they go past what the cited code does, this page says so.
+
+## References to Review
+
+- [Composing Mechanism Subsystems](/frc/composing-mechanism-subsystems)
+- [Subsystems](/frc/subsystems)
+- [Commands](/frc/commands)
+- [Command Groups](/frc/command-groups)
+- [Unit Tests in Simulation](/frc/unit-tests-in-simulation)
+
+## Pivoting Intake
+
+A pivot and a roller, after Cobra 2026's `Intake`. That subsystem owns two library components, a `Pivot` named `endeffector` and a `Flywheel` named `rollers`, names its pivot positions in an `EndeffectorState` enum (`STARTING`, `DEPLOYED`, `LIFTED`, `SQUEEZE`), calls both components' `periodic()` from its own, and exposes one command factory per position plus factories that run the rollers. The [composition lesson](/frc/composing-mechanism-subsystems#build-a-pivoting-intake) has a version built on the same component types.
+
+Two differences from Cobra to keep in mind. Cobra's roller is typed `Flywheel` because that class adds velocity control on top of the roller behavior; the Badge 2 version uses the student's `Roller`, since the intake roller has no velocity goal. Cobra runs its rollers on percent output and torque current, while Badge 2 uses voltage throughout for the reasons in [Step 7](/badges/badge-2-mechanism-library#voltage-control).
+
+Required behavior:
+
+- Named `STOWED`, `INTAKE` and `EJECT` pivot positions, as constants or an enum.
+- Roller requests for intake, eject, hold and stop, each a voltage from a named constant.
+- A command that deploys the pivot and runs the roller to intake.
+- A command that stops the roller and stows the pivot.
+- Completion based on the measured pivot angle through `atGoal`, not on a timer.
+- One requirement, the parent `Intake`, on every command.
+
+## Elevator and Conveyor
+
+An elevator, a pivot and a conveyor roller, after Riptide 2025's `SuperStructure`, which owns an `Elevator`, a coral `Pivot` and a `Shooter` roller and pairs an elevator height with a pivot angle in each value of its `SuperStructureModes` enum. Riptide's code sets both goals together and reports `isAtMode` when both are near; it does not enforce a clearance rule between them. The three interlocks below are Badge 2 requirements added on top of that design.
+
+Required interlocks:
+
+- The pivot may leave its starting angle only when the elevator is above a named clearance height.
+- The elevator may move below the clearance height only when the pivot is at its starting angle.
+- The conveyor may run only at two approved elevator-and-pivot setpoint pairs.
+- The approved pairs are named records or enum values, as Riptide's modes are. Placeholder names such as `X`, `Y`, `A` and `B` do not appear in the code.
+- A rejected request stops safely and produces a useful log entry or an `Alert`, naming what was requested and which interlock refused it.
+
+"Stops safely" means the component keeps or returns to a defined goal and the conveyor is stopped; it does not mean the subsystem throws an exception or leaves a goal half-applied.
+
+## Intake to Flywheel
+
+A floor-intake roller, a feed roller and a flywheel, after Ember 2024. Ember split these across `IntakeSubsystem`, `FeederSubsystem` and `ShooterSubsystem`; its intake and feeder each read a beam break, the feeder's `setVelocityBeambreakCommand` runs until the beam break is obstructed and so holds the game piece before the shooter, and the shooter exposes a `shooterNearTarget()` trigger that is true when both flywheel velocities are within 1 rotation per second of their targets. The Badge 2 version composes the same three roles into one parent subsystem built from the student's `Roller` and `Flywheel` components.
+
+Required behavior:
+
+- The floor-intake roller moves the game piece into the system.
+- The feed roller holds the game piece before the flywheel. A beam break, as in Ember, or a simulated boolean input standing in for one, is the hold condition; the parent reads it through an IO input.
+- The flywheel receives a velocity goal.
+- The feed roller stays stopped until the flywheel reports `atGoal` and a shoot command is active.
+- Releasing or interrupting the command leaves every component in a defined safe state: rollers stopped, flywheel at its documented idle or stopped.
+
+## Rows
+
+| # | Work | Lesson | Done when |
+|---|---|---|---|
+| 8.1 | Parent owns components | [Composing Mechanism Subsystems](/frc/composing-mechanism-subsystems#why-the-components-are-plain-objects) | Each of the three subsystems constructs its components, calls each `periodic()` once, and assigns log paths under its own name |
+| 8.2 | Example A runs | [Composing Mechanism Subsystems](/frc/composing-mechanism-subsystems#build-a-pivoting-intake) | In simulation, the deploy-and-intake command moves the pivot to `INTAKE` and runs the roller; the stow command stops the roller and returns to `STOWED`; completion follows `atGoal` |
+| 8.3 | Example B runs | [Subsystems](/frc/subsystems), [Command Groups](/frc/command-groups) | In simulation, each approved pair is reachable, the conveyor runs at each, and a request outside the rules is refused with a logged reason |
+| 8.4 | Example C runs | [Command Groups](/frc/command-groups#waiting-without-blocking) | In simulation, intake holds a piece at the feed roller, the flywheel spins up, and the feed roller runs only after `atGoal` and the shoot command |
+| 8.5 | Interlocks tested | [Unit Tests in Simulation](/frc/unit-tests-in-simulation#a-command-against-a-paused-clock) | One test per stated interlock, run with the command scheduler against a paused clock, all passing |
+| 8.6 | Unsafe transition rejected | [Unit Tests in Simulation](/frc/unit-tests-in-simulation#a-mechanism-in-the-loop) | At least one test requests an unsafe transition (pivot leaving its start angle with the elevator low; conveyor at an unapproved pair; feed before `atGoal`) and asserts the request was refused and the safe state held |
+| 8.7 | Requirements match ownership | [Commands](/frc/commands) | Every command carries exactly one requirement, its parent subsystem; the student explains why two commands from one parent cannot run at once |
+
+## Badge Check
+
+<StepsBox title="Composition Badge Check">
+
+1. From a clean clone, the student runs the tests. Every interlock test and the unsafe-transition test pass.
+2. The student simulates `Badge2Robot` and demonstrates each subsystem from controller bindings, with AdvantageScope showing component goals and measured values under the parent's log path.
+3. The mentor chooses one interlock and asks the student to violate it from the controller. The request is refused, the mechanisms hold, and the log or alert names the refused request.
+4. The mentor interrupts a running command (Example C's shoot, or Example A's intake). Every component enters its documented safe state.
+5. The student explains why the components are plain objects and why every command requires the parent subsystem, in their own words.
+
+</StepsBox>
+
+<Sources items={[
+  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "Subsystem requirements and command factories, the basis of one requirement per command."},
+  {"source": "wpilib", "path": "docs/software/commandbased/command-compositions.html", "note": "Waiting on a condition inside a composition without blocking the scheduler."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/Alert.html", "note": "The <code>Alert</code> a refused request may raise."},
+  {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/generic/flywheel/GenericFlywheel.java", "note": "A component that receives its parent subsystem and stays a plain object."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "Example A's design intent: the <code>Pivot endeffector</code> and <code>Flywheel rollers</code> fields, the <code>EndeffectorState</code> enum, both components' <code>periodic()</code> called from the parent's, and one command factory per position."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "The library component that is a plain class, not a <code>SubsystemBase</code>; <code>Flywheel</code>, <code>Pivot</code> and <code>Elevator</code> extend it."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/superstructure/SuperStructure.java", "note": "Example B's design intent: <code>Elevator</code>, <code>Pivot</code> and <code>Shooter</code> owned by one subsystem, both goals set from the current mode, <code>isAtMode</code> from measured state."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/superstructure/modes/SuperStructureModes.java", "note": "Named height-and-angle pairs as enum values; the model for the approved pairs."},
+  {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/superstructure/shooter/Shooter.java", "note": "The conveyor roller with its <code>CanRange</code> coral sensor."},
+  {"source": "ember", "path": "src/main/java/frc/robot/subsystems/feeder/FeederSubsystem.java", "note": "Example C's hold: <code>setVelocityBeambreakCommand</code> runs until the beam break is obstructed."},
+  {"source": "ember", "path": "src/main/java/frc/robot/subsystems/intake/IntakeSubsystem.java", "note": "The floor intake with its own beam break."},
+  {"source": "ember", "path": "src/main/java/frc/robot/subsystems/shooter/ShooterSubsystem.java", "note": "<code>shooterNearTarget()</code>: both flywheels within 1 rotation per second of target."},
+  {"source": "ember", "path": "src/main/java/frc/robot/reusable_io/beambreak/BeambreakIO.java", "note": "The beam break behind an IO interface, with a sim override for testing."}
+]} />
+
+<LinkGrid links={[
+  {"label":"Step 9: Math for Pose and Vision","id":"badge-2-math"},
+  {"label":"Step 7: Mechanism Library","id":"badge-2-mechanism-library"},
+  {"label":"Composing Mechanism Subsystems","url":"/frc/composing-mechanism-subsystems"},
+  {"label":"Unit Tests in Simulation","url":"/frc/unit-tests-in-simulation"}
+]} title="Next" section="badges" />

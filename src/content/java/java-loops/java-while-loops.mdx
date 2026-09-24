@@ -7,175 +7,177 @@ groupLabel: "Loops and Iteration"
 groupOrder: 3
 order: 1
 difficulty: beginner
-duration: 40 min
-description: "Repeating code until a condition changes: while loop structure, the infinite-loop mistake, reading input in a loop, and loops with conditions."
+duration: 30 min
+description: "Repeat a block while a condition is true, trace each pass, and stop cleanly after a sentinel or end-of-input."
 ---
 
-### The problem loops solve
+A `while` loop repeats a block while its condition is `true`. This lesson builds on [conditions](/java/fundamentals/java-conditionals), [reassignment](/java/fundamentals/java-variables), and [console input](/java/fundamentals/java-console-input). You will trace a finite loop, calculate a running total, and stop an input loop safely.
 
-A loop runs a block of code repeatedly while a condition holds. Without one, repeating an action means copying the code, and a change to the action has to be made in every copy.
+<span id="while-loops-with-conditions"></span>
 
-### Problem: repetitive code
+## Check The Condition First
 
-```java
-// Without loops - inefficient and inflexible
-Scanner scanner = new Scanner(System.in);
-int sum = 0;
+Java checks a `while` loop's condition before each pass through its body. If the condition is `true`, Java runs the body and returns to the condition. If it is `false`, Java skips the body and continues below the loop.
 
-System.out.println("Input a number: ");
-sum = sum + Integer.valueOf(scanner.nextLine());
-
-System.out.println("Input a number: ");
-sum = sum + Integer.valueOf(scanner.nextLine());
-
-System.out.println("Input a number: ");
-sum = sum + Integer.valueOf(scanner.nextLine());
-
-// What if we need 100 numbers? 1000 numbers?
-System.out.println("The sum is " + sum);
-```
-
-### Solution: using while loops
+This complete `Main.java` program prints the integers 1 through 3. To run it locally, replace the entire contents of `Main.java`, save the file, and use the [Compile And Run](/java/fundamentals/java-setup#compile-and-run) steps from Java Setup.
 
 ```java
-// With loops - efficient and flexible
-Scanner scanner = new Scanner(System.in);
-int numbersRead = 0;
-int sum = 0;
+public class Main {
+    public static void main(String[] args) {
+        int count = 1;
 
-while (true) {
-    if (numbersRead == 5) {
-        break;  // Exit when we've read 5 numbers
-    }
-    
-    System.out.println("Input number");
-    sum = sum + Integer.valueOf(scanner.nextLine());
-    numbersRead = numbersRead + 1;
-}
+        while (count <= 3) {
+            System.out.println("Count: " + count);
+            count = count + 1;
+        }
 
-System.out.println("The sum of the numbers is " + sum);
-```
-
-### Basic while loop structure
-
-```java norun
-while (condition) {
-    // Code to repeat
-    // This block executes while condition is true
-}
-
-// Simple counting example
-int count = 1;
-while (count <= 5) {
-    System.out.println("Count: " + count);
-    count = count + 1;  // Important: update the condition!
-}
-```
-
-### While loop syntax
-
-```java norun
-while (condition) {
-    // Code to repeat
-    // This block executes while condition is true
-}
-
-// Simple counting example
-int count = 1;
-while (count <= 5) {
-    System.out.println("Count: " + count);
-    count = count + 1;  // Important: update the condition!
-}
-```
-
-### Infinite loops
-
-`while (true)` runs until a `break` inside the body stops it. It fits loops whose exit depends on something read inside the body, such as user input, where the condition is not known until the pass has started.
-
-### Infinite loop examples
-
-```java
-// This runs forever (until break is encountered)
-while (true) {
-    System.out.println("I can program!");
-}
-
-// Practical infinite loop with break condition
-int robotSpeed = 0;
-while (true) {
-    robotSpeed += 10;
-    System.out.println("Robot speed: " + robotSpeed);
-    
-    if (robotSpeed >= 100) {
-        System.out.println("Maximum speed reached!");
-        break;  // Exit the loop
+        System.out.println("Done");
     }
 }
 ```
 
-### User input with while loops
+The loop has three working parts:
+
+1. **Condition:** `count <= 3` decides whether another pass starts.
+2. **Body:** `System.out.println` uses the current value.
+3. **Update:** `count = count + 1` changes a value used by the condition.
+
+The update happens near the end of each pass. Java then checks the condition again.
+
+## Trace Each Pass
+
+| Check | `count <= 3` | Output | Next Count |
+| --- | --- | --- | --- |
+| First | `1 <= 3` is `true` | `Count: 1` | `2` |
+| Second | `2 <= 3` is `true` | `Count: 2` | `3` |
+| Third | `3 <= 3` is `true` | `Count: 3` | `4` |
+| Fourth | `4 <= 3` is `false` | Body is skipped | `4` |
+
+After the false check, the program continues below the loop and prints `Done`:
+
+```text
+Count: 1
+Count: 2
+Count: 3
+Done
+```
+
+## Run Zero Times
+
+A `while` loop can run zero times because Java checks the condition before entering the body. Change the starting declaration in the first program to `int count = 4;`. The first check is false, so the program prints only `Done`.
+
+That behavior is useful when there may be no work to do. It also means the loop body cannot prepare a value that the first condition needs. Set up those values before the `while` line.
+
+## Build A Running Total
+
+A loop can update more than one value. In this complete `Main.java` example, `round` controls how many passes run and `totalPoints` accumulates a sum. Replace the entire file when you switch from the first example to this one.
 
 ```java
-Scanner scanner = new Scanner(System.in);
+public class Main {
+    public static void main(String[] args) {
+        int round = 1;
+        int totalPoints = 0;
 
-// Keep asking until user wants to exit
-while (true) {
-    System.out.println("Exit? (y exits)");
-    String input = scanner.nextLine();
-    
-    if (input.equals("y")) {
-        break;  // Exit if user enters 'y'
+        while (round <= 4) {
+            totalPoints = totalPoints + round;
+            System.out.println("After round " + round + ": " + totalPoints);
+            round = round + 1;
+        }
+
+        System.out.println("Final total: " + totalPoints);
     }
-    
-    System.out.println("Ok! Let's carry on!");
-}
-
-System.out.println("Ready!");
-
-// Robot example: Read sensor values until threshold
-while (true) {
-    System.out.println("Input sensor reading (0 to quit)");
-    int reading = Integer.valueOf(scanner.nextLine());
-    
-    if (reading == 0) {
-        break;
-    }
-    
-    System.out.println("Sensor value: " + reading);
 }
 ```
 
-### While loops with conditions
+`totalPoints` starts at zero. Each pass replaces it with the old total plus the current round number. The four additions are 1, 2, 3, and 4, so the final total is 10.
 
-When the exit condition can be checked before each pass, put it in the `while` header instead of using `while (true)` and `break`. The loop's purpose is then visible on its first line.
+## Plan The Stopping Condition
 
-### Conditional while loop
+Before writing a loop, identify what can make its condition false. Then check that every path through the body either moves toward that stopping value or has another documented way to leave the loop.
+
+- `count = 1`, `count <= 3`, and `count = count + 1` stops after three passes.
+- Starting at `4` makes the body run zero times.
+- Removing the update leaves `count` equal to `1`, so the condition stays true.
+- Updating with `count = count - 1` moves away from this boundary. The loop then runs far longer than intended and eventually reaches integer overflow, so it is the wrong update for this stopping condition.
+
+If a local terminal program keeps printing because a loop does not stop, press Ctrl+C in the terminal. Then inspect the starting value, condition, and update before running it again.
+
+## Read Until A Sentinel
+
+Some loops do not know their number of passes in advance. A **sentinel** is a special input value that tells the loop to stop. The next program adds integers until it reads the sentinel `0` or reaches end-of-input (EOF).
+
+`input.hasNextLine()` checks whether the input source has another line before the body calls `nextLine()`. It returns `false` at EOF, and it can wait while interactive terminal input remains open. A final line can still be read when EOF follows it without a line-ending character. The `try` and `catch` use the specific `NumberFormatException` introduced in [Try-Catch](/java/fundamentals/java-try-catch): an invalid line prints a message and the next pass reads the next line.
 
 ```java
-// Count from 1 to 5 using condition
-int number = 1;
+import java.util.Scanner;
 
-while (number < 6) {
-    System.out.println(number);
-    number++;  // Shorthand for number = number + 1
-}
+public class Main {
+    public static void main(String[] args) {
+        Scanner input = new Scanner(System.in);
+        long sum = 0;
 
-// Robot example: Drive until target reached
-double distanceToTarget = 100.0;
-double speed = 10.0;
+        System.out.println("Enter integers, one per line. Enter 0 to stop.");
 
-while (distanceToTarget > 0) {
-    System.out.println("Distance remaining: " + distanceToTarget + " cm");
-    distanceToTarget -= speed;  // Move closer to target
-    
-    // Slow down as we approach
-    if (distanceToTarget < 20) {
-        speed = 5.0;
+        while (input.hasNextLine()) {
+            String line = input.nextLine();
+
+            try {
+                int number = Integer.parseInt(line);
+
+                if (number == 0) {
+                    break;
+                }
+
+                sum = sum + number;
+            } catch (NumberFormatException exception) {
+                System.out.println("Skipped invalid integer: " + line);
+            }
+        }
+
+        System.out.println("Sum: " + sum);
+        input.close();
     }
 }
-
-System.out.println("Target reached!");
 ```
+
+The `break` statement ends the nearest loop immediately. Execution continues with the first statement below that loop, which prints the sum. Input after the first `0` is not read.
+
+With these four browser input lines, the program skips `two`, stops at `0`, and prints a sum of 7:
+
+```text
+3
+two
+4
+0
+```
+
+```text
+Enter integers, one per line. Enter 0 to stop.
+Skipped invalid integer: two
+Sum: 7
+```
+
+With `0` as the first input line, the sum is zero because the program reaches `break` before adding a number. If the supplied input ends without `0`, `hasNextLine()` becomes false and the program prints the sum collected so far. The example uses `long` for a larger total than `int` can hold; as with every fixed-size integer type, the calculation assumes the final total fits its type.
+
+### Run With Browser Input
+
+In the browser, put every input line in **Sample input** before selecting **Run**. The browser supplies those saved lines and then EOF. You cannot type another line after the run begins.
+
+Try the four-line sample above. Then test `0` by itself, an empty **Sample input** box, and `5` followed by EOF. Each run stops and prints its sum.
+
+### Run With Terminal Input
+
+To use interactive input, save the complete program as `Main.java`, then compile and run it in VS Code's terminal using the steps from [Console Input](/java/fundamentals/java-console-input#run-it-in-a-terminal). Type one value per line and press Enter after each value. Enter `0` to finish normally.
+
+To test EOF without entering `0`, put input such as `5` in the `in.txt` file from [Repeat Input From A File](/java/fundamentals/java-console-input#repeat-input-from-a-file). Run the program with that file as its input. After reading `5`, the program reaches the file's end, leaves the loop, and prints `Sum: 5`.
+
+## Infinite Loops
+
+An **infinite loop** repeats without reaching a stopping point. The condition in `while (true)` never becomes false, but the loop can still end when a reachable statement such as `break`, `return`, or `throw` transfers control out of it. A `while (true)` loop is infinite only when no such exit occurs.
+
+The input example does not need `while (true)`: `hasNextLine()` gives it a second stopping path when input ends. Prefer a condition that states when another pass is possible. Use `while (true)` only when every intended exit is handled inside the body and the surrounding program is designed to keep that work running.
+
+In an FRC robot program, WPILib calls robot lifecycle methods repeatedly. Do not put a blocking `while` loop inside one of those methods to imitate that schedule. The [Kit Bot lifecycle lesson](/kit-bot/r02-robot-lifecycle) explains how those repeated calls work.
 
 <JavaPlayground id="java-while-loops" />
 
@@ -190,18 +192,13 @@ Predict each result, run the code, and explain any difference before continuing.
 </ExerciseBox>
 
 <Sources items={[
-  {"source": "csce145", "note": "The course whose structure this lesson follows."},
-  {"source": "java-tutorial", "path": "java/nutsandbolts/while.html", "note": "while and do-while."},
-  {"source": "dev-java", "path": "language-basics/controlling-flow/", "note": "Loops."},
-  {"source": "jls", "path": "jls-14.html", "note": "The while statement (section 14.12)."},
-  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/Scanner.html", "note": "<code>Scanner</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/Random.html", "note": "<code>Random</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Math.html", "note": "<code>Math</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Thread.html", "note": "<code>Thread</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/InterruptedException.html", "note": "<code>InterruptedException</code> API reference."}
+  {"source": "csce145", "label": "Course Materials", "note": "The beginner course structure that inspired this lesson's loop sequence."},
+  {"source": "dev-java", "path": "language-basics/controlling-flow/#the-while-and-do-while-statements", "label": "While And Do-While Statements", "note": "Condition checks and repeated execution in <code>while</code> statements."},
+  {"source": "jls", "path": "jls-14.html#jls-14.12", "label": "§14.12: The while Statement", "note": "The condition is evaluated before each loop body execution, so the body may run zero times."},
+  {"source": "jls", "path": "jls-14.html#jls-14.15", "label": "§14.15: The break Statement", "note": "An unlabeled <code>break</code> exits the nearest enclosing loop and continues after it."},
+  {"source": "java-api", "path": "java.base/java/util/Scanner.html#hasNextLine()", "label": "Scanner.hasNextLine", "note": "Checking for another input line before calling <code>nextLine</code>, including end-of-input behavior."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html#parseInt(java.lang.String)", "label": "Integer.parseInt", "note": "Converting a complete input line to an <code>int</code> and reporting invalid integer text with <code>NumberFormatException</code>."},
+  {"source": "wpilib", "path": "docs/software/vscode-overview/creating-robot-program.html#the-timedrobot-template", "label": "The TimedRobot Template", "note": "WPILib calls the applicable periodic lifecycle methods; robot code should not add a blocking loop to reproduce those calls."}
 ]} />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "For Loops", "id": "java-for-loops"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "For Loops", "id": "java-for-loops"}]} />

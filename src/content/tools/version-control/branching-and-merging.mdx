@@ -10,11 +10,17 @@ difficulty: intermediate
 description: "Create a branch, merge completed work, and resolve conflicting changes."
 ---
 
-### Working with branches
+## Before You Start
 
-A branch lets you develop a change separately from another line of work. For example, you can test an autonomous routine on a feature branch while the team continues using `main`.
+Complete the [Local Git Workflow](/tools/local-git-workflow) first. Use its `git-workflow-practice` repository for this lesson. Do not practice merging in GarageDocs or a robot repository.
 
-`main` is a branch name, not a guarantee that code is tested. Keeping it ready for the robot is a team policy supported by reviews and checks.
+Open `git-workflow-practice` in VS Code, select **Terminal → New Terminal**, and run `git status`. Continue only when the output says you are on `main` and the working tree is clean. If Git lists changed or untracked files, save and commit intended practice work or ask a mentor what to do with it before switching branches.
+
+## What A Branch Does
+
+A branch names a line of development and points to its newest commit. New commits move the current branch forward. For example, you can test an autonomous change on a feature branch while `main` remains at an earlier commit.
+
+`main` is a branch name. It does not guarantee that code is tested. Keeping `main` ready for the robot is a team policy supported by reviews and checks.
 
 <ReferenceImage
   src="/media/tools/git-branching.png"
@@ -25,16 +31,16 @@ A branch lets you develop a change separately from another line of work. For exa
   contain
 />
 
-### Branch operations
+## Create A Feature Branch
 
-Start in a practice repository with a commit on `main` and no uncommitted changes:
+Run the commands one line at a time:
 
 <CodeTabs>
 <CodeTab label="PowerShell">
 
 ```powershell
 git status
-git checkout -b autonomous-improvements
+git switch -c autonomous-improvements
 git branch
 ```
 
@@ -43,76 +49,219 @@ git branch
 
 ```bash
 git status
-git checkout -b autonomous-improvements
+git switch -c autonomous-improvements
 git branch
 ```
 
 </CodeTab>
 </CodeTabs>
 
-`checkout -b` creates a branch from the current commit and switches to it. `git branch` lists local branches and marks the current one with `*`. To create a branch without switching, use `git branch branch-name`; to switch to an existing branch, use `git checkout branch-name`.
+`git switch -c` creates a branch at the current commit and switches to it. `git branch` lists local branches. The line beginning with `*` should be `autonomous-improvements`.
 
-### Merging workflows
+If Git says the branch already exists, do not create another spelling of it. Run `git branch`, then use `git switch autonomous-improvements` if that is the branch you meant to continue.
 
-After committing and testing the feature, switch to the branch that should receive it:
+Open `notes.txt`, add `Test autonomous changes in simulation.` on a new line, and save the file. Then run:
 
 <CodeTabs>
 <CodeTab label="PowerShell">
 
 ```powershell
-git checkout main
-git merge autonomous-improvements
+git diff
+git add notes.txt
+git diff --staged
+git commit -m "Add autonomous test note"
+git status
 ```
 
 </CodeTab>
 <CodeTab label="Terminal">
 
 ```bash
-git checkout main
-git merge autonomous-improvements
+git diff
+git add notes.txt
+git diff --staged
+git commit -m "Add autonomous test note"
+git status
 ```
 
 </CodeTab>
 </CodeTabs>
 
-If `main` has no separate new commits, Git can move it forward to the feature's latest commit. This is a fast-forward. If both branches have new commits, a merge can record how their histories combine in a merge commit.
+The final status should name `autonomous-improvements` and report a clean working tree.
 
-For shared team code, use a [pull request](/tools/pull-requests) when the team's review policy requires one. The commands above demonstrate a local merge.
+## Merge The Feature
 
-<RulesBox title="Robotics branching examples">
+Switch to the branch that should receive the change, then merge the feature branch into it:
 
-Use names that describe the work: `autonomous-improvements`, `teleop-enhancements`, or `fix-drivetrain-issue`. Keep unrelated changes on separate branches when that makes them easier to test and review.
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+git switch main
+git merge autonomous-improvements
+git log --oneline --decorate -4
+git status
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+git switch main
+git merge autonomous-improvements
+git log --oneline --decorate -4
+git status
+```
+
+</CodeTab>
+</CodeTabs>
+
+Because `main` did not receive another commit after the feature branch was created, Git should report a **fast-forward**. It moves `main` to the feature's newest commit. The log should show `main` and `autonomous-improvements` beside the same commit, and the final status should be clean.
+
+If both branches have new commits, Git may create a merge commit that records how their histories join. For shared work, follow the repository's policy and use a [pull request](/tools/pull-requests) when review is required.
+
+<RulesBox title="Choose Focused Branch Names">
+
+Use names that describe the work, such as `autonomous-improvements`, `teleop-controls`, or `fix-drivetrain-current-limit`. Keep unrelated changes on separate branches when that makes them easier to test and review.
 
 </RulesBox>
 
-### Conflict resolution
+## Create A Practice Conflict
 
-A conflict occurs when Git cannot combine changes automatically. Overlapping edits to the same lines are one cause; deleting a file that another branch modified is another.
+A conflict occurs when Git cannot combine changes automatically. This exercise changes the same line differently on two branches so the result is predictable.
 
-1. Run `git status` to identify conflicted files.
-2. Open each file or use the editor's merge tool. Decide what the combined result should do.
-3. Remove conflict markers and save the resolved files.
-4. Stage each resolved file with `git add filename`.
-5. Build and check the result, then complete the merge with `git commit`.
+On `main`, create `mode.txt` in the VS Code Explorer. Type `Selected mode: disabled`, save it, and commit it:
 
-If you are unsure which behavior to keep, ask the author of the other change. Selecting one side without reading it can remove needed work.
+<CodeTabs>
+<CodeTab label="PowerShell">
 
-### Understanding branch management
+```powershell
+git add mode.txt
+git commit -m "Add selected mode note"
+git switch -c practice-conflict
+```
 
-Once the work is merged and no longer needed as a separate local branch, `git branch -d branch-name` deletes that local branch. It does not delete the remote branch. Keep branches focused and review their changes before merging.
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+git add mode.txt
+git commit -m "Add selected mode note"
+git switch -c practice-conflict
+```
+
+</CodeTab>
+</CodeTabs>
+
+On `practice-conflict`, replace the line with `Selected mode: autonomous`, save it, and commit:
+
+```text
+Selected mode: autonomous
+```
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+git add mode.txt
+git commit -m "Set autonomous practice mode"
+git switch main
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+git add mode.txt
+git commit -m "Set autonomous practice mode"
+git switch main
+```
+
+</CodeTab>
+</CodeTabs>
+
+On `main`, replace the line with `Selected mode: teleop`, save it, and commit:
+
+```text
+Selected mode: teleop
+```
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+git add mode.txt
+git commit -m "Set teleop practice mode"
+git merge practice-conflict
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+git add mode.txt
+git commit -m "Set teleop practice mode"
+git merge practice-conflict
+```
+
+</CodeTab>
+</CodeTabs>
+
+The merge should stop with a conflict in `mode.txt`. Git has not completed the merge.
+
+## Conflict Resolution
+
+1. Run `git status`. It should list `mode.txt` as both modified.
+2. Open `mode.txt`. VS Code shows both versions and may display controls such as **Accept Current Change**, **Accept Incoming Change**, and **Accept Both Changes**. Read the text before choosing. **Current** is the version on `main`; **incoming** is the version from `practice-conflict`.
+3. For this exercise, replace the entire file with `Selected mode: chosen by the driver station`. Remove every line containing `<<<<<<<`, `=======`, or `>>>>>>>`, then save the file.
+4. Stage and inspect the resolution, then complete the merge:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+git add mode.txt
+git diff --staged
+git commit -m "Resolve practice mode conflict"
+git status
+git log --oneline --graph --decorate -7
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+git add mode.txt
+git diff --staged
+git commit -m "Resolve practice mode conflict"
+git status
+git log --oneline --graph --decorate -7
+```
+
+</CodeTab>
+</CodeTabs>
+
+The status should be clean. The graph should show the two lines of work joining at the merge commit.
+
+If you are unsure how to resolve a real conflict, stop before staging. Run `git merge --abort` to return to the state before the merge, then ask the other author or a mentor which behavior the combined file needs. Do not choose one side only because its button looks convenient.
+
+## Delete A Merged Branch
+
+Before deleting a local branch, confirm that you are on `main` and that the branch's work is present there. Then run `git branch -d branch-name`, replacing the placeholder with the exact merged branch name. The lowercase `-d` refuses to delete some unmerged work.
+
+Deleting a local branch does not delete a remote branch. The practice branches can also remain until a mentor reviews the exercise.
 
 <Sources items={[
-  {"source": "git", "path": "book/en/v2/Git-Branching-Branches-in-a-Nutshell", "note": "What a branch is."},
-  {"source": "git", "path": "book/en/v2/Git-Branching-Basic-Branching-and-Merging", "note": "Merging and resolving conflicts."},
-  {"source": "git", "path": "docs/git-branch", "note": "<code>git branch</code>."},
-  {"source": "git", "path": "docs/git-merge", "note": "<code>git merge</code>."},
-  {"source": "github", "path": "pull-requests/collaborating-with-pull-requests/addressing-merge-conflicts/about-merge-conflicts", "note": "Merge conflicts on GitHub."},
-  {"url": "https://learngitbranching.js.org/", "label": "Learn Git Branching", "note": "Interactive practice."}
+  {"source": "git", "path": "book/en/v2/Git-Branching-Branches-in-a-Nutshell", "note": "Branch pointers and commit history."},
+  {"source": "git", "path": "book/en/v2/Git-Branching-Basic-Branching-and-Merging", "note": "Fast-forward merges, merge commits, and conflict resolution."},
+  {"source": "git", "path": "docs/git-switch", "note": "Creating and switching branches with <code>git switch</code>."},
+  {"source": "git", "path": "docs/git-branch", "note": "Listing and safely deleting local branches."},
+  {"source": "git", "path": "docs/git-merge", "note": "Merge results, conflict state, and <code>git merge --abort</code>."},
+  {"source": "github", "path": "pull-requests/collaborating-with-pull-requests/addressing-merge-conflicts/about-merge-conflicts", "note": "Why merge conflicts occur and how conflict markers identify competing changes."}
 ]} />
 
 <LinkGrid links={[
-    {"label":"Git Documentation: Branching and Merging","url":"https://git-scm.com/book/en/v2/Git-Branching-Branches-in-a-Nutshell"},
-    {"label":"Git Branching Tutorial","url":"https://learngitbranching.js.org/"},
-    {"label":"GitHub Skills: Introduction to GitHub","url":"https://skills.github.com/"}
-  ]} title="Further reading" section="tools" />
-
+  {"label":"Next: Connect Git To GitHub","id":"github-remotes"},
+  {"label":"Review the Local Git Workflow","id":"local-git-workflow"},
+  {"label":"Pro Git: Basic Branching and Merging","url":"https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging"}
+]} title="Next Steps" section="tools" />

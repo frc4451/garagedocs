@@ -138,7 +138,28 @@ config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = 0;
 
 The motor controller refuses to drive past these positions regardless of what is commanded. That protects the mechanism even from a bug in your own code.
 
+### Signal rates and the CAN budget
+
+Configuration decides what a device does. It also decides how much it says, and on a robot with a dozen TalonFXs that becomes a budget worth managing.
+
+Every value you read from a Phoenix 6 device is a `StatusSignal` published at some frequency. Reading them one at a time costs a bus transaction each; `StatusSignal.refreshAll(...)` fetches a batch in one go, which is why competition code tends to collect its signals and refresh them together.
+
+FRC 2910 make that explicit with a `StatusSignalRefresher`, a single object that every subsystem registers its signals with. Its useful idea is the second argument:
+
+```java
+// 2910: 0 refreshes every loop, 1 every other loop, 2 every third
+public void addStatusSignals(int delayLoopCount, StatusSignal<?>... signals)
+```
+
+Not every signal needs 50 Hz. A drive motor's position does; a temperature or a fault flag does not, and refreshing it every third loop costs a third as much. The signals are registered during construction and refreshed in one batch per loop.
+
+Two related knobs live on the device itself. A signal's publish frequency can be set directly, and `optimizeBusUtilization()` turns off everything you have not asked for, so the device stops broadcasting signals nothing reads.
+
+This matters when the symptom appears: loop overruns that scale with the number of devices, or a CAN utilisation figure climbing through the 80s in Phoenix Tuner X. Both point at the bus rather than at your code, and both are configuration problems.
+
 <Sources items={[
+  {"source": "ctre", "path": "docs/api-reference/api-usage/status-signals.html", "note": "Status signals, batched refresh, update frequency and <code>optimizeBusUtilization</code>."},
+  {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/util/StatusSignalRefresher.java", "note": "One object collecting every signal on the robot, refreshing in batches with <code>StatusSignal.refreshAll</code>, and a per-signal delay so low-value signals refresh every second or third loop."},
   {"source": "mantik", "path": "src/content/frc/frc-advanced-motor-config/motor-controller-configuration.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
   {"source": "ctre", "path": "docs/api-reference/api-usage/configuration.html", "note": "Building a <code>TalonFXConfiguration</code> and applying it; why <code>apply</code> returns a <code>StatusCode</code>."},
   {"source": "ctre", "path": "docs/api-reference/api-usage/control-requests.html", "note": "The control request families and modifiers."},

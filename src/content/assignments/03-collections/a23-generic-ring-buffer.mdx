@@ -8,7 +8,7 @@ groupOrder: 3
 order: 23
 difficulty: intermediate
 duration: 90 min
-description: "Write one class that smooths any sensor: a fixed-size buffer parameterised on the type it holds."
+description: "Write one reusable fixed-size history buffer parameterised on the type it holds."
 ---
 
 **Topic:** generics, type parameters, type erasure, writing an `Iterable`.
@@ -20,13 +20,17 @@ description: "Write one class that smooths any sensor: a fixed-size buffer param
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A23: Generic Ring Buffer`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Store the most recent N values in a fixed-size array. When the buffer fills, replace the oldest value and advance its index.
 
 Use a type parameter so the same RingBuffer class holds Double values, Strings, or records. The buffer stores history; averaging or filtering that history is a separate operation.
 
-### What to build
+Keep that separation in your design: `RingBuffer<T>` stores and orders values.
+It cannot average an arbitrary `T`, and no averaging method belongs in the
+required class.
+
+## What To Build
 
 <ContentTable
   headers={["Member", "What it does"]}
@@ -44,28 +48,84 @@ Use a type parameter so the same RingBuffer class holds Double values, Strings, 
 both ways, then does the whole thing again with a `RingBuffer<String>` because a
 generic class that only ever gets used at one type has not proved anything.
 
-<RulesBox title="How the browser version differs" items={[
-  "Two files locally, one here, with only <code>RingBufferDemo</code> declared <code>public</code>.",
+<RulesBox title="Browser And Local Files" items={[
+  "The assignment has two top-level types. The playground keeps both in one editor tab, so only <code>RingBufferDemo</code> is <code>public</code>. For the local version, put the types in <code>RingBuffer.java</code> and <code>RingBufferDemo.java</code> and declare both classes <code>public</code>.",
   "The editor runs <strong>Java 17</strong>, so the lambda form of <code>Iterable</code> and the diamond on <code>new RingBuffer&lt;&gt;(5)</code> both work exactly as they do locally on Java 25."
 ]} />
 
+## Build Locally
 
-<RulesBox title="Plan it as sessions" items={[
+Create `assignments/a23-generic-ring-buffer/RingBuffer.java` and
+`assignments/a23-generic-ring-buffer/RingBufferDemo.java`. Copy the supplied
+`main` and its three rejection helpers into `RingBufferDemo`. Put the generic
+class in `RingBuffer.java`; make the class, constructor, and assignment methods
+`public` in the local file. Keep the fields and the cast helper `private`.
+
+Open a terminal in that assignment folder. Compile both source files together,
+then run the class that owns `main`:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac RingBuffer.java RingBufferDemo.java
+java RingBufferDemo
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac RingBuffer.java RingBufferDemo.java
+java RingBufferDemo
+```
+
+</CodeTab>
+</CodeTabs>
+
+In the browser, fill in only the `RingBuffer<T>` starter above
+`RingBufferDemo`, leave the supplied demo unchanged, and select **Run**. This
+assignment does not read input.
+
+## Iterable And Iterator
+
+`oldestFirst()` and `newestFirst()` return an `Iterable<T>`, an object that can
+create an iterator each time a for-each loop starts. They do not return one
+already-used `Iterator<T>`. Each call to `iterator()` therefore needs fresh
+position state, so two loops can walk the same buffer independently.
+
+An iterator has two different promises. `hasNext()` reports whether another
+value exists, and `next()` returns it. After the iterator is exhausted,
+`next()` must throw `NoSuchElementException`; returning `null` would confuse an
+exhausted iterator with a buffer that actually stores `null`.
+
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>The buffer fills up without dropping anything</em>, <em>Adding past capacity drops the oldest, it does not grow</em>, <em>oldest and newest survive the wrap</em>, <em>Both iterators walk in the direction they promise</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>The state queries agree with the contents</em>, <em>The same class works for a second type argument</em>, <em>clear empties the buffer without shrinking it</em>, <em>Bad capacity and empty reads are rejected</em>."
+  "<strong>Session 2.</strong> Finish the remaining browser checks: <em>The state queries agree with the contents</em>, <em>The same class works for a second type argument</em>, <em>clear empties the buffer without shrinking it</em>, <em>Bad capacity and empty reads are rejected</em>. Then complete the manual rubric review below."
+]} />
+
+<RulesBox title="Browser Checks And Manual Rubric" items={[
+  "The browser checks the eight named behaviors in the session plan and results panel, including the printed wraparound order, state queries, second type argument, <code>clear</code>, and the four rejected operations.",
+  "The browser checks printed output. It does not inspect whether <code>add</code>, <code>oldest</code>, and <code>newest</code> are O(1), whether fields have the required modifiers, whether index arithmetic is centralized, whether there is exactly one narrow <code>@SuppressWarnings(\"unchecked\")</code>, whether the class also works with a record, or whether comments meet the rubric. Review those items yourself.",
+  "Add one temporary local check for each direction: consume an iterator fully, verify <code>hasNext()</code> is false, then call <code>next()</code> and confirm it throws <code>NoSuchElementException</code>. Also create two iterators from the same <code>Iterable</code> and confirm advancing one does not advance the other. Remove these probes before comparing the required output."
 ]} />
 
 <JavaPlayground id="a23-generic-ring-buffer" />
 
 <RulesBox title="Hints" items={[
-  "<strong><code>new T[capacity]</code> does not compile.</strong> The type parameter is erased before the array would be created, so there is no <code>T</code> left at runtime to make an array of. Hold an <code>Object[]</code> and cast on the way out. One <code>@SuppressWarnings(\"unchecked\")</code> on a single private accessor is the tidy way: the cast is safe because you control every write.",
-  "<strong>Two numbers, not three.</strong> Store the index of the oldest element and the current count. The next write goes at <code>(head + size) % capacity</code>; if the buffer was already full, advance <code>head</code> instead of incrementing <code>size</code>. That one <code>if</code> is the entire difference between a ring buffer and an array.",
+  "<strong><code>new T[capacity]</code> does not compile.</strong> Arrays keep their component type at runtime, but an unbounded type parameter such as <code>T</code> does not supply that runtime type. Java therefore forbids this array creation. Hold an <code>Object[]</code> and cast on the way out. One <code>@SuppressWarnings(\"unchecked\")</code> on a single private accessor is the tidy way: the cast relies on every stored value having entered through the typed <code>add(T)</code> method. Avoid raw-type use, which bypasses that check.",
+  "<strong>Track the head and size.</strong> Store the index of the oldest element and the current count. The next write goes at <code>(head + size) % capacity</code>; if the buffer was already full, advance <code>head</code> instead of incrementing <code>size</code>. This bookkeeping reuses the fixed array without shifting its contents.",
   "<strong>Draw it.</strong> Sketch the array and the two numbers on paper and step through four adds into a buffer of three. The moment the write index wraps past the end is the moment the name makes sense.",
-  "<strong>One private accessor pays for itself.</strong> A <code>T at(int offsetFromOldest)</code> that does the modular arithmetic once gets used by <code>oldest</code>, <code>newest</code>, both iterators and <code>toString</code>. Writing <code>(head + k) % data.length</code> in five places is five chances to get it wrong.",
-  "<strong><code>Iterable</code> is a single-method interface.</strong> So <code>oldestFirst()</code> can return a lambda whose body builds a small anonymous <code>Iterator&lt;T&gt;</code>. The iterator holds how many it has handed out; <code>hasNext</code> compares that against the size."
+  "<strong>One private accessor pays for itself.</strong> A <code>private T at(int offsetFromOldest)</code> that does the modular arithmetic once gets used by <code>oldest</code>, <code>newest</code>, both iterators and <code>toString</code>. Writing <code>(head + k) % data.length</code> in five places is five chances to get it wrong.",
+  "<strong><code>Iterable</code> has one abstract method: <code>iterator()</code>.</strong> So <code>oldestFirst()</code> can return a lambda whose body builds a small anonymous <code>Iterator&lt;T&gt;</code>. The iterator holds how many it has handed out; <code>hasNext</code> compares that against the size. In <code>next</code>, check exhaustion first and throw <code>NoSuchElementException</code> before reading the array."
 ]} />
 
-### Self-grading rubric
+Keep the buffer unchanged while walking an iterator in your required tests.
+This assignment does not specify how an iterator should react to changes made
+during traversal.
+
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -78,30 +138,29 @@ generic class that only ever gets used at one type has not proved anything.
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+Finish and grade the required version first. Make a copy of the two source
+files in a separate `stretch/` folder for any goal below, and compile that copy
+separately. The required browser output should continue to come from the
+original files.
 
 - Add `T get(int indexFromOldest)`: O(1) random access with a bounds check. You already
   have the arithmetic; this is about what to throw when the index is out of range.
-- Add a bounded type parameter: `class SortableRing<T extends Comparable<T>> extends
-  RingBuffer<T>` with a `T max()`. The `extends Comparable<T>` bound is precisely what
+- Add a bounded type parameter: `public class SortableRing<T extends Comparable<T>> extends
+  RingBuffer<T>` with a `public T max()`. Give it a public constructor that accepts
+  capacity and calls `super(capacity)`. The `extends Comparable<T>` bound is precisely what
   lets you call `compareTo` inside it.
 - Implement `Iterable<T>` on `RingBuffer` itself so `for (T t : buffer)` works without
   calling a method first. Then document which direction you chose, because the caller
   cannot see it.
 
-### References
-
-- JavaDoc: [`java.lang.Iterable<T>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Iterable.html)
-- JavaDoc: [`java.util.Iterator<T>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Iterator.html)
-- JavaDoc: [`java.util.NoSuchElementException`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/NoSuchElementException.html)
-- Wikipedia: [Circular buffer](https://en.wikipedia.org/wiki/Circular_buffer)
-- Wikipedia: [Type erasure](https://en.wikipedia.org/wiki/Type_erasure)
-
 <Sources items={[
-  {"source": "csce146", "note": "Generics and iteration."},
-  {"source": "dev-java", "path": "generics/intro/", "note": "Generic classes."},
-  {"source": "java-tutorial", "path": "java/generics/index.html", "note": "Generics tutorial."},
-  {"source": "java-api", "path": "java.base/java/util/Iterator.html", "note": "<code>Iterator</code> and <code>Iterable</code>."},
-  {"url": "/java/fundamentals/java-deques", "label": "Deques", "note": "The ring-buffer idea in the Java track."},
-  {"source": "java-api", "path": "java.base/java/lang/Iterable.html", "note": "<code>Iterable</code> API reference."}
+  {"source": "csce146", "label": "CSCE 146: Data Structures And Algorithms", "note": "Course context for generic containers and iteration."},
+  {"source": "dev-java", "path": "generics/intro/", "label": "Introducing Generics", "note": "Type parameters and compile-time type safety."},
+  {"source": "java-tutorial", "path": "java/generics/restrictions.html", "label": "Restrictions On Generics", "note": "Why type parameters and parameterized types cannot be used to create arrays directly."},
+  {"source": "java-api", "path": "java.base/java/lang/Iterable.html", "label": "Iterable", "note": "The <code>iterator()</code> contract used by for-each loops."},
+  {"source": "java-api", "path": "java.base/java/util/Iterator.html", "label": "Iterator", "note": "<code>hasNext()</code>, <code>next()</code>, and the required exhausted-iterator exception."},
+  {"source": "java-api", "path": "java.base/java/util/NoSuchElementException.html", "label": "NoSuchElementException", "note": "The exception required for empty reads and exhausted iterators."},
+  {"url": "/java/fundamentals/java-deques", "label": "Deques", "note": "The Java track's earlier treatment of bounded first-in, first-out storage."}
 ]} />

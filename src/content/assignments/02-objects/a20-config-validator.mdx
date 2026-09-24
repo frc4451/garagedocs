@@ -20,13 +20,13 @@ description: "Read constants from a file and refuse the bad ones at the boundary
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A20: Config Validator`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Read a text configuration file and validate each value before creating a Config object. Report the key that failed so a user knows what to correct.
 
 The ranges below are exercise requirements. Validation checks those ranges; it does not prove that a configuration is suitable for a physical robot.
 
-### Input format
+## Input Format
 
 ```text
 # comments start with #
@@ -41,7 +41,7 @@ teamNumber = 1234
 Order does not matter. Blank lines and `#` lines are ignored. Whitespace around the
 `=` is allowed.
 
-### What to build
+## What To Build
 
 **`Config`** with six `private final` fields, validated in the constructor. A bad value
 throws `IllegalArgumentException` **naming the key and the value**:
@@ -64,27 +64,106 @@ missing key, an unparseable number and an out-of-range value all throw
 `IllegalArgumentException`. A missing *file* throws `IOException`: a different kind of
 problem, and callers will want to tell them apart.
 
-<RulesBox title="How the browser version differs" items={[
-  "Three files locally, one here, with only <code>ConfigLoader</code> declared <code>public</code>.",
-  "<code>main</code> is written for you: it writes sample files, loads them, then rewrites them with one bad line at a time. Leave <code>main</code> and <code>dataDir</code> alone: <code>dataDir</code> picks a directory that is writable both locally and in the in-page editor."
+## Concepts Before Coding
+
+The earlier Try/Catch lesson introduces handlers and `finally`, but this assignment
+adds two file-specific ideas. `IOException` is a checked exception, so `load` must
+either catch it or declare `throws IOException`; keep the supplied declaration so
+the caller can distinguish a file problem from bad configuration text.
+
+`BufferedReader.readLine()` returns one line without its line-ending characters. It
+returns `null` only after the reader reaches the end of the file. That is why a file
+loop reads a line, handles it, and stops when the next result is `null`.
+Try-with-resources closes the reader when execution leaves the `try` block, whether
+the block finishes normally or an exception leaves it early.
+
+The `Map<String, String>` is a temporary lookup table: each parsed key goes into the
+map with its text value, and the constructor arguments are read back by key after
+the file ends. Unlike the counting examples in Sets and Maps, there is no useful
+default for a missing configuration key. Check for every required key and throw an
+`IllegalArgumentException` that names it before parsing or constructing `Config`.
+
+<RulesBox title="Browser And Local Files" items={[
+  "The browser does not ask you to choose a file from your computer. The supplied <code>main</code> creates temporary text files inside the playground, passes their paths to <code>load</code>, and rewrites those simulated inputs with one bad line at a time. Leave <code>main</code> and <code>dataDir</code> alone.",
+  "For a normal local project, put the two top-level classes in <code>Config.java</code> and <code>ConfigLoader.java</code>. The supplied <code>main</code> still creates its own <code>constants.txt</code> test file; it does not ask you to prepare that file."
 ]} />
 
+## Build Locally
 
-<RulesBox title="Plan it as sessions" items={[
+Create `Config.java` and move the complete `Config` class into it. Declare the class
+and its constructor `public`, and keep its six fields `private final`. Save the
+public `ConfigLoader` class, including the unchanged supplied `main`, `dataDir`, and
+test helpers, in `ConfigLoader.java`. Declare the `load` method `public static` in
+the local two-file version so other code can use the loader.
+
+Run these commands from `assignments/a20-config-validator/`:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac Config.java ConfigLoader.java
+java -Duser.language=en -Duser.country=US ConfigLoader
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac Config.java ConfigLoader.java
+java -Duser.language=en -Duser.country=US ConfigLoader
+```
+
+</CodeTab>
+</CodeTabs>
+
+The language and country options keep the decimal point in `Config.toString`
+consistent with the expected output on computers that normally print decimal
+commas.
+
+In the browser, `dataDir()` chooses `/files` when available. In a local run, it
+tries the operating system's temporary directory and then the current folder. The
+supplied `main` creates and rewrites `constants.txt` in that chosen directory, so
+do not point it at a configuration you want to keep. Later, when your own program
+calls `load("robot-config.txt")`, that relative path refers to the folder from which
+you launched `java`. No robot hardware is involved in either workflow.
+
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>A valid file loads</em>, <em>climberEnabled is case-insensitive</em>, <em>Out-of-range values are refused</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Unparseable values are refused</em>, <em>Missing key and missing file are different failures</em>."
+  "<strong>Session 2.</strong> Complete <em>Unparseable values are refused</em> and <em>Missing key and missing file are different failures</em>. Then perform the manual rubric review described below."
 ]} />
 
 <JavaPlayground id="a20-config-validator" />
 
+The automated checks run the supplied `ConfigLoader.main`. They cover one valid
+file, mixed-case booleans, selected bad ranges, an unparseable number, a missing
+key, and a missing file. They do not inspect your author comment, prove that every
+message names both the key and value, or judge the explanation for your chosen
+ranges. Review those rubric items yourself. The boolean-validation guidance below
+explains how to reject misspelled values before converting them.
+
 <RulesBox title="Hints" items={[
   "<strong>Split on the <em>first</em> <code>=</code>.</strong> <code>indexOf('=')</code> plus two <code>substring</code> calls, not <code>split(\"=\")</code>: a value could one day contain one, and the two-argument split limit can be missed during implementation.",
+  "<strong>Reject a malformed line before slicing it.</strong> If a nonblank, noncomment line has no <code>=</code>, <code>indexOf('=')</code> returns -1. Throw an <code>IllegalArgumentException</code> that identifies the malformed line instead of passing -1 to <code>substring</code>.",
   "<strong>Try-with-resources closes for you.</strong> <code>try (BufferedReader in = new BufferedReader(new FileReader(path))) { ... }</code> closes the reader on the way out, including when an exception leaves early. That is the whole reason to prefer it over a <code>finally</code> block you have to remember to write.",
-  "<strong>Two failure kinds, two exception types.</strong> The file not existing is an <code>IOException</code> and is nobody's typo. A value out of range is an <code>IllegalArgumentException</code> and is somebody's typo. Let them stay different: do not catch one and rethrow it as the other.",
+  "<strong>Two failure kinds, two exception types.</strong> A missing or unreadable file is an <code>IOException</code>. Invalid configuration content is an <code>IllegalArgumentException</code>. Either problem may come from a person, an incorrect path, permissions, or another program, so describe what failed without assigning blame. Do not catch one type and rethrow it as the other.",
   "<strong>Parse and validate are separate steps.</strong> <code>Integer.parseInt</code> throws <code>NumberFormatException</code> for <code>fast</code>; your range check throws for <code>9000</code>. Catch the first and rethrow it with the key name attached, so the message says which line to look at."
 ]} />
 
-### Self-grading rubric
+For booleans, first accept only text equal to `"true"` or `"false"` while ignoring
+case. Then call `Boolean.parseBoolean`. That API returns `true` only for text equal
+to `"true"` while ignoring case; every other string becomes `false`, including a
+misspelling.
+
+Manually test the inclusive numeric boundaries `maxDriveSpeed = 0.0`,
+`maxDriveSpeed = 1.0`, and both RPM values at 0 and 6000. Also test a line without
+`=` and confirm the message identifies that line. For an out-of-range value, read
+the exception message and confirm it includes both the key and the rejected value.
+In the required comment about the ranges, state that they are supplied exercise
+limits. Do not present them as current robot rules or hardware limits.
+
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -97,23 +176,29 @@ problem, and callers will want to tell them apart.
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+First save a passing copy of the required version. Try each stretch goal in a
+separate copy so new file output or diagnostics cannot interfere with the required
+checks.
 
 - Collect *every* problem in the file and throw once with all of them listed, instead of
   stopping at the first. This lets the user see all corrections needed at once.
 - Add `saveTo(String path)` writing the config back out in the same format, and confirm
   a load-save-load round trip is stable.
 
-### References
+## References
 
 - JavaDoc: [`java.io.BufferedReader`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/io/BufferedReader.html)
 - JavaDoc: [`java.lang.NumberFormatException`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/NumberFormatException.html)
 - Oracle: [The try-with-resources statement](https://docs.oracle.com/javase/tutorial/essential/exceptions/tryResourceClose.html)
 
 <Sources items={[
-  {"source": "csce146", "note": "Exceptions and validation."},
-  {"source": "dev-java", "path": "exceptions/", "note": "Exceptions."},
-  {"source": "dev-java", "path": "exceptions/catching-handling/", "note": "try/catch and custom exceptions."},
-  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer.parseInt</code> and <code>NumberFormatException</code>."},
-  {"source": "java-api", "path": "java.base/java/lang/IllegalArgumentException.html", "note": "<code>IllegalArgumentException</code> API reference."}
+  {"source": "csce146", "label": "Course Materials", "note": "The course sequence that inspired this exceptions and validation assignment."},
+  {"source": "dev-java", "path": "exceptions/", "label": "Exceptions", "note": "The purpose and flow of Java exceptions."},
+  {"source": "dev-java", "path": "exceptions/catching-handling/", "label": "Catching And Handling Exceptions", "note": "Specific handlers and try-with-resources cleanup."},
+  {"source": "java-api", "path": "java.base/java/io/BufferedReader.html", "label": "BufferedReader API", "note": "Reading text one line at a time and closing the reader."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html#parseInt(java.lang.String)", "label": "Integer.parseInt", "note": "Integer conversion and <code>NumberFormatException</code> for invalid text."},
+  {"source": "java-api", "path": "java.base/java/lang/Boolean.html#parseBoolean(java.lang.String)", "label": "Boolean.parseBoolean", "note": "Case-insensitive handling of <code>true</code> and why other text must be rejected first."},
+  {"source": "java-api", "path": "java.base/java/lang/IllegalArgumentException.html", "label": "IllegalArgumentException API", "note": "The runtime exception used for invalid configuration values."}
 ]} />

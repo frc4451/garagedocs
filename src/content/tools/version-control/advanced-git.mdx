@@ -7,103 +7,123 @@ groupLabel: "Version Control with Git & GitHub"
 groupOrder: 3
 order: 10
 difficulty: advanced
-description: "Understand reset, revert, stash, rebase, and tags before changing project history."
+description: "Understand restore, reset, revert, stash, rebase, and tags before changing project history."
 ---
 
-### Choosing an operation
+## Choose by Goal
 
-Use this page after the local, branch, and remote workflows. Check `git status` and the relevant commits before undoing work. Practice unfamiliar history operations in a scratch repository.
+Use this page after [Local Git Workflow](/tools/local-git-workflow), [Branching and Merging](/tools/branching-and-merging), and [GitHub Remotes](/tools/github-remotes). Practice unfamiliar history operations only in the disposable practice repository. Do not use an Automation Team robot repository as a test fixture.
 
-### Undoing changes
+Before any undo operation, open the repository folder in VS Code, open its integrated terminal, and run `git status` and `git log --oneline -5`. Read the branch name, changed paths, and recent commits before choosing a command.
 
-The following are alternatives, not a sequence. `HEAD` names the current commit; `HEAD~1` names its first parent. The reset examples require a previous commit and should be used only for local history you intend to revise.
+Git uses these names below:
 
-| Command | Effect |
+- The **working tree** is the saved files in the repository folder.
+- The **index**, also called the staging area, holds the versions selected for the next commit.
+- `HEAD` identifies the current commit. `HEAD~1` identifies its first parent, usually the previous commit on a simple branch.
+- **Shared history** includes commits that other people may already have fetched or based work on.
+
+## Inspect Before Changing
+
+Use `git diff` for unstaged tracked changes, `git diff --staged` for staged changes, and `git show HEAD` for the current commit. These commands inspect state without changing it. If a path or commit is unexpected, stop and identify it before continuing.
+
+## Unstage Without Losing Work
+
+To remove a file from the next commit while keeping its saved edits, replace the placeholder with the exact path shown by `git status`:
+
+```text
+git restore --staged path-to-file
+```
+
+Run `git status` again. The path should move from **Changes to be committed** to **Changes not staged for commit**. This command changes the index; it does not erase the working file.
+
+## Discard an Unstaged File Edit
+
+`git restore path-to-file` replaces the working file with the version in the index. Unstaged edits to that path are lost. Before running it, inspect `git diff -- path-to-file` and copy any text you may need elsewhere.
+
+Afterward, run `git status` and open the file. The unstaged change should be gone. If the file also has staged changes, the working copy becomes the staged version rather than necessarily the current commit.
+
+## Reverse a Shared Commit
+
+Use `git revert commit-id` to create a new commit that applies the inverse of an earlier commit. This preserves the existing history, which makes revert the usual choice for a commit that has been pushed or used by teammates.
+
+Copy the exact commit ID from `git log --oneline`. Git may open an editor for the new commit message. Save and close the message to finish. Then inspect `git status`, `git show HEAD`, and the affected files. A conflict can stop the revert; use `git revert --abort` to return to the state before the attempted revert if you should not resolve it now.
+
+## Revise an Unpushed Local Commit
+
+Reset moves the current branch name. Use it only for local history that teammates have not used.
+
+| Command | Branch and File Result |
 |---|---|
-| `git reset --soft HEAD~1` | Move the branch back one commit; leave the index and working files unchanged. |
-| `git reset --mixed HEAD~1` | Move the branch back and reset the index; keep working files. |
-| `git reset --hard HEAD~1` | Move the branch back and replace the index and working files. This discards tracked changes and can remove untracked files that obstruct the reset. |
-| `git revert HEAD` | Create a new commit that reverses the current commit's changes. Conflicts may need resolution. |
-| `git checkout -- filename` | Replace a working file with its staged version, discarding unstaged changes to that file. |
+| `git reset --soft HEAD~1` | Move the branch back one commit; keep that commit's changes staged and in the working tree. |
+| `git reset --mixed HEAD~1` | Move the branch back one commit; keep the changes in the working tree but remove them from staging. This is the default mode. |
+| Hard mode (`--hard`) | Move the branch to a separately verified target and replace the index and tracked working files with that target. It can also delete untracked paths that obstruct the reset. This page does not provide a ready-to-run hard-reset command. |
 
-For shared history, prefer a reverting commit so teammates can follow the correction. Read the [reset](https://git-scm.com/docs/git-reset) and [revert](https://git-scm.com/docs/git-revert) references before choosing an operation.
+`git reset --hard` is not a general undo button. It destroys tracked working changes that are not present at the target and can make the moved-away commit hard to find. Do not run it outside a scratch repository without a mentor-reviewed recovery plan and a verified target commit.
 
-### Stashing work
+## Stash Work Safely
 
-A stash saves unfinished changes locally. By default it includes changes to tracked files; `-u` also includes untracked files, but not ignored files.
+A stash stores unfinished changes locally and returns tracked files to the current commit. `-u` includes untracked files; ignored files are still excluded.
 
-<CodeTabs>
-<CodeTab label="PowerShell">
+Run one step at a time in the disposable practice repository:
 
-```powershell
-git stash push -u -m "Intake adjustment in progress"
-git stash list
-git stash apply
-```
+1. Confirm the practice repository starts clean with `git status`. If it lists changes, finish or preserve them before this exercise.
+2. In VS Code Explorer, open the tracked `README.md`, add a line that says `Tracked stash practice`, and save it. Then create a new file named `stash-note.txt`, enter `Untracked stash practice`, and save it.
+3. Run `git status`. It should list `README.md` as modified and `stash-note.txt` as untracked. If either path is missing, confirm the file was saved in the repository folder.
+4. Run `git stash push -u -m "Practice work in progress"`. The `-u` option is necessary here because the exercise intentionally includes `stash-note.txt` as an untracked file.
+5. Run `git status`. It should report a clean working tree: the tracked README edit has returned to the current commit's version, and the untracked `stash-note.txt` is no longer in the working tree. If another change remains, stop and identify it.
+6. Run `git stash list`. The top entry should include `Practice work in progress`.
+7. Run `git stash apply 'stash@{0}'`. The quotation marks make PowerShell pass the braces unchanged and are also accepted by the other shells used in this curriculum.
+8. Run `git status`. `README.md` should again be modified and `stash-note.txt` should again be untracked. Open both files and confirm that their practice text returned.
+9. Keep the stash until you have verified every restored file. Then run `git stash drop 'stash@{0}'` only if that saved entry is no longer needed.
 
-</CodeTab>
-<CodeTab label="Terminal">
+`git stash pop` applies an entry and removes it after a successful application. Use separate `apply`, inspect, and `drop` steps while learning. If applying creates conflicts, resolve or abandon the working changes before deleting the stash.
 
-```bash
-git stash push -u -m "Intake adjustment in progress"
-git stash list
-git stash apply
-```
+## Rebase With a Recovery Point
 
-</CodeTab>
-</CodeTabs>
+Rebase copies commits onto a different base and gives the copies new commit identities. Interactive rebase can reorder, combine, edit, or remove local commits. Do not rebase commits that teammates may already use unless everyone coordinating that branch agrees.
 
-`apply` restores the latest stash while retaining the saved entry. `pop` restores it and removes the entry on success. If applying causes conflicts, resolve them before deleting the stash. Use `git stash drop` only when the saved entry is no longer needed. See the [stash reference](https://git-scm.com/docs/git-stash).
+Before starting, confirm a clean working tree and inspect the commit graph. During a stopped rebase, run `git status` for Git's next instruction. After resolving and staging a conflict, use `git rebase --continue`. Use `git rebase --abort` to return the branch and working tree to their state before the rebase began. Do not start a history-rewriting exercise until you can identify the intended commits in a graph.
 
-### Rebasing for clean history
+## Tag a Verified Commit
 
-Rebase replays commits on a different base. Interactive rebase can combine commits, reorder them, or edit their messages. Because this creates new commit identities, coordinate with teammates before rebasing work they may already have used.
+A tag gives a commit a stable name. An annotated tag also records a message and tagger information.
 
-Use the linked rebase guide for a worked procedure. For a shared branch, merging is often the more straightforward way to preserve the existing history.
+1. Run `git status`; finish or preserve unrelated changes.
+2. Run `git log --oneline --decorate -5` and identify the exact commit to label.
+3. Inspect it with `git show commit-id`.
+4. In a scratch repository, create a local annotated tag with `git tag -a practice-v1 commit-id -m "Practice version"`.
+5. Run `git show practice-v1` and verify the tag target and message.
 
-### Tags and releases
+A tag remains local until explicitly pushed. Pushing a tag changes the remote, and creating a GitHub release changes online repository state. Those are mentor-guided actions for an Automation Team repository. A GitHub release uses a tag and can add release notes and downloadable assets; it is a separate GitHub object, not another kind of Git commit.
 
-A tag names a particular commit, such as the version used at an event. An annotated tag also records a message and tagger information:
+## Follow the Repository Policy
 
-<CodeTabs>
-<CodeTab label="PowerShell">
+Feature branches are one way to separate reviewable work. Other repositories may integrate small changes directly into a shared main line or maintain additional release branches. Use the policy of the repository you are contributing to. Extra long-lived branches add merge and access-control work, so create them only for a documented need.
 
-```powershell
-git tag -a v1.0 -m "Competition version"
-```
+<RulesBox title="Stop Before You Lose Work">
 
-</CodeTab>
-<CodeTab label="Terminal">
+- Inspect status, diffs, and the target commit first.
+- Prefer `restore --staged` for unstaging and `revert` for shared commits.
+- Preserve a stash until you confirm every restored path.
+- Abort a stopped revert or rebase when you are not prepared to resolve it.
+- Never copy a reset command into an Automation Team repository as practice.
 
-```bash
-git tag -a v1.0 -m "Competition version"
-```
-
-</CodeTab>
-</CodeTabs>
-
-Run this only when the current commit is the version you intend to label. The tag is local until it is pushed. GitHub releases can attach notes and downloadable files to a tag. Record the event, configuration, and known limits in the release notes.
-
-### Advanced branching strategies
-
-Feature branches keep individual changes separate until review. Trunk-based development integrates small changes frequently into a shared main line. Git flow adds develop, release, and hotfix branches for a more structured release process.
-
-Feature flags select behavior in the code; they are not a branching strategy by themselves. Environment branches separate deployments such as development and production, but add coordination work. Choose extra branches only when they solve a problem the team actually has.
+</RulesBox>
 
 <Sources items={[
-  {"source": "git", "path": "book/en/v2/Git-Branching-Rebasing", "note": "Rebasing and when not to."},
-  {"source": "git", "path": "book/en/v2/Git-Tools-Reset-Demystified", "note": "What <code>reset</code> does to the three trees."},
-  {"source": "git", "path": "docs/git-reset", "note": "<code>git reset</code> modes."},
-  {"source": "git", "path": "docs/git-revert", "note": "<code>git revert</code>."},
-  {"source": "git", "path": "docs/git-stash", "note": "<code>git stash</code>."},
-  {"source": "git", "path": "docs/git-rebase", "note": "<code>git rebase</code>."},
-  {"url": "https://nvie.com/posts/a-successful-git-branching-model/", "label": "A successful Git branching model", "note": "The git-flow model discussed."}
+  {"source": "git", "path": "docs/git-restore", "note": "Restoring working-tree or staged files and the source used for each destination."},
+  {"source": "git", "path": "docs/git-reset", "note": "Soft, mixed, and hard reset behavior, including working-tree loss."},
+  {"source": "git", "path": "docs/git-revert", "note": "Creating a reversing commit and aborting a stopped revert."},
+  {"source": "git", "path": "docs/git-stash", "note": "Stash inclusion, list, apply, pop, drop, and conflict behavior."},
+  {"source": "git", "path": "docs/git-rebase", "note": "Commit replay, conflict continuation, and abort behavior."},
+  {"source": "git", "path": "docs/git-tag", "note": "Annotated tags, explicit target commits, and local tag behavior."},
+  {"source": "git", "path": "book/en/v2/Git-Tools-Reset-Demystified", "note": "HEAD, index, working tree, and reset's effects on each."},
+  {"source": "git", "path": "book/en/v2/Git-Branching-Rebasing", "note": "Rebase history changes and the warning against rebasing shared commits."}
 ]} />
 
 <LinkGrid links={[
-    {"label":"Git Documentation: Advanced Topics","url":"https://git-scm.com/book/en/v2/Git-Tools-Reset-Demystified"},
-    {"label":"GitHub Docs: About Git","url":"https://docs.github.com/en/get-started/using-git/about-git"},
-    {"label":"Git Flow Workflow","url":"https://nvie.com/posts/a-successful-git-branching-model/"},
-    {"label":"Git Rebase Tutorial","url":"https://git-scm.com/book/en/v2/Git-Branching-Rebasing"}
-  ]} title="Further reading" section="tools" />
-
+  {"label":"Git: Restore Files","url":"https://git-scm.com/docs/git-restore"},
+  {"label":"Git: Reset Demystified","url":"https://git-scm.com/book/en/v2/Git-Tools-Reset-Demystified"},
+  {"label":"Git: Rebase","url":"https://git-scm.com/book/en/v2/Git-Branching-Rebasing"}
+]} title="Further Reading" section="tools" />

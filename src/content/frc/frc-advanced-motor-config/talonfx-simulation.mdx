@@ -8,7 +8,7 @@ groupOrder: 10
 order: 5
 difficulty: advanced
 duration: 35 min
-description: "The bridge between WPILib's DCMotorSim and Phoenix's TalonFXSimState (which side owns what, the units trap that SensorToMechanismRatio creates, the 5 ms Notifier, battery sag), read through the ROBOTZ Garage library's five …IOSimTalonFX classes, including the two places where the library's own sim is incomplete and how to finish it."
+description: "The bridge between WPILib's DCMotorSim and Phoenix's TalonFXSimState (which side owns what, the units trap that SensorToMechanismRatio creates, the 5 ms Notifier, battery sag), read through the ROBOTZ Garage library's five …IOSimTalonFX classes, the two places where the library's own sim is incomplete and how to finish it, and what changes for a Talon FXS through TalonFXSSimState."
 ---
 
 [Physics in the IO Layer](/frc/physics-in-the-io-layer#the-vendor-sim-state-pattern) introduced the vendor-sim-state pattern with one class. This lesson is the whole family: how a `DCMotorSim` and a `TalonFXSimState` are wired to each other, what each is responsible for, and what FRC 4451's `SingleRollerIOSimTalonFX`, `SingleRollerIOSimTalonFXS`, the two `…WithCANCoder` variants and `FollowRollersIOSimTalonFX` do the same way, and where they differ, including a units inconsistency and a missing piece that explain a commented-out line in `RobotContainer`. REV has an equivalent (`SparkSim`), but FRC 4451 has no working reference for it yet, so this lesson is TalonFX only.
@@ -173,6 +173,16 @@ with the rotor still written at `totalReduction` (= rotor-to-sensor × sensor-to
 
 Phoenix's `SimState` ignores the device's `Inverted` config on purpose. Invert is a logical choice that a team may flip at runtime, while the sim state describes the mechanical relationship between the rotor and the chassis. `TalonFXSimState.Orientation` (`ChassisReference.CounterClockwise_Positive` or `Clockwise_Positive`) is where that goes, and none of FRC 4451's classes set it. For a mechanism where positive output is inverted in config, the sim will move the physics the wrong way while the device reports it the right way, and the plotted position will run backwards. If a simulated mechanism drives the wrong direction and the real one does not, set `Orientation` in the sim IO's constructor to match the mechanical arrangement.
 
+### Talon FXS in simulation
+
+`TalonFXS.getSimState()` returns a `TalonFXSSimState`, and the loop above runs on it unchanged: `setSupplyVoltage`, `getMotorVoltage`, `setRawRotorPosition` and `setRotorVelocity` all exist with the same meaning, which is why `SingleRollerIOSimTalonFXS` is line for line the Talon FX class with a different device type. Two things differ, and both come from the Talon FXS being a controller with a separately attached motor.
+
+**Two orientations instead of one.** Where `TalonFXSimState` has `Orientation`, `TalonFXSSimState` has `MotorOrientation`, the mechanical relationship of the motor and its commutation sensor to the chassis, and `ExtSensorOrientation`, the same relationship for an external sensor on the data port, which excludes the commutation sensor. Both are `ChassisReference` values, both default to `CounterClockwise_Positive`, and both ignore the device's `Inverted` config for the reason given above. A mechanism whose external encoder is mounted facing the other way from the motor sets the two differently.
+
+**Which sensor the sim writes.** The Talon FXS reports position from whichever source `ExternalFeedbackConfigs.ExternalFeedbackSensorSource` names. With `Commutation` (the default, and what a Minion or another brushless motor on the JST connector provides), the rotor setters above are the ones to write, in rotor units, exactly as for a Talon FX. With `Quadrature` or `PulseWidth`, a brushed motor's encoder on the data port is the sensor, and the sim writes that sensor instead: `setRawQuadraturePosition` and `setQuadratureVelocity`, with `QuadratureEdgesPerRotation` set to match the config, or `setPulseWidthPosition` and `setPulseWidthVelocity`, with `PulseWidthSensorOffset` matching the configured offset. The remote and fused CANcoder sources behave as they do on a Talon FX: write the CANcoder's own sim state.
+
+Phoenix's simulation page lists every Phoenix 6 device as supported and documents the loop for a Talon FX; the Talon FXS specifics above come from the `TalonFXSSimState` Javadoc. `SingleRollerIOSimTalonFXS` writes the rotor setters, which is the commutation-feedback case; the external-sensor paths are documented by the API and no ROBOTZ Garage library class exercises them yet.
+
 ### Writing a new one
 
 <StepsBox title="Checklist for a …IOSimTalonFX">
@@ -182,7 +192,7 @@ Phoenix's `SimState` ignores the device's `Inverted` config on purpose. Invert i
 3. A `Notifier` at 5 ms with a measured `delta`; expose `getLastTimestampDelta()`. Implement `AutoCloseable` and close the Notifier.
 4. In the loop, in order: supply voltage in → motor voltage out → physics `update(delta)` → rotor position and velocity back, **× reduction** → battery from current draw.
 5. Any remote sensor the feedback source uses (CANcoder) gets its own sim state written from the same physics.
-6. Set `Orientation` if the mechanism's mechanical direction differs from CCW-positive.
+6. Set `Orientation` if the mechanism's mechanical direction differs from CCW-positive. On a Talon FXS, set `MotorOrientation`, and `ExtSensorOrientation` too when an external sensor is the feedback source.
 7. Prove it in AdvantageScope: goal, setpoint and measured on one graph; the measured line must follow the Motion Magic profile, and `AppliedVoltage` must sag as `SupplyCurrentAmps` rises. [Simulation in AdvantageScope](/frc/simulation-in-advantagescope#the-line-graph-commanded-versus-measured).
 
 </StepsBox>
@@ -208,6 +218,9 @@ Phoenix's `SimState` ignores the device's `Inverted` config on purpose. Invert i
 <Sources items={[
   {"source": "ctre", "path": "docs/api-reference/simulation/simulation-intro.html", "note": "<code>TalonFXSimState</code>, <code>CANcoderSimState</code>, supply voltage, orientation, and the sim update loop."},
   {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/remote-sensors.html", "note": "Why the sim state is written in rotor units while the loop runs in mechanism units."},
+  {"source": "ctre-javadoc", "path": "com/ctre/phoenix6/sim/TalonFXSimState.html", "note": "<code>Orientation</code> and its counter-clockwise-positive default."},
+  {"source": "ctre-javadoc", "path": "com/ctre/phoenix6/sim/TalonFXSSimState.html", "note": "<code>MotorOrientation</code>, <code>ExtSensorOrientation</code>, <code>QuadratureEdgesPerRotation</code>, <code>PulseWidthSensorOffset</code>, and the rotor, quadrature and pulse-width setters."},
+  {"source": "ctre-javadoc", "path": "com/ctre/phoenix6/signals/ExternalFeedbackSensorSourceValue.html", "note": "<code>Commutation</code>, <code>Quadrature</code>, <code>PulseWidth</code> and the CANcoder sources a Talon FXS can report position from."},
   {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html", "note": "The WPILib physics classes the sim state is driven from."},
   {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFX.java", "note": "The reference implementation: 5 ms Notifier, rotor = mechanism × reduction, battery sag."},
   {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFXS.java", "note": "The Talon FXS variant."},

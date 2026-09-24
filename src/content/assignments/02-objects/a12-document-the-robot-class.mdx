@@ -19,18 +19,22 @@ description: "Write Javadoc that explains why the class behaves as it does, then
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A12: Document the Robot Class`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Document the Robot class from A11 so another student can use it without tracing every method. Explain accepted inputs, units, return values, and exceptions. Generate the HTML to check what a reader will see.
 
-<RulesBox title="No checker on this one" items={[
-  "Every other assignment in this track has automated checks. This one cannot: whether a comment is <em>useful</em> is a judgement, and a program that scans for the word <code>@param</code> would reward padding rather than thought.",
+<RulesBox title="Manual Review" items={[
+  "This assignment uses manual review. The Javadoc tool checks comment structure, but a reader needs to judge whether the explanations help them use the class.",
   "Bring this one to a mentor or a teammate. Hand them the generated HTML, not the source, and ask whether they could use the class from that alone. That is the real test."
 ]} />
 
-### What to build
+## What To Build
 
-Copy your `Robot.java` and tester from A11 into this assignment’s folder, preserving the A11 submission. Then open `Robot.java` from [A11](/java/assignments/a11-simple-robot-class) and document it.
+Copy your `Robot.java` and tester from A11 into this assignment’s folder, preserving
+the A11 submission. Then open the **copied** `Robot.java` in the A12 folder and
+document that copy. Leave the completed A11 files unchanged.
+
+An **invariant** is a rule the object keeps true after construction and after its methods finish, such as keeping speed within the accepted range.
 
 **The class itself**: a Javadoc block above `public class Robot` with a one-sentence
 summary, a short paragraph (2–4 sentences) on the invariants it maintains, an
@@ -45,34 +49,57 @@ the result (omit for `void`), and `@throws` for anything it can produce.
 
 Use `{@code ...}` for names and literals, and `{@link ...}` to cross-reference.
 
-### The shape of it
+## Read A Javadoc Block
 
-```java
+This unrelated example shows the parts of a constructor comment without supplying
+the wording for `Robot`. It is a schematic excerpt, so the `...` body is a
+placeholder and the snippet is not meant to compile.
+
+```java norun
 /**
- * Constructs a fully-specified {@code Robot}.
+ * Creates a practice timer with a positive duration.
  *
- * <p>Every parameter is validated. If any value is out of range,
- * the constructor throws and no {@code Robot} is created.
+ * <p>The timer begins stopped. Call {@link #start()} when the activity begins.
  *
- * @param name          the robot's display name; must be non-{@code null} and non-blank
- * @param teamNumber    the FRC team number; must be in {@code [1, 99999]}
- * @param maxSpeedMps   the robot's top speed in m/s; must be in {@code [0.0, 30.0]}
- * @param weightLbs     the robot's mass in pounds; must be in {@code [0, 200]}
- * @throws IllegalArgumentException if any parameter is outside its valid range
+ * @param durationSeconds planned duration; must be greater than {@code 0}
+ * @throws IllegalArgumentException if {@code durationSeconds} is not positive
  */
-public Robot(String name, int teamNumber, double maxSpeedMps, int weightLbs) { ... }
+public PracticeTimer(int durationSeconds) { ... }
 ```
 
-That shows the *form*. The content is yours: paraphrase the rules from A11 in your
-own words rather than copying this block.
+Write the `Robot` documentation in your own words from its actual behavior and the
+A11 requirements. The generated page should tell a caller what is accepted without
+revealing how each method is implemented.
 
-### Generate and read it
+## Generate And Read It
+
+Generate only the class whose documentation this assignment grades. Including an
+undocumented tester would produce warnings that have nothing to do with the
+`Robot` API.
+
+Save the copied source files. Use [Java Setup's terminal steps](/java/fundamentals/java-setup#compile-and-run) to open a terminal in `assignments/a12-document-the-robot-class/`, then run:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javadoc -Xdoclint:all -d docs Robot.java
+Get-Item docs/index.html | Select-Object FullName
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
 
 ```bash
-javadoc -d docs Robot.java RobotTester.java
+javadoc -Xdoclint:all -d docs Robot.java
+ls "$PWD/docs/index.html"
 ```
 
-Open `docs/index.html` in a browser and read your own class as a stranger would.
+</CodeTab>
+</CodeTabs>
+
+Use the printed path to find `docs/index.html` in File Explorer or Finder, then
+double-click it to open it in a browser and read your own class as a stranger would.
 This step is not optional: most weak Javadoc looks fine in the source and falls apart
 on the rendered page, where the summary line stands alone.
 
@@ -80,10 +107,11 @@ on the rendered page, where the summary line stands alone.
   "<strong>The first sentence is special.</strong> Javadoc lifts it into the summary table, on its own, with no context. \"Sets the speed.\" is useless there; \"Sets the top speed in metres per second, rejecting values outside 0 to 30.\" survives the trip.",
   "<strong>Document the <em>why</em>, not the <em>what</em>.</strong> <code>@param weightLbs the weight in pounds</code> tells the reader nothing they could not guess. <code>@param weightLbs the robot's mass in pounds; must be in [0, 200], the maximum accepted by this exercise</code> answers the question they need answered.",
   "<strong>Preconditions belong in <code>@param</code>, failures in <code>@throws</code>.</strong> The parameter tag says what a caller must supply; the throws tag says what happens when they do not. Splitting them that way stops the block turning into a paragraph.",
-  "<strong>Run <code>javadoc</code> before you call it done.</strong> It warns about missing <code>@param</code> tags, typos in parameter names, and broken <code>{@link}</code> targets: a free proofreader."
+  "<strong>Run <code>javadoc</code> before you call it done.</strong> With <code>-Xdoclint:all</code>, it checks comment structure and reports problems such as malformed HTML and unresolved links. Read every warning, then inspect the generated page yourself because the tool cannot judge whether an explanation is useful.",
+  "<strong>Document the public API you submit locally.</strong> The supplied browser starter happens to omit access modifiers on Robot members; keep that starter structure in the editor. In your separate <code>Robot.java</code>, the class, constructors, getters, setters, <code>toString</code>, <code>equals</code>, and <code>hashCode</code> are the public API this assignment asks you to document."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -96,19 +124,19 @@ on the rendered page, where the summary line stands alone.
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
 
 - Add `{@link}` cross-references between `Robot` and the setters that enforce the same
   ranges, then check that the links resolve in the generated HTML.
 - Write the class-level paragraph as if for somebody who will *subclass* `Robot`. Describe what callers can rely on and what remains free to change.
 
-### References
+## References
 
 - Oracle: [How to Write Doc Comments](https://www.oracle.com/technical-resources/articles/java/javadoc-tool.html)
-- JavaDoc: [`java.lang.String`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html): a well-documented class worth reading as an example
+- Javadoc: [`java.lang.String`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html): a well-documented class worth reading as an example
 
 <Sources items={[
-  {"source": "csce145", "note": "Documentation."},
+  {"source": "csce145", "label": "Beginner Course Sequence", "note": "Documentation."},
   {"url": "https://docs.oracle.com/en/java/javase/25/docs/specs/javadoc/doc-comment-spec.html", "label": "Javadoc doc comment specification", "note": "<code>@param</code>, <code>@return</code>, <code>@throws</code>."},
   {"url": "https://docs.oracle.com/en/java/javase/25/docs/specs/man/javadoc.html", "label": "javadoc tool", "note": "Generating the pages."}
 ]} />

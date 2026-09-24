@@ -1,0 +1,135 @@
+---
+title: "Mounts and Moving Roots"
+lessonId: mounts-and-moving-roots
+section: frc
+group: frc-mechanism-visualization
+groupLabel: "Mechanism Visualization"
+groupOrder: 18
+order: 4
+difficulty: advanced
+duration: 30 min
+description: "The second way to compose a mechanism drawing: give every component its own root and move it each loop instead of appending ligaments into a tree. How the offset is stored and replayed, what an absolute-angle flag buys, and which of the two designs to pick."
+---
+
+[Mechanisms per Subsystem](/frc/mechanisms-per-subsystem) builds a drawing by appending ligaments into a tree: the root holds the elevator, the elevator holds the pivot, and each child's angle is measured from its parent. That is the structure the `LoggedMechanism2d` API is shaped around, and it has one cost the earlier lesson names and then works around.
+
+There is a second design that pays that cost differently. FRC 3847 has shipped it for two seasons, and it is worth knowing because the trade is real rather than a matter of taste.
+
+<RulesBox title="Before you start">
+
+[Mechanisms per Subsystem](/frc/mechanisms-per-subsystem) for the tree this lesson is an alternative to, and [Ligaments and Components](/frc/ligaments-and-components) for the component contract both designs share.
+
+</RulesBox>
+
+### The cost of appending
+
+Appending is what makes a chain move together: raise the elevator and the pivot on its top rides up for free, because the pivot's position is defined by its parent. That is the feature.
+
+The price is that the child's **angle** is also defined by its parent. A pivot appended to an elevator standing at 82 degrees and set to 30 degrees draws at 112 degrees on the canvas. When what you have is an absolute mechanism angle, which is what an encoder reports, you have to subtract the parent's angle before setting it, and subtract it again every time the chain changes. FRC 6328's superstructure does exactly that with `pivotFinalAngle.minus(elevatorAngle)`.
+
+That subtraction is small. It stops being small when the chain is four deep, when a mechanism is sometimes mounted and sometimes not, or when the subtraction is spread across four subsystems written by four people.
+
+### The alternative: own your root, and move it
+
+The other design drops `append()` entirely. Every mechanism gets its **own root** from the canvas, and every loop it recomputes where that root should be and calls `setPosition` on it.
+
+FRC 3847's `spectrumLib.sim` package is built this way, and the principle is stated in a comment at the top of their `RobotSim` class: always move the root or origin to change a component's display position. Their `ArmSim`, `LinearSim` and `RollerSim` each take the canvas, ask it for a root, and reposition that root in `simulationPeriodic()`.
+
+Nothing is a child of anything else on the canvas. The chain lives in the code instead:
+
+```java
+// Proposed, illustrative. This is the shape of the design, not FRC 3847's code.
+public class MountedPivot {
+  private final LoggedMechanismRoot2d root;
+  private final LoggedMechanismLigament2d arm;
+  private final Mount parent;      // null when this pivot stands on its own
+  private final double offsetDistance;  // where this pivot sat, relative to its parent, at start
+  private final double offsetAngle;
+  private final boolean absoluteAngle;
+
+  public void update(Angle measured) {
+    if (parent != null) {
+      // Replay the stored offset against the parent's live position and angle.
+      double a = parent.getAngle() + offsetAngle;
+      root.setPosition(
+          parent.getMountX() + offsetDistance * Math.cos(a),
+          parent.getMountY() + offsetDistance * Math.sin(a));
+    }
+    arm.setAngle(
+        absoluteAngle ? measured.in(Degrees) : measured.in(Degrees) + Math.toDegrees(parent.getAngle()));
+  }
+}
+```
+
+Two ideas carry the whole design.
+
+**The offset is stored once, in polar form.** At construction, the component records how far it sat from its parent's mount point and at what angle. Every loop it rotates that stored offset by the parent's current angle and adds the parent's current position. A rigid attachment is a constant distance and a constant angle offset, which is exactly what those two numbers are.
+
+**The parent is an interface, not a ligament.** A parent exposes its current mount point, its current angle and how far it has moved from where it started. Anything that can answer those questions can be a parent, which is why 3847's package has both an arm-style mount and a linear-stage mount: an arm hands children its swinging tip, a linear stage hands them a point that translates without rotating.
+
+### What the absolute-angle flag buys
+
+Because the child sets the angle on its own ligament rather than on a ligament inside its parent's tree, it gets to choose what that angle means. 3847's configs carry a flag for it, and the two settings answer two different questions:
+
+<ContentTable
+  headers={["Setting", "The drawn angle is", "Use it when"]}
+  rows={[
+    ["Absolute", "Exactly the number you pass in", "The encoder reads an absolute mechanism angle, such as a hood on a CANcoder. The drawing matches the logged number with no arithmetic in between."],
+    ["Relative", "Your number plus the parent's current angle", "The mechanism is measured against its own mount, such as a wrist whose encoder reads wrist-to-arm. Mounting it on a swinging arm should carry it along."]
+  ]}
+/>
+
+The tree design can express both too, but only by doing the arithmetic at the call site every time. Making it a property of the component moves the decision next to the constant that caused it.
+
+### The two designs, side by side
+
+<ContentTable
+  headers={["", "Appended tree", "Moving roots"]}
+  rows={[
+    ["Chain lives in", "The canvas, as parent and child ligaments", "Your code, as a mount reference"],
+    ["Child position", "Free; the parent defines it", "Recomputed and set every loop"],
+    ["Child angle", "Always parent-relative; subtract to get absolute", "Either, by a flag"],
+    ["Adding a link", "One <code>append</code>", "A mount reference plus the offset it starts at"],
+    ["Detaching a mechanism", "Rebuild that part of the tree", "Set the mount to none"],
+    ["What breaks it", "A deep chain where every angle is absolute", "A forgotten <code>setPosition</code>, which leaves a mechanism drawn at its starting point"],
+    ["Generating 3D poses", "<code>generate3dMechanism()</code> walks the tree", "No tree to walk; build the poses yourself"]
+  ]}
+/>
+
+That last row is the one to weigh hardest. [Mechanisms in 3D](/frc/mechanisms-in-3d) gets its component poses free from the tree, because a tree is exactly what that method needs. A canvas of unrelated roots has no structure to convert, so the 3D poses become hand-written arithmetic.
+
+### Which one to use
+
+**Use the appended tree by default.** It is what the API is shaped for, it is what Cobra's existing component classes already expose a ligament for, and it hands you the 3D poses at the end. The parent-relative angle is one subtraction, documented in one place.
+
+**Reach for moving roots when the tree is fighting you.** The signals are concrete: several mechanisms whose encoders all read absolute, a mechanism that attaches and detaches, or a drawing where the same component appears on more than one canvas. A top-down turret view and a side-on hood view cannot be one tree, and two roots fed from the same subsystem is a smaller thing to maintain than two trees.
+
+**Do not mix them inside one canvas.** A canvas where some things are appended and some move their own roots has two mental models in one picture, and the next person has to read both to know which one a given mechanism follows.
+
+<RulesBox title="Common mistakes">
+
+- Call `setPosition` on every mounted root every loop. A root that is set once stays where it started while the drawing around it moves.
+- Capture the offset at construction, before anything has moved. Reading it later records a displaced position as the resting one.
+- Pick absolute or relative per component from what the encoder reports, not from what looks right on the first run.
+- Remember that no tree means no `generate3dMechanism()`. Decide how the 3D poses will be produced before committing.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "spectrum-2026", "path": "src/main/java/frc/spectrumLib/sim/Mount.java", "note": "The parent interface: mount type, current mount point, current angle and displacement from the starting position."},
+  {"source": "spectrum-2026", "path": "src/main/java/frc/spectrumLib/sim/Mountable.java", "note": "The child mixin that replays a stored offset against the parent's live position and angle, with separate arm and linear cases."},
+  {"source": "spectrum-2026", "path": "src/main/java/frc/spectrumLib/sim/ArmSim.java", "note": "A component that owns its own root, repositions it every simulation period, and chooses absolute or parent-relative angle from its config."},
+  {"source": "spectrum-2026", "path": "src/main/java/frc/spectrumLib/sim/ArmConfig.java", "note": "The mounted flag, the absolute-angle flag, and the initial position the offset is captured from."},
+  {"source": "spectrum-2026", "path": "src/main/java/frc/robot/RobotSim.java", "note": "The stated principle, in a comment at the top of the class: move the root to change a component's display position."},
+  {"source": "spectrum-2026", "path": "docs/tools/simulation.md", "note": "FRC 3847's own description of the three helpers and the design's origin in Team 604's sample project."},
+  {"source": "spectrum-2025", "path": "src/main/java/frc/spectrumLib/sim/Mountable.java", "note": "The same design in the previous season, which is what makes it a track record rather than an experiment."},
+  {"source": "mech-adv", "path": "src/main/java/org/littletonrobotics/frc2025/subsystems/superstructure/SuperstructureVisualizer.java", "note": "The subtraction the appended tree forces when an absolute angle is what you have."},
+  {"source": "advantagekit", "path": "javadoc/org/littletonrobotics/junction/mechanism/LoggedMechanismRoot2d.html", "note": "<code>setPosition</code>, the call this design makes every loop."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Measured Against Goal","id":"measured-against-goal"},
+  {"label":"Mechanisms per Subsystem","id":"mechanisms-per-subsystem"},
+  {"label":"Ligaments and Components","id":"ligaments-and-components"},
+  {"label":"Mechanisms in 3D","id":"mechanisms-in-3d"}
+]} />

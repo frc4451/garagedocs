@@ -19,19 +19,25 @@ description: "Give Robot a Battery it cannot swap, and see why an immutable part
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A14: Composition: Robot and Battery`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 Give a Robot a Battery field. This is composition: one object holds a reference to another.
 
-The Battery in this exercise is an immutable record of a serial number and a voltage measurement. Two Robot objects can share that data. It does not model physically sharing one battery between two robots or changing a battery during use.
+The Battery in this exercise is an immutable object holding a serial number and a
+voltage measurement. Two Robot objects can share that data. It does not model
+physically sharing one battery between two robots or changing a battery during use.
 
-### What to build
+## What To Build
 
 **`Battery`** with `private final` `serial` and `restingVoltage`, a validating
 constructor (`serial` not blank; `restingVoltage` between `0.0` and `14.0`), getters,
 and `toString()` reading `Battery[serial=ABC123, restingV=12.50]`.
 
 There are **no setters**. Once a `Battery` exists, its values are locked.
+
+Reject `Double.NaN` as an invalid voltage too. As in A11, comparisons such as
+`voltage < 0.0 || voltage > 14.0` do not catch `NaN`; use
+`Double.isNaN(restingVoltage)` for that special value.
 
 **`Robot`** gains a `private final Battery` field:
 
@@ -41,27 +47,64 @@ There are **no setters**. Once a `Battery` exists, its values are locked.
 - `toString()` includes the battery
 - The two-argument constructor supplies a default battery of your choosing
 
-<RulesBox title="How the browser version differs" items={[
-  "Three files locally: <code>Battery.java</code>, <code>Robot.java</code>, and <code>RobotPlusBatteryTester.java</code>. The editor uses one file, with only the tester class <code>public</code>.",
+The default is exercise data, not a real reading. Choose a valid placeholder
+serial and a voltage in the accepted range, and explain those two choices in the
+required comment. Keep the same values every run so the output is predictable.
+
+<RulesBox title="Browser And Local Files" items={[
+  "Three files locally: <code>Battery.java</code>, <code>Robot.java</code>, and <code>RobotPlusBatteryTester.java</code>. The editor uses one file, so only the tester top-level class is <code>public</code>.",
   "<code>main</code> is written for you. It builds a battery, shares it between two robots, and probes what can and cannot change."
 ]} />
 
+## Build Locally
 
-<RulesBox title="Plan it as sessions" items={[
+Create `Battery.java`, `Robot.java`, and `RobotPlusBatteryTester.java` in the same
+assignment folder. Each file contains the matching `public` top-level class. The
+browser starter instead keeps all three types in one file, so only
+`RobotPlusBatteryTester`, the class containing `main`, is public there.
+
+`Battery.java` also needs `import java.util.Locale;` above the class so its
+formatted decimal is stable on computers whose default locale uses a comma.
+Mark both local classes, their constructors, and their getters public. Mark the
+Robot setters and both `toString` methods public as well. In the browser file,
+`Battery` and `Robot` cannot be public top-level classes because Java permits only
+one public top-level class per source file.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac Battery.java Robot.java RobotPlusBatteryTester.java
+java RobotPlusBatteryTester
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac Battery.java Robot.java RobotPlusBatteryTester.java
+java RobotPlusBatteryTester
+```
+
+</CodeTab>
+</CodeTabs>
+
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Battery toString and immutable fields</em>, <em>Robot toString includes its battery</em>, <em>The battery survives mutating the robot</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>Two robots can share one battery safely</em>, <em>Validation and the default battery</em>."
+  "<strong>Session 2.</strong> Finish <em>Two robots can share one battery safely</em> and <em>Validation and the default battery</em>, then complete the manual checks listed below."
 ]} />
 
 <JavaPlayground id="a14-robot-and-battery-composition" />
 
 <RulesBox title="Hints" items={[
-  "<strong>Final and immutable mean different things.</strong> Robot’s final field cannot be reassigned. Battery is immutable here because its private final fields hold a String and a primitive, and its methods provide no way to change that state. Omitting setters alone does not make every class immutable.",
+  "<strong>Final and immutable mean different things.</strong> Robot’s final field cannot be reassigned, but <code>final</code> would not stop a mutable Battery object from changing. Battery is immutable here because its private final fields hold an immutable String and a primitive, and its methods provide no way to change that state. Omitting setters alone does not make every class immutable.",
   "<strong>Supply a valid default.</strong> The two-argument Robot constructor still needs a Battery. Construct a valid default and pass it to the longer constructor; do not pass null.",
-  "<strong>Two decimal places.</strong> <code>String.format(\"Battery[serial=%s, restingV=%.2f]\", serial, restingVoltage)</code> matches the required output; plain concatenation gives <code>12.5</code>, which does not.",
+  "<strong>Two decimal places in every locale.</strong> Use the overload <code>String.format(Locale.ROOT, \"Battery[serial=%s, restingV=%.2f]\", serial, restingVoltage)</code>. Plain concatenation gives <code>12.5</code>, while the no-locale <code>String.format</code> overload can use a comma on some computers. In the browser file, add <code>import java.util.Locale;</code> above all three classes.",
   "<strong>Sharing is only safe because nothing can mutate.</strong> Ask yourself what would go wrong if <code>Battery</code> had a <code>setRestingVoltage</code> and two robots held the same one. That question is the entire point of the assignment."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -74,21 +117,31 @@ There are **no setters**. Once a `Battery` exists, its values are locked.
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+Finish and save the required version first. Try these in a copy so added methods or
+output cannot interfere with the required checks.
 
 - Add `Robot withBattery(Battery)` returning a *new* `Robot` that shares everything else
   but carries the new battery. That is how immutable types handle change.
 - Add a `BatteryLog` holding a `Battery[]` and a method returning the freshest one.
   Decide whether the log should copy the array it is handed, and write down why.
 
-### References
+## References
 
-- JavaDoc: [`java.lang.String.format`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html#format(java.lang.String,java.lang.Object...))
+- Javadoc: [`java.lang.String.format`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html#format(java.lang.String,java.lang.Object...))
+- Javadoc: [`String.format(Locale, String, Object...)`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html#format(java.util.Locale,java.lang.String,java.lang.Object...))
 - Wikipedia: [Object composition](https://en.wikipedia.org/wiki/Object_composition)
 - Wikipedia: [Immutable object](https://en.wikipedia.org/wiki/Immutable_object)
 
 <Sources items={[
-  {"source": "csce145", "note": "Composition."},
-  {"source": "dev-java", "path": "classes-objects/more-on-classes/", "note": "Has-a relationships, encapsulation."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String.format</code>."}
+  {"source": "csce145", "label": "Beginner Course Sequence", "note": "Composition."},
+  {"source": "dev-java", "path": "classes-objects/more-on-classes/", "label": "More On Classes", "note": "Has-a relationships and encapsulation."},
+  {"source": "java-api", "path": "java.base/java/lang/String.html", "label": "String API", "note": "Locale-aware <code>String.format</code> overloads."},
+  {"url": "https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.12.4", "label": "JLS §4.12.4: final Variables", "note": "A final reference cannot be reassigned, while the referenced object may still be mutable."}
+]} />
+
+<RulesBox title="Manual Checks" items={[
+  "The checks recognize the printed behavior, but they do not inspect the required <code>private final</code> modifiers or prove that Battery has no mutating method.",
+  "The supplied probes cover a null battery, 15.0 volts, and a spaces-only serial. Manually test <code>Double.NaN</code>, the accepted voltage boundaries 0.0 and 14.0, and a null serial. Review the default-battery comment yourself; its meaning cannot be checked from output."
 ]} />

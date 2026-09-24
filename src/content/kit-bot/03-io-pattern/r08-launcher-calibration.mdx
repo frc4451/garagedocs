@@ -7,21 +7,29 @@ groupLabel: "Phase 3: Hardware via IO"
 groupOrder: 3
 order: 8.75
 duration: 25 min
-description: Choose repeatable launcher settings across several scoring distances.
+description: Use simulation to choose launcher voltages between example distance entries.
 durationFixed: true
 ---
 
 
-A distance table chooses a launcher setting from a requested distance. **Interpolation** estimates a value between two known entries. Use simulation values until a mentor is present for real launcher testing.
+Complete [R08 Part 2: Intake and Launch](/kit-bot/r08-launcher-io-part-2) first. You need the `Launcher` class and its private `launchAtVoltage` helper. This page explains the map locally, so prior work with Java maps is helpful but not required.
+
+A distance table chooses a launcher setting from a requested distance. **Interpolation** estimates a value between two known entries. On a number line, 2.5 is halfway from 2.0 to 3.0. The matching voltage is therefore halfway from 8 V to 10 V:
+
+```text
+distance fraction = (2.5 - 2.0) / (3.0 - 2.0) = 0.5
+voltage = 8.0 + 0.5 × (10.0 - 8.0) = 9.0 V
+```
 
 For this first version, the table maps distance in meters to voltage. The values below are examples for simulation. They are not measurements from a real Kit Bot.
 
-### Add the table
+## Add the Table
 
 Add this field and helper to `Launcher`:
 
 ```java
-private final InterpolatingDoubleTreeMap voltageByDistance =
+// Simulation examples only; these are not measured launcher settings.
+private final InterpolatingDoubleTreeMap simulationVoltageByDistance =
     buildVoltageTable();
 
 private static InterpolatingDoubleTreeMap buildVoltageTable() {
@@ -40,16 +48,16 @@ Add this method:
 ```java
 public Command launchAtDistance(Distance distance) {
     Voltage launcherVoltage = Volts.of(
-        voltageByDistance.get(distance.in(Meters)));
+        simulationVoltageByDistance.get(distance.in(Meters)));
     return launchAtVoltage(launcherVoltage);
 }
 ```
 
 Keep the existing `Command` and `Voltage` imports. Add `edu.wpi.first.units.measure.Distance` and static imports for `Meters` and `Volts` from `edu.wpi.first.units.Units`. This factory belongs on `Launcher` because the subsystem owns both fuel-path motors. It reuses the two-phase launch helper from Part 2, so the distance table changes the intake-launcher voltage while the feeder still waits through spin-up and then feeds.
 
-The map sorts its distance keys. A request for `2.5` meters is halfway between `2.0` and `3.0`, so it returns halfway between 8 V and 10 V: 9 V. A request outside the table uses the nearest end value.
+The [WPILib interpolation map API](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/interpolation/InterpolatingDoubleTreeMap.html) sorts its distance keys, interpolates between neighboring entries, and returns the nearest endpoint outside the stored range. Build before adding bindings. For an optional numerical check, add `System.out.println(simulationVoltageByDistance.get(2.5));` inside the `Launcher` constructor. Restart simulation and find `9.0` in the VS Code terminal. Repeat with `0.5` and `3.5` to see the endpoint values `6.0` and `10.0`. Remove the print and build again.
 
-### Add two test bindings
+## Add Two Test Bindings
 
 Add these bindings inside `RobotContainer.configureBindings()` and statically import `Meters` there too. Keep the D-pad bindings for the capstone distance check:
 
@@ -61,21 +69,23 @@ driver.povDown().whileTrue(
     launcher.launchAtDistance(Meters.of(3.0)));
 ```
 
-Run the simulator. Hold each D-pad direction and print RPM with the X binding from R08 Part 2. The longer-distance command should produce a higher simulated RPM because it requests a higher voltage. Releasing the D-pad stops the launcher.
+The D-pad is also called the POV control. With a physical controller on Joystick 0, press its up or down direction. With keyboard simulation, use the keys mapped to the controller POV in the simulation window.
 
-### Limits of this table
+Run the simulator. Hold each D-pad direction and print RPM with the temporary X binding from R08 Part 2. The 3.0 m command requests 10 V instead of 6 V, so the simulated model should report a larger speed magnitude. Releasing the D-pad stops the launcher. Remove the temporary prints after recording the checks; keep the D-pad bindings for the capstone distance check.
 
-Voltage is an input to the motor, not a measured launcher speed. A real battery and mechanism change during operation, so the same voltage may not produce the same RPM every time. [R09 Part 1](/kit-bot/r09-characterization) measures how the mechanism responds so later tuning can use robot data.
+## Interpret the Table Correctly
 
-<RulesBox title="Done when">
+Voltage is an input to the motor, not a measured launcher speed. A real battery and mechanism change during operation, so the same voltage may not produce the same RPM every time. [R09 Part 1: Collect Steady-State Samples](/kit-bot/r09-characterization) identifies a steady-state relationship between requested voltage and speed. That exercise does not turn this open-loop distance table into closed-loop speed control.
+
+<RulesBox title="Done When">
 
 Selecting the two test distances produces two different launcher speeds in simulation. You can explain which two table entries are used for a request at 2.5 meters.
 
 </RulesBox>
 
 <Sources items={[
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/interpolation/InterpolatingDoubleTreeMap.html", "note": "Sorted keys, interpolation, and endpoint behavior."},
-  {"source": "wpilib", "path": "docs/software/basic-programming/java-units.html", "note": "Distance and voltage measures."}
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/interpolation/InterpolatingDoubleTreeMap.html", "note": "Sorted keys, interpolation, and endpoint behavior.", "label": "WPILib API: InterpolatingDoubleTreeMap"},
+  {"source": "wpilib", "path": "docs/software/basic-programming/java-units.html", "note": "Distance and voltage measures.", "label": "WPILib Java Units"}
 ]} />
 
 

@@ -13,18 +13,19 @@ description: "Gather five validated inputs with a re-prompt loop, then print a s
 
 **Topic:** `Scanner`, prompts, input validation, loops.
 **Cites:** [Conditional Logic](/java/fundamentals/java-conditionals), [While Loops](/java/fundamentals/java-while-loops).
-**Also review:** [Console Input](/java/fundamentals/java-console-input), [Methods](/java/fundamentals/java-methods).
+**Also review:** [Console Input](/java/fundamentals/java-console-input), [Methods](/java/fundamentals/java-methods),
+[Try-Catch](/java/fundamentals/java-try-catch#why-use-trycatch).
 **Difficulty:** beginner to intermediate. **Estimated time:** 45 minutes.
 
 **Repository checkpoint:** Work in `assignments/a04-scanner-echo/` inside the repository from [A00](/java/assignments/a00-practice-repository-setup). Keep every source and input file for
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A04: Scanner Echo`, and push to GitHub.
 
-### Scenario
+## Scenario
 
 A scouting form should reject invalid values and let the user correct them. Read five fields, validate each one, then print a summary.
 
-### What to build
+## What To Build
 
 A single file `ScannerEcho.java`. Prompt for these inputs **in order**, re-prompting on bad
 input until each value is acceptable:
@@ -50,7 +51,7 @@ Avg score:      45.50
 Climbed:        yes
 ```
 
-### Requirements
+## Requirements
 
 - Exactly one `Scanner` for the whole program, closed before exit
 - A re-prompt loop for **each** input. Wrong type or out of range prints a one-line error and
@@ -60,7 +61,7 @@ Climbed:        yes
 - A separate `public static` helper per input, each taking the `Scanner`, prompting, validating and
   returning the value. `main` is a thin orchestrator:
 
-```java
+```java norun
 public static int     readTeamNumber(Scanner in);
 public static String  readTeamName(Scanner in);
 public static int     readDriverCount(Scanner in);
@@ -68,17 +69,104 @@ public static double  readAvgScore(Scanner in);
 public static boolean readClimbed(Scanner in);
 ```
 
+These lines show required declarations. They end in semicolons only to list the
+signatures compactly; they are not five methods you can paste into the class. In your
+program, each declaration needs a body between `{` and `}` that eventually returns the
+listed type.
+
+## Handle Input And EOF
+
+Read [Try-Catch](/java/fundamentals/java-try-catch) before using the error-handling pattern below. `throw` stops the normal path and transfers control to a matching `catch` block.
+
+`nextInt()` and `nextDouble()` read one whitespace-separated token. `nextLine()` reads the
+rest of the current line. After a successful numeric token read, consume the rest of that
+line once before the next helper tries to read a whole-line team name. When a numeric type check fails, consume the bad token with `next()` or discard its line with `nextLine()` before trying again. Checking the same unread token repeatedly would never make progress.
+
+The browser supplies all saved sample lines and then reaches end of input (EOF). A terminal
+can also reach EOF when input comes from a file. For a numeric field, check `hasNext()`
+first: `false` means EOF. If a token exists, use `hasNextInt()` or `hasNextDouble()` to
+decide whether it has the requested numeric type. For a whole-line read, use
+`hasNextLine()` to distinguish an available line from EOF. If no token or line remains,
+stop the run with one clear message. One workable design is to let a helper run
+`throw new java.util.NoSuchElementException("Input ended.");` when its availability check
+is false. Put the five helper calls and summary printing inside one `try` block in `main`,
+then add one `catch (java.util.NoSuchElementException error)` block that prints
+`error.getMessage()`. Because control jumps to the catch, the unfinished summary is
+skipped. Keep ordinary invalid values inside the helper's re-prompt loop. This EOF path is
+different from a bad value: there is nothing left to correct. Put `in.close()` after the
+catch so both a complete run and an EOF run close the one scanner.
+
 
 <JavaPlayground id="a04-scanner-echo" />
+
+The first automated check supplies one valid set. The second supplies out-of-range numbers
+and an invalid climbed response before valid replacements. These checks confirm the final
+summary shape, but they do not test non-numeric text, an empty team name, EOF, helper
+signatures, the one-`Scanner` rule, or whether each rejection prints a useful error. Test
+those requirements yourself and inspect the code with the rubric.
+
+## Run Two Samples
+
+In the browser, paste one sample at a time into **Sample input**, then select **Run** and
+**Check**. The first sample is valid immediately:
+
+```text
+1234
+Example Robotics
+2
+45.5
+YES
+```
+
+The second makes four helpers reject a value before receiving a valid replacement:
+
+```text
+0
+1234
+Example Robotics
+5
+2
+-5
+45.5
+maybe
+yes
+```
+
+For a local run, copy the complete editor contents into `ScannerEcho.java`, save one sample
+as `in.txt` in the assignment folder, and run:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac ScannerEcho.java
+Get-Content -LiteralPath in.txt | java ScannerEcho
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac ScannerEcho.java
+java ScannerEcho < in.txt
+```
+
+</CodeTab>
+</CodeTabs>
+
+Both samples should finish with the required summary block. The second may print prompts
+and error messages before it. Also run with an empty `in.txt` to confirm the EOF message
+appears once and no partial summary is printed.
 
 <RulesBox title="Hints" items={[
   "<strong>The leftover newline.</strong> <code>nextInt()</code> consumes the number but leaves the newline sitting in the buffer, so the next <code>nextLine()</code> returns an empty string instead of waiting. Call <code>nextLine()</code> once to discard the rest of the line after any numeric read.",
   "<strong>Surviving <code>abc</code> in a number field.</strong> <code>hasNextInt()</code> tells you whether the next token will parse before you consume it. When it is false, read the bad token with <code>next()</code> so the loop moves on instead of spinning on the same input forever.",
+  "<strong>EOF is not a bad token.</strong> Check <code>hasNext()</code> before calling <code>next()</code> to discard a bad token. If it is false, input has ended, so take your EOF path instead of calling <code>next()</code> or printing another prompt.",
   "<strong>Shape of a validating helper.</strong> An endless loop, a read, a check, and a <code>return</code> when the value is good: the loop only continues when something was wrong. That is one clean place to print each error message.",
   "<strong>yes or no.</strong> <code>equalsIgnoreCase</code> saves you lowercasing by hand. Decide whether you accept <code>y</code> and <code>n</code> too, then say so in the prompt text."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
@@ -91,22 +179,26 @@ public static boolean readClimbed(Scanner in);
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+Keep the checked required version unchanged. Try stretch behavior in a separate
+`ScannerEchoStretch.java` file with a matching class name because it changes accepted input
+or when the program exits.
 
 - Give up after five bad attempts on any single field and exit with a clear message rather
   than looping forever.
 - Accept a blank line for the average score, meaning "not recorded", and print `n/a` in the
   summary instead of a number.
 
-### References
+## References
 
-- JavaDoc: [`java.util.Scanner`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Scanner.html)
-- JavaDoc: [`java.lang.String.equalsIgnoreCase`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html#equalsIgnoreCase(java.lang.String))
+- Javadoc: [`java.util.Scanner`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Scanner.html)
+- Javadoc: [`java.lang.String.equalsIgnoreCase`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html#equalsIgnoreCase(java.lang.String))
 - Wikipedia: [Input validation](https://en.wikipedia.org/wiki/Data_validation)
 
 <Sources items={[
-  {"source": "csce145", "note": "Reading input."},
-  {"source": "dev-java", "path": "java-io/reading-writing/", "note": "Reading from standard input."},
-  {"source": "java-api", "path": "java.base/java/util/Scanner.html", "note": "<code>Scanner</code>: <code>nextLine</code>, <code>nextInt</code>, <code>hasNext</code>."},
+  {"source": "csce145", "label": "CSCE 145 Course Materials", "note": "Reading and validating console input."},
+  {"source": "dev-java", "path": "java-io/reading-writing/", "label": "Reading And Writing", "note": "Reading from standard input."},
+  {"source": "java-api", "path": "java.base/java/util/Scanner.html", "label": "Scanner", "note": "Token and line reads, matching <code>hasNext</code> methods, EOF behavior, and closing the input source."},
   {"url": "/java/fundamentals/java-setup", "label": "Setting Up Java", "note": "Java 25 install, javac/java from the command line, feeding input from a file."}
 ]} />

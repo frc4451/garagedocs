@@ -7,12 +7,12 @@ groupLabel: "Phase 3: Hardware via IO"
 groupOrder: 3
 order: 9.5
 duration: 35 min
-description: Work through the line-fit math and check what the calculated feedforward gains mean.
+description: Calculate and interpret a positive-direction steady-state line fit from the samples saved in Part 1.
 durationFixed: true
 ---
 
 
-Part 1 recorded pairs of velocity and requested voltage after a fixed wait. Part 2 explains how the code fits one line through those points.
+Bring the saved output from [R09 Part 1: Collect Steady-State Samples](/kit-bot/r09-characterization), a calculator, and paper or a text file for a table. Use multiplication, division, addition, and subtraction. This page explains the squares, sums, and line-fit terms as they appear. Part 1 recorded positive velocity and requested voltage after a fixed wait. That wait assumed the speed had settled; it did not prove zero acceleration.
 
 ```text
 y = kS + kV × x
@@ -23,10 +23,10 @@ y = voltage
 
 On a graph with velocity across the bottom and voltage up the side:
 
-- `kS` is the y-intercept. For the positive-motion fit, it estimates the voltage offset used to account for friction.
+- `kS` is the y-intercept. For this positive-direction fit, it is the fitted constant voltage offset used to account for friction. It is not an exact breakaway-voltage measurement.
 - `kV` is the slope. It says how many additional volts the model needs for each unit of velocity.
 
-### Start with two points
+## Start With Two Points
 
 If you had only two settled samples, you could calculate the slope and intercept directly:
 
@@ -37,9 +37,9 @@ kS = voltage1 - kV × velocity1
 
 Real measurements contain noise, so choosing a different pair can change the result. Part 1 collected several points and used **linear regression**, which fits one line across all accepted samples.
 
-### Build the four sums
+## Build the Four Sums
 
-For every accepted sample, the loop adds:
+The symbol `Σ` means “add all the values.” A square such as `x²` means `x × x`. For every accepted sample, the loop adds:
 
 ```java
 sumX += velocity;
@@ -73,7 +73,7 @@ kV = (n × Σxy - Σx × Σy) / denominator
 
 These are the same equations written in `printResults`. The code is longer because each mathematical sum needs a variable and a loop.
 
-### Work one example by hand
+## Work One Example by Hand
 
 The values below are an arithmetic example, not Kit Bot measurements.
 
@@ -82,9 +82,9 @@ The values below are an arithmetic example, not Kit Bot measurements.
 | 1.0 | 2.0 | 2.0 | 1.0 |
 | 2.0 | 3.5 | 7.0 | 4.0 |
 | 3.0 | 5.0 | 15.0 | 9.0 |
-| **6.0** | **10.5** | **24.0** | **14.0** |
+| **Totals: 6.0** | **10.5** | **24.0** | **14.0** |
 
-For these three points:
+The first row's products are `1.0 × 2.0 = 2.0` and `1.0² = 1.0`. Calculate the other rows the same way, then add each column. For these three data rows:
 
 ```text
 n = 3
@@ -104,20 +104,24 @@ The fitted model is:
 voltage = 0.5 + 1.5 × velocity
 ```
 
-At `2.0 rot/s`, the model predicts `0.5 + 1.5 × 2.0 = 3.5 V`, which matches the middle example point.
+At `2.0 rot/s`, the model predicts `0.5 + 1.5 × 2.0 = 3.5 V`, which matches the middle example point. As an in-range check at `2.5 rot/s`, enter `0.5 + 1.5 × 2.5` in a calculator. The result is `4.25 V`. Keep the `V` unit with the answer.
 
-### Check your own output
+## Check Your Own Output
 
 Use **all accepted samples** from one Part 1 test when comparing with the Java result. Fitting only two or three points can produce a different line:
 
-1. Write the samples in a table with the same four columns.
-2. Add each column.
-3. Substitute the sums into the equations.
-4. Compare your result with the Java output.
+1. Write every accepted sample in a table with the same four columns.
+2. For each row, multiply velocity by voltage and square velocity. Use the calculator multiplication and square keys, or multiply the velocity by itself.
+3. Add each column and write `n`, the number of data rows.
+4. Calculate `n × Σx² - (Σx)²` for the denominator.
+5. Substitute the sums into the `kS` and `kV` equations. Use parentheses around each numerator before dividing.
+6. Compare your result with the Java output.
 
-Small differences can come from rounding the printed samples. A large difference usually means a copied value, multiplication, or sum is wrong.
+Part 1 printed velocities to four decimal places while the Java calculation used the full values in memory. First calculate from the printed, rounded samples and compare that result with the Java output. A difference can come from the missing digits. If the results do not agree closely enough to explain that way, check the copied values, row products, sums, denominator, and parentheses before changing the program.
 
-### Keep the units attached
+Predict voltage at one new speed inside the measured range and include units. Predictions outside the measured range are extrapolation, so the data does not test how well the line represents that region.
+
+## Keep the Units Attached
 
 The drivetrain and launcher use the same math but different velocity units:
 
@@ -128,7 +132,7 @@ The drivetrain and launcher use the same math but different velocity units:
 
 Do not copy a drivetrain `kV` into the launcher. The numbers describe different mechanisms and different velocity units.
 
-### Why there is no kA in this exercise
+## Why There Is No kA in This Exercise
 
 The full simple-motor model can include acceleration:
 
@@ -136,11 +140,11 @@ The full simple-motor model can include acceleration:
 voltage = kS × sign(velocity) + kV × velocity + kA × acceleration
 ```
 
-Part 1 waited for each voltage step to settle before recording. At that moment, acceleration is approximately zero, so `kA × acceleration` is approximately zero. This test cannot measure `kA`, and the Kit Bot lessons do not claim that it does.
+Part 1 waited 1.5 seconds after each voltage step. If the mechanism had settled, acceleration was approximately zero and `kA × acceleration` was approximately zero. The fixed wait alone does not prove that condition. This dataset cannot measure `kA`, and the Kit Bot lessons do not claim that it does.
 
-### Use the result later
+## Apply the Model Later
 
-WPILib's `SimpleMotorFeedforward` uses the same model. This is a reading example, not a required project edit. Its gain variables represent your calculated results. The velocity units must match:
+[WPILib's `SimpleMotorFeedforward` API](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/controller/SimpleMotorFeedforward.html) uses the same model. This is a reading example, not a required project edit. Its constructor and `calculate` method take raw `double` values, so the class cannot check the velocity unit for you. The unit used for `targetVelocity` must match the unit used to calculate `kV`:
 
 ```java
 SimpleMotorFeedforward feedforward =
@@ -150,30 +154,32 @@ double requestedVolts =
     feedforward.calculate(targetVelocity);
 ```
 
-For negative target velocity, `SimpleMotorFeedforward` applies `kS` in the negative direction. The [FRC feedforward lesson](/frc/manual-tuning-introduction) extends this work. For this check, explain and verify the two-term model.
+For negative target velocity, `SimpleMotorFeedforward` applies `kS` in the negative direction. The [WPILib feedforward introduction](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/introduction/introduction-to-feedforward.html) explains the full model. This page has only fitted and checked the positive-direction, two-term case.
 
-### Record the result with its context
+## Record the Result With Its Context
 
 Store each accepted result with:
 
 - Mechanism name
 - Velocity unit
 - Simulation or real hardware
+- Requested or measured applied voltage
+- Positive-direction-only scope
 - Test date
 - Voltage steps and settle time
 - Hardware configuration, including gearing and wheel or roller size
 
-Simulation gains describe the simulation model. Use real-hardware gains only after a mentor-approved hardware test.
+Simulation gains describe the simulation model. Use real-hardware gains only after a mentor-approved hardware test. Keep the sample rows with the result so another reader can reproduce the fit.
 
-<RulesBox title="Done when">
+<RulesBox title="Done When">
 
 Using the equations and a calculator, calculate `kS` and `kV` from a sample table, explain why settled samples remove the acceleration term, and state the units for both mechanisms. Your saved results identify the mechanism, units, environment, voltage steps, and settle time.
 
 </RulesBox>
 
 <Sources items={[
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "The explicit <code>kS</code> and <code>kV</code> regression used by the team roller library."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "The explicit <code>kS</code> and <code>kV</code> regression used by the team roller library.", "label": "FRC 4451 Cobra2026: SingleRoller.java"},
   {"url": "https://github.com/Mechanical-Advantage/RobotCode2023/blob/main/src/main/java/org/littletonrobotics/frc2023/commands/FeedForwardCharacterization.java", "label": "Mechanical Advantage FeedForwardCharacterization", "note": "The reusable characterization and first-order regression pattern."},
-  {"source": "wpilib", "path": "docs/software/advanced-controls/introduction/introduction-to-feedforward.html", "note": "The simple-motor feedforward equation and gain meanings."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/controller/SimpleMotorFeedforward.html", "note": "Applying <code>kS</code> and <code>kV</code> to a requested velocity."}
+  {"source": "wpilib", "path": "docs/software/advanced-controls/introduction/introduction-to-feedforward.html", "note": "The simple-motor feedforward equation and gain meanings.", "label": "WPILib: introduction to feedforward"},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/controller/SimpleMotorFeedforward.html", "note": "Applying <code>kS</code> and <code>kV</code> to a requested velocity.", "label": "WPILib API: SimpleMotorFeedforward"}
 ]} />

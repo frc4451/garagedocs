@@ -20,20 +20,27 @@ description: "Use three maps for three jobs. When a key is a type you wrote, the
 this assignment there. After completing the checks and rubric, update the root
 `README.md`, commit with `Complete A25: Alliance Lookup`, and push to GitHub.
 
-### Scenario
+## Scenario
 
-Use a map to look up a team number, a drivetrain group, or a match outcome. HashMap offers expected constant-time lookup with well-distributed hashes; producing a list of results still takes time proportional to that list.
+Use a map to look up a team number, a drivetrain group, or a match outcome.
+`HashMap.get` and `HashMap.put` have expected constant-time performance when
+hashes distribute keys well. Walking a map or producing a list of results still
+takes time proportional to the entries visited, and `HashMap` promises no
+iteration order.
+
+The teams and outcomes seeded in `main` are deterministic practice fixtures.
+They are not current event data or official match results.
 
 Use a record containing match number and alliance as the outcome key. Its generated equals and hashCode methods let equivalent keys find the same entry.
 
-### What to build
+## What To Build
 
 **`MatchKey`**: a record of `matchNumber` and `alliance`, whose compact constructor
 requires the alliance to be `RED` or `BLUE` in any case, and stores it upper case.
 
 **`MatchOutcome`**: a record of `score` and `won`.
 
-**`AllianceData`**: three `private final` maps and eight methods:
+**`AllianceData`**: three `private final` maps and seven methods:
 
 <ContentTable
   headers={["Map", "Holds"]}
@@ -47,43 +54,109 @@ requires the alliance to be `RED` or `BLUE` in any case, and stores it upper cas
 <ContentTable
   headers={["Method", "What it does"]}
   rows={[
-    ["<code>addTeam(TeamEntry)</code>", "Updates the team map <strong>and</strong> appends to the right drivetrain list. Both, every time, or the index drifts."],
+    ["<code>addTeam(TeamEntry)</code>", "For each supplied unique team, updates the team map <strong>and</strong> appends to the right drivetrain list."],
     ["<code>recordOutcome(match, alliance, score, won)</code>", "Builds a <code>MatchKey</code> and stores the outcome under it."],
     ["<code>getTeam</code> / <code>outcomeFor</code>", "<code>Optional</code>, never <code>null</code>."],
-    ["<code>teamsWith(String)</code>", "The teams on that drivetrain, in the order added. An empty list for a drivetrain nobody runs."],
+    ["<code>teamsWith(String)</code>", "An unmodifiable list of the teams on that drivetrain, in the order added. An empty list for a drivetrain nobody runs."],
     ["<code>countByDrivetrain()</code>", "A <em>fresh</em> map: drivetrain to how many teams run it."],
     ["<code>averageScore()</code>", "The mean of every recorded score. Return <code>0.0</code>, not <code>NaN</code>, when nothing has been recorded."]
   ]}
 />
 
-<RulesBox title="How the browser version differs" items={[
-  "Four files locally, one here, with only <code>MapLookupDemo</code> declared <code>public</code>. <code>TeamEntry</code> is cut down to team number, name and drivetrain: this assignment is about the maps, not the entry.",
-  "<code>main</code> prints every map <strong>in sorted order</strong> on purpose. Hash order is unspecified and has changed between Java releases, so a program that prints a <code>HashMap</code> directly is a program whose output nobody can check, including you when you return to it later.",
+<RulesBox title="Browser And Local Files" items={[
+  "The assignment has five top-level types in five local files: <code>TeamEntry.java</code>, <code>MatchOutcome.java</code>, <code>MatchKey.java</code>, <code>AllianceData.java</code>, and <code>MapLookupDemo.java</code>. Declare each matching type public. The playground starter keeps all five in one editor tab, so only <code>MapLookupDemo</code> is public there. <code>TeamEntry</code> is cut down to team number, name, and drivetrain because this assignment is about maps.",
+  "<code>main</code> prints map summaries <strong>in sorted-key order</strong> on purpose. <code>HashMap</code> does not promise iteration order, so sorting the keys makes the checked output deterministic across runs and Java releases.",
   "Records are Java 16, and the editor runs Java 17, so <code>MatchKey</code> works here exactly as it does locally."
 ]} />
 
+## Build Locally
 
-<RulesBox title="Plan it as sessions" items={[
+Create these five files in `assignments/a25-alliance-lookup/`:
+
+- `TeamEntry.java` contains `public record TeamEntry(...)`.
+- `MatchOutcome.java` contains `public record MatchOutcome(...)`.
+- `MatchKey.java` contains `public record MatchKey(...)` and its public compact
+  constructor.
+- `AllianceData.java` contains `public class AllianceData`; make its assignment
+  methods public and keep its three maps private and final.
+- `MapLookupDemo.java` contains `public class MapLookupDemo`.
+
+Copy the supplied `main`, `numbersOf`, and `rejectsAlliance` methods without
+changing their output. Open a terminal in the assignment folder, compile all
+five source files, and run the class containing `main`:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+javac TeamEntry.java MatchOutcome.java MatchKey.java AllianceData.java MapLookupDemo.java
+java MapLookupDemo
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+javac TeamEntry.java MatchOutcome.java MatchKey.java AllianceData.java MapLookupDemo.java
+java MapLookupDemo
+```
+
+</CodeTab>
+</CodeTabs>
+
+In the browser, the editor tab is named `MapLookupDemo`, the public class with
+`main`. Fill in the records and `AllianceData` above it, leave the supplied demo
+unchanged, and select **Run**. This assignment does not read input.
+
+## Keys, Results, And Indexes
+
+`MatchKey` owns alliance normalization. Check the supplied text without regard
+to case, reject anything other than red or blue, and assign one of the canonical
+strings `"RED"` or `"BLUE"` to the record component. That makes separately
+constructed keys equal and gives them equal generated hash codes.
+
+`getTeam` and `outcomeFor` return an `Optional` because absence is a normal
+lookup result. `teamsWith` returns an empty list for an unknown drivetrain and
+an unmodifiable result for a known one, so callers cannot alter it or reach the
+private list of team numbers. `countByDrivetrain` similarly returns a fresh map
+rather than a private field.
+
+The supplied fixture adds each team number once. This assignment does
+not define what should happen if `addTeam` receives the same team number again;
+a replacement in the primary map could otherwise leave stale or duplicate team
+numbers in the drivetrain index. Implement the stated append behavior for the
+unique fixture. If you extend the program to edit existing teams, decide how to
+update both indexes together and add a separate test for that behavior.
+
+
+<RulesBox title="Session Plan" items={[
   "<strong>Session 1.</strong> Get the file compiling with every method stubbed, then make these pass: <em>Lookup by team number answers both ways</em>, <em>The drivetrain index stays in sync with the team map</em>, <em>A record key looks up the same value however it was built</em>, <em>Counting by drivetrain covers every team once</em>.",
-  "<strong>Session 2.</strong> Finish the edge cases and the rubric items nothing checks: <em>An empty database averages to zero rather than NaN</em>, <em>The equals and hashCode contract holds for the key</em>, <em>The compact constructor rejects an alliance that is neither</em>."
+  "<strong>Session 2.</strong> Finish the remaining browser checks: <em>An empty database averages to zero rather than NaN</em>, <em>The equals and hashCode contract holds for the key</em>, <em>The compact constructor rejects an alliance that is neither</em>. Then complete the manual rubric review below."
+]} />
+
+<RulesBox title="Browser Checks And Manual Rubric" items={[
+  "The browser checks the seven named behaviors in the session plan and results panel: present and missing lookups, drivetrain indexing, equivalent record keys, counts, both average cases, equality and hash behavior, normalization, and rejection.",
+  "The checks recognize printed output. They do not inspect that there are exactly three <code>private final</code> maps, that the required <code>entrySet()</code> walk and map idioms appear, or that visibility and comments meet the rubric. Review those items manually.",
+  "The printed unknown-drivetrain result proves that <code>teamsWith</code> returns an empty list. It does not prove that a known-drivetrain result is unmodifiable. Locally, call <code>add</code> on the returned SWERVE list and confirm it throws <code>UnsupportedOperationException</code>; then call <code>teamsWith</code> again and confirm the stored index is unchanged.",
+  "Also test <code>MatchKey</code> with <code>blue</code>, mixed case, an empty string, and another invalid color. Test missing outcomes and teams as <code>Optional.empty()</code>, and confirm <code>countByDrivetrain()</code> returns a fresh map by mutating one returned map and requesting another."
 ]} />
 
 <JavaPlayground id="a25-alliance-lookup" />
 
 <RulesBox title="Hints" items={[
-  "<strong>Why a record is the right shape for a key.</strong> A map finds an entry by hashing the key first and only then comparing. If two keys are <code>equals</code> but hash differently, the second one lands in a different bucket and <code>get</code> returns <code>null</code> for a key that <em>matches</em>. Records derive both from the same components, so they cannot disagree. Write the class by hand with only <code>equals</code> overridden and watch the lookup fail. Seeing the failure once makes the contract concrete.",
-  "<strong>Normalise in the compact constructor, not at the call site.</strong> If <code>MatchKey</code> upper-cases the alliance on the way in, then <code>outcomeFor(3, \"red\")</code> and <code>outcomeFor(3, \"RED\")</code> build equal keys and find the same value. Normalising at each call site instead means one forgotten call site is a bug you will not find until elimination matches.",
+  "<strong>Why a record is the right shape for a key.</strong> A map hashes a key to narrow the search and then uses equality among candidate keys. Equal keys must therefore have equal hash codes. The generated record methods derive both results from the same components and satisfy that contract without hand-written boilerplate. Keep those generated methods for this assignment.",
+  "<strong>Normalise in the compact constructor, not at the call site.</strong> If <code>MatchKey</code> upper-cases the alliance on the way in, then <code>outcomeFor(3, \"red\")</code> and <code>outcomeFor(3, \"RED\")</code> build equal keys and find the same value. Normalising at each call site instead means one forgotten call can make two equivalent inputs behave differently.",
   "<strong><code>computeIfAbsent</code> is the \"create the list if it is missing\" pattern.</strong> The <code>containsKey</code> / <code>if</code> / <code>put</code> version works, but this is the method that exists for it. Its second argument is a function from the key to a new value: look it up in the JavaDoc and work out what belongs in the lambda.",
-  "<strong><code>getOrDefault(key, 0) + 1</code> is the counter-map idiom.</strong> That is the whole body of <code>countByDrivetrain</code>'s loop.",
-  "<strong>Three ways to walk a map, and only one of them is right here.</strong> <code>keySet()</code> for keys, <code>values()</code> for values, <code>entrySet()</code> when you need both; this avoids a second lookup per key. Use <code>entrySet()</code> at least once."
+  "<strong><code>getOrDefault(key, 0) + 1</code> is the counter-map idiom.</strong> Use that expression as the new value in <code>put</code> inside <code>countByDrivetrain</code>'s loop.",
+  "<strong>Choose the map view that matches the job.</strong> Use <code>keySet()</code> when only keys matter, <code>values()</code> when only values matter, and <code>entrySet()</code> when both key and value are needed. An <code>entrySet()</code> walk avoids looking up each value a second time. The rubric requires at least one."
 ]} />
 
-### Self-grading rubric
+## Self-Grading Rubric
 
 <ContentTable
   headers={["Section", "Points", "What earns the points"]}
   rows={[
-    ["Functionality", "60", "All eight methods work. <code>addTeam</code> keeps both maps in sync. <code>countByDrivetrain</code> counts every team once. <code>getTeam</code> and <code>outcomeFor</code> return <code>Optional</code>. At least one <code>entrySet()</code> walk somewhere. The key demo passes: equal, same hash, same lookup."],
+    ["Functionality", "60", "All seven methods work. <code>addTeam</code> keeps both maps in sync. <code>countByDrivetrain</code> counts every team once. <code>getTeam</code> and <code>outcomeFor</code> return <code>Optional</code>. At least one <code>entrySet()</code> walk somewhere. The key demo passes: equal, same hash, same lookup."],
     ["Edge cases", "15", "<code>averageScore</code> on an empty database is <code>0.0</code>, not <code>NaN</code> and not an exception. Missing keys give <code>Optional.empty()</code>. <code>teamsWith</code> gives an empty list for an unknown drivetrain."],
     ["Code quality", "20", "Three <code>private final</code> maps. <code>MatchKey</code> is a record, not a class with hand-written <code>equals</code> and <code>hashCode</code>. No <code>get</code>-then-null-check where <code>Optional</code> or <code>getOrDefault</code> fits. <code>teamsWith</code> does not hand out a list callers can mutate."],
     ["Comments", "5", "Author header, and a note on why <code>MatchKey</code> is a record."],
@@ -91,7 +164,11 @@ requires the alliance to be `RED` or `BLUE` in any case, and stores it upper cas
   ]}
 />
 
-### Stretch goals
+## Stretch Goals
+
+Finish and grade the required version first. Copy the five source files into a
+separate `stretch/` folder before trying a goal below, then compile that copy.
+Keep the required files and their printed output unchanged.
 
 - Swap `teamsByNumber` for a `LinkedHashMap` and compare the iteration order against the
   `HashMap` version. Then decide whether your `main` was relying on an order it was never
@@ -102,19 +179,14 @@ requires the alliance to be `RED` or `BLUE` in any case, and stores it upper cas
   put the two versions side by side and pick one. [A26](/java/assignments/a26-stream-filter)
   is that argument at length.
 
-### References
-
-- JavaDoc: [`java.util.HashMap<K,V>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html)
-- JavaDoc: [`Map.computeIfAbsent`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.html#computeIfAbsent(K,java.util.function.Function))
-- JavaDoc: [`Map.Entry<K,V>`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Map.Entry.html)
-- JavaDoc: [`Object.hashCode`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#hashCode()): the contract itself, worth reading once
-- Wikipedia: [Hash table](https://en.wikipedia.org/wiki/Hash_table)
-
 <Sources items={[
-  {"source": "csce146", "note": "Maps."},
-  {"source": "dev-java", "path": "api/collections-framework/maps/", "note": "Maps."},
-  {"source": "java-api", "path": "java.base/java/util/HashMap.html", "note": "<code>HashMap</code>."},
-  {"source": "java-api", "path": "java.base/java/util/TreeMap.html", "note": "<code>TreeMap</code> and ordered keys."},
-  {"source": "dev-java", "path": "records/", "note": "Records as map keys."},
-  {"source": "java-api", "path": "java.base/java/util/stream/Collectors.html", "note": "<code>Collectors</code> API reference."}
+  {"source": "csce146", "label": "CSCE 146: Data Structures And Algorithms", "note": "Course context for hash maps and keyed lookup."},
+  {"source": "dev-java", "path": "api/collections-framework/maps/", "label": "The Map Interface", "note": "Map lookup, updates, and collection views."},
+  {"source": "java-api", "path": "java.base/java/util/HashMap.html", "label": "HashMap", "note": "Expected basic-operation cost, hash distribution, and unspecified iteration order."},
+  {"source": "java-api", "path": "java.base/java/util/Map.html#computeIfAbsent(K,java.util.function.Function)", "label": "Map.computeIfAbsent", "note": "Create-and-store behavior for a missing drivetrain list."},
+  {"source": "java-api", "path": "java.base/java/util/Map.Entry.html", "label": "Map.Entry", "note": "Key-value pairs returned by <code>entrySet()</code>."},
+  {"source": "java-api", "path": "java.base/java/lang/Object.html#hashCode()", "label": "Object.hashCode", "note": "The rule that equal objects must have equal hash codes."},
+  {"source": "dev-java", "path": "records/", "label": "Using Records", "note": "Generated accessors, <code>equals</code>, <code>hashCode</code>, and compact constructors."},
+  {"source": "java-api", "path": "java.base/java/util/TreeMap.html", "label": "TreeMap", "note": "Sorted-key behavior used only by the optional stretch goal."},
+  {"source": "java-api", "path": "java.base/java/util/stream/Collectors.html", "label": "Collectors", "note": "Grouping and counting used only by the optional stretch goal."}
 ]} />

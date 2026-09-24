@@ -11,21 +11,22 @@ description: "Prepare the REV devices, check CAN IDs, deploy the real IO impleme
 durationFixed: true
 ---
 
-<RulesBox title="Before you start">
+This lesson runs the Kit Bot program on physical hardware for the first time. The subsystems and commands stay the same. The roboRIO run makes `RobotContainer` select `DriveIOReal` and `LauncherIOReal`.
 
-Complete [R12: Real vs Sim](/kit-bot/r12-real-vs-sim), [image the roboRIO](/kit-bot/r00-roborio-imaging), and [configure the radio](/kit-bot/r00-radio-setup). Complete the [simulation capstone](/kit-bot/rc-capstone) first. During the first simulation pass, skip this page and continue to [R13](/kit-bot/r13-telemetry-with-advantagescope). Use a Kit Bot that a mentor has inspected, a charged battery, safety glasses, and one person stationed at Driver Station **Disable**.
+## Before You Start
 
-</RulesBox>
+Complete [R12 Real vs Sim](/kit-bot/r12-real-vs-sim), [roboRIO Imaging](/kit-bot/r00-roborio-imaging), [Radio Setup](/kit-bot/r00-radio-setup), and the [simulation capstone](/kit-bot/rc-capstone). During the first simulation pass, skip this page and continue to R13.
 
-This lesson runs your program on physical hardware for the first time. The subsystem and commands stay the same. `RobotContainer` selects `DriveIOReal` and `LauncherIOReal`, which talk to the actual SPARK MAX controllers.
+Use a Kit Bot that a mentor has inspected. Wear safety glasses. Put one person at the Driver Station with one hand ready to select **Disable**. Keep the mechanism test area clear.
 
-### Inventory the CAN devices
 
-<YouTubeEmbed id="2jhnnHpaYmM" title="2026 VRS 14: Programming Prep" />
+Review [REV and REV Hardware Client 2](/hardware/rev-hardware-setup) before configuring controllers. Use the [Bring-Up Checklist](/hardware/hardware-bring-up-checklist) for the full robot. This lesson applies those hardware references to the six SPARK MAX controllers used by the curriculum project.
 
-Make a table from the constants before opening a hardware tool:
+## Make the Device Table
 
-| Mechanism | Role | CAN ID in code | Label on robot | Seen in client |
+Open `DriveConstants.java` and `LauncherConstants.java` in VS Code. Copy each CAN ID into this table before opening RHC2:
+
+| Mechanism | Role | CAN ID in Code | Label on Robot | Seen in RHC2 |
 |---|---|---:|---|---|
 | Drive | Left leader | | | |
 | Drive | Left follower | | | |
@@ -34,83 +35,146 @@ Make a table from the constants before opening a hardware tool:
 | Launcher | Intake and launcher roller | | | |
 | Launcher | Feeder | | | |
 
-Every CAN device needs a unique ID. The number in the REV Hardware Client, the physical label, and the constant must agree.
+Give each of these six SPARK MAX controllers a different CAN ID on this bus. For every row, the code constant, physical label, and RHC2 value need to identify the same controller.
 
-### Prepare the SPARK MAX controllers
+## Inspect the Robot
 
-REVLib 2026 requires REV Hardware Client 2 for current REV ION devices.
+Turn off the robot and disconnect the battery before the unpowered inspection.
 
-1. Install or open [REV Hardware Client 2](https://docs.revrobotics.com/rev-hardware-client-2/).
-2. Keep the robot disabled and its mechanisms clear.
-3. Connect a SPARK MAX to the computer over USB-C. A controller with current firmware can bridge to the other SPARK MAX controllers on the CAN bus.
-4. Update the bridge controller to the current approved firmware first. Then update the remaining controllers that appear over CAN.
-5. Select each controller, use **Identify** to blink it, assign the ID from the table, and apply the change.
-6. Confirm that all six expected controllers appear once. Record firmware versions and IDs in the robot's setup notes.
+- Put the chassis on stable blocks so all four wheels clear the floor.
+- Remove fuel from the launcher and check that clothing, hair, tools, and hands cannot enter a roller.
+- Compare the battery, main breaker, power distribution, roboRIO, radio, motor controllers, and CAN wiring with the robot's wiring record.
+- Tug-test each reviewed connection and check strain relief.
+- Trace the CAN chain from one terminated end to the other. Record any branch or termination that does not match the wiring record.
+- Compare the current limits, gear ratio, wheel diameter, motor types, and inversion settings in code with the inspected robot.
+- Connect the Driver Station controller and confirm that it occupies the USB slot used by `DRIVER_CONTROLLER_PORT`.
+- Name the Driver Station operator, the person watching the robot, and the mentor who approves power and motion.
 
-Do not use the Hardware Client's motor-run controls during this checklist. The first movement happens through robot code with the operator at Disable.
+The listed curriculum constants are starting values. Code review does not prove the physical robot uses those parts, directions, or limits.
 
-### Perform the safety check
+## Prepare RHC2
 
-Before connecting the battery for motion:
+RHC2 and SPARK firmware have a version boundary. Current RHC2 requires REV devices to use compatible 2026 firmware (`26.x.x`). A device on 2025 firmware or older appears as an outdated device and needs REV's Recovery Mode procedure before normal RHC2 use.
 
-- Put the chassis on stable blocks so every wheel is clear of the floor.
-- Remove fuel from the launcher and keep the roller clear.
-- Tug-test the battery, main-breaker, power-distribution, roboRIO, radio, and motor-controller connections with power off.
-- Confirm the CAN chain is continuous and its ends are terminated.
-- Connect the Driver Station controller and verify its USB slot.
-- Name the person at the keyboard and the person at **Disable**.
-- Agree on the first action: a short forward wheel command, then disable.
+1. Install or open [REV Hardware Client 2](https://docs.revrobotics.com/rev-hardware-client-2/). Close the older REV Hardware Client if it is open.
+2. Complete the unpowered inspection above. Keep battery power disconnected for direct USB preparation unless the vendor procedure requires it. Before powering the CAN bus, have the mentor supervise the power checks below and keep the robot disabled.
+3. Connect one SPARK MAX directly to the computer with a data-capable USB-C cable.
+4. If RHC2 labels the controller as an outdated device, stop and follow [REV's SPARK MAX Recovery Mode procedure](https://docs.revrobotics.com/brushless/spark-max/troubleshooting). Recovery erases the device's saved settings, so record the device identity first and reapply the reviewed configuration afterward.
+5. Update the USB-connected controller to the approved 2026 firmware. This controller can act as the USB-to-CAN bridge after it has compatible firmware.
+6. Inspect the remaining controllers in RHC2. Update them by the method supported for their current firmware. A CAN update depends on the USB bridge device already running compatible 2026 firmware.
+7. Select one device at a time. Have the mentor confirm its identity against the physical label before assigning its CAN ID. Use the identification control described for the installed RHC2 version when available; do not apply an older client's screen layout to RHC2.
+8. Confirm that all six expected controllers appear once. Record the RHC2 version, each firmware version, and each CAN ID in the robot setup notes.
 
-### Deploy the real branch
+Do not use RHC2's motor-run control during this checklist. The first motor movement comes from the reviewed robot program with the Driver Station operator ready to disable.
 
-Here, **branch** means the `if` branch in `RobotContainer`, not a separate Git branch. Deploy the same project you tested in simulation.
+## Power One Layer at a Time
 
-1. Connect through USB or the configured robot network.
-2. In WPILib VS Code, run **WPILib: Deploy Robot Code**.
-3. Open **WPILib: Start Tool**, then **roboRIO Log**. The Driver Station console is another option.
-4. Confirm the console prints `IO: real`.
-5. Leave the robot disabled while checking the console for missing-device or configuration errors.
+Reconnect the battery only after the mentor approves the inspection.
 
-The Driver Station separates two common states:
+1. Close the main breaker while the robot remains disabled.
+2. Check for heat, smoke, damaged insulation, unusual sound, or an unexpected status light. Open the breaker immediately if any appears.
+3. Confirm that the roboRIO and radio start and the Driver Station gains communication.
+4. Open RHC2 through the approved connection and confirm the six expected SPARK MAX controllers still appear once with the recorded IDs and firmware.
+5. Keep the robot disabled while resolving missing devices, duplicate IDs, CAN warnings, or configuration faults.
 
-| Status | What it proves | Check next |
+## Deploy the Real Branch
+
+Here, **branch** means the `if` branch in `RobotContainer`, not a Git branch. Deploy the same project that passed the simulation capstone.
+
+1. In WPILib VS Code, open the project folder that contains `build.gradle`.
+2. Save every edited file. A dot on a file tab means that the latest edit is not saved.
+3. Connect through USB or the configured robot network.
+4. Open the Command Palette and run **WPILib: Deploy Robot Code**. Keep robot power on until deployment finishes.
+5. Wait for the deployment terminal to report `BUILD SUCCESSFUL`. RioLog normally opens after deployment. If it does not, run **WPILib: Start RioLog** from the Command Palette.
+6. Find `IO: real` in RioLog.
+7. Keep the robot disabled while checking RioLog and the Driver Station messages for startup exceptions, missing devices, or configuration errors.
+
+The Driver Station states point to different checks:
+
+| Status | What You Know | Check Next |
 |---|---|---|
-| **No Communications** | The laptop cannot reach the roboRIO. | Robot power, radio path, team number, laptop network, then [Robot Network Troubleshooting](/frc/robot-network-troubleshooting). |
-| **No Robot Code** | The roboRIO is reachable, but user code is not running. | Deploy result, roboRIO log, startup exception, and project team number. |
+| **No Robot Communication** | The laptop cannot exchange Driver Station data with the roboRIO. | Robot power, radio and USB paths, team number, and laptop network. Then use [Robot Network Troubleshooting](/frc/robot-network-troubleshooting). |
+| **No Robot Code** | Driver Station reaches the roboRIO, but user code is not reporting normally. | The deploy result, RioLog, startup exceptions, and the project team number. |
 
-### Make the first movement
+`IO: real` proves that the real runtime branch was selected. It does not prove that motor directions, sensor signs, or mechanism motion are correct.
+
+## Check Motion on Blocks
+
+Agree on each action before enabling. The Driver Station operator selects **Disable** after each action or immediately when the watcher calls for it.
 
 1. Enable teleop with the robot still on blocks.
-2. Move the drive stick slightly forward, then release it. Both sides should turn in the forward direction and stop inside the deadband.
-3. Turn slightly right, then release. The sides should turn in opposite directions.
-4. Hold intake briefly with no fuel, release, then hold launch briefly and release. Confirm the feeder and intake-launcher roller follow the intended sequence and both stop.
-5. Disable the robot.
+2. Move the drive stick a small distance forward, then release it. Check that both sides turn in the inspected forward direction and stop when the request returns to zero.
+3. Make a small right-turn request, then release it. Check that the two sides turn in opposite directions and stop.
+4. Hold intake briefly with no fuel, then release it. Check the intake and launcher roller direction and stop behavior.
+5. Hold launch briefly, then release it. Check the feeder and the intake and launcher roller sequence, direction, and stop behavior.
+6. Hold one launcher button and select **Disable** before releasing the button. Check that both mechanism requests return to zero.
+7. While disabled, select **Do nothing** in the R14 Glass chooser. Then select **Autonomous** and **Enabled**. Move the sticks and press the driver buttons. Confirm that the teleop controls create no output requests.
+8. Select **Disable**.
 
-Disable before editing or deploying. If a mechanism moves backwards, change inversion in its constants or real IO configuration, redeploy, and repeat the same small test. Turn off robot power before touching wiring. Do not swap powered wires to correct a software direction.
+If a mechanism turns in the wrong direction, disable the robot. Change the reviewed inversion setting in its constants or real IO configuration, rebuild, redeploy, and repeat the same small test. Turn off power before touching wiring. Never move powered wires to correct a software direction.
 
-### Compare simulation with hardware
+Do not place the robot on the floor until a mentor reviews the block-test results, the test boundary, the spotter role, and the lowest safe starting request. Floor driving and fuel testing remain separate physical checks.
 
-Record three observations:
+## Record the Comparison
 
-- A direction or inversion check.
-- One measured value that is noisier on hardware.
-- One speed or acceleration that differs from simulation.
+Record the installed versions and compare these three observations. Report no observed difference when that is what the evidence shows:
 
-These differences are expected. The comparison tells you which model or constant needs attention; it does not erase the simulation check.
+- One direction or inversion result.
+- How smoothly a sensor value changes on hardware and in simulation.
+- One speed or acceleration difference between hardware and simulation.
 
-<RulesBox title="Done when">
+The comparison identifies a model or constant to inspect. A difference alone does not identify its cause. Check configuration, sensor signs, wiring, battery voltage, and simulation assumptions one at a time.
 
-The REV Hardware Client shows each expected SPARK MAX once with the ID used in code. Deployment succeeds, the console reports `IO: real`, the wheels, feeder, and intake-launcher roller move in the intended directions on blocks, and every output stops when its control is released or the robot is disabled.
+<RulesBox title="Done When">
+
+RHC2 shows each expected SPARK MAX once with the recorded approved firmware and the CAN ID used in code. Deployment succeeds, RioLog reports `IO: real`, and the wheels, feeder, and intake and launcher roller move in the reviewed directions on blocks. Every output request returns to zero when its control is released or the robot is disabled. Driver controls remain inactive in autonomous.
 
 </RulesBox>
 
 <Sources items={[
-  {"url": "https://docs.revrobotics.com/rev-hardware-client-2/", "label": "REV Hardware Client 2", "note": "Current client for REVLib 2026 devices."},
-  {"url": "https://docs.revrobotics.com/rev-hardware-client/ion/spark-max", "label": "SPARK MAX in REV Hardware Client", "note": "Identify, CAN ID, configuration, and firmware controls."},
-  {"url": "https://docs.revrobotics.com/rev-hardware-client/ion/spark-max/update", "label": "Updating a SPARK MAX", "note": "USB connection, bridge firmware, and multi-device updates."},
-  {"source": "wpilib", "path": "docs/software/vscode-overview/deploying-robot-code.html", "note": "Deploying Java robot code."},
-  {"source": "wpilib", "path": "docs/software/vscode-overview/viewing-console-output.html", "note": "Opening the roboRIO log and reading startup output."},
-  {"source": "wpilib", "path": "docs/software/driverstation/driver-station.html", "note": "Communications, robot-code, enable, and disable status."},
-  {"source": "wpilib", "path": "docs/hardware/hardware-basics/wiring-best-practices.html", "note": "Power-off connection checks and vibration-resistant wiring."},
-  {"source": "wpilib", "path": "docs/software/can-devices/can-addressing.html", "note": "Unique CAN device addresses."}
+  {
+    "url": "https://docs.revrobotics.com/rev-hardware-client-2/",
+    "label": "REV Hardware Client 2: Overview and Installation",
+    "note": "Supported devices and the 2026 firmware requirement."
+  },
+  {
+    "url": "https://docs.revrobotics.com/rev-hardware-client-2/rhc2/troubleshooting",
+    "label": "REV Hardware Client 2: Troubleshooting",
+    "note": "Firmware compatibility, outdated devices, and USB-to-CAN bridge requirements."
+  },
+  {
+    "url": "https://docs.revrobotics.com/brushless/spark-max/troubleshooting",
+    "label": "REV: SPARK MAX Troubleshooting",
+    "note": "Current Recovery Mode procedure and its effect on saved settings."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/vscode-overview/deploying-robot-code.html",
+    "note": "Building and deploying robot code, successful output, and keeping power on during deployment.",
+    "label": "Deploy Robot Code"
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/vscode-overview/viewing-console-output.html",
+    "note": "RioLog startup and console output.",
+    "label": "RioLog Console Output"
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/driverstation/driver-station.html",
+    "note": "Driver Station communication, robot-code, enable, and disable indicators.",
+    "label": "Driver Station Controls"
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/hardware/hardware-basics/wiring-best-practices.html",
+    "note": "Power-off wiring inspection, labeling, and connection checks.",
+    "label": "Wiring Best Practices"
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/can-devices/can-addressing.html",
+    "note": "Unique CAN device addresses.",
+    "label": "CAN Addressing"
+  }
 ]} />

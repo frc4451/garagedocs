@@ -1,0 +1,145 @@
+---
+title: "Mechanisms in 3D"
+lessonId: mechanisms-in-3d
+section: frc
+group: frc-mechanism-visualization
+groupLabel: "Mechanism Visualization"
+groupOrder: 18
+order: 6
+difficulty: advanced
+duration: 25 min
+description: "Turning the 2D mechanism tree into robot-relative component poses with generate3dMechanism, what AdvantageScope needs to render them, when to build the poses by hand instead, and logging held game pieces."
+---
+
+The 2D drawing answers where an assembly is. It cannot answer whether the arm clears the frame perimeter, where the turret is pointing, or whether the robot will hit a field element on the way to the reef. Those questions need the mechanism drawn in three dimensions, on the field, at the robot's pose.
+
+AdvantageScope draws that from a list of robot-relative poses, and AdvantageKit can generate the list from the tree you already built.
+
+It is worth seeing the result before building one. FRC 3847 posted a [screen recording of their double-jointed arm running in AdvantageScope](https://www.chiefdelphi.com/t/spectrum-3847-build-blog-2025/478254/212) three weeks into their 2025 build, with both joints articulating on the robot model. Everything on this page is what produces that: a model with components, and one pose per component logged every loop.
+
+### Component poses
+
+A robot model in AdvantageScope is a body plus a set of articulated components. The body follows the robot's field pose. Each component follows a `Pose3d` that is measured from the robot's origin, not from the field's, so the renderer applies the field pose on top and each component moves independently.
+
+That means the robot's own pose is logged once, as it already is for [Pose and Odometry](/frc/wheel-odometry), and the components are logged as an array beside it. Adding the array to a robot object in the 3D Field tab and setting its type to **Component** attaches them.
+
+The order of the array is the order of the components configured on the model, so a model with an elevator stage, a second stage and a carriage expects three poses in that order. Swapping two entries swaps two pieces of the robot, which looks like a modelling error rather than a logging one.
+
+### The model the poses attach to
+
+A robot model is a folder of files, not a setting in the app. [Custom Assets](https://docs.advantagescope.org/more-features/custom-assets/) documents the layout, and FRC 3847 ships a working one in their repository, which is the quickest way to see what the pieces are:
+
+<ContentTable
+  headers={["File", "What it is"]}
+  rows={[
+    ["<code>config.json</code>", "The model's name, the rotations and offset that bring the export into WPILib's frame, and one entry per articulated component"],
+    ["<code>model.glb</code>", "The robot body, which follows the robot's field pose"],
+    ["<code>model_0.glb</code>, <code>model_1.glb</code>", "One file per component, in the order the <code>components</code> array lists them"]
+  ]}
+/>
+
+Each component entry carries a `zeroedRotations` list and a `zeroedPosition`. Those describe where that piece sits when its logged pose is the identity, which is what lets the exported geometry be arbitrary: CAD rarely exports with +X forward and the origin at the pivot, so the config absorbs the difference once instead of every pose absorbing it every loop. 3847's own model applies a 90 degree rotation about X and another about Z at both the robot and the component level, which is the usual correction for a CAD export whose up axis is Y.
+
+The numbered files are the reason array order matters. `model_0.glb` is the first entry in `components`, and the first pose in the array you log, and nothing checks that the three agree.
+
+### Generating the poses from the tree
+
+`LoggedMechanism2d.generate3dMechanism()` walks the tree and returns one pose per node. Its documentation states the contract precisely: poses come back in the standard coordinate frame with `+x` forward, `+y` left and `+z` up, each pivot point is assumed to sit at the origin of its model, and the order follows insertion, depth first from the first root.
+
+```java
+Logger.recordOutput(
+    "Intake/Components",
+    mechanism.generate3dMechanism().toArray(new Pose3d[0]));
+```
+
+AdvantageScope's own 3D Field documentation points AdvantageKit users at this method, and it is the reason the 2D tree is worth building even on a robot whose drivers only ever look at the 3D view. One tree, kept correct in one place, feeds both.
+
+Two conditions have to hold for the result to be right. The mechanism must be **forward facing**, meaning the canvas is a side view of the robot looking along `+y`, with the drawing's `x` as the robot's forward axis and the drawing's `y` as up. And each component's model must pivot about its own origin, which is a CAD export decision rather than a code one.
+
+A canvas built for a side view satisfies the first condition for free. A canvas built for a top view, as a turret would need, does not: its `x` and `y` are the robot's forward and left, and the generated poses will lie flat on the floor.
+
+### Building the poses by hand
+
+`generate3dMechanism()` gives one pose per ligament, in a straight chain, with no offsets that the drawing does not contain. That covers a pivot on an elevator. It does not cover a mechanism whose 3D pieces do not correspond one to one with the 2D ligaments.
+
+FRC 6328's 2025 elevator is the example. The 2D drawing is a single ligament whose length is the carriage height. The real elevator is two nested stages that move by different amounts, so the 3D view needs three poses that the 2D tree has no nodes for:
+
+```java
+final double heightFromBottom =
+    elevatorHeightMeters + dispenserToBottom + dispenserToTop + stageThickness * 2.0;
+final double firstStageHeight =
+    Math.max(heightFromBottom - SuperstructureConstants.firstStageHeight - stageThickness, stageThickness);
+final double secondStageHeight = Math.max(firstStageHeight - stageHeight + stageToStage, 0.0);
+
+Logger.recordOutput(
+    "Mechanism3d/" + name + "/Superstructure",
+    new Pose3d(superstructureOrigin3d.plus(new Translation3d(secondStageHeight, ...)), Rotation3d.kZero),
+    new Pose3d(superstructureOrigin3d.plus(new Translation3d(firstStageHeight, ...)), Rotation3d.kZero),
+    new Pose3d(pivotPose3d.getTranslation(), Rotation3d.kZero),
+    pivotPose3d);
+```
+
+The stage heights are derived from the carriage height by arithmetic the drawing knows nothing about. `recordOutput` takes `Pose3d...` as varargs, so the four poses are written as one array without building a list.
+
+Use `generate3dMechanism()` when the 3D model's pieces match the ligaments. Build the poses by hand when they do not, and accept that the geometry now lives in two places and both have to be maintained.
+
+### Naming the poses
+
+Every geometric value here is an arrow, and the [pose geometry](/frc/pose-geometry) convention applies. A component pose is `RobotToComponent`: it takes a point in the component's frame and gives it in the robot's frame. The renderer composes it with `FieldToRobot` to place the component on the field, and the inner names cancel:
+
+```text
+FieldToRobot + RobotToIntakeArm = FieldToIntakeArm
+```
+
+Name the variables that way. `robotToIntakeArm` says what it is and makes the wrong composition visibly wrong; `intakePose` does not, and a `FieldToIntakeArm` handed to the Component type draws the arm at the far end of the field.
+
+### Game pieces
+
+A held game piece is a pose in the same frame, and logging it makes the 3D view show what the robot is carrying. 6328 logs an array that is empty or holds one element, switched by the sensor:
+
+```java
+if (hasCoral) {
+  Logger.recordOutput(
+      "Mechanism3d/" + name + "/Coral",
+      new Pose3d[] {
+        new Pose3d(RobotState.getInstance().getEstimatedPose())
+            .transformBy(new Transform3d(Pose3d.kZero, pivotPose3d))
+            .transformBy(new Transform3d(pivotToTunnelFront / 2.0, 0.0, 0, new Rotation3d(0, 0, 0)))
+      });
+} else {
+  Logger.recordOutput("Mechanism3d/" + name + "/Coral", new Pose3d[] {});
+}
+```
+
+Two details carry across to any robot. The piece's pose is built by transforming from the robot's estimated field pose through the mechanism that holds it, so the piece stays in the gripper as the mechanism moves. And the `else` branch logs an empty array rather than skipping the call, because a key that stops being written keeps its last value on the screen and leaves a phantom game piece stuck to the robot.
+
+These poses are field-relative, unlike the component poses, so they attach to the 3D Field as their own object rather than as a component of the robot.
+
+<RulesBox title="Common mistakes">
+
+- Log component poses robot-relative and game-piece poses field-relative. Mixing them puts a component at the corner of the field.
+- Keep the array order matched to the model's configured components.
+- Log an empty array when nothing is held, rather than skipping the call.
+- Check that the canvas is a side view before trusting `generate3dMechanism()`.
+- Name every pose as an arrow, `RobotToComponent`, so a bad composition is visible in the code.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "akit-source", "path": "akit/src/main/java/org/littletonrobotics/junction/mechanism/LoggedMechanism2d.java", "note": "<code>generate3dMechanism()</code> and its documented contract: forward facing, +x forward, +y left, +z up, pivots at the model origin, depth-first insertion order."},
+  {"source": "advantagescope", "path": "tab-reference/3d-field/", "note": "Robot-relative component poses, the Component pose type, and the pointer to <code>generate3dMechanism()</code> for AdvantageKit users."},
+  {"source": "advantagescope", "path": "more-features/custom-assets/", "note": "Configuring a robot model and its articulated components."},
+  {"source": "spectrum-2026", "path": "advantagescope-custom-assets/Robot_FM/config.json", "note": "A working model config: the robot-level rotations that correct a CAD export, and two component entries with their zeroed rotations and positions."},
+  {"url": "https://www.chiefdelphi.com/t/spectrum-3847-build-blog-2025/478254/212", "label": "Spectrum 3847 Build Blog 2025, post 212", "note": "A screen recording of FRC 3847's double-jointed arm articulating on their robot model in AdvantageScope, which is what component poses produce."},
+  {"source": "advantagescope", "path": "more-features/coordinate-systems/", "note": "The coordinate frame the poses are interpreted in."},
+  {"source": "mech-adv", "path": "src/main/java/org/littletonrobotics/frc2025/subsystems/superstructure/SuperstructureVisualizer.java", "note": "Hand-built stage poses for a two-stage elevator, the varargs <code>recordOutput</code>, and the held-piece array with its empty else branch."},
+  {"source": "mech-adv", "path": "src/main/java/org/littletonrobotics/frc2025/subsystems/superstructure/SuperstructureConstants.java", "note": "The stage height and thickness constants the hand-built poses derive from."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/geometry/Pose3d.html", "note": "<code>transformBy</code> and the <code>Transform3d</code> composition used to carry a game piece with a mechanism."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Visualizing Cobra","id":"visualizing-cobra"},
+  {"label":"Measured Against Goal","id":"measured-against-goal"},
+  {"label":"Pose Geometry","id":"pose-geometry"},
+  {"label":"Poses on the Field","url":"/tools/advantagescope-poses-on-the-field"}
+]} />

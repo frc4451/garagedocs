@@ -12,6 +12,10 @@ durationFixed: true
 ---
 
 
+Complete [R07 Part 2: Make It Drive](/kit-bot/r07-drive-io-part-2) first. You should already know how an IO interface separates a subsystem from real and simulated hardware. This lesson also uses constants from [R03: Constants](/kit-bot/r03-constants), motor-controller concepts from [R06: Motor Controllers](/kit-bot/r06-motor-controllers), and Java classes and interfaces.
+
+In VS Code Explorer, open `src/main/java/frc/robot/subsystems`. Create a folder named `launcher`; every Java file in this lesson goes in that folder.
+
 The Kit Bot has two rollers with different jobs:
 
 - The **intake and launcher roller** pulls fuel into the robot and sends it toward the target.
@@ -19,11 +23,11 @@ The Kit Bot has two rollers with different jobs:
 
 Each roller has its own motor controller, encoder, voltage command, and sensor readings. They are **not** a leader and follower pair. Intake, launch, and eject commands coordinate the two motors with different voltages.
 
-The `Launcher` name describes the subsystem in this curriculum. It owns both rollers because every public action needs them to move as one mechanism. Scorpion called the equivalent subsystem `Superstructure` and added a third agitator motor. This curriculum keeps the two motors from the official Kit Bot and omits Scorpion's agitator.
+The `Launcher` name describes the subsystem in this curriculum. It owns both rollers because every public action coordinates the same fuel path. The published Mechanical Advantage Kit Bot template provides separate feeder and intake-launcher outputs. This lesson keeps that two-output structure.
 
 This lesson creates a `LauncherIO` interface and two implementations. `LauncherIOReal` talks to the two SparkMax controllers. `LauncherIOSim` gives each motor its own WPILib flywheel model. Part 2 builds the subsystem and coordinates both outputs.
 
-### The shape we're building
+## The Shape We Are Building
 
 ```text
 subsystems/launcher/
@@ -34,7 +38,7 @@ subsystems/launcher/
 └── LauncherIOSim.java       ← simulates each roller separately
 ```
 
-### The IO interface
+## The IO Interface
 
 Create `src/main/java/frc/robot/subsystems/launcher/LauncherIO.java` with this complete file.
 
@@ -73,7 +77,9 @@ public interface LauncherIO {
 
 The interface makes the independence visible. A caller may send different voltages to the feeder and intake and launcher roller. Each reading uses a WPILib measure, and the readings remain separate so a stalled feeder cannot hide inside a combined current value.
 
-### The constants
+Build now. If the compiler cannot find `LauncherInputs`, confirm that the file name is `LauncherIO.java`, the package line matches the folder, and the nested class is inside the interface's final brace.
+
+## Add the Constants
 
 Create `src/main/java/frc/robot/subsystems/launcher/LauncherConstants.java` with this complete file. Build after adding it and the interface.
 
@@ -114,11 +120,13 @@ public final class LauncherConstants {
 }
 ```
 
-These are starter values based on the control pattern used by Scorpion and the Mechanical Advantage Kit Bot template. They are not universal tuning values. Check each direction on blocks with no fuel before testing the complete fuel path.
+These are simulation-first starter values based on the control structure in the published Mechanical Advantage Kit Bot template. The CAN IDs, current limit, moments of inertia, gear ratio, voltages, and delay are curriculum values. They are not verified stock dimensions or safe hardware settings. Keep them for the simulation checks. A mentor must inspect the real mechanism and approve hardware values after R12.
+
+This lesson defines **mechanism-positive** separately for each motor: positive feeder motion and positive intake-launcher motion are the positive RPM directions reported by that motor's sensor. A command may use a negative voltage to make fuel move in the desired direction because motor mounting and controller inversion affect the relationship between requested voltage, sensor sign, and fuel motion. Do not change a sign only because a later positive-direction characterization uses positive voltage.
 
 Notice that launch has two feeder values. During spin-up, the intake and launcher roller accelerates while the feeder applies only a small voltage. After the delay, the feeder receives its full launch voltage and sends fuel into the moving roller.
 
-### The real implementation
+## Add the Real Implementation
 
 Create `src/main/java/frc/robot/subsystems/launcher/LauncherIOReal.java` with this complete file. Build it on your laptop; use `LauncherIOSim` for the running checks.
 
@@ -203,7 +211,9 @@ There is no `.follow(...)` call. Each controller receives its own configuration 
 
 The inversion shown here is a starting point. Motor mounting, gearing, and wiring determine the correct signs on a particular robot. Verify motion at low voltage and change the configuration or constants when the real mechanism disagrees with the intended fuel direction.
 
-### The simulation implementation
+Build after adding `LauncherIOReal.java`. A successful build checks the class and method names. It does not prove that the CAN IDs, inversion, current limit, or encoder directions match a real robot.
+
+## Add the Simulation Implementation
 
 Create `src/main/java/frc/robot/subsystems/launcher/LauncherIOSim.java` with this complete file.
 
@@ -279,7 +289,9 @@ public class LauncherIOSim implements LauncherIO {
 
 The two simulations do not model fuel moving between rollers. They do prove that code can command and observe each motor independently. Test that changing one output changes the matching reading, and that stopping the subsystem sets both outputs to zero. Separate fields help you find copied names or assignments; they do not prevent every coding mistake.
 
-<RulesBox title="Done when">
+Build once more. Trace one channel before continuing: `setFeederVoltage` stores and applies the feeder request, `updateInputs` advances `feederSim`, and `feederVelocity` returns that model's shaft speed. Repeat the trace for the intake-launcher channel. `FlywheelSim` models the rotating mechanism through its motor and gearing; its RPM and current values do not show fuel movement.
+
+<RulesBox title="Done When">
 
 The constants, interface, and two IO implementations build. You can point to both voltage methods, both motor objects, and both simulation models, and explain why follower mode would be incorrect here.
 
@@ -289,7 +301,6 @@ The constants, interface, and two IO implementations build. You can point to bot
 
 <Sources items={[
   {"url": "https://github.com/Mechanical-Advantage/AdvantageKit/blob/main/template_projects/sources/kitbot_2026/src/main/java/frc/robot/subsystems/superstructure/SuperstructureIOSpark.java", "label": "Mechanical Advantage Kit Bot SuperstructureIOSpark", "note": "The reference implementation's separate feeder and intake-launcher SparkMax controllers."},
-  {"source": "scorpion", "path": "src/main/java/frc/robot/subsystems/superstructure/SuperstructureIOSparkNEO.java", "note": "Scorpion's separate feeder and intake-launcher controllers; its extra agitator is outside this curriculum."},
-  {"source": "revlib", "path": "com/revrobotics/spark/SparkMax.html", "note": "SparkMax voltage commands and sensor readings."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/FlywheelSim.html", "note": "The simulation model used once per roller."}
+  {"source": "revlib", "path": "com/revrobotics/spark/SparkMax.html", "note": "SparkMax voltage commands and sensor readings.", "label": "REVLib API: SparkMax"},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/FlywheelSim.html", "note": "The simulation model used once per roller.", "label": "WPILib API: FlywheelSim"}
 ]} />

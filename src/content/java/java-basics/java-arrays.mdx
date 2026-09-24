@@ -7,92 +7,206 @@ groupLabel: "Loops and Iteration"
 groupOrder: 3
 order: 3
 difficulty: beginner
-duration: 25 min
-description: "Arrays hold a fixed number of values by index: declaring them, filling them, arrays of objects, and building one from user input."
+duration: 35 min
+description: "Store a fixed number of same-type values, use indices safely, and traverse one- and two-dimensional arrays."
 ---
 
-An array stores a fixed number of values of one type. Its **length** is the number of slots, and each slot has an **index**, starting at zero.
+An **array** stores a fixed number of values of one type. Each stored value is an **element** in a slot. An array's **length** is its number of slots. Each slot also has a numbered position called an **index**, so a program can read or replace an element by its position. This lesson builds on [For Loops](/java/fundamentals/java-for-loops) and the index idea used in [String Positions And Ranges](/java/fundamentals/java-strings#read-positions-and-ranges).
 
-### Creating arrays - basic types
+<span id="creating-arrays---basic-types"></span>
 
-```java
-int[] readings = {4, 8, 15};
-System.out.println(readings.length);
-System.out.println(readings[0]);
-readings[1] = 10;
-System.out.println(readings[1]);
-```
+## Create And Read An Array
 
-This prints `3`, `4`, and `10` on separate lines. Square brackets select one element. For length 3, the valid indices are 0, 1, and 2.
-
-You can also create slots before you know their values:
+This complete `Main.java` program creates an `int` array with three values. To run it locally, replace the entire contents of `Main.java`, save it, and follow [Compile And Run](/java/fundamentals/java-setup#compile-and-run).
 
 ```java
-double[] distances = new double[3];
-distances[0] = 1.5;
-System.out.println(distances[1]);
-```
+public class Main {
+    public static void main(String[] args) {
+        int[] readings = {4, 8, 15};
 
-Numeric slots start at zero, so this prints `0.0`. Boolean slots start at `false`.
+        System.out.println("Length: " + readings.length);
+        System.out.println("First: " + readings[0]);
 
-### Walk an array with a loop
-
-```java
-int[] readings = {4, 8, 15};
-int total = 0;
-for (int i = 0; i < readings.length; i++) {
-    System.out.println(readings[i]);
-    total += readings[i];
-}
-System.out.println("Total: " + total);
-```
-
-The three readings print before `Total: 27`. Use `i < readings.length`: the length itself is not a valid index.
-
-A **for-each loop** reads each value when you do not need its index:
-
-```java
-String[] names = {"drive", "intake", "launcher"};
-for (String name : names) {
-    System.out.println(name);
+        readings[1] = 10;
+        System.out.println("Second: " + readings[1]);
+    }
 }
 ```
 
-Read the header as “for each String named name in names.”
+The output is:
 
-### Rows and columns
-
-A two-dimensional array is an array of arrays. In this example each row holds a distance in meters and a speed in RPM:
-
-```java
-double[][] samples = {{1.0, 2200.0}, {2.0, 2800.0}};
-System.out.println(samples[1][0]);
-System.out.println(samples[1][1]);
+```text
+Length: 3
+First: 4
+Second: 10
 ```
 
-This prints `2.0` and `2800.0`. The first index chooses a row; the second chooses an element in that row. Rows can have different lengths, so use `samples[row].length` for a row's size.
+Read `int[]` as “array of int.” The braces in `{4, 8, 15}` provide the initial values in index order:
 
-### Arrays of objects
+| Index | `0` | `1` | `2` |
+| --- | --- | --- | --- |
+| Value | `4` | `8` | `15` |
 
-String is an object type. `new String[3]` starts with three `null` references, not three empty strings. Assign a String before calling one of its methods.
+Java starts array indices at zero. An array of length 3 therefore has indices 0, 1, and 2. The expression `readings[1]` selects the second slot, and the assignment replaces `8` with `10`. It does not add a slot. `readings.length` reads the slot count stored with the array; unlike a method call, it has no parentheses.
 
-The worked examples for your own classes are in [Object arrays](/java/fundamentals/java-arrays-and-their-trade-offs#object-arrays). They use the Classes and Objects lessons.
+An array can have length zero. An empty array has no valid index. For every array, a valid index is at least `0` and less than `array.length`. A negative index or any index greater than or equal to the length causes an `ArrayIndexOutOfBoundsException` while the program runs.
 
-### String arrays example
+## Create Slots With Default Values
+
+Use `new` when you know the number of slots before you know their values. Java fills every new slot with a default value. Numeric slots start at zero, `boolean` slots start at `false`, and slots that will refer to a value such as a `String` start at `null`.
 
 ```java
-String[] names = "Avery Lee".split(" ");
-System.out.println(names[0]);
-System.out.println(names[1]);
+public class Main {
+    public static void main(String[] args) {
+        double[] distances = new double[3];
+        boolean[] passedChecks = new boolean[2];
+        String[] labels = new String[2];
+
+        System.out.println(distances[1]);
+        System.out.println(passedChecks[0]);
+        System.out.println(labels[0]);
+
+        labels[0] = "drive";
+        System.out.println(labels[0]);
+    }
+}
 ```
 
-This prints `Avery` and `Lee`. A string uses `length()`; an array uses the field `length` without parentheses.
+The output is:
 
-### Array length and stored values
+```text
+0.0
+false
+null
+drive
+```
 
-The length stays fixed. Assigning `readings[0]` replaces one value; it does not add a slot. If the program needs a different length, create another array.
+Here, `null` means that the slot does not yet refer to a `String`. Assign a String before calling a String method through that slot. For example, `labels[0].length()` works after the assignment to `"drive"`; calling it before that assignment causes a `NullPointerException`. The later [Objects And References](/java/fundamentals/java-objects-and-references) lesson develops this reference model.
+
+An array's length does not change after Java creates it. If a program needs a different number of slots, it creates another array. Later, [Arrays And Their Trade-offs](/java/fundamentals/java-arrays-and-their-trade-offs) compares that fixed length with collections that can grow.
+
+## Walk By Index
+
+An indexed `for` loop can visit every slot. Start the counter at 0 and continue while it is less than the array's length:
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        int[] readings = {4, 8, 15};
+        int total = 0;
+
+        for (int i = 0; i < readings.length; i = i + 1) {
+            System.out.println(readings[i]);
+            total = total + readings[i];
+        }
+
+        System.out.println("Total: " + total);
+    }
+}
+```
+
+The counter `i` is 0, 1, and 2 during the three passes. When `i` becomes 3, `i < readings.length` is false, so the loop stops before trying `readings[3]`. The output ends with `Total: 27`.
+
+Use an indexed loop when the position matters or when the loop must replace array slots. The loop can read or assign `readings[i]` because `i` is a valid index on every pass.
+
+## Read With For-Each
+
+A **for-each loop** visits each stored value in order when the index is not needed:
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        String[] names = {"drive", "intake", "launcher"};
+
+        for (String name : names) {
+            System.out.println(name);
+        }
+    }
+}
+```
+
+Read the header as “for each String named `name` in `names`.” On each pass, Java copies the next element's value into the local variable `name`.
+
+Assigning a new value to that local variable does not replace an array slot. Use an indexed loop and assign `names[i]` when the array itself must change. A for-each loop remains useful for printing, comparing, or adding values without changing their positions.
+
+## Understand Array References
+
+An array variable stores a **reference**, a value that identifies an array. Assigning that variable to another array variable copies the reference, so both names identify the same array. It does not copy the elements.
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        int[] original = {4, 8, 15};
+        int[] sameArray = original;
+
+        sameArray[0] = 10;
+
+        System.out.println(original[0]);
+        System.out.println(sameArray[0]);
+    }
+}
+```
+
+Both lines print `10` because both variables refer to the same array. The later trade-offs lesson shows how to create a separate copy when changes must stay independent.
+
+## Use Rows And Columns
+
+A two-dimensional array is an array whose elements are arrays. The first index selects a row, and the second selects a value within that row. This complete program stores two rows of practice data: distance in meters and requested speed in revolutions per minute (RPM).
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        double[][] samples = {
+            {1.0, 2200.0},
+            {2.0, 2800.0}
+        };
+
+        System.out.println("Rows: " + samples.length);
+        System.out.println("Distance meters: " + samples[1][0]);
+        System.out.println("Speed RPM: " + samples[1][1]);
+    }
+}
+```
+
+The outer array has length 2. `samples[1]` selects the second row, and `samples[1][0]` selects that row's first value, `2.0` meters. Java permits rows of different lengths, so use `samples[row].length` when walking the values in a particular row.
+
+This partial snippet belongs inside `main` after the `samples` declaration. The outer loop selects each row. The inner loop visits only the valid columns in that row:
+
+```java norun
+for (int row = 0; row < samples.length; row = row + 1) {
+    for (int column = 0; column < samples[row].length; column = column + 1) {
+        System.out.println(samples[row][column]);
+    }
+}
+```
+
+It prints `1.0`, `2200.0`, `2.0`, and `2800.0` on separate lines, preserving row order.
+
+A nested loop can walk rows and the values inside each row. The outer loop chooses a row; the inner loop uses that row's length. The later A10 assignment uses two columns to keep each distance beside its matching speed.
+
+## Turn Text Into An Array
+
+The String method `split` takes a regular-expression pattern and returns a new String array. This complete example uses the pattern `" "` to separate a name at each single space:
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        String[] names = "Avery Lee".split(" ");
+
+        System.out.println(names[0]);
+        System.out.println(names[1]);
+        System.out.println("Parts: " + names.length);
+    }
+}
+```
+
+This prints `Avery`, `Lee`, and `Parts: 2`. The single-space pattern does not combine several spaces; [Patterns And Splitting](/java/fundamentals/java-strings#preview-patterns-and-splitting) explains the whitespace pattern used by A03. A String's `text.length()` method counts UTF-16 code units, which match the ordinary letters in this example. An array's `values.length` gives its number of slots without parentheses.
+
+Arrays can also store instances of classes you write. Those examples need constructors and the fuller object-reference model, so they appear later in [Object Arrays](/java/fundamentals/java-arrays-and-their-trade-offs#object-arrays).
 
 <JavaPlayground id="java-arrays" />
+
+The playground supplies an `int[]` named `values`. Use its `length`, then walk its elements and total them. The expected output shows the exact labels and order.
 
 <ExerciseBox title="Practice">
 
@@ -104,16 +218,17 @@ The length stays fixed. Assigning `readings[0]` replaces one value; it does not 
 
 </ExerciseBox>
 
-
 <Sources items={[
-  {"source": "csce145", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "language-basics/arrays/", "note": "Arrays."},
-  {"source": "jls", "path": "jls-10.html", "note": "Arrays (chapter 10)."},
-  {"source": "java-api", "path": "java.base/java/util/Arrays.html", "note": "<code>Arrays</code> helpers."},
-  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/Scanner.html", "note": "<code>Scanner</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."}
+  {"source":"csce145","label":"Course Materials","note":"The course whose structure this lesson follows."},
+  {"source":"dev-java","path":"language-basics/arrays/","label":"Learning Arrays","note":"Beginner array declarations, creation, indexing, length, copying references, multidimensional arrays, and for-each traversal."},
+  {"source":"jls","path":"jls-10.html#jls-10.2","label":"JLS §10.2: Array Variables","note":"Array variables store references, assignment can make two variables refer to one array, and an array's length is fixed after creation."},
+  {"source":"jls","path":"jls-10.html#jls-10.3","label":"JLS §10.3: Array Creation","note":"Creating arrays with an expression or initializer and establishing their length during creation."},
+  {"source":"jls","path":"jls-10.html#jls-10.4","label":"JLS §10.4: Array Access","note":"Zero-based indices, the valid range from 0 through length minus one, and ArrayIndexOutOfBoundsException for invalid indices."},
+  {"source":"jls","path":"jls-10.html#jls-10.7","label":"JLS §10.7: Array Members","note":"The length field and the allowance for an array of length zero."},
+  {"source":"jls","path":"jls-4.html#jls-4.12.5","label":"JLS §4.12.5: Initial Values Of Variables","note":"Default values for numeric, boolean, and reference array components."},
+  {"source":"jls","path":"jls-14.html#jls-14.14.2","label":"JLS §14.14.2: The Enhanced for Statement","note":"For-each iteration and assignment of each array component to the loop variable."},
+  {"source":"java-api","path":"java.base/java/lang/NullPointerException.html","label":"NullPointerException","note":"The runtime failure caused by invoking an instance method through a null reference."},
+  {"source":"java-api","path":"java.base/java/lang/String.html#split(java.lang.String)","label":"String.split","note":"Splitting a String around matches into a returned String array."}
 ]} />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Loop Control", "id": "java-loop-control"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label":"Loop Control","id":"java-loop-control","description":"Change the normal path through a loop"}]} />

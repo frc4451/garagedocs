@@ -10,22 +10,66 @@ difficulty: intermediate
 description: "Clone a repository, connect to GitHub, and distinguish fetch, pull, and push."
 ---
 
-### Connecting to GitHub
+## Before You Start
 
-Git runs on your computer. GitHub hosts a remote copy of the repository where teammates can share commits and review changes. A local commit reaches GitHub only after you push it.
+Complete [Creating Your GitHub Account](/tools/creating-your-github-account), [Local Git Workflow](/tools/local-git-workflow), and [Branching and Merging](/tools/branching-and-merging) first. You should be able to identify a terminal prompt, open the intended folder, commit a change, and check the current branch.
 
-### Setting up GitHub
+Git records commits on your computer. GitHub can host a remote copy where collaborators share commits and review changes. A local commit reaches GitHub only after a successful push.
 
-Complete [Creating Your GitHub Account](/tools/creating-your-github-account) first. It covers email verification, 2FA, and accepting a team organization invitation. Then choose an authentication method from the section below.
+## Authentication Methods
 
-To work on an existing project, copy its clone URL from GitHub's **Code** menu. Replace `repository-url` below with that URL:
+GitHub supports HTTPS and SSH repository URLs. Follow the method supported by your Automation Team or school.
+
+For HTTPS, GitHub recommends Git Credential Manager (GCM) or GitHub CLI so sign-in can happen through a browser. Current Git for Windows includes GCM. On macOS or Linux, installing Git alone may not install either authentication helper. Before cloning a private repository, follow GitHub's [HTTPS credential setup](https://docs.github.com/en/get-started/git-basics/caching-your-github-credentials-in-git) for your operating system with the computer owner's approval. GitHub CLI and GCM are separate software installations on those systems.
+
+Continue only when one of these is true:
+
+- a mentor has confirmed that GCM is installed and configured for this user account;
+- GitHub CLI is installed, `gh auth login` has completed with HTTPS selected, and it was allowed to authenticate Git; or
+- the Automation Team has chosen SSH and completed the approved SSH setup below.
+
+GitHub no longer accepts an account password for Git operations over HTTPS. If a terminal asks for a password and no approved credential helper is active, cancel with **Ctrl+C** and complete the credential setup. Do not type your GitHub password or create a personal access token merely to get past the prompt.
+
+SSH uses a key stored on your computer and a matching public key added to your GitHub account. Use the [GitHub SSH setup](https://docs.github.com/en/authentication/connecting-to-github-with-ssh) only when your team uses SSH or a mentor is helping with the initial setup.
+
+Keep tokens and private SSH keys out of repositories. Successful authentication proves who you are; access to a private repository still requires permission from its owner.
+
+## Clone An Existing Repository
+
+A **clone** creates a new local folder and copies the repository's files and history into it.
+
+1. Sign in to GitHub in a browser and open the repository page your mentor names.
+2. Above the file list, select **Code**. Select **Local**, then **HTTPS**, and copy the URL.
+3. In VS Code, select **File → Open Folder** and open the parent folder where you keep projects, such as `Documents/Robot Projects`. Do not open another repository. The clone command creates a new repository folder inside this parent folder.
+4. Select **Terminal → New Terminal**. Confirm that the prompt ends with the parent folder's name.
+5. Replace `PASTE-HTTPS-URL-HERE` inside the quotation marks with the URL you copied. Keep the quotation marks.
 
 <CodeTabs>
 <CodeTab label="PowerShell">
 
 ```powershell
-git clone repository-url
-cd repository-folder
+git clone "PASTE-HTTPS-URL-HERE"
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+git clone "PASTE-HTTPS-URL-HERE"
+```
+
+</CodeTab>
+</CodeTabs>
+
+Git may open a browser sign-in through your credential helper. Check that the browser names GitHub and the expected account, complete sign-in, and return to the terminal. If no browser opens and the terminal requests a username or password, stop the clone with **Ctrl+C** and return to [Authentication Methods](#authentication-methods).
+
+A successful clone prints progress and ends without a fatal error. The Explorer does not automatically switch into the new folder. Select **File → Open Folder** and open the repository folder Git created. Then open a new terminal and run:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+git status
 git remote -v
 ```
 
@@ -33,71 +77,172 @@ git remote -v
 <CodeTab label="Terminal">
 
 ```bash
-git clone repository-url
-cd repository-folder
+git status
 git remote -v
 ```
 
 </CodeTab>
 </CodeTabs>
 
-Replace `repository-folder` with the folder created by the clone. `git remote -v` displays the configured remote names and URLs. A clone normally names its source `origin`.
+`git status` should name a branch rather than saying the folder is not a repository. `git remote -v` should show the copied GitHub URL beside `origin` for fetch and push.
 
-For an existing local project, create an empty GitHub repository first. Inside the local project, use `git remote add origin repository-url` with its URL. This adds the connection; it does not upload files yet.
+If Git says **repository not found**, confirm the URL and verify that the signed-in account can open the repository in the browser. If it says **authentication failed**, check the selected authentication method rather than creating another clone.
 
-### Syncing with remote
+## Connect An Existing Local Repository
 
-These commands have different effects. Replace `branch-name` with the branch you intend to share or update, and check your current branch with `git status` first.
+Use this path when the project already has local commits and does not yet have a GitHub remote.
+
+1. On GitHub, create a new repository with the intended name and visibility.
+2. Leave the options to add a README, `.gitignore`, and license unselected. The local project already has its first history; initializing the GitHub repository separately can create an unrelated history that complicates the first push.
+3. On the new repository's setup page, copy its HTTPS URL.
+4. Open the existing local repository in VS Code and confirm its terminal prompt shows that folder.
+5. Run `git status` and continue only when intended changes are committed.
+6. Replace the URL placeholder below with the copied URL, keeping the quotation marks:
 
 <CodeTabs>
 <CodeTab label="PowerShell">
 
 ```powershell
-git fetch origin                 # Download remote history without integrating it
-git pull origin branch-name      # Fetch and integrate into the current branch
-git push -u origin branch-name    # Publish the local branch and set its upstream
+git remote add origin "PASTE-HTTPS-URL-HERE"
+git remote -v
+git branch --show-current
 ```
 
 </CodeTab>
 <CodeTab label="Terminal">
 
 ```bash
-git fetch origin                 # Download remote history without integrating it
-git pull origin branch-name      # Fetch and integrate into the current branch
-git push -u origin branch-name    # Publish the local branch and set its upstream
+git remote add origin "PASTE-HTTPS-URL-HERE"
+git remote -v
+git branch --show-current
 ```
 
 </CodeTab>
 </CodeTabs>
 
-`pull` integrates the fetched history using merge or rebase according to its options and configuration; it can stop for conflicts or incompatible settings. Check and preserve local work before integrating changes. See [Git's pull reference](https://git-scm.com/docs/git-pull).
+Adding a remote creates the connection but uploads nothing. `git remote -v` should show `origin`; the last command prints the local branch name you will publish.
 
-After setting an upstream, `git pull` and `git push` can use it without a remote and branch argument. A push sends commits, not unsaved or uncommitted files.
+## Fetch, Pull, And Push
 
-### Authentication methods
+These operations have different goals. Run the procedure that matches the result you need rather than treating all three command groups as one sequence.
 
-GitHub supports HTTPS and SSH connections. HTTPS can use a credential manager or personal access token; SSH uses a key added to your account. Follow the team's supported setup and the [GitHub authentication documentation](https://docs.github.com/en/authentication). Your GitHub account password is not used as the password for Git over HTTPS.
+### Fetch To Inspect
 
-Enable two-factor authentication for your account. Keep tokens and private keys out of the repository. Access to a private repository also requires permission from its owner, even when authentication succeeds.
+Fetch downloads remote branch information without integrating it into your current branch:
 
-### Understanding remote repository workflow
+<CodeTabs>
+<CodeTab label="PowerShell">
 
-Fetch to inspect incoming work, integrate changes when ready, and push commits you want to share. If a push is rejected, read the error: an out-of-date branch, missing permission, and an authentication failure need different fixes. Do not force-push to bypass an unexplained rejection.
+```powershell
+git status
+git fetch origin
+git branch --remotes
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+git status
+git fetch origin
+git branch --remotes
+```
+
+</CodeTab>
+</CodeTabs>
+
+The remote-branch list uses names such as `origin/main`. Fetch can print progress or no output when there is nothing new. It does not change the files on your current branch.
+
+### Pull To Integrate
+
+Pull fetches and then integrates the named remote branch into your current branch. Before using it, learn whether the repository expects merge, rebase, or fast-forward-only updates. For this first procedure, continue only when the repository owner confirms that the current branch can fast-forward to the named remote branch. Check the current branch and require a clean working tree first. Replace `branch-name` with the exact branch you intend to update, such as `main`; do not type the placeholder literally.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+git status
+git branch --show-current
+git pull origin branch-name
+git status
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+git status
+git branch --show-current
+git pull origin branch-name
+git status
+```
+
+</CodeTab>
+</CodeTabs>
+
+The expected first result is a fast-forward or an “already up to date” message followed by a clean status. Depending on the histories and configuration, pull can instead merge, rebase, or stop and ask how to reconcile divergent branches. If that happens, read the complete message and run `git status`. Do not copy a suggested global configuration command from the error, run pull repeatedly, or discard files. Ask the repository owner which integration policy applies.
+
+### Push A Branch
+
+Push sends committed history. It does not send unsaved files, uncommitted changes, or ignored files. Confirm the branch and remote before the first push:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+git status
+git branch --show-current
+git remote -v
+git push -u origin branch-name
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+git status
+git branch --show-current
+git remote -v
+git push -u origin branch-name
+```
+
+</CodeTab>
+</CodeTabs>
+
+Replace `branch-name` with the output from `git branch --show-current`. The `-u` option records the upstream connection. After it succeeds, later `git push` and `git pull` can use that connection without repeating the remote and branch.
+
+Open the repository on GitHub and select its branch menu. The pushed branch and newest commit should appear. This browser check confirms that the remote received the commit.
+
+## Troubleshooting A Push
+
+Do not force-push to bypass an unexplained rejection.
+
+| What You See | What It Usually Means | First Check |
+|---|---|---|
+| `non-fast-forward` or `fetch first` | The remote branch has commits your local branch lacks. | Fetch, inspect the incoming branch, and integrate it according to the repository's policy. |
+| `authentication failed` | GitHub did not accept the stored or supplied authentication. | Confirm the remote URL and follow the credential-manager or SSH troubleshooting for the chosen method. |
+| `permission denied` or a message that you cannot push | The authenticated account may lack write access, or a rule may block the push. | Open the repository in the browser with the same account and ask the repository owner about access or rules. |
+| `repository not found` | The URL is wrong, the repository moved, or the account cannot see a private repository. | Compare `git remote -v` with the browser URL and confirm browser access. |
+| A branch-protection or ruleset message | The destination branch requires another workflow, often a pull request. | Read the named rule and push a feature branch instead of trying to bypass it. |
+
+Keep the exact error text when asking for help, but remove any token, key, or credential before sharing it.
 
 <Sources items={[
-  {"source": "git", "path": "book/en/v2/Git-Basics-Working-with-Remotes", "note": "Remotes, fetch, pull, push."},
-  {"source": "git", "path": "docs/git-clone", "note": "<code>git clone</code>."},
-  {"source": "git", "path": "docs/git-remote", "note": "<code>git remote</code>."},
-  {"source": "git", "path": "docs/git-fetch", "note": "<code>git fetch</code>."},
-  {"source": "git", "path": "docs/git-pull", "note": "<code>git pull</code>."},
-  {"source": "git", "path": "docs/git-push", "note": "<code>git push</code>."},
-  {"source": "github", "path": "get-started/getting-started-with-git/managing-remote-repositories", "note": "Managing remotes on GitHub."},
-  {"source": "github", "path": "authentication/keeping-your-account-and-data-secure/about-authentication-to-github", "note": "HTTPS tokens and SSH keys."},
-  {"source": "github", "path": "authentication/connecting-to-github-with-ssh", "note": "SSH setup."}
+  {"source": "git", "path": "book/en/v2/Git-Basics-Working-with-Remotes", "note": "Remote names, fetch, pull, and push."},
+  {"source": "git", "path": "docs/git-clone", "note": "Clone behavior and the default <code>origin</code> remote."},
+  {"source": "git", "path": "docs/git-remote", "note": "Adding and inspecting remote URLs."},
+  {"source": "git", "path": "docs/git-fetch", "note": "Downloading remote history without integrating it."},
+  {"source": "git", "path": "docs/git-pull", "note": "Fetch-and-integrate behavior and possible conflicts."},
+  {"source": "git", "path": "docs/git-push", "note": "Publishing a branch, setting an upstream, and rejected updates."},
+  {"source": "github", "path": "repositories/creating-and-managing-repositories/creating-a-new-repository", "note": "Creating a GitHub repository without initializing files when importing an existing local project."},
+  {"source": "github", "path": "get-started/getting-started-with-git/managing-remote-repositories", "note": "Adding and checking GitHub remote URLs."},
+  {"source": "github", "path": "authentication/keeping-your-account-and-data-secure/about-authentication-to-github", "note": "HTTPS and SSH authentication and removal of password authentication for Git."},
+  {"source": "github", "path": "get-started/git-basics/caching-your-github-credentials-in-git", "note": "Git Credential Manager, browser sign-in, and credential recovery."},
+  {"source": "github", "path": "authentication/connecting-to-github-with-ssh", "note": "SSH setup as an alternative to HTTPS."}
 ]} />
 
 <LinkGrid links={[
-    {"label":"GitHub Docs: Hello World","url":"https://docs.github.com/en/get-started/using-github/hello-world"},
-    {"label":"GitHub Documentation: Remote Repositories","url":"https://docs.github.com/en/get-started/getting-started-with-git/managing-remote-repositories"},
-    {"label":"SSH Key Setup for GitHub","url":"https://docs.github.com/en/authentication/connecting-to-github-with-ssh"}
-  ]} title="Further reading" section="tools" />
+  {"label":"Next: Open a Pull Request","id":"pull-requests"},
+  {"label":"GitHub: Cache HTTPS Credentials","url":"https://docs.github.com/en/get-started/git-basics/caching-your-github-credentials-in-git"},
+  {"label":"GitHub: Connect With SSH","url":"https://docs.github.com/en/authentication/connecting-to-github-with-ssh"}
+]} title="Next Steps" section="tools" />

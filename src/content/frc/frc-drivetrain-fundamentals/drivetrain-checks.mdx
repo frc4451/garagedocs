@@ -1,0 +1,102 @@
+---
+title: "Drivetrain Checks"
+lessonId: drivetrain-checks
+section: frc
+group: frc-drivetrain-fundamentals
+groupLabel: "Drivetrain Fundamentals"
+groupOrder: 13.5
+order: 4
+difficulty: intermediate
+description: "Check drivetrain calculations, coordinate frames, and measured motion."
+---
+
+Start after [Swerve Drive Math](/frc/swerve-drive-math). You will compare a calculated target with code output, then separate that target from measured motion. Use simulation or a calculation test for these checks; the illustrative dimensions are not your robot configuration.
+
+## Predict the Outputs
+
+Predict these results using the same geometry before inspecting a simulation:
+
+| Request `(vx, vy, omega)` | Differential Drive | Swerve Drive |
+| --- | --- | --- |
+| `(1, 0, 0)`: forward | Both sides at 1 m/s | All modules at 1 m/s, 0° |
+| `(0, 1, 0)`: left without turning | Cannot produce this sideways motion | All modules at 1 m/s, +90° |
+| `(0, 0, 1)`: turn in place | Left -0.30, right +0.30 m/s | All modules about 0.424 m/s; angles FL +135°, FR +45°, BL -135°, BR -45° |
+| `(1, 0, 1)`: forward while turning | Left 0.70, right 1.30 m/s | Four states from the [worked table](/frc/swerve-drive-math#locate-each-module) |
+
+
+
+These reference values use a 0.60 m differential track width and swerve module offsets of plus or minus 0.30 m. Speeds are meters per second, and `omega` is radians per second. The angles are before optimization. Round displayed answers, but allow a small tolerance when comparing calculations instead of requiring exact equality of decimal values.
+
+## Robot and Field Directions
+
+The wheel calculations above expect **robot-relative** velocities. **Field-relative** driving lets a stick direction refer to the field even when the robot faces a different way. It is a coordinate conversion before kinematics, not a different kind of drivetrain.
+
+For example, with the robot facing +90° from the field's forward axis, a request to move 1 m/s along that field axis becomes robot-relative `vx = 0`, `vy = -1`: move toward the robot's right. `ChassisSpeeds.fromFieldRelativeSpeeds` performs that conversion using the robot's current heading. Convert once; applying it again rotates an already-converted request.
+
+Swerve can follow that sideways request while keeping its heading. A differential robot must change its route or heading to reach the same destination. This is why [Path Following](/badges/badge-2-path-following) treats swerve's travel direction and robot heading as separate targets.
+
+Draw the field's forward arrow first. Turn your drawing of the robot 90 degrees counterclockwise. Its right side now points along that field arrow. This lets you check the negative sideways sign without memorizing a rotation formula.
+
+## From Speeds to Motors
+
+The drive controller still has to make each wheel reach its requested speed. Differential drive controls left and right wheel speeds. Swerve controls each module's drive speed and steering angle, using measured speed and angle as feedback. This adds steering calibration and control to the work you already know from the Kit Bot.
+
+Wheel speed is also different from motor shaft speed. For wheel radius `r`, divide meters per second by the wheel circumference, `2 × pi × r`, to get wheel rotations per second. Multiply by the reduction only when the motor API expects rotor rotations. If the controller already applies that reduction, applying it again gives the wrong result. [Motor Controller Configuration](/frc/motor-controller-configuration#essentials) explains that boundary.
+
+If the calculated swerve states exceed the allowed wheel speed, `SwerveDriveKinematics.desaturateWheelSpeeds` can scale all speeds by the same factor. Clipping each wheel independently changes their ratios and the requested motion. The hand examples above assume no limiting, steering delay, or wheel slip. Use WPILib and the supplied template for robot control; use these calculations to predict and check its outputs.
+
+## Inspect a Drive Request
+
+Use the projects from [Badge 2 Project Setup](/badges/badge-2-project-architecture) and the [simulation test workflow](/frc/unit-tests-in-simulation#where-tests-live-and-how-they-run). Keep practice changes local to a test or simulation. You can check kinematics without enabling motors.
+
+1. Open the drivetrain source in VS Code. Search for `toWheelSpeeds` or `toSwerveModuleStates`. If a helper owns the conversion, follow the call into that helper.
+2. Locate the track width or module locations passed to the kinematics constructor. Write down their units and array order.
+3. In a calculation test, supply each request from the table using the illustrative geometry. Write the predicted values before running the test. For a swerve result, inspect both its speed and angle.
+4. Repeat predictions using the project's configured geometry. The results may differ from the table. Explain that difference using the distances in the configuration.
+5. Trace what happens after kinematics: speed limits, state optimization, and the final motor requests. Compare targets at the same stage rather than comparing an unoptimized prediction with an optimized angle alone.
+6. In simulation or a recorded log, compare requested motion, wheel targets, and measured wheel motion. Steering and drive control need time to reach targets. A target is not evidence that the wheel instantly reached it.
+
+If the project does not record an intermediate value, inspect it in a debugger or expose it in your practice test. Do not assume a particular logging key exists in every template. [Tools](/tools) covers the computer applications used to inspect projects and logs; [Hardware](/hardware) provides the physical device context.
+
+## Investigate Differences
+
+| Observation | Check Before Changing Code |
+| --- | --- |
+| Correct speeds appear on the wrong modules | Compare constructor order, result array order, and module labels. |
+| A target angle differs by 180 degrees | Check whether signed wheel speed also reversed during optimization. |
+| Motion changes direction when field-relative control is selected | Check the heading convention, gyro zero, and whether conversion happens exactly once. |
+| Requested speeds match, but measured speeds have a consistent scale difference | Check meters versus rotations, wheel radius, and whether gearing was applied twice. |
+| A pure turn has the wrong calculated speed | Check module offsets or differential track width and meters versus centimeters. |
+
+These observations narrow the search; each can have more than one cause. Keep the request, geometry, expected result, observed result, and confirming check together in your notes.
+
+## Continue to Pose
+
+Finish by explaining the difference between two questions. Kinematics calculates wheel targets from requested motion. Odometry uses measured wheel travel, steering angles where applicable, and gyro heading to update an estimated pose. A requested speed alone does not establish where the robot moved.
+
+Continue with [Introduction to Pose Estimation](/frc/introduction-to-pose-estimation), then [Pose Geometry](/frc/pose-geometry) and [Wheel Odometry](/frc/wheel-odometry). Badge 2 students return to [Step 9: Pose and Motion](/badges/badge-2-math#tank-to-swerve) to apply those measurements in their badge evidence.
+
+<Sources items={[
+  {
+    "source": "wpilib",
+    "path": "docs/software/kinematics-and-odometry/differential-drive-kinematics.html",
+    "note": "Track width and chassis-to-wheel conversion."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/kinematics-and-odometry/swerve-drive-kinematics.html",
+    "note": "Module geometry, ordering, optimization, and coordinate conversion."
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/math/kinematics/ChassisSpeeds.html",
+    "note": "Field-relative conversion."
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/math/kinematics/SwerveDriveKinematics.html",
+    "note": "Conversion and desaturation contracts."
+  }
+]} />
+
+<LinkGrid links={[{"label":"Introduction to Pose Estimation","id":"introduction-to-pose-estimation"}]} title="Next" section="frc" />

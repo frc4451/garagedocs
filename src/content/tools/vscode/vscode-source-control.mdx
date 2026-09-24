@@ -10,171 +10,116 @@ difficulty: beginner
 description: "Review diffs, stage changes, commit, manage branches, and synchronize a repository from VS Code."
 ---
 
-### What this view is
+## Before You Start
 
-<ReferenceImage
-  src="/media/tools/vscode-source-control.png"
-  alt="VS Code Source Control view beside a side-by-side file diff"
-  caption="The Source Control view lists changed and staged files while the diff editor shows the exact lines that changed."
-  sourceUrl="https://code.visualstudio.com/docs/sourcecontrol/overview"
-  sourceLabel="Visual Studio Code documentation"
-/>
+Complete [Local Git Workflow](/tools/local-git-workflow#the-three-areas) first. A **repository** is a project folder whose history Git tracks. A **staged change** is selected for the next **commit**, which is a named local snapshot. A **branch** is a movable line of commits. A **remote** is another copy of the repository, often on GitHub.
 
-VS Code's **Source Control** view shows Git changes and provides controls for staging, committing, and synchronizing. It operates on the same repository as command-line Git.
+Git must be installed, and the repository folder must be open through **File → Open Folder...**. VS Code and command-line Git use the same repository; there is no separate import step.
 
-Open it with `Ctrl+Shift+G` (the same on macOS) or the branching icon in the Activity Bar. This lesson assumes you know what a commit, a branch and a remote are. If you do not, start with [Local Git Workflow](/tools/local-git-workflow#understanding-the-three-areas-of-git).
+## The Layout
 
-<YouTubeEmbed id="i_23KUAEtUM" title="Using Git with Visual Studio Code (Official Beginner Tutorial)" />
-
-### The layout
+Select the Source Control icon in the Activity Bar, choose **View → Source Control**, or press `Ctrl+Shift+G` on every supported platform. The repository name appears above its changes. If the view says no source control provider is registered, confirm that Git is installed and that you opened the repository folder rather than one file.
 
 <ContentTable
-  headers={["Part", "What it shows", "Git equivalent"]}
+  headers={["Part", "What You See", "Meaning"]}
   rows={[
-    ["<strong>Repository header</strong>", "The repository name and the toolbar: commit ✓, refresh, and the <code>…</code> menu with everything else", ":"],
-    ["<strong>Message box</strong>", "Where the commit message goes", "<code>git commit -m</code>"],
-    ["<strong>Staged Changes</strong>", "Files that will go into the next commit. Only appears once something is staged", "The staging area (<code>git add</code>)"],
-    ["<strong>Changes</strong>", "Files modified, added or deleted since the last commit and not yet staged", "<code>git status</code>, the red part"],
-    ["<strong>Merge Changes</strong>", "Files with conflicts, only during a merge", "<code>git status</code> during a merge"],
-    ["<strong>Graph</strong>", "Recent commits on this branch and the ones it relates to, as a graph", "<code>git log --graph --oneline</code>"]
+    ["<strong>Changes</strong>", "Modified, new, renamed, or deleted files", "Working-folder changes not selected for the next commit"],
+    ["<strong>Staged Changes</strong>", "Files or lines selected for the commit", "The staging area"],
+    ["<strong>Message box</strong>", "A text box above the changes", "The next commit message"],
+    ["<strong>Graph</strong>", "Commit history and branch lines", "Repository history; availability and placement can vary with VS Code version and view layout"],
+    ["<strong>Status Bar</strong>", "The current branch and synchronization status", "A summary and entry point for branch or remote actions"]
   ]}
 />
 
-The Status Bar, bottom left, is the view's summary: the current branch name, a sync icon with how many commits are waiting to go each way (`↓2 ↑1`), and a spinner while Git is doing something.
+If Graph is not visible, use **Source Control Graph** from the Command Palette. For one file, Explorer's **Timeline** is another built-in history view.
 
-### The letters and colours
+## Read File Status
 
-Every file in *Changes* carries a letter, and the same letter and colour appear next to the file in the Explorer and on its editor tab:
+Lead with the letter and status name because theme colors differ. **M** means modified, **U** untracked, **A** added, **D** deleted, **R** renamed, and **C** conflicted. Open a file under **Changes** to compare working edits with the staged or committed version. Open it under **Staged Changes** to inspect what the next commit will record.
 
-<ContentTable
-  headers={["Letter", "Colour", "Means"]}
-  rows={[
-    ["<strong>M</strong>", "Amber", "Modified: a tracked file you changed"],
-    ["<strong>U</strong>", "Green", "Untracked: a new file Git has never seen. It will not be committed until you stage it"],
-    ["<strong>A</strong>", "Green", "Added: a new file that is staged"],
-    ["<strong>D</strong>", "Red, struck through", "Deleted"],
-    ["<strong>R</strong>", "Green", "Renamed (Git inferred a rename from the file changes)"],
-    ["<strong>C</strong>", "Red", "Conflict: this file has both sides of a merge in it"],
-    ["<em>Greyed out</em>", "Grey", "Ignored by a matching rule; often generated or temporary files"]
-  ]}
-/>
+An untracked file is not included until staged. Before staging it, decide whether it is required project content or generated output that belongs in `.gitignore`.
 
-A **U** marks an untracked file. Check whether the project needs it, then stage it if it belongs in the commit. Colours can vary with the theme.
+## Staging
 
-### Seeing what changed
+<StepsBox title="Review and Stage">
 
-Open a file under **Changes** to compare unstaged edits with the staged version. Open a file under **Staged Changes** to compare the staged version with the current commit. Read both when a file has edits in each group.
+1. Select a file under **Changes**. A diff editor opens.
+2. Read the old and new lines. Confirm the change belongs in this commit.
+3. To stage the whole file, return to Source Control, hover over the file, and select **Stage Changes** (`+`). The file moves to **Staged Changes**.
+4. To stage selected lines, select them in the diff editor, right-click, and choose **Stage Selected Ranges**. Only the selected change moves to the staged side.
+5. Reopen the file under **Staged Changes** and read the staged diff. Any remaining edits stay under **Changes**.
 
-The **gutter** beside the line numbers marks changes. Select a marker to inspect that change and use the available staging or reverting controls.
+</StepsBox>
 
-### Staging
+**Unstage Changes** moves a staged change back to **Changes** and keeps the edit. **Discard Changes** removes working edits. Before choosing Discard, stop, read the confirmation, verify the exact file or range, and make sure you have another copy if the work matters. Do not use Discard as an unstaging shortcut.
 
-Staging selects the versions that the next commit will record:
+## Commit and Confirm
 
-<ContentTable
-  headers={["To stage", "Do", "Git equivalent"]}
-  rows={[
-    ["Some lines of a file", "In the diff editor, select the lines, right-click → <em>Stage Selected Ranges</em>", "<code>git add -p</code>"],
-    ["One change (hunk)", "Click the gutter marker → the stage <code>+</code> in its panel", "<code>git add -p</code>"],
-    ["One file", "Hover the file in <em>Changes</em> → <code>+</code>", "<code>git add path</code>"],
-    ["Everything", "Hover the <em>Changes</em> heading → <code>+</code>", "<code>git add -A</code>"]
-  ]}
-/>
+Type a message that names the behavior, such as `Fix launcher speed limit`. Stage the intended changes explicitly, then select **Commit**. The default keyboard action is `Ctrl+Enter` on Windows/Linux or `Cmd+Enter` on macOS, but use the named button if the configured behavior is unclear.
 
-Unstaging is the same in reverse: the `−` on a file under *Staged Changes*, or on the heading. Unstaging keeps the file edits.
+After a successful commit, the staged files disappear from **Staged Changes**. Uncommitted edits remain under **Changes**. Open Graph or run `git status` in the integrated terminal to confirm the commit and remaining work. A commit is local until pushed.
 
-**Discard Changes** removes selected working changes. This differs from unstaging, which keeps the file edits. Treat discard as destructive and check the confirmation and affected file before proceeding; do not rely on automatic recovery.
+Avoid **Amend** unless you intend to replace the latest local commit. If that commit has already been shared, create a new commit unless the collaborators have agreed to rewrite history.
 
-### Committing
+## Create or Switch Branches
 
-Type the message in the box and press `Ctrl+Enter` (`Cmd+Enter`), or click ✓. The first line is the summary; leave a blank line and keep writing for the body. [Writing Good Commit Messages](/tools/version-control-best-practices#writing-good-commit-messages) is the standard to hold it to.
+Select the branch name in the lower-left Status Bar. Choose **Create new branch...**, enter the name, and press Enter. The Status Bar should change to the new name. Before editing or committing, read it again.
 
-Two commit options need care:
+When switching branches, VS Code may carry edits that apply cleanly or block the switch when it would overwrite work. Stop and read the message. Keep the work on its current branch by committing it, or follow [Stashing Work](/tools/advanced-git#stash-work-safely) after verifying whether untracked files are included.
 
-- **Nothing staged:** smart-commit behavior depends on settings. Stage the intended files explicitly before committing.
-- **Amend:** replaces the latest commit with a new version. Use it for local history you intend to revise; coordinate before amending a commit others may have used.
+## Sync, Pull, Push, Fetch
 
-### Branches
+- **Fetch** asks the remote for updated branch information without integrating it into the current branch.
+- **Pull** fetches and integrates remote commits into the current branch.
+- **Push** uploads local commits.
+- **Sync Changes** pulls and then pushes. Use it only when you intend both operations.
 
-The branch name in the Status Bar is a button. Click it for the branch picker:
+Choose separate actions from the Source Control `...` menu when you need one operation. After a push, outgoing-commit indicators should clear. If a push is rejected, read the complete message. Incoming work, authentication, permissions, and branch protections require different fixes.
 
-- **Create new branch…**: type a name; you are switched to it immediately. Follow [Branch Naming](/tools/version-control-best-practices#branch-naming-and-organization).
-- **Create new branch from…**: the same, but starting from a branch other than the current one. Use it to start a fix from `main` while you are in the middle of a feature.
-- Select any listed branch to switch to it (`git switch`). Remote branches you have not checked out yet appear as `origin/name`; picking one creates a local copy.
+## Merge Conflicts
 
-Uncommitted changes may follow a branch switch or prevent it if files would be overwritten. Check which branch the work belongs on before committing or stashing it.
+Conflicted files appear under **Merge Changes** or with a conflict status. Open each file. VS Code may show inline conflict controls or a three-way Merge Editor. Read both inputs and edit the Result into the intended combined code. Labels such as current and incoming depend on whether the operation is a merge or rebase, so identify the branches before choosing a side.
 
-The `…` menu → *Branch* has the rest: rename, delete, merge another branch into this one, and *Publish Branch* for a branch that does not exist on GitHub yet.
+Save the resolved file, stage it with **Stage Changes**, and verify that no conflict status remains. For a merge, build or test the combined result before completing the merge commit. Use the operation-specific continue or abort control for a rebase. See [Conflict Resolution](/tools/branching-and-merging#conflict-resolution) before practicing this workflow.
 
-### Sync, pull, push, fetch
+## Stash Unfinished Work
 
-**Sync Changes** pulls remote work and then pushes local commits. Use it when you intend both operations. To fetch, pull, or push separately, choose the corresponding action from the `…` menu.
+The Source Control `...` menu includes **Stash** actions. A stash stores unfinished local changes so the working tree can return to the current commit. Before creating one, inspect `git status` in the integrated terminal and decide whether untracked files must be included. Give the stash a description, then confirm the intended paths disappear from Changes.
 
-The `…` menu → *Pull, Push* separates them, and adds **Fetch**: ask GitHub what is new *without* merging it into your branch. After a fetch, the Graph shows the remote's commits alongside yours, which is the safe way to look before you pull.
+Use **Apply Stash** to restore an entry while keeping the saved stash. Inspect every restored file before choosing **Drop Stash**. **Pop Stash** combines apply and removal after success, so separate apply, inspect, and drop steps are safer while learning. See [Advanced Git: Stash Work Safely](/tools/advanced-git#stash-work-safely).
 
-Authentication depends on the remote URL and configured credential method. Use the team's supported setup; [GitHub and remote repositories](/tools/github-remotes#authentication-methods) explains the options.
+## Inspect History
 
-### Stash
+Open **Source Control Graph** from the Command Palette to inspect commits and branch relationships. Select a commit to inspect its changed files. For one file, open it in the editor, expand **Timeline** at the bottom of Explorer, and select an entry to compare that revision.
 
-The Stash menu saves unfinished changes locally. Check whether you selected an option that includes untracked files. Give the stash a descriptive message, and inspect the Changes list afterward. [Advanced Git](/tools/advanced-git#stashing-work) explains apply, pop, and conflicts.
+History and blame identify the recorded commit that changed a line. Read the commit message and related pull request before assuming why the author changed it.
 
-### Merge conflicts
+## Ignore Generated Files
 
-When Git cannot combine changes automatically, inspect the conflicted files in Source Control. Overlapping text edits are one cause; file deletion and rename conflicts can also occur.
+Some Source Control context menus offer **Add to .gitignore** for an untracked path. Review the exact pattern before committing it. An ignore rule affects untracked paths; it does not stop Git from tracking a file already committed. Follow [`.gitignore`](/tools/gitignore) for tracked-file and credential cases.
 
-**In the editor**, text conflict markers separate the competing changes. Use the comparison controls, read both sides, and edit the intended combined result. Current and incoming labels depend on the operation, particularly during rebase.
+## Practice in a Scratch Repository
 
-**In the Merge Editor**, compare both inputs and edit the Result pane. Selecting both sides is appropriate only if the combined code makes sense.
+Use the scratch repository created in [Local Git Workflow](/tools/local-git-workflow#command-reference), not a robot repository. Change two files. Stage and commit one, then confirm the other remains under Changes. Create a branch, confirm the Status Bar name, make one commit, and return to the starting branch. Use the linked Git lesson for each command-line setup step. To abandon the practice, close VS Code and remove only the scratch folder through your file manager after verifying its full path.
 
-For a regular merge, stage the resolved files, build and check the result, then complete the merge commit. During a rebase, use its continuation workflow instead. Aborting an operation is not a substitute for preserving local changes before starting it.
+<RulesBox title="Recovery Checks">
 
-[Conflict Resolution](/tools/branching-and-merging#conflict-resolution) explains what a conflict is and how to avoid most of them.
-
-### History
-
-The **Graph** shows commits and how branches relate. Select a commit to inspect its files and diffs.
-
-For one file, the **Timeline** at the bottom of the Explorer lists every commit that touched the file that is open. Click one for the diff at that point.
-
-Use file history or blame to find the last recorded change to a line. Read the commit and related discussion to understand the reason. GitLens is an optional extension for additional history views.
-
-### Ignoring files
-
-Use **Add to .gitignore** for generated or temporary files that should remain untracked. Review the rule before committing it. Ignoring a file does not stop Git tracking it if it was already committed.
-
-<RulesBox title="Common mistakes">
-
-- **Committing without reading the diff.** The <code>println</code>, the commented-out block, the file you did not mean to touch. All are visible in one click.
-- **Missing the green U.** A new file is not in the commit until it is staged. Look before you commit.
-- **Discard when you meant unstage.** Unstage keeps the change; discard destroys it. The icons are different. The curved arrow discards the change.
-- **Amending a pushed commit.** History diverges from GitHub, and the next push is refused. Make a new commit instead.
-- **Leaving a merge half done.** Files with a <strong>C</strong> stay conflicted until staged and committed. The Status Bar says <em>merging</em> until then.
-- **Treating the view as the only way.** When something looks wrong, <code>git status</code> in the integrated terminal tells you what the view is summarizing.
+- If Source Control is empty, check the open folder and run `git status` in that same folder.
+- If a new file is missing from a commit, look for its **U** status and stage it deliberately.
+- If the wrong content is staged, use **Unstage Changes**, then stage the intended lines again.
+- If an operation reports a conflict, stop normal commits until every conflict is resolved or the operation is safely aborted.
 
 </RulesBox>
 
-<ExerciseBox title="Practice">
-
-On a scratch repository, not the robot:
-
-1. Change three files. Stage one whole file, then stage only two lines of the second from the diff editor. Commit. Confirm the third file is still under *Changes*.
-2. Make a new file. Note the **U**. Stage it and confirm it moves to Staged Changes before committing.
-3. Create a branch from the Status Bar, edit a line, commit. Switch to `main`, edit the *same* line differently, commit. Merge the branch (`…` → *Branch* → *Merge*) and resolve the conflict in the Merge Editor. Stage, commit.
-4. Make a change, stash it, confirm the file is back to the committed version, pop it.
-5. Open the Graph, click your merge commit, and open the diff of the conflicted file.
-
-</ExerciseBox>
-
 <Sources items={[
-  {"source": "vscode", "path": "sourcecontrol/overview", "note": "Source Control view, staging, commits, merge conflicts."},
-  {"source": "git", "path": "book/en/v2/Git-Basics-Recording-Changes-to-the-Repository", "note": "What the view is doing underneath."},
-  {"source": "github", "path": "authentication/keeping-your-account-and-data-secure/about-authentication-to-github", "note": "Authentication when pushing."}
+  {"source": "vscode", "path": "sourcecontrol/overview", "note": "Repository prerequisites, Source Control views, Graph, Timeline, branches, and remote workflows."},
+  {"url": "https://code.visualstudio.com/docs/sourcecontrol/staging-commits", "label": "VS Code: Staging and Committing Changes", "note": "Whole-file and selected-range staging, unstaging, commits, and confirmation states."},
+  {"url": "https://code.visualstudio.com/docs/sourcecontrol/merge-conflicts", "label": "VS Code: Resolve Merge Conflicts", "note": "Conflict indicators, Merge Editor, staging resolutions, and completing operations."},
+  {"source": "git", "path": "book/en/v2/Git-Basics-Recording-Changes-to-the-Repository", "note": "Working tree, staging area, status, and commits beneath the VS Code interface."}
 ]} />
 
 <LinkGrid title="Next" section="tools" links={[
   {"label":"VS Code: Daily Workflow","id":"vscode-daily-workflow"},
-  {"label":"Git: Local Git Workflow","url":"/tools/local-git-workflow#essential-commands"},
-  {"label":"Git: Conflict Resolution","url":"/tools/branching-and-merging#conflict-resolution"},
-  {"label":"VS Code docs: Source Control","url":"https://code.visualstudio.com/docs/sourcecontrol/overview"},
-  {"label":"VS Code docs: Merge conflicts","url":"https://code.visualstudio.com/docs/sourcecontrol/overview#_merge-conflicts"}
+  {"label":"Git: Local Workflow","url":"/tools/local-git-workflow#command-reference"},
+  {"label":"Git: Conflict Resolution","url":"/tools/branching-and-merging#conflict-resolution"}
 ]} />

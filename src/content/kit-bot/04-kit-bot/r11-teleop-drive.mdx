@@ -7,19 +7,23 @@ groupLabel: "Phase 4: Kit Bot Integration"
 groupOrder: 4
 order: 11
 duration: 10 min
-description: "The default-command pattern that turns stick input into drivetrain output."
+description: "Create a teleop drive command and keep every driver control inside teleop."
 ---
 
+[R07 DriveIO, Part 2](/kit-bot/r07-drive-io-part-2) made the drivetrain move. [R10 Joysticks and Stick Math](/kit-bot/r10-joysticks-and-stick-math) shaped the controller input. This lesson connects those pieces and prevents driver controls from running in autonomous.
 
-Use the `Drive` subsystem from R07 and `StickCurve` from R10 to create a command that reads the driver's sticks on each robot tick.
+## Before You Start
 
-**Refreshers:** [Commands and triggers](/kit-bot/r05-commands-and-triggers) and [Functional Interfaces](/java/fundamentals/java-functional-interfaces).
+Complete R07 through R10. Keep `RobotContainer.java` open beside this page. If finding or editing a Java file is unfamiliar, review [VS Code: Tour](/tools/vscode-tour#create-save-and-find-a-file) and [VS Code: Editing Java](/tools/vscode-editing-java).
 
----
+You will make two changes:
 
-### The default command, in its own class
+1. Create a `TeleopDrive` command that reads the sticks every robot tick.
+2. Add one teleop condition to every driver binding.
 
-Create `src/main/java/frc/robot/commands/TeleopDrive.java` with this complete file. It moves the existing stick-reading code into one named class. Autonomous routines will use `Drive.driveAt` instead of reading the controller.
+## Create TeleopDrive
+
+In the VS Code Explorer, open `src/main/java/frc/robot/commands`. Create `TeleopDrive.java`, paste this **complete file**, and save it.
 
 ```java
 package frc.robot.commands;
@@ -29,7 +33,6 @@ import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.DriveConstants;
 import frc.robot.subsystems.drive.StickCurve;
-
 import java.util.function.DoubleSupplier;
 
 public class TeleopDrive extends Command {
@@ -38,9 +41,10 @@ public class TeleopDrive extends Command {
     private final DoubleSupplier forwardSupplier;
     private final DoubleSupplier rotationSupplier;
 
-    public TeleopDrive(Drive drive,
-                       DoubleSupplier forwardSupplier,
-                       DoubleSupplier rotationSupplier) {
+    public TeleopDrive(
+            Drive drive,
+            DoubleSupplier forwardSupplier,
+            DoubleSupplier rotationSupplier) {
         this.drive = drive;
         this.forwardSupplier = forwardSupplier;
         this.rotationSupplier = rotationSupplier;
@@ -74,110 +78,144 @@ public class TeleopDrive extends Command {
 
     @Override
     public boolean isFinished() {
-        return false;   // default commands run forever; the scheduler interrupts them
+        return false;
     }
 }
 ```
 
-Notice `shape` is called with `1.0` as the max output, not `DriveConstants.MAX_DRIVE_PERCENT`. `arcadeDrive` (R07) already multiplies by `MAX_DRIVE_PERCENT` internally, since it's documented to take `speed`/`rotation` in the full `[-1, 1]` range. Passing `MAX_DRIVE_PERCENT` into `shape` too would cap twice, leaving you well under the 85% you'd expect at full stick. One cap, one place: `arcadeDrive` owns it.
+The two `DoubleSupplier` objects provide fresh stick readings each time `execute()` runs. A plain `double` would keep one old reading. `addRequirements(drive)` tells the scheduler that this command controls the drivetrain.
 
-Two things to absorb from this shape:
+`shape` receives `1.0` for its maximum. `Drive.arcadeDrive` already multiplies the result by `MAX_DRIVE_PERCENT`. Applying the cap in both places would multiply it twice. For example, `0.85 × 0.85 = 0.7225`, so full stick would request only 72.25% before the voltage calculation.
 
-- **The constructor takes `DoubleSupplier`s instead of raw numbers.** A raw number would capture one old stick reading. A supplier tells the command how to request the current reading on every tick. That is why `() -> -driver.getLeftY()` keeps following the stick.
-- **`addRequirements(drive)` in the constructor**. This is how the command says "I need the drivetrain." The scheduler then ensures no other command can use it at the same time.
+The `isTeleopEnabled()` check is a second boundary around drivetrain output. If the scheduler starts the default command outside teleop, `execute()` stops the drivetrain instead of reading the sticks.
 
----
+## Add the Teleop Gate
 
-### Wiring it in
+Open `RobotContainer.java`. Add these imports with the other imports:
 
-In `RobotContainer`, import `frc.robot.commands.TeleopDrive`. Replace only the drive default-command call. Keep the launcher, D-pad, X, and Y bindings. The partial snippet shows a B-button demonstration; remove the old heartbeat B binding first.
+```java
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.robot.commands.TeleopDrive;
+```
+
+Replace `configureBindings()` with this method. Keep the launcher, distance, and characterization commands from the earlier lessons. The B-button stop demonstration is new on this page.
 
 ```java
 private void configureBindings() {
-    drive.setDefaultCommand(
-        new TeleopDrive(
-            drive,
-            () -> -driver.getLeftY(),     // forward = up on stick = negative Y
-            () -> driver.getRightX()     // right stick right = positive X = right turn
-        )
-    );
+    Trigger teleopEnabled = new Trigger(DriverStation::isTeleopEnabled);
 
-    driver.b().onTrue(drive.stopCommand());
+    drive.setDefaultCommand(new TeleopDrive(
+        drive,
+        () -> -driver.getLeftY(),
+        () -> driver.getRightX()));
+
+    teleopEnabled.and(driver.rightBumper())
+        .whileTrue(launcher.launchFuel());
+    teleopEnabled.and(driver.leftBumper())
+        .whileTrue(launcher.intakeFuel());
+    teleopEnabled.and(driver.a())
+        .whileTrue(launcher.ejectFuel());
+    teleopEnabled.and(driver.povUp())
+        .whileTrue(launcher.launchAtDistance(Meters.of(1.0)));
+    teleopEnabled.and(driver.povDown())
+        .whileTrue(launcher.launchAtDistance(Meters.of(3.0)));
+    teleopEnabled.and(driver.y())
+        .whileTrue(drive.characterizeFeedforward());
+    teleopEnabled.and(driver.x())
+        .whileTrue(launcher.characterizeFeedforward());
+    teleopEnabled.and(driver.b())
+        .onTrue(drive.stopCommand());
 }
 ```
 
-The two `() -> ...` lambdas are `DoubleSupplier` instances. They close over the `driver` controller, so every time the command's `execute()` asks for `forwardSupplier.getAsDouble()`, the driver's current stick position flows in.
+If `Meters` is not already imported, keep this static import from R08:
 
-The `B` button binds directly to `drive.stopCommand()`. The action operates only the drivetrain, so `Drive` owns the command factory and supplies its requirement. The controller-specific `TeleopDrive` class stays separate because `Drive` should not know about joysticks.
+```java
+import static edu.wpi.first.units.Units.Meters;
+```
 
----
+`teleopEnabled.and(...)` makes a combined trigger. It becomes true only while the robot is teleop-enabled and the named control is active. When the robot leaves teleop, a combined hold trigger becomes false. `whileTrue` then cancels its command, so the command's stop action runs even if the driver still holds the button.
 
-### The two stick conventions
+The B binding stops the drivetrain once. The default command can run again on the next scheduler cycle. B is neither a latched stop nor an emergency stop. Use Driver Station **Disable** to stop normal robot operation.
 
-For the `arcadeDrive` equations in this course:
+## Check the Stick Directions
 
-| Input | Read it as | Expected result |
+The course uses these input signs:
+
+| Driver Input | Value Sent to `TeleopDrive` | Expected Motion |
 |---|---|---|
 | Left stick forward | `-driver.getLeftY()` | Both sides move forward |
-| Right stick right | `driver.getRightX()` | Left side forward, right side backward |
+| Right stick right | `driver.getRightX()` | Left side moves forward and the right side moves backward |
 
-Check those signs in simulation. This is a robot-relative right turn; it does not depend on where the robot sits on the field.
+These are robot-relative directions. The robot's location and direction on the field do not change the calculation.
 
-The mode check in `execute()` matters: a default command can be scheduled whenever its subsystem is free, including in autonomous. `isTeleopEnabled()` prevents this command from reading the sticks in another mode.
+## Run the Mode Check
 
-`stopCommand()` stops once, then ends. The default command can resume and read the sticks again. **B is not an emergency stop or a latched stop.** Use Driver Station Disable to stop normal robot operation.
+Before running, add these temporary lines at the end of `Drive.periodic()`:
 
----
+```java
+System.out.printf("drive request: left=%.2f V, right=%.2f V%n",
+    leftVoltage.in(Volts), rightVoltage.in(Volts));
+```
 
-### What you've now built
+Add these temporary lines at the end of `Launcher.periodic()`:
 
-Run it:
+```java
+System.out.printf("launcher request: feeder=%.2f V, roller=%.2f V%n",
+    targetFeederVoltage.in(Volts),
+    targetIntakeLauncherVoltage.in(Volts));
+```
 
-1. Build, sim, enable in teleop.
-2. Plug in an Xbox controller (or use the sim keyboard).
-3. Drive around.
+Both files already use the static `Volts` import. These prints show the stored requests that the subsystems send to their IO objects. They provide the observable check before R13 adds measured launcher telemetry. Stored requests and measured applied voltage are different quantities, even when the simulation reports the same number.
 
-The driving should feel:
+1. Save all four edited files.
+2. Open the Command Palette and run **WPILib: Build Robot Code**. Continue after the terminal reports `BUILD SUCCESSFUL`.
+3. Run **WPILib: Simulate Robot Code**. Assign the controller and select **Teleoperated**, then **Enabled**.
+4. Drive forward, reverse, and right. Release the sticks after each motion and confirm both printed drivetrain requests return to `0.00 V`.
+5. Hold each launcher control one at a time. Release it and confirm both printed launcher requests return to `0.00 V`.
+6. Hold a bumper, X, or Y. While holding it, change the robot state to **Disabled**. Confirm the matching printed requests return to `0.00 V` even while the button remains held.
+7. Select **Autonomous**, then **Enabled**. Move both sticks and press every driver control. Confirm all four printed requests remain at `0.00 V`.
+8. Release the buttons and center the sticks, then return to **Teleoperated** and **Enabled**. Confirm the controls work again. A button held while teleop is re-enabled can immediately activate its combined trigger.
+9. Stop simulation and remove both temporary print statements.
 
-- **Calm in the middle.** Small stick motions produce small drive commands.
-- **Strong at the edges.** Full stick produces about 10.2 V at the motors (85% of 12 V).
-- **Dead at rest.** No creep when the stick is centred.
+The simulator may show velocity decreasing over several ticks after a request reaches zero. Check the requested voltage or output first. A zero request shows that the command stopped; the physics model determines how quickly the mechanism slows.
 
-If any of these aren't true, suspect the `TELEOP_DEADBAND` and `MAX_DRIVE_PERCENT` values in `DriveConstants` first, then your stick negate signs.
+<RulesBox title="Done When">
 
----
-
-### Features to add later
-
-Keep this version working before experimenting with another drive style. [R15](/kit-bot/r15-where-to-next) helps you choose a follow-up from a behavior you want to improve.
-
-<RulesBox title="On the real robot">
-
-Complete [R12 Part 2: First Deploy](/kit-bot/r12-first-deploy) first. Check forward, reverse, and turn on blocks before placing the robot on the floor. If one side runs backward, correct that side's inversion in `DriveIOReal` or its constants. On the floor, release the sticks and verify the deadband prevents creep before increasing the drive cap.
-
-</RulesBox>
-
-<RulesBox title="Done when">
-
-With the default command in its own class, enabling in teleop drives with no button pressed, disabling stops it, and no other command has to be scheduled for the robot to respond to the sticks. In autonomous with no drive routine selected, moving the sticks produces no drive request. Use the distance-reading check from R07 until the field display is added in R13.
+The sticks drive only in teleop. Every launcher, distance, characterization, and B binding includes the same `teleopEnabled` condition. Leaving teleop cancels a held command and returns its output request to zero. Driver controls create no requests in autonomous and work again after teleop is enabled.
 
 </RulesBox>
-
-### References
-
-- [A22: Command-Binding Lab](/java/assignments/a22-command-binding): `DoubleSupplier` as command input
-- [R05: Commands and triggers](/kit-bot/r05-commands-and-triggers): `setDefaultCommand` and the scheduler
-- [R10: Joysticks and Stick Math](/kit-bot/r10-joysticks-and-stick-math): where `StickCurve` came from
-- [R14: Time-Based Autonomous](/kit-bot/r14-time-based-autonomous): the composition patterns referenced above
-- WPILib: [Default Commands](https://docs.wpilib.org/en/stable/docs/software/commandbased/subsystems.html#default-commands)
-- WPILib: [Subclassing Command](https://docs.wpilib.org/en/stable/docs/software/commandbased/commands.html#creating-commands)
-- WPILib JavaDoc: [`Command`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj2/command/Command.html)
-- WPILib JavaDoc: [`SlewRateLimiter`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/filter/SlewRateLimiter.html), skipped this module but useful later
 
 <Sources items={[
-  {"source": "wpilib", "path": "docs/software/commandbased/commands.html", "note": "Creating commands."},
-  {"source": "wpilib", "path": "docs/software/commandbased/subsystems.html", "note": "Default commands."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Command.html", "note": "<code>Command</code>."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/filter/SlewRateLimiter.html", "note": "<code>SlewRateLimiter</code>."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/commands/DriveCommands.java", "note": "The joystick drive command in FRC 4451's code."}
+  {
+    "source": "wpilib",
+    "path": "docs/software/commandbased/commands.html",
+    "note": "Creating commands and command end behavior.",
+    "label": "Creating Commands"
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/commandbased/subsystems.html",
+    "note": "Subsystem requirements and default commands.",
+    "label": "Subsystems and Default Commands"
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/wpilibj/DriverStation.html",
+    "note": "<code>DriverStation.isTeleopEnabled()</code>.",
+    "label": "Driver Station API"
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/wpilibj2/command/button/Trigger.html",
+    "note": "Composing triggers with <code>and</code> and cancellation behavior of <code>whileTrue</code>.",
+    "label": "Trigger Composition"
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/wpilibj2/command/Command.html",
+    "note": "Command requirements, interruption, and lifecycle methods.",
+    "label": "Command API"
+  }
 ]} />
