@@ -1,5 +1,5 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
-import type { SectionId } from '@/config/navigation';
+import { javaLessonSlug, type SectionId } from '@/config/navigation';
 
 export type LessonEntry = CollectionEntry<'tools' | 'hardware' | 'java' | 'assignments' | 'kit-bot' | 'frc' | 'badges'>;
 
@@ -87,13 +87,14 @@ function remapSidebarGroups(
   groups: SidebarGroup[],
   prefix: string,
   partLabel: string,
+  lessonIdToSlug: (lessonId: string) => string = (lessonId) => lessonId,
 ): SidebarGroup[] {
   return groups.map((group, index) => ({
     ...group,
     partLabel: index === 0 ? partLabel : undefined,
     items: group.items.map((item) => ({
       ...item,
-      href: `${prefix}/${item.lessonId}`,
+      href: `${prefix}/${lessonIdToSlug(item.lessonId)}`,
     })),
   }));
 }
@@ -103,6 +104,7 @@ export async function getJavaSidebarGroups(): Promise<SidebarGroup[]> {
     await getSidebarGroups('java'),
     '/java/fundamentals',
     'Part 1: Java Fundamentals',
+    javaLessonSlug,
   );
   const assignments = remapSidebarGroups(
     await getSidebarGroups('assignments'),

@@ -10,14 +10,14 @@ difficulty: advanced
 description: "Drivetrain reading and checks, then how discrete and vector math become pose, motion, filtering, and residual calculations in WPILib, followed by an independent runnable check."
 ---
 
-In Step 9, the student connects selected Java lessons to the pose, path, and vision code used in Steps 10 through 12. [Discrete Math Foundations](/java/fundamentals/java-discrete-math) supplies the language for a **filter**: a set of observations, each admitted only when every predicate is true. [Vector Math](/java/fundamentals/java-vector-math) supplies the language for a **residual**: the vector from a reference position to an observed one, and its magnitude. [Pose Geometry](/frc/pose-geometry) supplies the WPILib types used to express those ideas. These Java lessons are reviewed here, when the project first needs them, instead of as a separate survey of every Java topic.
+In Step 9, the student connects selected Java lessons to the pose, path, and vision code used in Steps 10 through 12. [Discrete Math Foundations](/java/fundamentals/discrete-math) supplies the language for a **filter**: a set of observations, each admitted only when every predicate is true. [Vector Math](/java/fundamentals/vector-math) supplies the language for a **residual**: the vector from a reference position to an observed one, and its magnitude. [Pose Geometry](/frc/pose-geometry) supplies the WPILib types used to express those ideas. These Java lessons are reviewed here, when the project first needs them, instead of as a separate survey of every Java topic.
 
 Start with [Tank to Swerve](#tank-to-swerve) to connect the familiar Kit Bot drivetrain to the swerve project. Then use the geometry, filter, and odometry work below to explain the measurements both drivetrains produce.
 
 ## References to Review
 
-- [Discrete Math Foundations](/java/fundamentals/java-discrete-math)
-- [Vector Math](/java/fundamentals/java-vector-math)
+- [Discrete Math Foundations](/java/fundamentals/discrete-math)
+- [Vector Math](/java/fundamentals/vector-math)
 - [Pose Geometry](/frc/pose-geometry)
 - [Math Toolbox: Geometry](/frc/math-toolbox-geometry)
 - [Math Toolbox: Units and Interpolation](/frc/math-toolbox-units-and-interpolation)
@@ -43,7 +43,7 @@ Work through the filter and residual below with one known reference pose and one
 
 ### A Vision Filter Is a Set of Predicates
 
-A PhotonVision camera produces a stream of candidate robot poses. Only the ones the robot can trust reach the pose estimator. In the language of [sets](/java/fundamentals/java-discrete-math#sets), the accepted observations are a subset of all observations, and membership is decided by predicates. An observation is in the accepted set only when every required predicate is true:
+A PhotonVision camera produces a stream of candidate robot poses. Only the ones the robot can trust reach the pose estimator. In the language of [sets](/java/fundamentals/discrete-math#sets), the accepted observations are a subset of all observations, and membership is decided by predicates. An observation is in the accepted set only when every required predicate is true:
 
 | Predicate | True when |
 |---|---|
@@ -54,17 +54,17 @@ A PhotonVision camera produces a stream of candidate robot poses. Only the ones 
 | `timestampOk` | The timestamp is newer than the last accepted one and inside the estimator's usable history |
 | `residualOk` | The translation residual is below the configured gate |
 
-`accepted = hasTags ∧ ambiguityOk ∧ onField ∧ onFloor ∧ timestampOk ∧ residualOk`. Written as Boolean logic the rule is one line; written as code it is one method that returns the **first predicate that failed**, or nothing. Logging that name is what lets a student open a log and say why a sample was thrown out. The discrete-math lesson's [relations and functions](/java/fundamentals/java-discrete-math#cartesian-products-and-relations) describe the same thing: the filter is a function from observations to `{accepted, rejected-for-reason}`. Its [probability](/java/fundamentals/java-discrete-math#probability-and-expected-value) section explains why a gate is not proof: an observation that passes every predicate can still be wrong, and the estimator's uncertainty weights, not the filter, decide how much an accepted observation moves the pose. The introductory lesson does not derive WPILib's estimator, and this step does not ask the student to.
+`accepted = hasTags ∧ ambiguityOk ∧ onField ∧ onFloor ∧ timestampOk ∧ residualOk`. Written as Boolean logic the rule is one line; written as code it is one method that returns the **first predicate that failed**, or nothing. Logging that name is what lets a student open a log and say why a sample was thrown out. The discrete-math lesson's [relations and functions](/java/fundamentals/discrete-math#cartesian-products-and-relations) describe the same thing: the filter is a function from observations to `{accepted, rejected-for-reason}`. Its [probability](/java/fundamentals/discrete-math#probability-and-expected-value) section explains why a gate is not proof: an observation that passes every predicate can still be wrong, and the estimator's uncertainty weights, not the filter, decide how much an accepted observation moves the pose. The introductory lesson does not derive WPILib's estimator, and this step does not ask the student to.
 
 ### A Residual Is a Vector
 
-The **residual** is the difference between where the camera says the robot is and where the reference (odometry, or the current estimate) says it is. In the language of [Vector Math](/java/fundamentals/java-vector-math#points-and-displacement-vectors):
+The **residual** is the difference between where the camera says the robot is and where the reference (odometry, or the current estimate) says it is. In the language of [Vector Math](/java/fundamentals/vector-math#points-and-displacement-vectors):
 
 1. Both positions are points in the Field frame, in metres.
 2. Their difference, observed minus reference, is a displacement vector, `referenceToObserved`.
-3. Its [magnitude](/java/fundamentals/java-vector-math#magnitude-and-normalization) is the translation error, a single distance.
+3. Its [magnitude](/java/fundamentals/vector-math#magnitude-and-normalization) is the translation error, a single distance.
 4. Normalize it only when the code needs the direction without the distance; the residual gate does not.
-5. A [dot product](/java/fundamentals/java-vector-math#dot-products) answers a later question, such as whether the residual points along the robot's motion or across it.
+5. A [dot product](/java/fundamentals/vector-math#dot-products) answers a later question, such as whether the residual points along the robot's motion or across it.
 6. The frame and the unit stay attached to the vector's name and its log key.
 
 The residual threshold is a gate whose limit can depend on observation quality. The code logs the residual whether the sample passes or fails so the student can inspect the chosen limit against the tag count, distance, and resulting estimate.
@@ -135,11 +135,11 @@ Complete the rows below in the student's own check. The student chooses the nume
 | 9.5 | Invert a transform | [Pose Geometry](/frc/pose-geometry#change-how-one-state-differs-from-another) | `robotToCamera.inverse()` is `cameraToRobot`; the student explains what changed in the numbers |
 | 9.6 | Build the 3D chain | [Pose Geometry](/frc/pose-geometry#the-3d-versions) | `fieldToAprilTag.plus(cameraToAprilTag.inverse()).plus(robotToCamera.inverse())` gives `fieldToRobot`, with the inner names written out and cancelled |
 | 9.7 | Swap a transform | [Pose Geometry](/frc/pose-geometry#which-one-do-i-have) | The student shows the result of using `cameraToRobot` where `robotToCamera` belongs and describes where the robot appears on the field |
-| 9.8 | Write the acceptance predicate | [Discrete Math Foundations](/java/fundamentals/java-discrete-math#sets) | A method combines the six predicates above and returns the failed predicate's name |
-| 9.9 | Calculate a residual | [Vector Math](/java/fundamentals/java-vector-math#points-and-displacement-vectors) | `observed.getTranslation().minus(reference.getTranslation()).getNorm()` for one reference and one vision pose, checked by hand |
+| 9.8 | Write the acceptance predicate | [Discrete Math Foundations](/java/fundamentals/discrete-math#sets) | A method combines the six predicates above and returns the failed predicate's name |
+| 9.9 | Calculate a residual | [Vector Math](/java/fundamentals/vector-math#points-and-displacement-vectors) | `observed.getTranslation().minus(reference.getTranslation()).getNorm()` for one reference and one vision pose, checked by hand |
 | 9.10 | Explain the gate | [Vision Subsystem](/frc/vision-subsystem#reject-measurements-for-stated-reasons) | The student explains why one numeric residual is acceptable at one distance and tag count and unreliable at another |
 | 9.11 | Trace odometry | [Wheel Odometry](/frc/wheel-odometry#differential-drive-odometry) | One `DifferentialDriveOdometry` update and one `SwerveDriveOdometry` update, each from stated encoder and gyro values to a predicted `Pose2d` |
-| 9.12 | Name the operation | [Vector Math](/java/fundamentals/java-vector-math#common-vector-operations) | Asked what happens when two pose translations are compared, the student says "subtraction, then magnitude" and points at the two calls |
+| 9.12 | Name the operation | [Vector Math](/java/fundamentals/vector-math#common-vector-operations) | Asked what happens when two pose translations are compared, the student says "subtraction, then magnitude" and points at the two calls |
 
 2D comes first. Add the 3D chain in rows 9.6 and 9.7 once the 2D rows are done.
 
@@ -186,5 +186,5 @@ The evidence is a small runnable check in `Badge2Robot`: a JUnit test under `src
   {"label":"Step 10: Path Following","id":"badge-2-path-following"},
   {"label":"Step 8: Mechanism Composition","id":"badge-2-mechanism-composition"},
   {"label":"Pose Geometry","url":"/frc/pose-geometry"},
-  {"label":"Vector Math","url":"/java/fundamentals/java-vector-math"}
+  {"label":"Vector Math","url":"/java/fundamentals/vector-math"}
 ]} title="Next" section="badges" />

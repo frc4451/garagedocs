@@ -23,7 +23,7 @@ The student finishes and tests this path before adding the second controller or 
 - [Unit Tests in Simulation](/frc/unit-tests-in-simulation#a-mechanism-in-the-loop)
 - [AdvantageKit IO Interfaces](/frc/advantagekit#how-replay-uses-the-io-layer)
 - [Step 5: Testing Fundamentals](/badges/badge-2-testing)
-- [Threads and Concurrency](/java/fundamentals/java-threads-and-concurrency#why-this-is-hard) and [Race Conditions and Synchronization](/java/fundamentals/java-race-conditions-and-synchronization#synchronized)
+- [Threads and Concurrency](/java/fundamentals/threads-and-concurrency#why-this-is-hard) and [Race Conditions and Synchronization](/java/fundamentals/race-conditions-and-synchronization#synchronized)
 
 ## Guided Example
 
@@ -59,7 +59,7 @@ Run their exchange in a 5 ms `Notifier`. On each callback:
 
 The simulation harness owns the one robot battery. Once per simulation cycle, it reads the roller's latest current, calculates loaded voltage with `BatterySim`, and calls `RoboRioSim.setVInVoltage` once. Step 7 keeps this owner and adds every active mechanism current to the same calculation. A mechanism notifier never writes robot battery voltage by itself, so adding mechanisms cannot turn the battery into a last-writer-wins race.
 
-The notifier callback and the main robot loop can touch the same simulation IO at the same time. That creates a race unless access is coordinated. Keep the shared data small: the physics model, the device sim state, the last timestamp, and the latest current draw. Guard each complete read or update of that shared group with the same private lock, using a short `synchronized` block or synchronized private method. Do not hold the lock while logging or waiting. The [Java synchronization lesson](/java/fundamentals/java-race-conditions-and-synchronization#synchronized) explains why one lock must protect the whole operation.
+The notifier callback and the main robot loop can touch the same simulation IO at the same time. That creates a race unless access is coordinated. Keep the shared data small: the physics model, the device sim state, the last timestamp, and the latest current draw. Guard each complete read or update of that shared group with the same private lock, using a short `synchronized` block or synchronized private method. Do not hold the lock while logging or waiting. The [Java synchronization lesson](/java/fundamentals/race-conditions-and-synchronization#synchronized) explains why one lock must protect the whole operation.
 
 `updateInputs` remains the main-loop boundary that supplies one coherent snapshot to the component and AdvantageKit. AdvantageKit logging calls stay on the main robot thread because its logging APIs are not thread-safe. The student does not need the rest of the Java concurrency unit for this mechanism, but should understand that the notifier is a second thread, shared mutable data needs one owner or one lock, and cleanup ends that thread's lifecycle.
 

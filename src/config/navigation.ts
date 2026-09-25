@@ -67,7 +67,12 @@ export function lessonUrl(section: SectionId, lessonId: string): string {
     if (section === 'assignments') return '/java/assignments';
     return `/${section}`;
   }
-  if (section === 'java') return `/java/fundamentals/${lessonId}`;
+  if (section === 'java') return `/java/fundamentals/${javaLessonSlug(lessonId)}`;
   if (section === 'assignments') return `/java/assignments/${lessonId}`;
   return `/${section}/${lessonId}`;
+}
+
+/** Keep Java lesson ids stable while avoiding a repeated `java-` prefix in public URLs. */
+export function javaLessonSlug(lessonId: string): string {
+  return lessonId.startsWith('java-') ? lessonId.slice('java-'.length) : lessonId;
 }

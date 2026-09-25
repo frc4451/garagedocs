@@ -99,6 +99,8 @@ Keep code examples focused on one idea. Label each example as runnable code, a p
 
 In Java examples, declare the visibility of every type and member. Write `public` or `private` on classes, nested classes, records, interfaces, fields, constructors, and methods instead of relying on package-private or implicit interface visibility. Never write a bare `static` declaration: use `public static` for part of the class API or `private static` for an implementation detail. Local variables and record components do not take access modifiers.
 
+Java code follows the [AdvantageKit Spotless Profile](/java/fundamentals/code-style), the Spotless and Google Java Format configuration inherited from AdvantageKit and used by Cobra2026. Let the formatter control layout, imports, trailing whitespace, and the final newline. Authors still choose accurate names, explicit visibility, useful comments, and clear responsibilities. Run the Java fence test after changing a Java code fence; run the applicable project's Spotless task when editing project source.
+
 Explain inputs, behavior, and expected results. Use names that reflect what values actually represent. A requested motor output is not necessarily a measured motor speed. Do not claim that a half-output setting produces half the maximum speed.
 
 Keep code and prose consistent. If a name, value, or behavior changes, update the explanation too.

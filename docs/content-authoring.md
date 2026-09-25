@@ -86,6 +86,8 @@ git checkout -b new-branch
 ```
 ````
 
+Java fences follow the [AdvantageKit Spotless Profile](/java/fundamentals/code-style). Format Java with the Spotless configuration used by Cobra2026: Google Java Format, unused-import removal, trailing-whitespace removal, and a final newline. The formatter owns layout; the author remains responsible for naming, visibility, comments, and design. Run `npx vite-node scripts/test-java-lesson-examples.ts` after editing Java fences. When working in a robot repository, use that repository's `spotlessApply` and `spotlessCheck` tasks because its `build.gradle` is the executable authority.
+
 ### RulesBox / StepsBox / ExerciseBox
 
 Use component tags with **markdown inside** (slot content):

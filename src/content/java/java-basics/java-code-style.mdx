@@ -1,0 +1,179 @@
+---
+title: "Java Code Style"
+lessonId: java-code-style
+section: java
+group: java-basics
+groupLabel: "Java Basics"
+groupOrder: 1
+order: 12
+difficulty: beginner
+description: "Follow the AdvantageKit Spotless Profile and write Java that teammates can read, review, and maintain."
+---
+
+The **AdvantageKit Spotless Profile** is GarageDocs' Java style. It comes from the Spotless configuration supplied with AdvantageKit projects and used by FRC 4451's Cobra2026 robot code. The profile gives everyone the same automated formatter, while the practices on this page cover choices a formatter cannot make.
+
+Use this page as a reference while you work. You do not need to memorize its line-wrapping rules. Write clear code, run Spotless, and review what changed.
+
+## What the Profile Enforces
+
+Cobra2026 uses Spotless 6.12.0 with Google Java Format in its default Google style. Its unpinned formatter call currently resolves to Google Java Format 1.15.0. The repository's `build.gradle` remains the authority if a later project changes a version or rule.
+
+For Java files, the profile:
+
+- formats every `*.java` file outside generated build directories;
+- removes unused imports;
+- trims trailing whitespace;
+- ends each file with a newline; and
+- recognizes `// spotless:off` and `// spotless:on` escape regions.
+
+Cobra2026 runs `spotlessApply` before Java compilation, so a compile can reformat source files. The same Spotless block also formats Gradle files, JSON, Markdown, and `.gitignore`, but this page focuses on Java.
+
+Formatting controls layout. It does not prove that code compiles, behaves correctly, uses good names, or has a sound design. Run the project's build and tests after formatting.
+
+## Run Spotless
+
+Open a terminal in the robot project's root folder, where `gradlew` and `build.gradle` are located. Apply the configured format before asking someone to review your code.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+.\gradlew.bat spotlessApply
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+./gradlew spotlessApply
+```
+
+</CodeTab>
+</CodeTabs>
+
+To check formatting without changing files, run the corresponding check task:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+.\gradlew.bat spotlessCheck
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+./gradlew spotlessCheck
+```
+
+</CodeTab>
+</CodeTabs>
+
+In Cobra2026, VS Code recommends the Spotless Gradle extension and uses it as the default formatter for Java. You can choose **Format Document**, but the Gradle tasks are the final check because they use the formatter configured by the project.
+
+## Let the Formatter Decide Layout
+
+Do not spend time aligning assignments, forcing one call per line, or adding blank lines only to make code form a visual shape. Spotless may replace that layout the next time it runs.
+
+Write valid Java with a readable structure, then accept the formatter's decisions about:
+
+- indentation;
+- braces;
+- spaces around operators;
+- line breaks and continuation indentation;
+- import ordering; and
+- the layout of annotations and declarations.
+
+If formatted code is difficult to read, inspect the code's structure before fighting the formatter. A long expression may need a well-named local variable or helper method.
+
+## Choose Names That Explain the Code
+
+Spotless cannot judge a name. Follow these naming conventions:
+
+| Kind | Form | Example |
+| --- | --- | --- |
+| Classes, records, interfaces, and enums | `UpperCamelCase` | `ShooterController` |
+| Methods, fields, parameters, and local variables | `lowerCamelCase` | `targetVelocity` |
+| Constants declared with `static final` | `UPPER_SNAKE_CASE` | `MAX_SPEED_METERS_PER_SECOND` |
+| Packages | lowercase segments | `frc.robot.subsystems.drive` |
+
+Name a value for what it represents, including a unit or coordinate frame when confusion is possible. `armAngleRadians` is more useful than `value`, and `fieldRelativeSpeeds` distinguishes a coordinate frame that `speeds` leaves unclear. Use the exact capitalization of library and API names.
+
+Avoid one-letter names except for a tiny, familiar scope where the meaning is clear, such as an index in a short loop. Do not add type information that Java and the editor already show. Prefer `leftMotor` to `leftMotorObject`.
+
+## Make Responsibilities Visible
+
+Give each class and method one clear responsibility. A method should have a name that describes its result or action, and its body should stay at one useful level of detail. Extract a helper when doing so gives an important operation a name or removes repeated logic.
+
+GarageDocs examples declare the visibility of types and members explicitly. Use `public` for the API other code is meant to call and `private` for implementation details. Local variables and record components do not take access modifiers.
+
+This partial example shows the naming and visibility conventions:
+
+```java norun
+public final class DriveLimits {
+  private static final double MAX_SPEED_METERS_PER_SECOND = 4.8;
+
+  private DriveLimits() {}
+
+  public static double clampSpeed(double requestedMetersPerSecond) {
+    return Math.max(
+        -MAX_SPEED_METERS_PER_SECOND,
+        Math.min(requestedMetersPerSecond, MAX_SPEED_METERS_PER_SECOND));
+  }
+}
+```
+
+The constant includes its unit, the public method states what it does, and the private constructor prevents instances of a utility class. Spotless controls the line wrapping; those design choices still belong to the programmer.
+
+## Use Imports and Comments Carefully
+
+Import the specific types the file uses. Avoid wildcard imports such as `java.util.*`; the Cobra profile does not automatically reject every wildcard import. Spotless removes imports that are no longer used, so check the imports after moving or deleting code.
+
+Use comments to record information the code cannot express clearly on its own:
+
+- why a limit or workaround exists;
+- which physical assumption a calculation uses;
+- why an apparently unnecessary step must remain; or
+- what a caller must guarantee when the type system cannot express it.
+
+Do not narrate the next statement. Rename or reorganize unclear code before adding a comment that merely translates it into English. Update a useful comment when the related behavior changes.
+
+## Keep Exceptions Rare
+
+The profile permits an escape region:
+
+```java norun
+// spotless:off
+// Carefully arranged content that the formatter must preserve.
+// spotless:on
+```
+
+Use it only when the layout itself carries information or a tool requires an exact generated shape. Keep the region as small as possible and add a comment explaining why formatting is disabled. Do not use an escape region to preserve a personal layout preference.
+
+## Review Before Sharing
+
+Before you ask for review:
+
+1. Run `spotlessApply`.
+2. Read the changed code instead of assuming formatting made it correct.
+3. Build the project and run the relevant tests or simulation.
+4. Check that names communicate units, coordinate frames, and responsibilities.
+5. Remove unused code and comments that repeat the implementation.
+6. Keep behavior changes separate from large formatting-only changes when practical.
+
+When a project's `build.gradle` differs from this page, follow the project. Spotless configuration is executable policy, and the build uses that exact configuration.
+
+<Sources items={[
+  {"source":"cobra","path":"build.gradle","label":"Cobra2026: build.gradle","note":"The adopted Spotless 6.12.0 configuration, Java formatting steps, non-Java formatting steps, targets, exclusions, and compile dependency."},
+  {"source":"cobra","path":".vscode/settings.json","label":"Cobra2026: VS Code Settings","note":"The Spotless Gradle extension is enabled and selected as the default Java formatter."},
+  {"url":"https://github.com/Mechanical-Advantage/AdvantageKit/tree/v26.0.2/template_projects/sources","label":"AdvantageKit Template Projects","note":"Origin of the robot-project Spotless profile adopted by Cobra2026 and GarageDocs."},
+  {"url":"https://github.com/diffplug/spotless/blob/main/plugin-gradle/README.md","label":"Spotless Gradle Plugin","note":"The apply and check workflow, formatter steps, and <code>spotless:off</code>/<code>spotless:on</code> support."},
+  {"url":"https://github.com/google/google-java-format","label":"Google Java Format","note":"The Java formatter selected by the profile and its relationship to Google Java Style."}
+]} />
+
+<LinkGrid title="Keep Learning" section="java" links={[
+  {"label":"Packages and Project Layout","id":"java-packages-and-project-layout","description":"Organize source files and packages"},
+  {"label":"VS Code: Editing Java","url":"/tools/vscode-editing-java#formatting","description":"Use editor formatting and Java tools"},
+  {"label":"Practice Assignments","url":"/java/assignments","description":"Apply the profile in complete programs"}
+]} />

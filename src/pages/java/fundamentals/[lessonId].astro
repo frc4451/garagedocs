@@ -1,6 +1,8 @@
 ---
 import LessonLayout from '@/layouts/LessonLayout.astro';
 import { getSectionLessons, getJavaSidebarGroups, getAdjacentFromGroups } from '@/lib/content';
+import { javaLessonSlug } from '@/config/navigation';
+import { withBase } from '@/lib/url';
 import { render } from 'astro:content';
 import { components } from '@/mdx-components';
 
@@ -8,20 +10,33 @@ export async function getStaticPaths() {
   const lessons = await getSectionLessons('java');
   return lessons
     .filter((lesson) => !lesson.data.isOverview && !lesson.data.unlisted)
-    .map((lesson) => ({ params: { lessonId: lesson.data.lessonId }, props: { lesson } }));
+    .flatMap((lesson) => {
+      const canonicalLessonId = javaLessonSlug(lesson.data.lessonId);
+      return [
+        { params: { lessonId: canonicalLessonId }, props: { lesson, canonicalLessonId } },
+        {
+          params: { lessonId: lesson.data.lessonId },
+          props: { lesson, canonicalLessonId, redirectToCanonical: true },
+        },
+      ];
+    });
 }
 
-const { lessonId } = Astro.params;
-const { lesson } = Astro.props;
+const { lesson, canonicalLessonId, redirectToCanonical } = Astro.props;
+const canonicalDestination = withBase(`/java/fundamentals/${canonicalLessonId}`);
+void canonicalDestination; // Astro's checker does not count references in a top-level redirect return.
+if (redirectToCanonical) {
+  return Astro.redirect(canonicalDestination, 301);
+}
 const sidebarGroups = await getJavaSidebarGroups();
-const { prev, next } = getAdjacentFromGroups(sidebarGroups, lessonId!);
+const { prev, next } = getAdjacentFromGroups(sidebarGroups, lesson.data.lessonId);
 const { Content } = await render(lesson);
 ---
 
 <LessonLayout
   title={lesson.data.title}
   description={lesson.data.description}
-  currentPath={`/java/fundamentals/${lessonId}`}
+  currentPath={`/java/fundamentals/${canonicalLessonId}`}
   sidebarGroups={sidebarGroups}
   prev={prev}
   next={next}

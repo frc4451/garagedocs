@@ -101,6 +101,8 @@ Do not invent API names, values or behaviour.
 Kit Bot is checked against Scorpion2026. Java 25 is the curriculum standard; the browser
 runner is Java 17, pinned in `src/lib/java-playground/constants.ts`.
 
+**Java style.** All authored Java follows the [AdvantageKit Spotless Profile](src/content/java/java-basics/java-code-style.mdx), named for the AdvantageKit template configuration from which Cobra2026 inherited it. For project source, run the project's `spotlessApply` and `spotlessCheck` tasks and treat its `build.gradle` as executable policy. For lesson fences, match the same Google Java Format layout and run the Java fence test. Spotless controls layout and cleanup; the author still owns naming, explicit visibility, comments, units, coordinate frames and design.
+
 **Pose geometry naming.** Every geometric value is an arrow named `AToB` (`FieldToRobot`,
 `RobotToShooter`, `CameraToAprilTag`); chained arrows add and inner names cancel
 (`RobotToAprilTag + AprilTagToField = RobotToField`); `inverse()` swaps the names; a raw
