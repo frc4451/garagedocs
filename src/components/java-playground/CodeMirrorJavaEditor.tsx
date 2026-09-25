@@ -60,7 +60,8 @@ function editorTheme(dark: boolean) {
       '&.cm-focused': { outline: 'none' },
       '.cm-scroller': {
         overflow: 'auto',
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+        fontFamily: "'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        fontVariantLigatures: 'none',
         fontSize: '0.875rem', // rem: follows the reader's text-size preference
         lineHeight: '1.5',
       },
