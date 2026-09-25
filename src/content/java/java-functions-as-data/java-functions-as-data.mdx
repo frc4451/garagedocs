@@ -11,57 +11,110 @@ duration: 30 min
 description: Treating behaviour as a value you can store and pass around, why Java needs an interface to do it, and what problem it solves.
 ---
 
-### The repetition problem
+### Before You Start
 
-Suppose you need to filter a list of sensor readings several different ways.
+This lesson builds on [interfaces](/java/fundamentals/java-interfaces), method calls, parameters and return values, `ArrayList`, generics such as `List<Integer>`, and [runtime polymorphism](/java/fundamentals/java-runtime-polymorphism#two-kinds-of-type). If `List<Integer>` is unfamiliar, review generics and lists first. `Integer` is the object type a generic list uses to hold `int` values.
 
-```java
+Runtime polymorphism matters here: a variable can have an interface type while its object supplies the method implementation. When Java calls that interface method, the object's implementation runs.
+
+### The Repetition Problem
+
+Suppose you need to filter sensor readings in several ways. These methods repeat the list creation, loop, `if`, and return statement. Only the test changes.
+
+```java norun
 public static List<Integer> above100(List<Integer> readings) {
     List<Integer> result = new ArrayList<>();
-    for (int r : readings) {
-        if (r > 100) result.add(r);
+    for (int reading : readings) {
+        if (reading > 100) {
+            result.add(reading);
+        }
     }
     return result;
 }
 
 public static List<Integer> evenOnly(List<Integer> readings) {
     List<Integer> result = new ArrayList<>();
-    for (int r : readings) {
-        if (r % 2 == 0) result.add(r);
-    }
-    return result;
-}
-```
-
-These methods are identical except for one line. Everything else (creating the list, looping, adding, returning) is duplicated.
-
-You already know how to pass a *value* into a method to avoid repetition. What you need here is to pass the **test itself**.
-
-### Behaviour as a parameter
-
-Java has no standalone function type. What it has is interfaces, and an object implementing a one-method interface serves the same purpose.
-
-```java
-public interface ReadingTest {
-    public boolean matches(int reading);
-}
-```
-
-Now the loop is written once, and the differing line becomes a parameter:
-
-```java
-public static List<Integer> filter(List<Integer> readings, ReadingTest test) {
-    List<Integer> result = new ArrayList<>();
-    for (int r : readings) {
-        if (test.matches(r)) {      // the caller decides what this means
-            result.add(r);
+    for (int reading : readings) {
+        if (reading % 2 == 0) {
+            result.add(reading);
         }
     }
     return result;
 }
 ```
 
-Calling it means supplying an implementation:
+You already pass values into methods to vary what a method does. Here, we want to pass the **test** that decides whether each reading belongs in the result.
+
+### Pass the Test
+
+Java represents this test with an object. An interface first states the method the object must provide:
+
+```java norun
+@FunctionalInterface
+public interface ReadingTest {
+    public boolean matches(int reading);
+}
+```
+
+`filter` accepts that object as its `test` parameter. Follow the calls: `main` calls `filter(readings, above100)`, then `filter` calls `test.matches(reading)` once for each item. Because `test` refers to the `above100` object, runtime dispatch selects that object's `matches` method.
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+
+public class Main {
+    @FunctionalInterface
+    public interface ReadingTest {
+        public boolean matches(int reading);
+    }
+
+    public static List<Integer> filter(List<Integer> readings, ReadingTest test) {
+        List<Integer> result = new ArrayList<>();
+        for (int reading : readings) {
+            if (test.matches(reading)) {
+                result.add(reading);
+            }
+        }
+        return result;
+    }
+
+    public static void main(String[] args) {
+        List<Integer> readings = List.of(48, 101, 120, 135);
+
+        ReadingTest above100 = new ReadingTest() {
+            @Override
+            public boolean matches(int reading) {
+                return reading > 100;
+            }
+        };
+
+        ReadingTest even = new ReadingTest() {
+            @Override
+            public boolean matches(int reading) {
+                return reading % 2 == 0;
+            }
+        };
+
+        System.out.println(filter(readings, above100));
+        System.out.println(filter(readings, even));
+    }
+}
+```
+
+Expected output:
+
+```text
+[101, 120, 135]
+[48, 120]
+```
+
+Use **Run** below to try the example in your browser. To run it locally with Java 17 or Java 25, save it as `Main.java`, then run `javac Main.java` followed by `java Main`.
+
+<JavaPlayground id="java-functions-as-data" />
+
+### Read the Anonymous Class
+
+The expression beginning with `new ReadingTest()` creates an object from an **anonymous class**, a class declared without a name where it is needed.
 
 ```java norun
 ReadingTest above100 = new ReadingTest() {
@@ -70,147 +123,155 @@ ReadingTest above100 = new ReadingTest() {
         return reading > 100;
     }
 };
-
-List<Integer> high = filter(readings, above100);
 ```
 
-That block is an **anonymous class**: a class with no name, defined and instantiated in one expression. It is verbose, and [Lambda Expressions](/java/fundamentals/java-lambdas#the-same-thing-shorter) exist precisely to shorten it. But this is what is really happening underneath, and seeing it once makes lambdas much less mysterious.
+Read its punctuation from the outside in:
 
-<RulesBox title="Why an interface is required">
+- `new ReadingTest()` starts an object-creation expression. The empty parentheses belong to that expression.
+- The outer `{` and `}` contain the anonymous class body.
+- The inner `{` and `}` contain the `matches` method body.
+- The semicolon after the outer `}` ends the assignment statement. The class body does not replace that semicolon.
 
-In some languages you can pass a function directly. In Java, the thing you pass is always an object. The interface gives that object a type, and [runtime polymorphism](/java/fundamentals/java-runtime-polymorphism#two-kinds-of-type) picks the right `matches` implementation when `filter` calls it.
+`@Override` asks the compiler to confirm that this method implements the interface method. [Lambda Expressions](/java/fundamentals/java-lambdas#the-same-thing-shorter) will provide shorter syntax for the same one-method job.
 
-So "passing a function" in Java is really "passing an object with one interesting method". Every lambda you write is compiled into something along these lines.
+### Functional Interfaces
+
+An interface with one abstract method is a **functional interface**. `ReadingTest` has one abstract method, `matches`, so it qualifies.
+
+`@FunctionalInterface` documents that intent and makes the compiler reject a change that would stop the interface from being functional. The annotation is optional. Java also provides common functional interfaces, which the [Functional Interfaces](/java/fundamentals/java-functional-interfaces#stop-defining-your-own) lesson introduces.
+
+<RulesBox title="Why the Interface Matters">
+
+The parameter `ReadingTest test` gives the supplied object a known type. That type promises a `matches(int)` method returning `boolean`, so `filter` can call the method without knowing which test the caller supplied.
 
 </RulesBox>
 
-### What this buys you
+### Store Now, Call Later
 
-The `filter` method now works with tests that did not exist when it was written:
-
-```java norun
-List<Integer> even = filter(readings, new ReadingTest() {
-    @Override public boolean matches(int r) { return r % 2 == 0; }
-});
-
-List<Integer> inRange = filter(readings, new ReadingTest() {
-    @Override public boolean matches(int r) { return r >= 50 && r <= 150; }
-});
-```
-
-One loop, any number of behaviours. The pattern generalises beyond filtering. Anywhere you find near-identical methods differing by a line or two, the difference can usually become a parameter.
-
-### Functional interfaces
-
-An interface with exactly one abstract method is called a **functional interface**, and it is the shape Java uses for this everywhere.
+Passing behavior can solve a different problem: choosing work now but running it later. This example uses `ArrayList<Action>` so it relies only on list storage you already know.
 
 ```java
-@FunctionalInterface
-public interface ReadingTest {
-    public boolean matches(int reading);
-}
-```
+import java.util.ArrayList;
+import java.util.List;
 
-The annotation is optional but worth adding. It makes the compiler reject the interface if someone later adds a second abstract method, which would silently break every lambda written against it.
-
-Java already ships the common shapes, so you rarely define your own. Those are covered in [Functional Interfaces](/java/fundamentals/java-functional-interfaces#stop-defining-your-own).
-
-### Deferring work
-
-There is a second use, distinct from removing duplication: describing work now and running it later.
-
-```java
-public interface Action {
-    public void run();
-}
-
-public class ActionQueue {
-    private final Queue<Action> pending = new ArrayDeque<>();
-
-    public void schedule(Action action) {
-        pending.offer(action);           // stored, not executed
+public class Main {
+    @FunctionalInterface
+    public interface Action {
+        public void run();
     }
 
-    public void runAll() {
-        while (!pending.isEmpty()) {
-            pending.poll().run();        // executed now
+    public static class ActionQueue {
+        private final List<Action> pending = new ArrayList<>();
+
+        public void schedule(Action action) {
+            pending.add(action);
+        }
+
+        public void runAll() {
+            for (Action action : pending) {
+                action.run();
+            }
+            pending.clear();
         }
     }
+
+    public static void main(String[] args) {
+        ActionQueue actions = new ActionQueue();
+        Action announce = new Action() {
+            @Override
+            public void run() {
+                System.out.println("Action ran");
+            }
+        };
+
+        System.out.println("Before schedule");
+        actions.schedule(announce);
+        System.out.println("After schedule");
+        actions.runAll();
+    }
 }
 ```
 
-The action is created at one point in the program and executed at another. That separation is the foundation of event handlers, callbacks, and the [Command Pattern](/java/fundamentals/java-command-pattern#an-action-as-an-object), and it is how FRC's command-based framework schedules robot behaviour.
+Expected output:
 
-<RulesBox title="Two distinct motivations">
+```text
+Before schedule
+After schedule
+Action ran
+```
 
-- **Removing duplication.** The surrounding code is fixed, one step varies. Pass the varying step in.
-- **Deferring execution.** You know what should happen but not yet when. Store the behaviour and run it later.
+`schedule(announce)` stores the object. It does not call `announce.run()`. The later call to `runAll()` reaches `action.run()`, so that is when the message prints. This store-now, call-later pattern appears in callbacks, event handlers, and the [Command Pattern](/java/fundamentals/java-command-pattern#an-action-as-an-object).
 
-Both use the same mechanism. Recognising which one you need helps you name things sensibly.
+<RulesBox title="Two Different Uses">
+
+- **Remove duplication:** keep one loop and pass in the step that varies.
+- **Defer execution:** store an action now and invoke it later.
+
+Both uses pass an object whose method contains behavior, but they solve different problems.
 
 </RulesBox>
 
-### Returning behaviour
+### Return Behavior
 
-A method can also hand back an implementation, which lets you build behaviour from parameters:
+A method can return an implementation too. `greaterThan` receives a number and returns a new test object:
 
 ```java norun
 public static ReadingTest greaterThan(int threshold) {
     return new ReadingTest() {
         @Override
         public boolean matches(int reading) {
-            return reading > threshold;      // captures threshold
+            return reading > threshold;
         }
     };
 }
-
-List<Integer> high = filter(readings, greaterThan(100));
-List<Integer> veryHigh = filter(readings, greaterThan(500));
 ```
 
-The returned object remembers `threshold`, a captured variable. Note the restriction: a captured local variable must be effectively final, meaning you cannot reassign it after capture. Java enforces this at compile time.
+The anonymous object **captures** `threshold`: its `matches` method can still use that parameter after `greaterThan` has returned. Each call creates an object that remembers the value from that call, so `greaterThan(100)` and `greaterThan(500)` produce tests with different thresholds.
 
-<RulesBox title="Common mistakes">
+A captured local variable or parameter must be `final` or **effectively final**. Effectively final means the code assigns it once and never reassigns it. `threshold` qualifies because the method never changes it.
 
-- **Adding a second abstract method** to a functional interface, breaking every lambda using it. `@FunctionalInterface` prevents this.
-- **Reassigning a captured local variable**, which is a compile error.
-- **Calling the behaviour when you meant to store it.** `schedule(action)` stores; `action.run()` executes.
-- **Over-applying the pattern.** If a method has exactly one caller and one behaviour, parameterising it adds indirection for no benefit.
+```java norun
+ReadingTest high = greaterThan(100);
+List<Integer> result = filter(readings, high);
+```
+
+Reassigning `threshold` inside `greaterThan` would make the capture a compile-time error. The remembered threshold is separate from the later `reading` argument passed to `matches`.
+
+<RulesBox title="Common Mistakes">
+
+- Adding a second abstract method to a functional interface. `@FunctionalInterface` catches this change.
+- Reassigning a local variable that an anonymous class captures.
+- Calling `run()` when you meant to store an action for later.
+- Adding this pattern when a direct method call would be clearer and no behavior needs to vary or wait.
 
 </RulesBox>
 
-<JavaPlayground id="java-functions-as-data" />
-
 <ExerciseBox title="Practice" description="Use anonymous classes throughout; lambdas come in the next lesson.">
 
-1. Define a `ReadingTest` interface and a `filter` method, then filter a list three different ways.
+1. Define a `ReadingTest` interface and a `filter` method. Supply two anonymous implementations, such as `above100` and `even`, then use a test returned by `greaterThan` for the third way.
 2. Define a `Transformer` interface with `int apply(int value)` and write a `map` method that applies it to every element of a list.
 3. Write a `greaterThan(int)` method that returns a `ReadingTest`, and use it twice with different thresholds.
-4. Define an `Action` interface and an `ActionQueue` that stores actions and runs them in order.
-5. Write a `sort` helper that takes a list and a comparison interface you define yourself, so the caller decides the ordering.
+4. Define an `Action` interface and an `ActionQueue` backed by `ArrayList<Action>`. Before running it, predict exactly when a queued action will print. Then check your prediction.
+5. Prepare for a later comparison-sorting lesson: define a `NumberComparison` interface with `int compare(int left, int right)`. Write two anonymous implementations and call each one directly. Do not write the sorting algorithm yet.
 
 <details>
 <summary>Hints</summary>
 
-1. As written above.
-2. Same loop shape; call `apply` and add the result.
-3. The returned anonymous class captures the parameter.
-4. Store in an `ArrayDeque`; `runAll` polls and calls `run()`.
-5. Your interface needs a method returning a negative number, zero, or a positive number. A comparison-based sort can then use that method. This is exactly how `Comparator` is built.
+1. Copy the loop shape from `filter`. The call to `test.matches(reading)` invokes whichever object the caller supplied.
+2. Call `transformer.apply(value)` inside the loop and add the returned value to the result list.
+3. The returned anonymous class captures the `threshold` parameter. Do not reassign it.
+4. `schedule` should only call `pending.add(action)`. `runAll` should loop over the list and call each action's `run()` method.
+5. Return a negative number when `left` should come first, zero when they are equal, and a positive number when `right` should come first. A later lesson can use that contract inside a sorting algorithm.
 
 </details>
 
 </ExerciseBox>
 
 <Sources items={[
-  {"source": "csce146", "note": "The course whose structure this lesson follows."},
-  {"source": "java-tutorial", "path": "java/javaOO/anonymousclasses.html", "note": "Anonymous classes."},
-  {"source": "dev-java", "path": "lambdas/functional-interfaces/", "note": "Functional interfaces."},
-  {"source": "java-api", "path": "java.base/java/lang/FunctionalInterface.html", "note": "<code>@FunctionalInterface</code>."},
-  {"source": "jls", "path": "jls-15.html", "note": "Effectively final captured variables (section 15.27.2)."},
-  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code> API reference."}
+  {"source": "java-tutorial", "path": "java/javaOO/anonymousclasses.html", "note": "Anonymous-class syntax, the closing semicolon, and captured local variables."},
+  {"source": "jls", "path": "jls-15.html#jls-15.9", "note": "Class instance creation expressions and anonymous class declarations."},
+  {"source": "jls", "path": "jls-6.html#jls-6.5.6.1", "note": "Final and effectively final variables captured from an enclosing scope."},
+  {"source": "java-api", "path": "java.base/java/lang/FunctionalInterface.html", "note": "The <code>@FunctionalInterface</code> contract."}
 ]} />
 
 <LinkGrid
@@ -222,4 +283,4 @@ The returned object remembers `threshold`, a captured variable. Note the restric
   ]}
 />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Lambdas", "id": "java-lambdas"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "Lambdas", "id": "java-lambdas"}]} />

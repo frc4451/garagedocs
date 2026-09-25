@@ -11,201 +11,225 @@ duration: 25 min
 description: A double-ended queue that adds and removes at both ends, and why it is the recommended way to build both stacks and queues in Java.
 ---
 
-### Both ends
+### Both Ends
 
-A stack works at one end. A queue adds at one end and removes at the other. A **deque** (short for double-ended queue, pronounced "deck") does everything at both ends.
+A stack uses one end. A queue adds at one end and removes at the other. A **deque**, short for double-ended queue and pronounced “deck,” lets you work at both ends.
 
-That makes it a superset. Any stack or queue can be built from a deque by choosing which methods you call. This is why the two previous lessons both used `ArrayDeque`.
+A deque is a **superset** of a stack and a queue: it provides every end operation either structure needs, plus more. The earlier methods map to explicit deque methods like this:
 
-<ContentTable
-  title="Deque methods"
-  headers={["Front", "Back", "Behaviour when empty or absent"]}
-  rows={[
-    ["<code>addFirst</code>", "<code>addLast</code>", "Throws if capacity-limited"],
-    ["<code>offerFirst</code>", "<code>offerLast</code>", "Returns <code>false</code>"],
-    ["<code>removeFirst</code>", "<code>removeLast</code>", "Throws"],
-    ["<code>pollFirst</code>", "<code>pollLast</code>", "Returns <code>null</code>"],
-    ["<code>getFirst</code>", "<code>getLast</code>", "Throws"],
-    ["<code>peekFirst</code>", "<code>peekLast</code>", "Returns <code>null</code>"]
-  ]}
-/>
+<ContentTable title="Stack, Queue, and Deque Methods" headers={["Use", "Earlier Method", "Deque Meaning"]} rows={[
+  ["Stack", "<code>push(x)</code>", "<code>addFirst(x)</code>"],
+  ["Stack", "<code>pop()</code>", "<code>removeFirst()</code>"],
+  ["Stack or queue", "<code>peek()</code>", "<code>peekFirst()</code>"],
+  ["Queue", "<code>add(x)</code>", "<code>addLast(x)</code>"],
+  ["Queue", "<code>offer(x)</code>", "<code>offerLast(x)</code>"],
+  ["Queue", "<code>remove()</code>", "<code>removeFirst()</code>"],
+  ["Queue", "<code>poll()</code>", "<code>pollFirst()</code>"]
+]} />
 
-Six operations in two families: the throwing kind and the returning kind. Choose one family per program.
+**Linear** means arranged in a sequence. A deque is linear even though you can change either end. It does not provide numbered positions such as `get(3)`.
 
-### Using one
+### Method Families
+
+The throwing family reports failure with an exception. The special-value family returns `false` when a capacity-limited deque cannot accept an element, or `null` when an empty deque has nothing to return.
+
+<ContentTable title="Deque Methods" headers={["Action", "Front", "Back", "Failure Result"]} rows={[
+  ["Add", "<code>addFirst</code>", "<code>addLast</code>", "Throws if a capacity limit prevents insertion"],
+  ["Offer", "<code>offerFirst</code>", "<code>offerLast</code>", "Returns <code>false</code> if a capacity limit prevents insertion"],
+  ["Remove", "<code>removeFirst</code>", "<code>removeLast</code>", "Throws if empty"],
+  ["Poll", "<code>pollFirst</code>", "<code>pollLast</code>", "Returns <code>null</code> if empty"],
+  ["Get", "<code>getFirst</code>", "<code>getLast</code>", "Throws if empty"],
+  ["Peek", "<code>peekFirst</code>", "<code>peekLast</code>", "Returns <code>null</code> if empty"]
+]} />
+
+Choose methods whose failure behavior fits your program. `ArrayDeque` has no fixed capacity, so ordinary additions grow its backing array instead of failing because it is full.
+
+### Try Both Ends
 
 ```java
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-Deque<String> deque = new ArrayDeque<>();
+public class Main {
+    public static void main(String[] args) {
+        Deque<String> deque = new ArrayDeque<>();
+        deque.addLast("middle");
+        deque.addFirst("start");
+        deque.addLast("end");
 
-deque.addLast("middle");
-deque.addFirst("start");
-deque.addLast("end");
-
-System.out.println(deque);              // [start, middle, end]
-System.out.println(deque.peekFirst());  // start
-System.out.println(deque.peekLast());   // end
-
-deque.removeFirst();
-deque.removeLast();
-System.out.println(deque);              // [middle]
-```
-
-Adding at either end of an ArrayDeque takes amortized constant time: most additions touch one slot, while an occasional resize copies elements. Inserting at index 0 of an ArrayList shifts the existing elements.
-
-### As a stack, as a queue
-
-```java
-// stack: add and remove at the same end
-Deque<Integer> stack = new ArrayDeque<>();
-stack.addFirst(1);
-stack.addFirst(2);
-System.out.println(stack.removeFirst());   // 2: last in, first out
-
-// queue: add at one end, remove at the other
-Deque<Integer> queue = new ArrayDeque<>();
-queue.addLast(1);
-queue.addLast(2);
-System.out.println(queue.removeFirst());   // 1: first in, first out
-```
-
-Same class, same object type, different method pairing.
-
-<RulesBox title="push and pop are front operations">
-
-`Deque` also provides `push`, `pop`, and `peek` for stack-style code. Be aware of what they map to:
-
-- `push(x)` is `addFirst(x)`
-- `pop()` is `removeFirst()`
-- `peek()` is `peekFirst()`
-
-So `push` adds at the **front**, not the back. If you mix `push` with `addLast` on the same deque you will get results that look random. Decide whether you are treating the object as a stack or a queue and use one vocabulary throughout.
-
-</RulesBox>
-
-### Which implementation
-
-<ContentTable
-  headers={["Class", "Use when"]}
-  rows={[
-    ["<code>ArrayDeque</code>", "Default choice: fastest, least memory"],
-    ["<code>LinkedList</code>", "Only if you need <code>null</code> elements or <code>List</code> methods too"],
-    ["<code>LinkedBlockingDeque</code>", "Passing work between threads safely"]
-  ]}
-/>
-
-`ArrayDeque` stores elements in an array used as a circular buffer. Instead of shifting elements when the front is removed, it moves an internal index and wraps around at the end. That is how both ends stay instant while keeping array-like memory layout.
-
-It rejects `null`, which is deliberate: the `poll` and `peek` methods use `null` to mean "empty", so allowing `null` elements would make that signal ambiguous.
-
-### Where deques show up
-
-**A sliding window.** Keeping the maximum of the last K values needs removal from both ends: new values push in at the back, stale ones drop off the front.
-
-```java norun
-// indices of candidates for the maximum in each window of width k
-Deque<Integer> window = new ArrayDeque<>();
-
-for (int i = 0; i < values.length; i++) {
-    // drop indices that have fallen out of the window
-    while (!window.isEmpty() && window.peekFirst() <= i - k) {
-        window.removeFirst();
-    }
-    // drop values smaller than the incoming one; they can never be the max
-    while (!window.isEmpty() && values[window.peekLast()] <= values[i]) {
-        window.removeLast();
-    }
-    window.addLast(i);
-
-    if (i >= k - 1) {
-        System.out.println("window max: " + values[window.peekFirst()]);
+        System.out.println(deque);
+        System.out.println("first: " + deque.peekFirst());
+        System.out.println("last: " + deque.peekLast());
+        deque.removeFirst();
+        deque.removeLast();
+        System.out.println(deque);
     }
 }
 ```
 
-Both ends are used for different purposes: the front discards expired entries, the back discards values that are now irrelevant. No other structure does this cleanly.
+Expected output:
 
-**Undo and redo.** Two deques, moving items between them.
-
-**Browser history.** Back and forward, from either end.
-
-**A bounded buffer of recent readings.** Add at the back, and drop from the front once you exceed the limit.
-
-```java
-Deque<Double> recent = new ArrayDeque<>();
-
-public void record(double reading) {
-    recent.addLast(reading);
-    if (recent.size() > 50) {
-        recent.removeFirst();      // discard the oldest
-    }
-}
+```text
+[start, middle, end]
+first: start
+last: end
+[middle]
 ```
-
-That last pattern is common in robot code, where you want a rolling average of the last N sensor values without letting the buffer grow forever.
-
-<RulesBox title="Common mistakes">
-
-- **Mixing `push`/`pop` with `addLast`/`removeLast`** on the same object.
-- **Mixing the throwing and returning method families.**
-- **Adding `null` to an `ArrayDeque`.**
-- **Assuming iteration order matches insertion order at both ends.** Iterating a `Deque` goes front to back, so items added with `addFirst` appear in reverse of the order you added them.
-- **Reaching for `LinkedList`** when `ArrayDeque` is faster.
-
-</RulesBox>
 
 <JavaPlayground id="java-deques" />
 
+To run this locally, save it as `Main.java`. From that folder, run `javac Main.java`, then `java Main`.
+
+Before changing the code, predict this mixed sequence: `addFirst("A")`, `addLast("B")`, `addFirst("C")`, then `removeLast()`. Draw the deque from front to back and identify the removed value.
+
+### Circular Storage
+
+`ArrayDeque` uses a resizable array. It treats the last slot as being beside the first, like positions around a circle. An internal **front index**, a whole number marking the current first slot, can move after a removal instead of shifting every element. When an index reaches the physical end, the next position wraps to slot zero.
+
+Most additions write one slot. Occasionally the array runs out of room, so `ArrayDeque` allocates a larger array and copies the elements. One resize costs more, but those copies are spread across many additions. This average-over-a-sequence guarantee is called **amortized constant time**. It does not mean every individual addition takes the same work.
+
+The circular layout is an implementation detail. Do not assume a capacity, growth amount, or internal index value.
+
+### Stack and Queue Use
+
+For a stack, add and remove at the same end. For a queue, add at the back and remove from the front.
+
+<RulesBox title="Keep One Vocabulary">
+
+`push(x)`, `pop()`, and `peek()` mean `addFirst(x)`, `removeFirst()`, and `peekFirst()`. Mixing stack names with explicit end names is legal, but harder to trace. Pick one vocabulary for each use.
+
+</RulesBox>
+
+### Choose an Implementation
+
+<ContentTable headers={["Class", "Good Fit", "Important Limit"]} rows={[
+  ["<code>ArrayDeque</code>", "A general-purpose stack, queue, or deque", "Rejects <code>null</code>; not thread-safe"],
+  ["<code>LinkedList</code>", "Code that also needs <code>List</code> operations", "Indexed access can require walking through nodes"],
+  ["<code>LinkedBlockingDeque</code>", "An optional deque shared safely between threads", "Blocking and concurrency behavior add concepts most programs do not need"]
+]} />
+
+`ArrayDeque` is a strong default for single-threaded deque work. Its documentation says most operations take amortized constant time. `LinkedList` also supports `List` and `Deque`, but neither class is universally faster; the choice depends on the operations and constraints your program needs.
+
+`ArrayDeque` rejects `null`, which keeps `null` available as the clear “empty” result from methods such as `pollFirst()`. `LinkedList` permits `null`, but using it in a deque makes that result ambiguous, so avoid null deque elements.
+
+Use `LinkedBlockingDeque` only when multiple threads need blocking, thread-safe operations. It can wait for space or an element. Concurrency is optional here; ordinary examples should stay with `ArrayDeque`.
+
+### Trace a Sliding Window
+
+A **sliding window** is a fixed-width group that moves through an array. For `values = {4, 2, 12, 3}` and width `k = 3`, the windows are `{4, 2, 12}` and `{2, 12, 3}`.
+
+The deque stores candidate **indices**, the numbered positions of values. Its front identifies the largest value still eligible for the window. Trace the arrival of index `2`, whose value is `12`:
+
+1. The window ends at index `2`, so its left bound is `2 - 3 + 1 = 0`.
+2. Expire front indices less than `0`. None expire.
+3. Remove index `1` from the back because its value `2` cannot beat the incoming `12` now or in a later shared window.
+4. Remove index `0` for the same reason: `4` is no larger than `12`.
+5. Add index `2`. The front now identifies the maximum, `12`.
+
+At index `3`, the left bound becomes `1`. Index `2` has not expired. Its value `12` is greater than the incoming `3`, so index `3` joins behind it.
+
+```java
+import java.util.ArrayDeque;
+import java.util.Deque;
+
+public class Main {
+    public static void printWindowMaximums(int[] values, int k) {
+        if (values.length == 0) {
+            return;
+        }
+        if (k < 1 || k > values.length) {
+            throw new IllegalArgumentException("k must be from 1 through values.length");
+        }
+
+        Deque<Integer> candidates = new ArrayDeque<>();
+        for (int i = 0; i < values.length; i++) {
+            int left = i - k + 1;
+            while (!candidates.isEmpty() && candidates.peekFirst() < left) {
+                candidates.removeFirst();
+            }
+            while (!candidates.isEmpty()
+                    && values[candidates.peekLast()] <= values[i]) {
+                candidates.removeLast();
+            }
+            candidates.addLast(i);
+            if (left >= 0) {
+                System.out.println(values[candidates.peekFirst()]);
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        int[] values = {4, 2, 12, 3};
+        printWindowMaximums(values, 3);
+    }
+}
+```
+
+Expected output:
+
+```text
+12
+12
+```
+
+For a nonempty array, `k` must be at least `1` and no greater than `values.length`. This method prints nothing for empty input. Each index enters once and can leave once, so the total work grows **linearly**: doubling the input roughly doubles the work.
+
+### Undo and Redo
+
+Use one deque for actions you can undo and another for actions you can redo. Undo moves the newest action from undo to redo. Redo moves it back.
+
+A new action must clear redo. Suppose you perform `A`, perform `B`, then undo `B`. The current history is `A`, and redo could restore `B`. If you perform `C` instead, the history becomes `A, C`. Restoring `B` would follow the abandoned branch, so `doAction(C)` clears redo.
+
+### Rolling Buffers
+
+A **rolling buffer** keeps only the newest fixed number of items. Add each reading at the back. If the size passes the limit, remove one from the front.
+
+Before writing the code, predict the bounds: with a limit of `20`, what are the smallest and largest possible sizes immediately after the trim step? What happens when reading number `21` arrives?
+
+This pattern works for recent robot sensor readings. Check that the limit is positive, and do not calculate an average while the buffer is empty.
+
+<RulesBox title="Common Mistakes">
+
+- Mixing front and back operations without tracing the order.
+- Mixing throwing and special-value methods without planning for failure.
+- Adding `null` to an `ArrayDeque`.
+- Assuming iteration follows insertion time. A deque iterates from front to back.
+- Treating implementation comparisons as universal performance rules.
+
+</RulesBox>
+
 <ExerciseBox title="Practice">
 
-1. Add the values 1 through 5 alternately to the front and back of a deque, then print it. Predict the output before running it.
+1. Add the values 1 through 5 alternately to the front and back of a deque, then print it. Predict the front-to-back output before running it.
 2. Write a method that checks whether a `String` is a palindrome by comparing characters from both ends of a deque.
-3. Write a class holding the last 20 readings, dropping the oldest when a twenty-first arrives, with a method returning their average.
-4. Implement undo and redo with two deques: `doAction`, `undo`, and `redo`.
-5. Given an `int[]` and a window width `k`, print the maximum of every window of that width.
+3. Write a class holding the last 20 readings, dropping the oldest when a twenty-first arrives, with a method returning their average. State and test the buffer's size bounds.
+4. Implement undo and redo with two deques: `doAction`, `undo`, and `redo`. Demonstrate that a new action after `undo` clears redo.
+5. Given an `int[]` and a window width `k`, print the maximum of every window of that width. Enforce the stated `k` constraints and test empty input.
 
 <details>
 <summary>Hints</summary>
 
-1. Work it out on paper. `addFirst` reverses the order those items appear in.
-2. Push every character, then repeatedly `removeFirst` and `removeLast` and compare. Stop when fewer than two remain; an odd-length string leaves a middle character that needs no partner.
-3. `addLast` then trim from the front. For the average, iterate and divide by `size()`.
-4. `doAction` pushes onto the undo deque and clears redo. `undo` moves one item from undo to redo. `redo` moves it back. Clearing redo on a new action is the part people miss; it is also what real editors do.
-5. The sliding-window maximum above. Each index is added once and removed once, so the whole pass is linear despite the inner loops.
+1. Work it out on paper. `addFirst` reverses the order of values added at that end.
+2. Add every character, then compare `removeFirst()` with `removeLast()` until fewer than two remain.
+3. Use `addLast()`, then trim with `removeFirst()`. Divide by `size()` only when it is not empty.
+4. `doAction` adds to undo and clears redo. `undo` moves one item to redo. `redo` moves it back.
+5. Store candidate indices. Expire from the front, remove smaller or equal values from the back, then add the new index.
 
 </details>
 
 </ExerciseBox>
 
-<LinkGrid
-  title="Related"
-  section="java"
-  links={[
-    {"label":"Trees","id":"java-trees"},
-    {"label":"Graphs","id":"java-graphs"}
-  ]}
-/>
-
 <Sources items={[
-  {"source": "java-api", "path": "java.base/java/util/concurrent/LinkedBlockingDeque.html", "note": "A blocking deque implementation for concurrent use."},
-  {"source": "csce146", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "api/collections-framework/stacks-queues/", "note": "Deques."},
-  {"source": "java-api", "path": "java.base/java/util/Deque.html", "note": "<code>Deque</code>."},
-  {"source": "java-api", "path": "java.base/java/util/ArrayDeque.html", "note": "<code>ArrayDeque</code>."},
-  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."}
+  {"source": "java-api", "path": "java.base/java/util/Deque.html", "note": "Method families and stack and queue mappings."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayDeque.html", "note": "Resizable-array behavior, null policy, and operation costs."},
+  {"source": "java-api", "path": "java.base/java/util/LinkedList.html", "note": "List and deque behavior."},
+  {"source": "java-api", "path": "java.base/java/util/concurrent/LinkedBlockingDeque.html", "note": "Optional blocking behavior for concurrent programs."},
+  {"source": "dev-java", "path": "api/collections-framework/stacks-queues/", "note": "Stacks and queues."}
 ]} />
 
-<LinkGrid
-  title="Related"
-  section="java"
-  links={[
-    {"label":"Stacks","id":"java-stacks"},
-    {"label":"Queues","id":"java-queues"}
-  ]}
-/>
+<LinkGrid title="Related" section="java" links={[
+  {"label":"Stacks","id":"java-stacks"},
+  {"label":"Queues","id":"java-queues"}
+]} />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Sets and Maps", "id": "java-sets-and-maps"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "Sets and Maps", "id": "java-sets-and-maps"}]} />

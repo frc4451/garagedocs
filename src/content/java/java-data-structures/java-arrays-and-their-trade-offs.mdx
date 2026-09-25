@@ -8,264 +8,303 @@ groupOrder: 5
 order: 1
 difficulty: beginner
 duration: 25 min
-description: Why arrays are fast, what they cannot do, and how to decide when a fixed-size block of memory is the right choice.
+description: Why arrays provide steady indexed access, what their fixed length requires, and when that trade-off fits a program.
 ---
 
-### Starting from arrays
+<span id="starting-from-arrays"></span>
 
-You have already used arrays to store values. This lesson looks at them as one option among several, with specific strengths and specific limits.
+## Start with Arrays
 
-Every other structure in this module exists because arrays fall short in some particular way. Understanding exactly where they fall short is what makes the rest make sense.
+You have already used arrays to store a fixed number of values of one type. This lesson compares that fixed capacity with the number of values your program is currently using. It also shows the work required to insert, remove, or copy values.
 
-If you need a refresher on the syntax first, see [Arrays](/java/fundamentals/java-arrays#creating-arrays---basic-types) in Loops and Iteration.
+If you need a syntax refresher, review [Arrays](/java/fundamentals/java-arrays#creating-arrays---basic-types) in Loops and Iteration.
 
-### What an array is
+<span id="what-an-array-is"></span>
 
-Model an array as numbered slots of one element type. Common JVM implementations store those slots together, allowing indexed access. An object array stores references in its slots; the objects themselves need not sit next to one another.
+## Read by Index
+
+An array provides numbered slots. Java checks an index against the array's length, then reads or replaces the selected slot. The amount of work for that access does not grow as the array gets longer.
 
 ```java
-int[] readings = new int[5];
-readings[0] = 120;
-readings[1] = 118;
+public class Main {
+    public static void main(String[] args) {
+        int[] readings = {120, 118, 125, 121, 119};
+        System.out.println("First: " + readings[0]);
+        System.out.println("Fourth: " + readings[3]);
+        readings[3] = 123;
+        System.out.println("Updated fourth: " + readings[3]);
+    }
+}
 ```
 
-Because the elements sit next to each other and every element is the same size, the computer can jump straight to any position with arithmetic. To find `readings[3]`, it starts at the beginning of the block and skips forward three elements' worth of space.
+Run the example in the browser from this lesson's code block, or replace `Main.java` with it and follow [Compile And Run](/java/fundamentals/java-setup#compile-and-run). It prints:
 
-That is why reading or writing any element takes the same amount of time regardless of position. Element 0 and element 999 cost the same.
+```text
+First: 120
+Fourth: 121
+Updated fourth: 123
+```
 
-<RulesBox title="What arrays are good at">
+The Java Language Specification defines an array's length, index range, and component access. It does not require a particular memory layout, so Java code should rely on those defined behaviors instead of assuming how a JVM arranges the slots.
 
-- **Reading any element by index:** instant, no searching
-- **Writing to any element by index:** instant
-- **Memory efficiency:** no separate linked-list node per element; arrays still have an object header, length, and possible alignment overhead
-- **Predictable performance:** no hidden resizing or reallocation
+<RulesBox title="What Arrays Are Good At">
+
+- **Reading by index:** the work does not grow with the array's length
+- **Writing by index:** the work does not grow with the array's length
+- **Fixed capacity:** the array never resizes behind your code
 
 </RulesBox>
 
-### The limitation that matters
+<span id="the-limitation-that-matters"></span>
+<span id="working-with-a-partly-filled-array"></span>
 
-An array's length is fixed when you create it. You cannot grow it.
+## Capacity and Logical Size
 
-```java
-int[] readings = new int[5];
-// readings can hold exactly 5 values. Not 6.
-```
+An array's `length` is its **capacity**, the number of slots created for it. That length never changes. A program can separately track its **logical size**, the number of slots that currently contain values the program considers part of its data.
 
-If you need a sixth value, you have to create a bigger array and copy everything across:
-
-```java norun
-int[] bigger = new int[10];
-System.arraycopy(readings, 0, bigger, 0, readings.length);
-readings = bigger;
-```
-
-That copy touches every element, so it costs time proportional to the size. Doing it once is fine. Doing it every time you add a value is slow, and it is the reason [ArrayLists](/java/fundamentals/java-arraylists#how-it-grows) exist.
-
-### Inserting and removing
-
-Arrays have a second limitation. Suppose you want to remove the element at index 1 and close the gap:
+This complete example creates space for five readings but stores only three:
 
 ```java
-int[] values = {10, 20, 30, 40, 50};
+public class Main {
+    private static final int[] readings = new int[5];
+    private static int count = 0;
 
-// remove index 1 by shifting everything after it left
-for (int i = 1; i < values.length - 1; i++) {
-    values[i] = values[i + 1];
+    public static void main(String[] args) {
+        addReading(120);
+        addReading(118);
+        addReading(125);
+        System.out.println("Capacity: " + readings.length);
+        System.out.println("Logical size: " + count);
+        System.out.println("Average: " + average());
+    }
+
+    public static void addReading(int value) {
+        if (count < readings.length) {
+            readings[count] = value;
+            count++;
+        }
+    }
+
+    public static int average() {
+        if (count == 0) {
+            return 0;
+        }
+        int total = 0;
+        for (int i = 0; i < count; i++) {
+            total += readings[i];
+        }
+        return total / count;
+    }
 }
-// values is now {10, 30, 40, 50, 50}; the last slot is stale
 ```
 
-Every element after the removal point has to move. Inserting in the middle is the same problem in reverse. For a large array this is expensive, and there is no way around it: the elements are packed together, so making room means moving things.
+Run it from the code block or as `Main.java`. The output is:
+
+```text
+Capacity: 5
+Logical size: 3
+Average: 121
+```
+
+The loop stops at `count`, not `readings.length`. The two unused `int` slots contain their default value, `0`, but those zeros are spare capacity rather than sensor readings. This pattern works well for a buffer with a known maximum size.
+
+To store a sixth value in an array of length five, create a longer array and copy the existing values. `Arrays.copyOf` returns a new array with the requested length:
+
+```java
+import java.util.Arrays;
+
+public class Main {
+    public static void main(String[] args) {
+        int[] readings = {120, 118, 125, 121, 119};
+        int[] bigger = Arrays.copyOf(readings, 6);
+        bigger[5] = 122;
+        System.out.println(Arrays.toString(bigger));
+    }
+}
+```
+
+The result is `[120, 118, 125, 121, 119, 122]`. Copying a longer array requires work for each existing element, so the work grows with the number of values copied.
+
+<span id="inserting-and-removing"></span>
+
+## Insert and Remove
+
+An array has no built-in insert or remove operation. Your code chooses a logical size and shifts values to keep the used portion together. Inserting at an index shifts later values one slot to the right. Start at the end so a value is not overwritten before it is copied.
+
+Removing at an index shifts later values one slot to the left. For an object array, clear the old final position to `null` so that unused slot no longer refers to the removed object.
+
+```java
+import java.util.Arrays;
+
+public class Main {
+    public static void main(String[] args) {
+        String[] names = {"drive", "intake", "climber", null, null};
+        int size = 3;
+        int insertIndex = 1;
+        for (int i = size; i > insertIndex; i--) {
+            names[i] = names[i - 1];
+        }
+        names[insertIndex] = "shooter";
+        size++;
+        System.out.println("After insert: " + Arrays.toString(names));
+
+        int removeIndex = 2;
+        for (int i = removeIndex; i < size - 1; i++) {
+            names[i] = names[i + 1];
+        }
+        size--;
+        names[size] = null;
+        System.out.println("After remove: " + Arrays.toString(names));
+        System.out.println("Logical size: " + size);
+    }
+}
+```
+
+Run it from the code block or as `Main.java`. It prints:
+
+```text
+After insert: [drive, shooter, intake, climber, null]
+After remove: [drive, shooter, climber, null, null]
+Logical size: 3
+```
+
+Inserting or removing near the beginning moves more values than doing so near the end. In the worst case, the number of moves grows with the logical size.
 
 <ContentTable
-  title="Array operation costs"
-  headers={["Operation", "Cost", "Why"]}
+  title="Array Operation Growth"
+  headers={["Operation", "How The Work Grows", "Why"]}
   rows={[
-    ["Read <code>a[i]</code>", "Instant", "Direct jump by arithmetic"],
-    ["Write <code>a[i]</code>", "Instant", "Direct jump by arithmetic"],
-    ["Find a value", "Proportional to length", "Must check each element"],
-    ["Insert in the middle", "Proportional to length", "Must shift elements right"],
-    ["Remove from the middle", "Proportional to length", "Must shift elements left"],
-    ["Add beyond capacity", "Proportional to length", "Must allocate and copy"]
+    ["Read <code>a[i]</code>", "Does not grow with length", "Java selects one indexed slot"],
+    ["Write <code>a[i]</code>", "Does not grow with length", "Java selects one indexed slot"],
+    ["Find an unsorted value", "May grow with logical size", "A search may check every used slot"],
+    ["Insert in the middle", "May grow with logical size", "Later values shift right"],
+    ["Remove from the middle", "May grow with logical size", "Later values shift left"],
+    ["Grow past capacity", "Grows with values copied", "Code creates another array and copies values"]
   ]}
 />
 
-### Working with a partly-filled array
+## Avoid Common Mistakes
 
-A common pattern when you know the maximum size but not the actual count: allocate for the maximum and track how many slots are in use.
+<RulesBox title="Common Array Mistakes">
 
-```java
-int[] readings = new int[100];
-int count = 0;
-
-public void addReading(int value) {
-    if (count < readings.length) {
-        readings[count] = value;
-        count++;
-    }
-}
-
-public int average() {
-    if (count == 0) return 0;
-    int total = 0;
-    for (int i = 0; i < count; i++) {   // loop to count, not readings.length
-        total += readings[i];
-    }
-    return total / count;
-}
-```
-
-The important detail is looping to `count` rather than `readings.length`. The unused slots still hold zeros, and including them would drag the average down.
-
-This pattern appears constantly in robot code, where you might buffer a fixed number of sensor readings.
-
-<RulesBox title="Common array mistakes">
-
-- **Off-by-one at the end.** Valid indices run from `0` to `length - 1`. Using `<=` in a loop condition throws `ArrayIndexOutOfBoundsException`.
-- **Confusing `length` with `count`.** A partly-filled array's `length` is its capacity, not how much you have stored.
-- **Assuming a copy is a copy.** `int[] b = a;` makes both names refer to the *same* array. Changing `b[0]` changes `a[0]`. Use `a.clone()` or `Arrays.copyOf(a, a.length)` for a real copy. See [Objects and References](/java/fundamentals/java-objects-and-references#reference-assignment-copies-the-reference).
-- **Forgetting arrays of objects start as `null`.** `new String[5]` holds five nulls, not five empty strings.
+- **Going past the end.** Valid indices run from `0` through `length - 1`. An invalid index causes `ArrayIndexOutOfBoundsException`.
+- **Confusing capacity with logical size.** A partly filled array's `length` counts every slot, including unused ones.
+- **Copying only the reference.** `int[] b = a;` makes both variables refer to the same array. Use `a.clone()` or `Arrays.copyOf(a, a.length)` when you need a separate array. See [Objects And References](/java/fundamentals/java-objects-and-references#reference-assignment-copies-the-reference).
+- **Using an unfilled object slot.** Every slot in `new String[5]` starts as `null`, not as an empty string. Calling a method through that `null` reference causes `NullPointerException`.
 
 </RulesBox>
 
-### Two-dimensional arrays
+<span id="two-dimensional-arrays"></span>
 
-An array whose elements are themselves arrays. Useful for grids, matrices, and tables.
+## Use Two-Dimensional Arrays
 
-```java
-int[][] grid = new int[3][4];      // 3 rows, 4 columns
-grid[1][2] = 7;                     // row 1, column 2
-
-for (int r = 0; r < grid.length; r++) {
-    for (int c = 0; c < grid[r].length; c++) {
-        System.out.print(grid[r][c] + " ");
-    }
-    System.out.println();
-}
-```
-
-`grid.length` is the number of rows; `grid[r].length` is the length of that row. Reading them in the wrong order is a frequent bug on non-square grids.
-
-### Object arrays
-
-These examples apply classes, constructors, and Scanner to an array of related objects. Treat each class declaration as a separate local file when working in VS Code.
-
-### Adding objects to arrays
-
-Storing an object in an array works the same way as storing a primitive. You can create the object first and assign it, or create it in the assignment. The example uses a small `Robot` class.
-
-### Robot objects in arrays
+A two-dimensional array is an array whose elements are arrays. It can represent a grid or table. Each row has its own length, so use `grid[row].length` for the inner loop.
 
 ```java
-// Assume we have a Robot class
-public class Robot {
-    private String name;
-    private int teamNumber;
-    private boolean isActive;
-    
-    public Robot(String name, int teamNumber) {
-        this.name = name;
-        this.teamNumber = teamNumber;
-        this.isActive = false;
-    }
-    
-    public String getName() { return this.name; }
-    public int getTeamNumber() { return this.teamNumber; }
-    public boolean isActive() { return this.isActive; }
-    public void activate() { this.isActive = true; }
-    
-    public String toString() {
-        return name + " (Team " + teamNumber + ") - " + (isActive ? "Active" : "Inactive");
-    }
-}
-
-// Create an array for robot objects
-Robot[] competition = new Robot[4];
-
-// Method 1: Create robot first, then add to array
-Robot robot1 = new Robot("SpeedBot", 12345);
-competition[0] = robot1;
-
-// Method 2: Create robot directly in array assignment
-competition[1] = new Robot("PowerBot", 67890);
-competition[2] = new Robot("PrecisionBot", 11111);
-competition[3] = new Robot("AllStarBot", 22222);
-
-// Activate all robots and display
-for (int i = 0; i < competition.length; i++) {
-    competition[i].activate();
-    System.out.println(competition[i]);
-}
-```
-
-### User input for object arrays
-
-An array of objects can also be filled from user input, one object per set of prompts. The example builds a team roster.
-
-### Building object arrays from user input
-
-```java
-import java.util.Scanner;
-
-public class RobotTeamBuilder {
+public class Main {
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        
-        System.out.print("How many robots in your team? ");
-        int teamSize = Integer.valueOf(scanner.nextLine());
-        
-        // Create array based on user input
-        Robot[] robotTeam = new Robot[teamSize];
-        
-        // Collect robot information
-        for (int i = 0; i < robotTeam.length; i++) {
-            System.out.println("\nEntering Robot " + (i + 1) + ":");
-            
-            System.out.print("Robot name: ");
-            String name = scanner.nextLine();
-            
-            if (name.isEmpty()) {
-                System.out.println("Using default name: Robot" + (i + 1));
-                name = "Robot" + (i + 1);
+        int[][] grid = new int[3][4];
+        grid[1][2] = 7;
+        for (int row = 0; row < grid.length; row++) {
+            for (int column = 0; column < grid[row].length; column++) {
+                if (column > 0) {
+                    System.out.print(" ");
+                }
+                System.out.print(grid[row][column]);
             }
-            
-            System.out.print("Team number: ");
-            int teamNumber = Integer.valueOf(scanner.nextLine());
-            
-            // Create and add robot to array
-            robotTeam[i] = new Robot(name, teamNumber);
-        }
-        
-        // Display the complete team
-        System.out.println("\n=== Robot Team Roster ===");
-        System.out.println("Total robots: " + robotTeam.length);
-        
-        for (int i = 0; i < robotTeam.length; i++) {
-            System.out.println((i + 1) + ". " + robotTeam[i]);
+            System.out.println();
         }
     }
 }
 ```
 
+Run it from the code block or as `Main.java`. The program prints three rows of four numbers. Every value is `0` except the `7` at row 1, column 2:
 
-### Reading the cost notation
+```text
+0 0 0 0
+0 0 7 0
+0 0 0 0
+```
 
-The following pages use n for the number of elements. O(1) means the work does not grow with n; O(n) means it can grow in proportion to n.
+<span id="object-arrays"></span>
+<span id="adding-objects-to-arrays"></span>
+<span id="robot-objects-in-arrays"></span>
+<span id="user-input-for-object-arrays"></span>
+<span id="building-object-arrays-from-user-input"></span>
 
-Amortized O(1) means the average cost per operation over a sequence stays bounded even though an occasional operation does more work. These describe growth, not zero time. [Big-O](/java/fundamentals/java-big-o) develops the analysis.
+## Use Object Arrays
 
-### Choosing an array
+An object array stores references. Creating the array creates its slots, but it does not create the objects that will occupy them. Until you assign an object, each slot contains `null`.
 
-Use an array when all of the following hold:
+```java
+public class Main {
+    public static void main(String[] args) {
+        Robot[] competition = new Robot[2];
+        System.out.println("Before assignment: " + competition[0]);
+        competition[0] = new Robot("SpeedBot", 12345);
+        competition[1] = new Robot("PowerBot", 67890);
+        for (Robot robot : competition) {
+            robot.activate();
+            System.out.println(robot);
+        }
+    }
 
-<RulesBox title="Arrays are the right choice when">
+    private static class Robot {
+        private final String name;
+        private final int teamNumber;
+        private boolean active;
 
-- You know the size in advance, or a safe maximum
-- You mostly read and write by index
-- You rarely insert or remove from the middle
-- You care about memory or predictable speed
+        public Robot(String name, int teamNumber) {
+            this.name = name;
+            this.teamNumber = teamNumber;
+            this.active = false;
+        }
 
-If the size changes as the program runs, use an [ArrayList](/java/fundamentals/java-arraylists#the-problem-it-solves). If you insert and remove at the ends constantly, look at [Deques](/java/fundamentals/java-deques#both-ends).
+        public void activate() {
+            active = true;
+        }
+
+        @Override
+        public String toString() {
+            String status = active ? "Active" : "Inactive";
+            return name + " (Team " + teamNumber + ") - " + status;
+        }
+    }
+}
+```
+
+Run it from the code block or as `Main.java`. It prints:
+
+```text
+Before assignment: null
+SpeedBot (Team 12345) - Active
+PowerBot (Team 67890) - Active
+```
+
+<span id="reading-the-cost-notation"></span>
+
+## Read Growth Notation
+
+The following data-structure lessons use `n` for the number of values involved in an operation. **O(1)** describes work that does not grow with `n`. **O(n)** describes work that can grow in direct proportion to `n`.
+
+For example, reading one array slot by index is O(1). Shifting every later value after removing index 0 is O(n). These labels describe how work grows, not the exact running time. [Big-O](/java/fundamentals/java-big-o) develops the notation.
+
+The later ArrayList lesson also uses **amortized O(1)**. It means that an occasional operation may require a larger copy, while the average work per operation stays bounded across a long sequence.
+
+<span id="choosing-an-array"></span>
+
+## Choose an Array
+
+Choose an array when you know the required capacity or a safe maximum, mostly access values by index, and rarely insert or remove values in the middle.
+
+<RulesBox title="Choose an Array When">
+
+- You know the size in advance or have a safe maximum.
+- You mostly read and write by index.
+- You rarely insert or remove from the middle.
+- You need fixed capacity with no automatic resizing.
+
+If the logical size changes often, continue to [ArrayLists](/java/fundamentals/java-arraylists#the-problem-it-solves). If you frequently add or remove at both ends, see [Deques](/java/fundamentals/java-deques#both-ends).
 
 </RulesBox>
 
@@ -282,41 +321,36 @@ If the size changes as the program runs, use an [ArrayList](/java/fundamentals/j
 <details>
 <summary>Hints</summary>
 
-1. One loop to fill, one to total. Or do both in the same loop.
-2. Start your running maximum at `arr[0]`, not `0`; otherwise negative-only arrays give the wrong answer. Decide what to return when the array has no elements.
-3. Swap the first with the last, second with second-to-last, and stop at the middle. Two index variables moving toward each other.
-4. `Arrays.copyOf(arr, arr.length + 1)` gives you a longer copy; put the new value in the last slot.
-5. Two passes, or one pass accumulating both sets of totals into two arrays.
+1. One loop can fill the array and add to the total, or you can use separate loops.
+2. Start the running maximum at `arr[0]`, not `0`, because every value could be negative. Decide what the method will do when the array is empty.
+3. Swap the first value with the last, then move both indices toward the middle.
+4. `Arrays.copyOf(arr, arr.length + 1)` returns a longer copy. Store the new value in its final slot.
+5. You can use one pass to add values to row and column total arrays, or use a separate pass for each direction.
 
 </details>
 
 </ExerciseBox>
 
-<LinkGrid
-  title="Related"
-  section="java"
-  links={[
-    {"label":"ArrayLists","id":"java-arraylists"},
-    {"label":"Linked Lists","id":"java-linked-lists"}
-  ]}
-/>
-
-<Sources items={[
-  {"source": "csce146", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "language-basics/arrays/", "note": "Arrays."},
-  {"source": "jls", "path": "jls-10.html", "note": "Arrays (chapter 10)."},
-  {"source": "java-api", "path": "java.base/java/util/Arrays.html", "note": "<code>Arrays</code>."},
-  {"source": "java-api", "path": "java.base/java/lang/ArrayIndexOutOfBoundsException.html", "note": "<code>ArrayIndexOutOfBoundsException</code> API reference."}
+<LinkGrid title="Related" section="java" links={[
+  {"label":"ArrayLists","id":"java-arraylists"},
+  {"label":"Linked Lists","id":"java-linked-lists"}
 ]} />
 
-<LinkGrid
-  title="Review"
-  section="java"
-  links={[
-    {"label":"Arrays (Java Basics)","id":"java-arrays"},
-    {"label":"For Loops","id":"java-for-loops"},
-    {"label":"Objects and References","id":"java-objects-and-references"}
-  ]}
-/>
+<Sources items={[
+  {"source":"csce146","note":"The course whose structure this lesson follows."},
+  {"source":"dev-java","path":"language-basics/arrays/","label":"Learning Arrays","note":"Array creation, indexing, copying, multidimensional arrays, and traversal."},
+  {"source":"jls","path":"jls-10.html#jls-10.2","label":"JLS §10.2: Array Variables","note":"Array variables hold references, and an array's length remains fixed after creation."},
+  {"source":"jls","path":"jls-10.html#jls-10.4","label":"JLS §10.4: Array Access","note":"Indexed component access, bounds checks, and <code>ArrayIndexOutOfBoundsException</code>."},
+  {"source":"jls","path":"jls-10.html#jls-10.7","label":"JLS §10.7: Array Members","note":"The public final <code>length</code> field on arrays."},
+  {"source":"jls","path":"jls-4.html#jls-4.12.5","label":"JLS §4.12.5: Initial Values Of Variables","note":"Default zero and <code>null</code> values for newly created array components."},
+  {"source":"java-api","path":"java.base/java/util/Arrays.html#copyOf(int%5B%5D,int)","label":"Arrays.copyOf","note":"Creating a separate <code>int[]</code> with a requested length and copied values."},
+  {"source":"java-api","path":"java.base/java/lang/NullPointerException.html","label":"NullPointerException","note":"The failure caused by invoking an instance method through a <code>null</code> reference."}
+]} />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "ArrayLists", "id": "java-arraylists"}]} />
+<LinkGrid title="Review" section="java" links={[
+  {"label":"Arrays (Java Basics)","id":"java-arrays"},
+  {"label":"For Loops","id":"java-for-loops"},
+  {"label":"Objects and References","id":"java-objects-and-references"}
+]} />
+
+<LinkGrid title="Next Lesson" section="java" links={[{"label":"ArrayLists","id":"java-arraylists"}]} />

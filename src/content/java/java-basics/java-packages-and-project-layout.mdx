@@ -8,111 +8,136 @@ groupOrder: 4
 order: 11
 difficulty: beginner
 duration: 20 min
-description: Why Java files live in folders that match their package name, what import does, and the layout every robot project shares.
+description: How Java packages, imports, source roots, and files fit together in local and Gradle projects.
 ---
 
-### One file is not a project
+Before you start, complete [Java Setup: Compile and Run](/java/fundamentals/java-setup#compile-and-run). You should know how to save a Java file, open a terminal in VS Code, compile with `javac`, and run with `java`. Review [VS Code: Create, Save, and Find a File](/tools/vscode-tour#create-save-and-find-a-file) if you need help creating the nested folders in this lesson.
 
-A package groups related Java types and gives them a shared name prefix. In the project layout used here, source folders match the package name beneath the source root.
+The complete worked example on this page is a local console program. It needs a Java Development Kit (JDK), but it does not need WPILib or robot hardware. The WPILib-style fragments below illustrate package paths and imports only. They are not complete programs and will not compile in the local exercise without WPILib dependencies.
+
+<a id="one-file-is-not-a-project"></a>
+
+## Packages and Folders
+
+A package groups related Java types under a shared name. In the Gradle layout used by the robot projects linked from this course, the folders below `src/main/java` match the package name. The folder `src/main/java` is the **source root**, where the package path begins.
+
+This illustrative WPILib fragment shows where the package declaration goes. It is not the complete `Drive` class from a robot project.
 
 ```java norun
 // File: src/main/java/frc/robot/subsystems/Drive.java
 package frc.robot.subsystems;
 
 public class Drive {
-    // ...
+    public Drive() {
+    }
 }
 ```
 
-The package declaration determines the type’s full name. Keep its folder path aligned with that package so VS Code and the build tools can find it consistently.
+The package declaration gives this class the full name `frc.robot.subsystems.Drive`. Keeping the folder path aligned with the package helps VS Code and build tools find the source file.
 
-A public top-level class also needs a matching filename. A folder mismatch and a filename mismatch are different problems; javac can compile an explicitly supplied source file from a different folder.
+File names follow a separate rule. If a top-level class is `public`, its source file must use the class name, including capitalization. The `public class Drive` above belongs in `Drive.java`. A top-level class without `public` does not have that filename requirement, although matching the filename to the main class still helps readers find it.
 
 <ContentTable
-  headers={["In the file", "On disk"]}
+  headers={["In the File", "On Disk"]}
   rows={[
     ["<code>package frc.robot;</code>", "<code>src/main/java/frc/robot/</code>"],
     ["<code>package frc.robot.subsystems;</code>", "<code>src/main/java/frc/robot/subsystems/</code>"],
-    ["<code>public class Drive</code>", "<code>Drive.java</code>, exactly, case included"],
-    ["No <code>package</code> line", "The <em>default package</em>: usable for small exercises; use named packages to organize larger projects"]
+    ["<code>public class Drive</code>", "<code>Drive.java</code>, with the same capitalization"],
+    ["No <code>package</code> line", "The <em>unnamed package</em>, which is useful for small or temporary programs"]
   ]}
 />
 
-A class's full name is its package plus its name: `frc.robot.subsystems.Drive`. Two classes can both be called `Drive` as long as they live in different packages, which is how your `Drive` and a library's `Drive` coexist.
+Two packages can each contain a class named `Drive`. Their full names keep them distinct, such as `frc.robot.subsystems.Drive` and `example.library.Drive`.
 
-### import
+## Import
 
-Inside a package, classes see each other by their short names. Anything from a *different* package has to be named in full, or brought in with `import`:
+Code can use a type from its own package by its short name. Java also makes the public types in `java.lang`, including `String`, `Math`, and `System`, available without import declarations.
+
+For a type from another package, write its full name or add an `import` after the `package` declaration. This illustrative WPILib fragment is incomplete and requires WPILib as a configured dependency:
 
 ```java norun
 package frc.robot;
 
-import frc.robot.subsystems.Drive;          // one class
-import edu.wpi.first.wpilibj.TimedRobot;    // one class from a library
-import java.util.List;                      // one class from the JDK
+import edu.wpi.first.wpilibj.TimedRobot;
+import frc.robot.subsystems.Drive;
 
 public class Robot extends TimedRobot {
-    private final Drive drive = new Drive();
-    private final List<String> log = new java.util.ArrayList<>();   // full name inline, no import needed
+    private final Drive drive;
+
+    public Robot() {
+        drive = new Drive();
+    }
 }
 ```
 
-`import` does not copy or load anything. It is a note to the compiler: *when I say `Drive`, I mean `frc.robot.subsystems.Drive`.* That is all. The class still has to exist somewhere the compiler can find it.
+An import lets the compiler connect the short name `Drive` to `frc.robot.subsystems.Drive` within this file. It does not download or install `Drive`. The class must already be part of the project, the Java Development Kit (JDK), or a dependency configured by the build system. In a WPILib project, add vendor libraries through the documented dependency tools instead of typing an import and expecting the library to appear.
 
-Two things you do not import: anything in `java.lang` (`String`, `Math`, `System`, always visible), and anything in the same package as the file you are writing.
+You can also skip the import and write a full name where you use the type. The following illustrative field declaration belongs inside a class body; it is not a complete file:
 
-<RulesBox title="Wildcard imports">
+```java norun
+private final frc.robot.subsystems.Drive drive =
+        new frc.robot.subsystems.Drive();
+```
 
-`import java.util.*;` brings in every class in `java.util`. It is convenient in a scratch file and discouraged in a real one: a reader cannot tell which classes the file uses, and when two packages both have a `List`, the compiler cannot tell either. Name what you use.
+<RulesBox title="Wildcard Imports">
+
+`import java.util.*;` makes the accessible types declared in `java.util` available by short name when needed. It does not import subpackages such as `java.util.concurrent`, and inaccessible types remain inaccessible.
+
+Use explicit imports in course and robot code so readers can see where each type comes from. Two wildcard imports can make a short name ambiguous when both packages contain an accessible type with that name. A single-type import takes precedence over wildcard imports, so `import java.util.List;` resolves `List` to `java.util.List` even if another wildcard-imported package also contains `List`.
 
 </RulesBox>
 
-### What the layout looks like
+<a id="what-the-layout-looks-like"></a>
 
-This is the standard Gradle Java source layout used by WPILib projects. Build configuration can customize it; check the source-root settings if another project differs:
+## Project Layout
 
-```
-my-robot/
-├── build.gradle              what to build and which libraries to fetch
-├── settings.gradle
+The Gradle Java plugin uses `src/main/java` for production Java source and `src/test/java` for test source by default. A project can change those source directories in its build configuration.
+
+This tree shows a small example. The filenames under `frc/robot` are examples, not files that every WPILib project must contain.
+
+```text
+my-project/
+├── build.gradle              build configuration and dependencies
+├── settings.gradle           Gradle project settings
 ├── src/
 │   ├── main/
-│   │   ├── java/             ← the source root: packages start here
-│   │   │   └── frc/robot/
-│   │   │       ├── Main.java
-│   │   │       ├── Robot.java
-│   │   │       ├── RobotContainer.java
-│   │   │       ├── Constants.java
-│   │   │       └── subsystems/
-│   │   │           ├── Drive.java
-│   │   │           └── Launcher.java
-│   │   └── deploy/           files copied to the robot as-is
+│   │   └── java/             source root for program code
+│   │       └── frc/robot/
+│   │           ├── Main.java
+│   │           └── subsystems/
+│   │               └── Drive.java
 │   └── test/
-│       └── java/             tests, same package layout as main
-└── build/                    generated; never edit, never commit
+│       └── java/             source root for test code
+└── build/                    generated Gradle output
 ```
 
-Three things to notice:
+Three details control where you work:
 
-1. **`src/main/java` is the root.** `package frc.robot.subsystems` means `src/main/java/frc/robot/subsystems/`. The `src/main/java` part is not in the package name.
-2. **Packages group by purpose.** `subsystems` holds subsystems, `commands` holds commands. When a package has fifteen unrelated files, it wants splitting.
-3. **`build/` is output.** It is regenerated on every build. It belongs in `.gitignore`, and if something in it looks wrong, the fix is in `src/`.
+1. `src/main/java` is the source root. The package `frc.robot.subsystems` starts below it at `frc/robot/subsystems/`.
+2. Packages group related code. A subpackage is a separate package, so `frc.robot` and `frc.robot.subsystems` do not share package-private access.
+3. Gradle writes generated output under `build/` by default. Edit source files under `src/`, because another build can replace generated files.
 
-### Naming
+WPILib's command-based project template has a more specific layout. Open [R01: Project Anatomy](/kit-bot/r01-project-anatomy) when you need the roles of `Main.java`, `Robot.java`, `RobotContainer.java`, and `Constants.java` in that template.
 
-Package names are lowercase, dot-separated, and conventionally start with something that identifies the owner: `com.company.product` for commercial code, `frc.robot` for a WPILib project, `org.team1234` for a team library. Class names are `UpperCamelCase`, one public class per file, file named after it.
+## Naming
 
-The convention exists so that any two projects in the world can be combined without a name collision. For a robot project the important part is smaller: put things where the next person will look for them.
+Package names normally use lowercase words separated by dots. Widely distributed libraries often begin with a reversed internet domain, such as `com.example.product`, to reduce name collisions. WPILib robot projects commonly use `frc.robot` as their base package.
 
-### Visibility follows packages
+Class names use UpperCamelCase. Keep each public top-level class in the file whose name matches that class. These conventions help the next programmer predict where a type belongs.
 
-Use explicit visibility in GarageDocs examples: public for types and methods other classes need, and private for internal fields and helpers.
+## Visibility Follows Packages
 
-```java
+Use explicit visibility in GarageDocs examples. Make types and members `public` when other classes need them, and make internal fields and helper methods `private`.
+
+```java norun
 package frc.robot.subsystems;
 
 public class Drive {
     private double lastCommandedSpeed;
+
+    public Drive() {
+        lastCommandedSpeed = 0.0;
+    }
 
     public void arcadeDrive(double speed) {
         lastCommandedSpeed = speed;
@@ -120,40 +145,128 @@ public class Drive {
 }
 ```
 
-Another class can call arcadeDrive but cannot read lastCommandedSpeed directly. Java also supports package-private access when a modifier is omitted. Recognize it in outside code; the examples here state their intended access explicitly.
+This illustrative class only stores a requested value. It does not send a command to a motor or measure speed.
 
+Another class can call `arcadeDrive`, but it cannot read `lastCommandedSpeed` directly. Java also supports package-private access when a declaration has no access modifier. Package-private access applies only inside the same package, not in a subpackage. You should recognize this form in other code, although examples in this course state their intended access.
 
-<RulesBox title="Common mistakes">
+<RulesBox title="Common Mistakes">
 
-- **File in the wrong folder for its package**, or the wrong package for its folder. Check the source root and package declaration as well as the message from your editor or build tool.
-- **Filename that does not match the public class**, including case: `drive.java` holding `class Drive` fails.
-- **Editing files under `build/`.** They are overwritten on the next build.
-- **Forgetting the `import`** and reading "cannot find symbol" as if the class were missing. The class exists, but the compiler was not told where to look.
-- **`import java.util.*;` in a file that also uses `java.awt.List`.** An ambiguity error that a specific import would have avoided.
-- **Everything in one package.** A twenty-file `frc.robot` with no sub-packages is a project nobody can navigate.
+- If the editor or compiler cannot find a type, check its spelling, capitalization, package declaration, folder below the source root, and import.
+- If a public top-level class reports a filename error, match the filename and capitalization to the class name.
+- If two wildcard imports provide the same short type name, add one explicit import or use one type's full name.
+- If an imported library type is still missing, check the project's configured dependencies. An import cannot install a dependency.
+- If a change disappears after a build, confirm that you edited a source file under `src/` rather than generated output under `build/`.
 
 </RulesBox>
 
+## Build a Two-File Project
+
+This worked example runs on your computer and does not use the browser Java runner. Open the folder where you keep course exercises in VS Code, then choose **View → Terminal**. The terminal prompt should show that exercise folder as its current folder.
+
+1. In Explorer, select **New Folder** and create `package-demo`.
+2. Inside `package-demo`, create the folders `src`, then `team`, then `util`.
+3. Inside `package-demo/src/team/util`, create `Clamp.java`.
+4. Inside `package-demo/src/team`, create `Main.java`.
+5. Save both files. The finished paths are `package-demo/src/team/util/Clamp.java` and `package-demo/src/team/Main.java`.
+
+This small project uses `src` as its source root because the compile command names both source files directly. Gradle's Java plugin uses `src/main/java` by default. A source root is a project or build-tool choice, so package `team.util` begins at `team/util` below whichever source root the project uses.
+
+Put this code in `Clamp.java`:
+
+```java norun
+package team.util;
+
+public class Clamp {
+    private static final String DESCRIPTION = "Keeps a value inside a range.";
+
+    private Clamp() {
+    }
+
+    public static double clamp(double value, double minimum, double maximum) {
+        return Math.max(minimum, Math.min(value, maximum));
+    }
+}
+```
+
+For this example, `value`, `minimum`, and `maximum` are finite `double` values, and `minimum` is less than or equal to `maximum`. The range includes both endpoints. Use ordinary finite numbers and keep the endpoints in that order for this exercise.
+
+`Math.min` returns the smaller argument, and `Math.max` returns the larger one. Read the return expression from the inside out. `Math.min(value, maximum)` first lowers a value that is above the maximum. `Math.max(minimum, ...)` then raises a value that is below the minimum. A value already inside the range passes through unchanged.
+
+Put this code in `Main.java`:
+
+```java norun
+package team;
+
+import team.util.Clamp;
+
+public class Main {
+    public static void main(String[] args) {
+        System.out.println(Clamp.clamp(-0.4, 0.0, 1.0));
+        System.out.println(Clamp.clamp(0.6, 0.0, 1.0));
+        System.out.println(Clamp.clamp(1.3, 0.0, 1.0));
+    }
+}
+```
+
+In the terminal, move into the new project folder. Choose the tab for your operating system and run each line separately.
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+Set-Location package-demo
+javac -d out src/team/util/Clamp.java src/team/Main.java
+java -cp out team.Main
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```bash
+cd package-demo
+javac -d out src/team/util/Clamp.java src/team/Main.java
+java -cp out team.Main
+```
+
+</CodeTab>
+</CodeTabs>
+
+The program prints:
+
+```text
+0.0
+0.6
+1.0
+```
+
+The `javac` command compiles both source files. `-d out` tells the compiler to place the `.class` files under a new `out` folder and create the package folders there. The `java` command runs the compiled program. `-cp out` makes `out` the **class path**, which is where Java searches for compiled classes. `team.Main` is the full class name, so Java can find `out/team/Main.class`.
+
+If `javac` reports that it cannot find a file, confirm that the terminal is inside `package-demo` and compare the two saved paths with the command. If `java` reports that it cannot find `team.Main`, confirm that the compile command succeeded and that `out/team/Main.class` exists.
+
 <ExerciseBox title="Practice">
 
-1. Create `src/main/java/team/util/Clamp.java` with package `team.util` and a public static clamp method. Create `src/main/java/team/Main.java` with package `team` and a public static main that imports and calls Clamp.
-2. From the project root, run `javac -d out src/main/java/team/util/Clamp.java src/main/java/team/Main.java`. Then run `java -cp out team.Main`. These commands work in PowerShell and bash.
-3. Test clamp with a value below, inside, and above its range. Print the three results.
-4. Add a private field to Clamp. Try to read it from Main, identify the access error, then remove that invalid access.
-5. Open a WPILib project and identify the source root and the packages containing Robot, RobotContainer, and its subsystems.
+Use the local two-file project to show that you can work with packages:
 
-The -d out option puts compiled classes in an output folder with the appropriate package structure. Keep source files in folders matching their package declarations.
+1. Change the three input values and predict each printed result before you run the program.
+2. Add a fourth call whose value equals one endpoint of the range. Confirm that the endpoint is returned.
+3. Remove `import team.util.Clamp;`, compile, and read the first error. Restore the import and compile again.
+4. In `Main.main`, add `System.out.println(Clamp.DESCRIPTION);` after the other print statements. Compile the project. The compiler should report that `DESCRIPTION` has private access in `Clamp`. Remove that line, compile again, and confirm that compilation succeeds. The field declaration stays inside `Clamp`, directly below `public class Clamp {`.
+5. Explain which folder is the source root, why `Clamp.java` is in `team/util`, and why the run command uses `team.Main`.
+6. Optional WPILib inspection: open an existing command-based robot project and identify its source root and base package. You do not need to install WPILib or create a robot project for this lesson.
 
 </ExerciseBox>
 
 <Sources items={[
   {"source": "csce145", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "packages/", "note": "Packages and imports."},
+  {"source": "dev-java", "path": "packages/", "note": "Introductory package and import guidance."},
   {"source": "java-tutorial", "path": "java/package/index.html", "note": "Creating and using packages."},
-  {"source": "jls", "path": "jls-7.html", "note": "Packages and modules (chapter 7)."},
-  {"source": "jls", "path": "jls-6.html", "note": "Access control (section 6.6)."},
-  {"url": "https://docs.gradle.org/current/userguide/java_plugin.html", "label": "Gradle Java plugin", "note": "The <code>src/main/java</code> layout every Gradle project shares."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."}
+  {"source": "jls", "path": "jls-7.html", "note": "Package declarations, import scope, on-demand imports, file-based layouts, and public top-level type filenames."},
+  {"source": "jls", "path": "jls-6.html", "note": "Type accessibility and package-private access."},
+  {"url": "https://docs.oracle.com/en/java/javase/25/docs/specs/man/javac.html", "label": "Java 25 javac command", "note": "The <code>-d</code> output-directory option."},
+  {"url": "https://docs.oracle.com/en/java/javase/25/docs/specs/man/java.html", "label": "Java 25 java command", "note": "The class path option and launching a class by its fully qualified name."},
+  {"url": "https://docs.gradle.org/current/userguide/java_plugin.html", "label": "Gradle Java plugin", "note": "Default production and test source directories and generated build output."},
+  {"source": "wpilib", "path": "docs/software/commandbased/structuring-command-based-project.html", "note": "The command-based robot project structure linked through R01."},
+  {"source": "java-api", "path": "java.base/java/lang/Math.html", "note": "Behavior of <code>Math.min</code> and <code>Math.max</code> in the local clamp example."}
 ]} />
 
 <LinkGrid
@@ -166,4 +279,5 @@ The -d out option puts compiled classes in an output folder with the appropriate
   ]}
 />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Arrays and Their Trade-offs", "id": "java-arrays-and-their-trade-offs"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "Arrays and Their Trade-offs", "id": "java-arrays-and-their-trade-offs"}]} />
+

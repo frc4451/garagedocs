@@ -11,257 +11,319 @@ duration: 30 min
 description: Membership tests and key-value lookups in O(1), when a plain array is the better choice, and the pitfalls of using objects as keys.
 ---
 
-### The problem they solve
+### Keep One of Each Value
 
-Checking "have I seen this value before" by scanning an array is O(N). Doing that inside a loop makes the whole solution O(N<sup>2</sup>), which fails once N passes a few thousand.
+A set stores distinct values. Adding a value that is already present does not add a second copy. This complete program turns repeated team numbers into a set of unique team numbers:
 
-A hash set answers the same question in O(1) average time. That single change turns many O(N<sup>2</sup>) solutions into O(N).
+```java
+import java.util.HashSet;
+import java.util.Set;
 
-### HashSet
+public class Main {
+    public static void main(String[] args) {
+        int[] teams = {6328, 6329, 6328, 6327, 6329};
+        Set<Integer> uniqueTeams = new HashSet<>();
+        for (int team : teams) {
+            uniqueTeams.add(team);
+        }
+        System.out.println("Distinct teams: " + uniqueTeams.size());
+        System.out.println("Contains 6328: " + uniqueTeams.contains(6328));
+    }
+}
+```
 
-Stores distinct values, no order.
+Expected output:
+
+```text
+Distinct teams: 3
+Contains 6328: true
+```
+
+Select **Run** below to try the example in the browser.
+
+<JavaPlayground id="java-sets-and-maps" />
+
+To run it locally, save the same program as `Main.java`. In that folder, run `javac Main.java`, then run `java Main`. The curriculum uses Java 25, and this example also runs on the browser's Java 17 runtime.
+
+The program does not print the set itself because a `HashSet` does not promise an iteration order. Its contents are predictable; their printed order is not.
+
+### Membership and Duplicates
+
+`contains(value)` answers a **membership** question: is this value in the set? `add(value)` returns `true` when the value was new and `false` when it was already present. That return value can detect a duplicate:
 
 ```java norun
 Set<Integer> seen = new HashSet<>();
-
-for (int i = 0; i < n; i++) {
-    if (seen.contains(a[i])) {
-        System.out.println("duplicate: " + a[i]);
+for (int value : values) {
+    if (!seen.add(value)) {
+        System.out.println("duplicate: " + value);
     }
-    seen.add(a[i]);
 }
 ```
 
-`add` returns a boolean: `true` if the value was new, `false` if it was already present. That lets you combine the test and the insert:
-
-```java
-if (!seen.add(a[i])) {
-    // a[i] was already in the set
-}
-```
+This is a fragment. Place it inside `main`, add `import java.util.HashSet;` and `import java.util.Set;`, and define `values` before running it.
 
 <ContentTable
-  title="HashSet operations"
-  headers={["Method", "Cost", "Returns"]}
+  title="HashSet Operations"
+  headers={["Method", "Typical Cost", "Returns"]}
   rows={[
-    ["<code>add(x)</code>", "O(1) avg", "<code>true</code> if newly added"],
-    ["<code>contains(x)</code>", "O(1) avg", "<code>true</code> if present"],
-    ["<code>remove(x)</code>", "O(1) avg", "<code>true</code> if it was present"],
+    ["<code>add(x)</code>", "O(1) average", "<code>true</code> if newly added"],
+    ["<code>contains(x)</code>", "O(1) average", "<code>true</code> if present"],
+    ["<code>remove(x)</code>", "O(1) average", "<code>true</code> if it was present"],
     ["<code>size()</code>", "O(1)", "Number of distinct elements"]
   ]}
 />
 
-### HashMap
+These average-time claims assume that hash codes spread elements well among the hash table's buckets. They are useful expectations, not a promise that every individual operation takes exactly the same time.
 
-Associates each key with a value. The dominant use is counting.
+### Keys and Values
+
+A map connects a **key** to a **value**. The key is what you look up, such as a team number. The value is the information stored for that key, such as how many times the team number appeared. Each key appears at most once, although many keys may have the same value.
+
+Start counting with `put` and `getOrDefault`:
 
 ```java norun
 Map<Integer, Integer> count = new HashMap<>();
-for (int i = 0; i < n; i++) {
-    count.merge(a[i], 1, Integer::sum);
+for (int value : values) {
+    int oldCount = count.getOrDefault(value, 0);
+    count.put(value, oldCount + 1);
 }
 ```
 
-`merge(key, 1, Integer::sum)` inserts `1` if the key is absent, otherwise adds `1` to the existing value. The equivalent longer form:
+`put(key, value)` creates or replaces the mapping for a key. `getOrDefault(key, 0)` returns the stored value, or `0` when the key is missing. A missing key is different from a present key whose stored value happens to be zero. Use `containsKey(key)` when that distinction matters.
+
+After the longer form is comfortable, you may see the same count written as:
 
 ```java norun
-count.put(a[i], count.getOrDefault(a[i], 0) + 1);
+count.merge(value, 1, Integer::sum);
 ```
 
-Both are correct. `getOrDefault` is worth knowing because it also covers reads:
+If the key is missing, `merge` stores `1`. Otherwise, `Integer::sum` names the method that adds the old count and `1`. The earlier `put` form is easier to trace and is all you need for this lesson.
+
+<RulesBox title="Check for Missing Keys">
 
 ```java norun
-int timesSeen = count.getOrDefault(x, 0);   // 0 rather than null when absent
+Integer stored = count.get(key);
 ```
 
-<RulesBox title="Never call get() and assume non-null">
-
-```java norun
-int c = count.get(x);        // NullPointerException if x is absent
-```
-
-`get` returns `Integer`, and unboxing `null` throws. Use `getOrDefault` unless you have already checked `containsKey`. This is one of the most common runtime errors in Java, full stop.
+`get` returns `null` when there is no mapping, but it can also return `null` for a present key mapped to `null`. For counting maps, avoid `null` values and use `getOrDefault`. Assigning a missing result directly to `int` attempts to unbox `null` and throws `NullPointerException`.
 
 </RulesBox>
 
-Iterating a map:
+### Entries and Order
+
+A map entry is one key-value pair. `entrySet()` provides a set view of all mappings, and each `Map.Entry` provides `getKey()` and `getValue()`:
 
 ```java norun
-for (Map.Entry<Integer, Integer> e : count.entrySet()) {
-    System.out.println(e.getKey() + " -> " + e.getValue());
+for (Map.Entry<Integer, Integer> entry : count.entrySet()) {
+    System.out.println(entry.getKey() + " -> " + entry.getValue());
 }
 ```
 
-Use `entrySet` rather than iterating `keySet` and calling `get` for each key; it avoids a second lookup per entry.
+Use entries when you need both parts of every mapping. A `HashMap` does not promise insertion order, sorted order, or a stable order between runs. If output order matters, sort the result or choose a collection with the order you need.
 
-### When an array is better
+### Arrays or Maps
 
-If the keys are integers in a known, reasonably small range, use an array. It is faster, uses far less memory, and has no hashing overhead at all.
+An array is often the clearest counter when every key is an integer in a known compact range:
 
 ```java norun
-// values guaranteed between 1 and 100,000
+// Every value is in the inclusive range 1 through 100_000.
 int[] count = new int[100_001];
-for (int i = 0; i < n; i++) {
-    count[a[i]]++;
+for (int value : values) {
+    count[value]++;
 }
 ```
 
-<RulesBox title="Array versus HashMap">
+Array lookup uses the integer directly as an index. A hash map accepts sparse integers, strings, and other key types, but stores extra bookkeeping for hashing. Choose from the actual bounds and memory available instead of memorizing one contest-specific cutoff.
 
-Use an **array** when keys are integers with a known bound up to roughly 10<sup>7</sup>.
-
-Use a **HashMap** when keys are large, negative, sparse, strings, or pairs.
-
-The array is not a micro-optimization. A `HashMap` with a million `Integer` keys can use close to 100 MB and risks the memory limit; the equivalent `int[]` uses 4 MB.
-
-</RulesBox>
-
-Values can be shifted into range when they are negative but bounded:
+Negative bounded values can be shifted:
 
 ```java norun
-// values between -1000 and 1000
+// Every value is in the inclusive range -1000 through 1000.
 int[] count = new int[2001];
-count[a[i] + 1000]++;
+count[value + 1000]++;
 ```
 
-### TreeSet and TreeMap
+The smallest value maps to index `0`, and the largest maps to index `2000`. Before using an array, verify that every computed index stays between `0` and `length - 1`.
 
-The sorted variants. Operations cost O(log N) instead of O(1), and in exchange you get order.
+### Sorted Sets and Maps
+
+`TreeSet` stores distinct values in sorted order. `TreeMap` stores entries sorted by key. Their basic add, remove, and lookup operations take O(log N) time.
+
+Here, logarithmic means that doubling the number of stored items adds only about one more comparison level. For 8 sorted items, a tree search needs roughly 3 comparison levels; for 16, roughly 4. This is slower than the expected O(1) lookup of a well-distributed hash table, but it provides sorted traversal and nearest-value searches.
 
 ```java
-TreeSet<Integer> s = new TreeSet<>();
-s.add(5); s.add(1); s.add(9);
+import java.util.TreeSet;
 
-System.out.println(s.first());       // 1: smallest
-System.out.println(s.last());        // 9: largest
-System.out.println(s.ceiling(6));    // 9: smallest element >= 6
-System.out.println(s.floor(6));      // 5: largest element <= 6
-System.out.println(s.higher(5));     // 9: strictly greater
-System.out.println(s.lower(5));      // 1: strictly less
+public class Main {
+    public static void main(String[] args) {
+        TreeSet<Integer> scores = new TreeSet<>();
+        scores.add(5);
+        scores.add(1);
+        scores.add(9);
+        System.out.println("Sorted: " + scores);
+        System.out.println("At least 6: " + scores.ceiling(6));
+        System.out.println("At most 6: " + scores.floor(6));
+    }
+}
 ```
 
-`ceiling` and `floor` are the reason to use a `TreeSet`. "What is the nearest value to X that I have already seen" is a question a `HashSet` cannot answer, and it comes up frequently in harder problems.
+Run this as `Main.java`. It prints:
 
-These methods return `null` when nothing qualifies, so check before unboxing:
-
-```java norun
-Integer c = s.ceiling(x);
-if (c != null) { /* use c */ }
+```text
+Sorted: [1, 5, 9]
+At least 6: 9
+At most 6: 5
 ```
 
-### Sets of pairs and coordinates
+`ceiling(x)` returns the least stored value greater than or equal to `x`. `floor(x)` returns the greatest stored value less than or equal to `x`. Either method returns `null` when no value qualifies, so keep the result as `Integer` and check it before unboxing.
 
-Grid problems often need "have I visited this cell". Three approaches, in order of preference:
+### Coordinate Keys
+
+For a grid with `rows` rows and `cols` columns, valid zero-based coordinates satisfy both bounds: `0 <= r && r < rows` and `0 <= c && c < cols`. When those bounds are known, a two-dimensional array is direct:
 
 ```java norun
-// 1. Best: a 2D boolean array, when the grid dimensions are known
 boolean[][] visited = new boolean[rows][cols];
 visited[r][c] = true;
-
-// 2. Encode the pair into a single integer, when the grid is large but bounded
-Set<Integer> visited = new HashSet<>();
-visited.add(r * cols + c);
-
-// 3. A set of strings: works, but slow; avoid in hot loops
-Set<String> visited = new HashSet<>();
-visited.add(r + "," + c);
 ```
 
-Encoding as `r * cols + c` is valid as long as `c` is always less than `cols`, which makes the mapping unique. For coordinates that can be large or negative, use a `long`:
+You can encode a valid coordinate as `r * cols + c`. Multiplying the row by the row width reserves one non-overlapping block of `cols` keys per row. Use `long` arithmetic so the multiplication cannot overflow `int`:
 
 ```java norun
-long key = (long) r * 2_000_000 + c;
+Set<Long> visited = new HashSet<>();
+long key = (long) r * cols + c;
+visited.add(key);
 ```
 
-<RulesBox title="Objects as keys need equals and hashCode">
+This formula is one-to-one only under the paired bounds above and with `cols > 0`. If coordinates can be negative or do not have known bounds, use a value object instead of inventing an unexplained multiplier.
 
-A custom class used as a `HashSet` element or `HashMap` key must override both `equals` and `hashCode`, or lookups will fail: two objects with identical fields will be treated as different keys.
+<RulesBox title="Keep Hash Keys Stable">
+
+Equal objects must have equal hash codes. A hash-based collection uses the hash code to choose where to search, then uses equality to identify the key. Override `equals` and `hashCode` together, and include the same fields in both.
 
 ```java
-public static class Point {
-    public int r, c;
-    public Point(int r, int c) { this.r = r; this.c = c; }
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
 
-    @Override public boolean equals(Object o) {
-        if (!(o instanceof Point)) return false;
-        Point p = (Point) o;
-        return r == p.r && c == p.c;
+public class Main {
+    public static final class Point {
+        private final int row;
+        private final int col;
+
+        public Point(int row, int col) {
+            this.row = row;
+            this.col = col;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) return true;
+            if (!(other instanceof Point)) return false;
+            Point point = (Point) other;
+            return row == point.row && col == point.col;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(row, col);
+        }
     }
 
-    @Override public int hashCode() {
-        return Objects.hash(r, c);
+    public static void main(String[] args) {
+        Set<Point> visited = new HashSet<>();
+        visited.add(new Point(2, 4));
+        System.out.println(visited.contains(new Point(2, 4)));
     }
 }
 ```
 
-A record (see [A25](/java/assignments/a25-alliance-lookup)) gets `equals` and `hashCode` right by construction, and encoding the pair into a single `int` or `long` avoids the question entirely when speed matters.
+Expected output:
 
-</RulesBox>
-
-### Worked example
-
-*Given N integers, count how many pairs sum to exactly X.*
-
-The brute force is O(N<sup>2</sup>). With a map of counts it becomes O(N):
-
-```java norun
-Map<Integer, Integer> count = new HashMap<>();
-long pairs = 0;
-
-for (int i = 0; i < n; i++) {
-    // how many earlier values complete a pair with a[i]?
-    pairs += count.getOrDefault(x - a[i], 0);
-    count.merge(a[i], 1, Integer::sum);
-}
-
-System.out.println(pairs);
+```text
+true
 ```
 
-Counting the complement *before* inserting the current value is what prevents an element from pairing with itself and stops each pair being counted twice. Getting that order right is the whole trick.
-
-<RulesBox title="Common mistakes">
-
-- **`get` on an absent key**, throwing a `NullPointerException`. Use `getOrDefault`.
-- **Comparing boxed values with `==`.** Use `.equals` for `Integer` above 127.
-- **`contains` on an `ArrayList`** instead of a set: silently O(N).
-- **Using a `HashMap` where an array would do**, risking the memory limit.
-- **A custom key class without `hashCode`**, so nothing is ever found.
-- **Inserting before querying** in the pair-counting pattern, which double counts.
+Run this as `Main.java`. The fields are `final` because changing a field used by `equals` or `hashCode` after insertion can put the object in the wrong bucket and make a lookup fail. A record supplies value-based equality and hashing for its components. Review [Enums and Records](/java/fundamentals/java-enums-and-records#grouped-values-with-records) before using a record as a coordinate key, and keep its component values stable too.
 
 </RulesBox>
 
-<JavaPlayground id="java-sets-and-maps" />
+### Count Pairs
+
+Suppose the values are `2, 3, 2, 4` and the target sum is `6`. The valid index pairs contain `2 + 4`. Because there are two earlier `2` values, the answer is `2` pairs.
+
+```java
+import java.util.HashMap;
+import java.util.Map;
+
+public class Main {
+    public static void main(String[] args) {
+        int[] values = {2, 3, 2, 4};
+        int target = 6;
+        Map<Integer, Integer> earlierCount = new HashMap<>();
+        long pairs = 0;
+
+        for (int value : values) {
+            int complement = target - value;
+            int matches = earlierCount.getOrDefault(complement, 0);
+            pairs += matches;
+            System.out.println(value + ": add " + matches + " pair(s)");
+            int oldCount = earlierCount.getOrDefault(value, 0);
+            earlierCount.put(value, oldCount + 1);
+        }
+        System.out.println("Total pairs: " + pairs);
+    }
+}
+```
+
+Run it as `Main.java`. It prints:
+
+```text
+2: add 0 pair(s)
+3: add 0 pair(s)
+2: add 0 pair(s)
+4: add 2 pair(s)
+Total pairs: 2
+```
+
+For each value, the map counts only earlier values. The program looks up the complement before inserting the current value, so an element cannot pair with itself and each pair of indexes is counted once. The map stores duplicate counts; a set would remember only whether a complement had appeared.
+
+### Common Mistakes
+
+- A set answers membership, not how many copies occurred. Use a map for duplicate counts.
+- `get` can return `null` for a missing key. Use `getOrDefault` for counters or `containsKey` when presence itself matters.
+- `HashSet` and `HashMap` iteration order is unspecified. Do not build expected output around the order you happen to observe.
+- Boxed integers are objects. Use `.equals` for value equality instead of relying on `==`.
+- A mutable custom key can become unreachable after a field involved in equality or hashing changes.
 
 <ExerciseBox title="Practice" description="Each is a few lines with the right structure chosen.">
 
-1. Read N integers and print how many appear more than once.
-2. Read two lists of integers and print the values present in both.
-3. Read N integers and print the length of the longest run of consecutive integers present in the input, in any order.
-4. Read N integers and print the first value that appears exactly twice.
-5. Read a stream of N integers; after each one, print the smallest value seen so far that is greater than or equal to the current value.
+1. Read N integers and print how many appear more than once. Print the number of distinct values with a count above 1. For `4 4 7 7 7 9`, print `2`.
+2. Read two lists of integers and print the values present in both. Print each shared value once in increasing order so the output does not depend on hash iteration order. For `1 2 2 4` and `2 3 4`, print `2 4`.
+3. Read N integers and print the length of the longest run of consecutive integers present in the input, in any order. Duplicates do not extend a run. For `100 4 200 1 3 2 2`, print `4` for the run `1, 2, 3, 4`.
+4. Read N integers and print the first value that appears exactly twice. “First” means earliest in the original input among values whose final count is 2. For `5 8 5 8 8 4 4`, print `5`.
+5. Read a stream of N integers; after each one, print the smallest value seen so far that is greater than or equal to the current value. The current value counts as seen, so for `5 2 7`, print `5 2 7`.
 
 <details>
 <summary>Hints</summary>
 
-1. Frequency map, then count entries whose value exceeds 1.
-2. Put the first list in a `HashSet`, then filter the second.
-3. Put everything in a set. For each value `v` where `v - 1` is absent, `v` starts a run; walk upward while the next value is present. Each element is visited a constant number of times overall, so this is O(N).
-4. Frequency map built in one pass, then a second pass over the original order looking for the first value whose count is exactly 2.
-5. `TreeSet` with `ceiling`. Insert first, then query, or query then insert, depending on whether the current element counts as "seen".
+1. Build a frequency map, then count entries whose value exceeds 1.
+2. Put the first list in a `HashSet`, add shared values to a `TreeSet`, then print the tree set.
+3. Put everything in a set. For each value `v` where `v - 1` is absent, `v` starts a run; walk upward while the next value is present. Each distinct value belongs to one run.
+4. Build a frequency map in one pass, then make a second pass over the original order and stop at the first value whose final count is exactly 2.
+5. Add the current value to a `TreeSet`, then print `ceiling(current)`. With the stated rule, that result is the current value; change the prompt to “earlier values” if you want a nontrivial nearest-value search.
 
 </details>
 
 </ExerciseBox>
 
 <Sources items={[
-  {"source": "csce146", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "api/collections-framework/sets/", "note": "Sets."},
-  {"source": "dev-java", "path": "api/collections-framework/maps/", "note": "Maps."},
-  {"source": "java-api", "path": "java.base/java/util/HashMap.html", "note": "<code>HashMap</code>."},
-  {"source": "java-api", "path": "java.base/java/util/TreeSet.html", "note": "<code>TreeSet</code>: <code>ceiling</code>, <code>floor</code>, <code>higher</code>, <code>lower</code>."},
-  {"source": "java-api", "path": "java.base/java/lang/Object.html", "note": "<code>equals</code>/<code>hashCode</code> contract."},
-  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/HashSet.html", "note": "<code>HashSet</code> API reference."}
+  {"source": "java-api", "path": "java.base/java/util/HashSet.html", "note": "Distinct elements, basic-operation assumptions, and unspecified iteration order."},
+  {"source": "java-api", "path": "java.base/java/util/HashMap.html", "note": "Key-value mappings, basic-operation assumptions, and unspecified order."},
+  {"source": "java-api", "path": "java.base/java/util/TreeSet.html", "note": "Sorted elements, logarithmic basic operations, and navigation methods."},
+  {"source": "java-api", "path": "java.base/java/util/TreeMap.html", "note": "Sorted keys and logarithmic basic operations."},
+  {"source": "java-api", "path": "java.base/java/util/Map.Entry.html", "note": "Key-value entry contract."},
+  {"source": "java-api", "path": "java.base/java/lang/Object.html", "note": "The <code>equals</code> and <code>hashCode</code> contracts."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "Boxed integer equality and sum operations."}
 ]} />
 
 <LinkGrid
@@ -274,4 +336,4 @@ Counting the complement *before* inserting the current value is what prevents an
   ]}
 />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Functions as Data", "id": "java-functions-as-data"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "Functions as Data", "id": "java-functions-as-data"}]} />

@@ -10,20 +10,31 @@ difficulty: intermediate
 description: Use enums for named choices and records for small groups of related data.
 ---
 
-Enums and records are Java types for two common jobs: choosing from a fixed set and keeping related values together.
+Enums and records are Java types for two common jobs. An enum limits a value to a fixed set of named choices. A record groups related values and supplies the routine code for reading and comparing them.
 
-### An enum names the allowed choices
+You can use the opening enum sections after learning variables, methods, and conditional logic. That material is also a suitable preview before the object-oriented lessons. The record sections use ideas from [Objects and References](/java/fundamentals/java-objects-and-references) and [Static and Final](/java/fundamentals/java-static-and-final), especially identity, `null`, final references, and mutable arrays.
 
-An `enum` defines a fixed set of constants. It avoids spelling variations such as `"teleop"` and `"TeleOp"`.
+The curriculum uses Java 25. The browser runner uses Java 17, which supports every feature on this page because records became a permanent feature in Java 16.
+
+Each example is a complete `Main.java` program. In the browser, select **Run** beneath the program. To run one locally, replace the contents of `Main.java`, save the file, and follow [Compile and Run](/java/fundamentals/java-setup#compile-and-run).
+
+<a id="an-enum-names-the-allowed-choices"></a>
+
+## Fixed Choices with Enums
+
+An `enum` defines a type with a fixed set of named constants. The next program uses three constants instead of storing a robot mode in a `String`:
 
 ```java
 public class Main {
     public enum Mode {
-        DISABLED, AUTONOMOUS, TELEOP
+        DISABLED,
+        AUTONOMOUS,
+        TELEOP
     }
 
     public static void main(String[] args) {
         Mode selected = Mode.TELEOP;
+
         if (selected == Mode.TELEOP) {
             System.out.println("Read the driver controller.");
         }
@@ -31,11 +42,54 @@ public class Main {
 }
 ```
 
-Enum constants can be compared with `==`. A `Mode` variable cannot hold an arbitrary string. Write enum constants in uppercase. The constants do not take individual access modifiers; the enum declaration above is explicitly `public`.
+The program prints:
 
-### A record groups values
+```text
+Read the driver controller.
+```
 
-A `record` declares its data components in parentheses. Java supplies the constructor, accessors, `equals`, `hashCode`, and `toString`.
+The mode names are illustrative console data. This program does not read a real Driver Station state or control robot hardware.
+
+`Mode selected` declares a variable that can hold a `Mode` reference. `Mode.TELEOP` names one of the three allowed constants. Java's naming convention writes enum constants in uppercase, with underscores between words when needed.
+
+`public enum Mode` appears inside `Main`, so `Mode` is a **nested enum**. Its declaration is inside the outer class's braces and outside every method. A nested enum is implicitly static, which means `main` can use `Mode.TELEOP` without creating a `Main` object. The constants do not take separate access modifiers.
+
+## Enum Values and Strings
+
+A `String` variable can hold any text, including misspellings and capitalization changes. A `Mode` variable accepts only a `Mode` value, so an assignment such as `selected = "TELEOP";` does not compile. This type check prevents arbitrary text from entering code that expects a mode.
+
+An enum reference can still be `null`, because `null` is allowed for reference types. This complete program prints `true`:
+
+```java
+public class Main {
+    public enum Mode {
+        DISABLED,
+        AUTONOMOUS,
+        TELEOP
+    }
+
+    public static void main(String[] args) {
+        Mode selected = null;
+        System.out.println(selected == null);
+    }
+}
+```
+
+The program prints:
+
+```text
+true
+```
+
+Comparing an enum reference with `==` is appropriate. Each enum constant is one specific object, so `selected == Mode.TELEOP` tests whether both references identify that constant. The comparison `selected == null` is also safe. Calling an instance method through `null` causes a `NullPointerException`. Prefer a real constant when “not selected” is part of the program's domain, such as adding an `UNKNOWN` constant. Use `null` only when “no reference” is the intended state and the code checks for it.
+
+Enum declarations cannot use an `extends` clause to choose a superclass. Java gives every enum the behavior of `java.lang.Enum`. Later work can add fields, constructors, and methods to an enum, as [A15: MatchPhase Enum](/java/assignments/a15-matchphase-enum) does.
+
+<a id="a-record-groups-values"></a>
+
+## Grouped Values with Records
+
+A `record` declares a fixed list of **components** in parentheses after its name. Components describe the values that make up each record object.
 
 ```java
 public class Main {
@@ -44,39 +98,97 @@ public class Main {
     public static void main(String[] args) {
         Reading first = new Reading("front", 2.5);
         Reading second = new Reading("front", 2.5);
+
         System.out.println(first.sensorName());
         System.out.println(first.distanceMeters());
         System.out.println(first.equals(second));
+        System.out.println(first == second);
     }
 }
 ```
 
-The output is `front`, `2.5`, and `true` on separate lines. Accessors have the component names, such as `distanceMeters()`. Record components do not take `public` or `private`; their generated fields are private and final, and accessors are public.
+The program prints:
 
-### What a record protects
+```text
+front
+2.5
+true
+false
+```
 
-You cannot assign a different distance to `first`'s field. Create another Reading for another measurement. However, a record containing a list or array still refers to a potentially changeable object. A record does not make that object's contents immutable.
+`public record Reading(...)` declares a nested record inside `Main`. Like a nested enum, a nested record is implicitly static. The empty braces mean this record does not add its own constructors or methods.
 
-Records suit data such as a scouting result or coordinate pair. A normal class suits an object whose state changes through methods, such as a subsystem.
+Java supplies a constructor that accepts the components in their declared order. It also supplies an accessor for each component. Record accessors use the component name, such as `sensorName()` and `distanceMeters()`, instead of names such as `getSensorName()`.
 
-| Need | Type |
-|---|---|
-| One choice from a fixed named set | Enum |
-| A group of values with generated accessors and equality | Record |
-| An object that manages changing state or an inheritance hierarchy | Class |
+Java also supplies `equals`, `hashCode`, and `toString`. The two `Reading` objects contain equal component values, so `first.equals(second)` is `true`. They are separate objects created by separate `new` expressions, so `first == second` is `false`. Use `equals` when you want to compare record values. Use `==` only when you mean to ask whether two references identify the same object.
 
-### Practice
+Record components do not take `public` or `private`. Java creates a private final field and a public accessor for each component. You cannot assign a new value to one of those fields after construction. A record class is also implicitly final, so another class cannot extend it. A record may implement interfaces and declare additional methods when its job requires behavior.
 
-1. Add a `TEST` constant to `Mode` and select it.
-2. Define a `public record Point(int x, int y)` inside Main. Print both coordinates.
-3. Compare two equal Points with `equals`, then compare points with different coordinates.
-4. Explain why a record holding an `int[]` does not prevent changes to an array element.
+<a id="what-a-record-protects"></a>
 
-Use [A15](/java/assignments/a15-matchphase-enum) and [A18](/java/assignments/a18-records) to apply these types in larger assignments.
+## Shallow Immutability
+
+The generated final fields prevent a record component from being reassigned. They do not freeze an object stored in a component. This property is called **shallow immutability**.
+
+```java
+public class Main {
+    public record Samples(int[] values) {}
+
+    public static void main(String[] args) {
+        int[] readings = {12, 18};
+        Samples first = new Samples(readings);
+        Samples second = new Samples(new int[] {12, 18});
+
+        System.out.println(first.equals(second));
+
+        readings[0] = 15;
+
+        System.out.println(first.values()[0]);
+    }
+}
+```
+
+The program prints:
+
+```text
+false
+15
+```
+
+The first line compares the records before either array changes. Both arrays contain `12` and `18`, but the records still compare unequal. Arrays inherit identity-based `equals` from `Object`, so two different arrays are unequal even when their elements match. Generated record equality uses that component equality behavior; it does not perform a deep element-by-element array comparison.
+
+The second line shows that `first.values()` and the local variable `readings` identify the same array. Changing an element through `readings` changes what the accessor observes. The final component prevents an assignment of a different array to the record's field; it does not prevent changes inside the existing array. If a value needs immutable contents or content-based equality, choose component types that provide those properties, or write and document the required copying and equality behavior.
+
+## Choosing a Type
+
+<ContentTable
+  headers={["Need", "Type", "Reason"]}
+  rows={[
+    ["One value from a fixed named set", "Enum", "The type limits the available choices."],
+    ["A fixed group of values with generated accessors and value-based methods", "Record", "The component list defines the data and Java supplies the routine members."],
+    ["An object whose state changes through its methods, or a type meant for class inheritance", "Class", "A normal class gives you direct control over mutable state and superclass design."]
+  ]}
+/>
+
+Records suit values such as a scouting result, coordinate pair, or sensor reading. A normal class usually suits a subsystem or another object whose state changes over time. An enum suits a closed set such as operating modes or start positions.
+
+## Practice
+
+1. Add a `TEST` constant to `Mode`, select it, and print its name.
+2. Define a `public record Point(int x, int y)` inside `Main`. Print both coordinates through the generated accessors.
+3. Create two separate `Point` objects with equal coordinates. Compare them with `equals`, then with `==`, and explain both results.
+4. Run the `Samples` example. Change the first array element again and predict the next printed value before selecting **Run**.
+5. Explain why two records containing different `int[]` objects can compare unequal even when the arrays contain the same numbers.
+
+Use [A15: MatchPhase Enum](/java/assignments/a15-matchphase-enum) to add data and behavior to enum constants. Use [A18: Records](/java/assignments/a18-records) to add validation and methods to records.
 
 <Sources items={[
-  {"source":"dev-java","path":"records/","note":"Record components, generated members, and shallow immutability."},
-  {"source":"java-tutorial","path":"java/javaOO/enum.html","note":"Enum constants and fixed sets of named choices."}
+  {"source":"jls","path":"jls-8.html#jls-8.9","label":"JLS §8.9: Enum Classes","note":"Enum constants, nested enum declarations, implicit superclass behavior, and restrictions on enum inheritance."},
+  {"source":"java-api","path":"java.base/java/lang/Enum.html","label":"Enum API","note":"The common base class and identity of enum constants."},
+  {"source":"jls","path":"jls-8.html#jls-8.10","label":"JLS §8.10: Record Classes","note":"Record components, generated fields and accessors, final record classes, nested records, constructors, and generated equality."},
+  {"source":"java-api","path":"java.base/java/lang/Record.html","label":"Record API","note":"The contract for generated <code>equals</code>, <code>hashCode</code>, and <code>toString</code> methods."},
+  {"source":"dev-java","path":"records/","label":"Dev.java: Records","note":"Record syntax, generated members, and shallow immutability."},
+  {"source":"java-api","path":"java.base/java/lang/Object.html#equals(java.lang.Object)","label":"Object.equals","note":"Identity-based default equality used by arrays, which explains why record equality is not a deep array comparison."}
 ]} />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Packages and Project Layout", "id": "java-packages-and-project-layout"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "Packages and Project Layout", "id": "java-packages-and-project-layout"}]} />

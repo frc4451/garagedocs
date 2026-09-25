@@ -11,190 +11,230 @@ duration: 30 min
 description: "Writing a class or method once and letting the caller say what type it works on: type parameters, bounds, and why arrays and generics do not get along."
 ---
 
-### One class, many types
+## One Class, Many Types
 
-You have been using generics since the first `ArrayList<String>`. The angle brackets say *this list holds strings*, and the compiler holds you to it: `add(42)` is an error, and `get(0)` comes back as a `String` with no cast.
-
-Writing your own generic type is the same idea from the other side. Instead of a class that holds strings, you write a class that holds *whatever the caller says*, and let the compiler fill in the type at each use.
+`ArrayList<String>` is a generic type. Its type argument, `String`, lets the compiler reject an attempt to add an `Integer` and treat a retrieved element as a `String` without a cast.
 
 ```java
-public class Box<T> {
-    private T value;
+public class Main {
+    public static class Box<T> {
+        private T value;
+        public void put(T value) { this.value = value; }
+        public T get() { return value; }
+    }
 
-    public void put(T value) { this.value = value; }
-    public T get() { return value; }
-}
-
-Box<String> name = new Box<>();
-name.put("Robonauts");
-String s = name.get();          // no cast
-
-Box<Integer> team = new Box<>();
-team.put(118);
-int n = team.get();             // unboxed for you
-
-System.out.println(s + " " + n);
-```
-
-`T` is a **type parameter**. It stands for a type the way a method parameter stands for a value. `Box<String>` and `Box<Integer>` are the same class with `T` filled in differently, and `name.put(118)` will not compile, because for that box `T` is `String`.
-
-<ContentTable
-  headers={["Written", "Read as"]}
-  rows={[
-    ["<code>class Box&lt;T&gt;</code>", "A Box of some type T, chosen by whoever creates one"],
-    ["<code>Box&lt;String&gt;</code>", "A Box whose T is String"],
-    ["<code>new Box&lt;&gt;()</code>", "The diamond: infer T from the left-hand side"],
-    ["<code>T get()</code>", "Returns whatever T is for this box"]
-  ]}
-/>
-
-### Why not use Object
-
-Before generics, a reusable container held `Object` and you cast on the way out. That compiles for any type, which is the problem: it also compiles when you are wrong.
-
-```java
-public class ObjectBox {
-    private Object value;
-    public void put(Object v) { value = v; }
-    public Object get() { return value; }
-}
-
-ObjectBox box = new ObjectBox();
-box.put("Robonauts");
-try {
-    Integer n = (Integer) box.get();   // compiles, and throws ClassCastException here
-} catch (ClassCastException e) {
-    System.out.println("found out at runtime: " + e.getMessage());
+    public static void main(String[] args) {
+        Box<String> name = new Box<>();
+        name.put("Robonauts");
+        Box<Integer> number = new Box<>();
+        number.put(118);
+        System.out.println(name.get() + " " + number.get());
+    }
 }
 ```
 
-The generic version moves that failure from a runtime exception in a match to a red underline in the editor. That is the whole payoff: **the compiler checks the type at every `put` and remembers it at every `get`.**
+`T` is a **type parameter**. Each use supplies a **type argument**. The diamond in `new Box<>()` asks Java to infer that argument from the declaration on the left.
 
-### Generic methods
+Select **Run** beneath the complete program in the browser. To run it locally, replace `Main.java`, save it, then follow [Compile And Run](/java/fundamentals/java-setup#compile-and-run). It prints:
 
-A method can have its own type parameter, independent of the class it lives in. The `<T>` goes before the return type.
+```text
+Robonauts 118
+```
+
+`name.put(118)` would be a compile-time error.
+
+## Why Not Use Object
+
+An `Object` reference can identify any object, so it loses the specific type the caller expects. The caller must cast on the way out:
+
+```java
+public class Main {
+    public static class ObjectBox {
+        private Object value;
+        public void put(Object value) { this.value = value; }
+        public Object get() { return value; }
+    }
+
+    public static void main(String[] args) {
+        ObjectBox box = new ObjectBox();
+        box.put("Robonauts");
+        try {
+            Integer number = (Integer) box.get();
+            System.out.println(number);
+        } catch (ClassCastException exception) {
+            System.out.println("Wrong cast detected at runtime");
+        }
+    }
+}
+```
+
+Run it in the browser or locally. It prints:
+
+```text
+Wrong cast detected at runtime
+```
+
+The cast compiles because the object might have been an `Integer`; runtime inspection finds a `String`. `Box<String>` instead checks values passed to `put` and returns `String` from `get`.
+
+## Generic Methods
+
+A method can declare its own type parameter before its return type.
 
 ```java
 public class Main {
     public static <T> T firstOrDefault(T[] items, T fallback) {
         return items.length > 0 ? items[0] : fallback;
     }
-
     public static void main(String[] args) {
-        String[] names = { "Drive", "Launcher" };
-        Integer[] none = {};
-
-        System.out.println(firstOrDefault(names, "none"));   // Drive
-        System.out.println(firstOrDefault(none, -1));        // -1
+        System.out.println(firstOrDefault(new String[] {"Drive"}, "none"));
+        System.out.println(firstOrDefault(new Integer[] {}, -1));
     }
 }
 ```
 
-The compiler works out `T` from the arguments. You almost never write `<String>firstOrDefault(...)` by hand.
+Run the complete program in the browser or locally. It prints:
 
-### Bounded types
+```text
+Drive
+-1
+```
 
-Sometimes "any type" is too loose. A method that finds the largest element needs to *compare* elements, and not every type can be compared. A **bound** says what `T` must be able to do:
+The compiler infers `T` as `String` for the first call and `Integer` for the second.
+
+## Bounded Types
+
+A maximum-finding method must compare values, so its type parameter needs a **bound**.
 
 ```java
 public class Main {
-    static <T extends Comparable<T>> T max(T[] items) {
+    public static <T extends Comparable<T>> T max(T[] items) {
+        if (items.length == 0) {
+            throw new IllegalArgumentException("empty array");
+        }
         T best = items[0];
         for (T item : items) {
-            if (item.compareTo(best) > 0) best = item;
+            if (item.compareTo(best) > 0) {
+                best = item;
+            }
         }
         return best;
     }
-
     public static void main(String[] args) {
-        Integer[] scores = { 45, 88, 61 };
-        String[] teams = { "Robonauts", "Cheesy Poofs", "Citrus" };
-
-        System.out.println(max(scores));   // 88
-        System.out.println(max(teams));    // Robonauts (alphabetically last)
+        System.out.println(max(new Integer[] {45, 88, 61}));
+        System.out.println(max(new String[] {"Robonauts", "Cheesy Poofs", "Citrus"}));
     }
 }
 ```
 
-`T extends Comparable<T>` reads as *T, which must be comparable to itself*. Inside the method that bound is what lets you call `compareTo`. Without it, `item.compareTo` does not compile, because the compiler only knows `T` is some `Object`.
+The output is:
 
-The word is always `extends`, even when the bound is an interface.
-
-<RulesBox title="Generics and arrays do not mix">
-
-`new T[10]` does not compile. Java erases type parameters before the program runs (at runtime Java retains `Box` rather than `Box<String>`), so there is no `T` left to make an array of.
-
-The standard workaround is an `Object[]` with a cast on the way out:
-
-```java
-public class Ring<T> {
-    private final Object[] slots;
-    private int count;
-
-    public Ring(int capacity) { slots = new Object[capacity]; }
-
-    public void add(T value) { slots[count++ % slots.length] = value; }
-
-    @SuppressWarnings("unchecked")
-    public T get(int i) { return (T) slots[i]; }
-}
-
-Ring<Double> volts = new Ring<>(3);
-volts.add(12.4);
-volts.add(12.1);
-System.out.println(volts.get(1));   // 12.1
+```text
+88
+Robonauts
 ```
 
-The cast is unchecked because the compiler cannot prove it, and safe because *you* control every write. Suppress the warning on the one accessor that does the cast and nowhere else. The annotation is a claim, and a narrow claim is a checkable one.
+`Comparable<T>` supplies `compareTo(T other)`. A positive result means the current item comes after `best`, so the method saves it as the new maximum. The bound uses `extends` even though `Comparable` is an interface.
 
-</RulesBox>
+<a id="generics-and-arrays-do-not-mix"></a>
 
-### Erasure, and what it costs you
+## Generic Arrays
 
-Because `T` is erased, a few things that look reasonable are not allowed:
-
-<ContentTable
-  headers={["Not allowed", "Why"]}
-  rows={[
-    ["<code>new T()</code>", "No T at runtime to construct"],
-    ["<code>new T[n]</code>", "No T at runtime to make an array of"],
-    ["<code>x instanceof T</code>", "Nothing to test against"],
-    ["<code>Box&lt;int&gt;</code>", "Type arguments must be reference types; use <code>Box&lt;Integer&gt;</code>"],
-    ["<code>static T shared;</code>", "One static field is shared by every Box&lt;T&gt;, so it cannot have a per-T type"]
-  ]}
-/>
-
-The primitive one bites most often. `List<int>` is an error; `List<Integer>` boxes each value. For a few hundred sensor readings that is fine. For a million, it is why `int[]` still exists.
-
-### Wildcards, briefly
-
-`List<Integer>` is **not** a `List<Number>`, even though `Integer` is a `Number`. If it were, you could add a `Double` through the `Number` view and corrupt the integer list. When a method only *reads* from a list and wants to accept any element type, the signature uses a wildcard:
+`new T[10]` is rejected. Arrays check their component type when storing values at runtime, but `T` is not a **reifiable type** with a fully available runtime representation. A generic class can use `Object[]` and isolate an unchecked cast:
 
 ```java
 public class Main {
-    public static double total(List<? extends Number> values) {
-        double sum = 0;
-        for (Number n : values) sum += n.doubleValue();
-        return sum;
+    public static class Ring<T> {
+        private final Object[] slots;
+        private int next;
+        private int size;
+        public Ring(int capacity) {
+            if (capacity <= 0) throw new IllegalArgumentException("capacity must be positive");
+            slots = new Object[capacity];
+        }
+        public void add(T value) {
+            slots[next] = value;
+            next = (next + 1) % slots.length;
+            if (size < slots.length) size++;
+        }
+        public T oldest() {
+            if (size == 0) throw new IllegalStateException("ring is empty");
+            int oldestIndex = size < slots.length ? 0 : next;
+            return valueAt(oldestIndex);
+        }
+        @SuppressWarnings("unchecked")
+        private T valueAt(int index) {
+            return (T) slots[index];
+        }
     }
-
     public static void main(String[] args) {
-        System.out.println(total(List.of(1, 2, 3)));         // 6.0
-        System.out.println(total(List.of(1.5, 2.5)));        // 4.0
+        Ring<Double> volts = new Ring<>(3);
+        volts.add(12.4);
+        volts.add(12.1);
+        volts.add(11.9);
+        volts.add(12.0);
+        System.out.println(volts.oldest());
     }
 }
 ```
 
-`? extends Number` reads as *a list of some type that is a Number*. You can read `Number`s out; you cannot add anything in, because the compiler does not know which subtype the list really holds. That is the right trade for a method that only sums.
+It prints:
 
-<RulesBox title="Common mistakes">
+```text
+12.1
+```
 
-- **Raw types.** `List list = new ArrayList();` compiles with a warning and gives you back the `Object`-and-cast world. Always give the type argument.
-- **Trying to make arrays of `T`.** Use `Object[]` and one suppressed cast, or use an `ArrayList<T>`.
-- **Primitive type arguments.** `Box<int>` is an error; use `Box<Integer>`.
-- **Forgetting the bound**, then wondering why `compareTo` is not a method on `T`.
-- **Assuming `List<Integer>` is a `List<Number>`.** It is not; use `? extends` for read-only access.
-- **A `@SuppressWarnings("unchecked")` on the whole class.** Put it on the one method that casts, so the compiler still checks everything else.
+The fourth addition overwrites `12.4`, making `12.1` the oldest stored value. The compiler cannot prove the cast, so it reports an unchecked warning without the annotation. The class maintains safety by accepting writes only through `add(T)`. The annotation hides a warning; it does not add a check. Keep it on the smallest declaration whose safety you can explain. `ArrayList<T>` is often a simpler backing store.
+
+<a id="erasure-and-what-it-costs-you"></a>
+
+## Erasure and Limits
+
+Java compiles generic declarations using **type erasure**. Roughly, a type variable becomes its leftmost bound, or `Object` if it has no bound, and the compiler inserts needed casts. One runtime class represents `Box<String>` and `Box<Integer>`.
+
+- `new T()` is rejected because `T` does not name a constructor to invoke.
+- `new T[n]` and `value instanceof T` are rejected because those operations require suitable runtime type information.
+- `Box<int>` is rejected because type arguments are reference types; use `Box<Integer>`.
+- A class type parameter cannot appear in a static field because the field belongs to the class, not to one parameterized use.
+
+Erasure does not remove every trace of generics. Class files can retain generic signatures for compilers and reflection. The practical limit is that an object is not separately testable as `Box<String>` with `instanceof Box<String>`.
+
+<a id="wildcards-briefly"></a>
+
+## Wildcards
+
+`List<Integer>` is not a subtype of `List<Number>`. Otherwise, code could add a `Double` through the `List<Number>` reference. A wildcard can accept several related list types:
+
+```java
+import java.util.List;
+public class Main {
+    public static double total(List<? extends Number> values) {
+        double sum = 0.0;
+        for (Number value : values) sum += value.doubleValue();
+        return sum;
+    }
+    public static void main(String[] args) {
+        System.out.println(total(List.of(1, 2, 3)));
+        System.out.println(total(List.of(1.5, 2.5)));
+    }
+}
+```
+
+The output is:
+
+```text
+6.0
+4.0
+```
+
+You can read each element as `Number`. You cannot add a non-null number because the compiler does not know the list's actual element subtype.
+
+<RulesBox title="Common Mistakes">
+
+- A raw declaration such as `List values` remains legal for compatibility, but `javac -Xlint:rawtypes` reports a warning. Other operations may report unchecked warnings. Compilation normally continues after warnings.
+- Prefer `ArrayList<T>` to a generic array unless you can state and maintain the array invariant.
+- Use wrapper types such as `Integer`, not primitive type arguments such as `int`.
+- Add the bound that supplies operations such as `compareTo`.
+- Suppress only the specific unchecked warning you have justified.
 
 </RulesBox>
 
@@ -202,49 +242,33 @@ public class Main {
 
 <ExerciseBox title="Practice">
 
-1. Write `Pair<A, B>` with two type parameters, `first()` and `second()`, and a `swap()` that returns a `Pair<B, A>`.
-2. Write a generic method `static <T> void printAll(T[] items)` and call it with an `Integer[]` and a `String[]`.
-3. Write `static <T extends Comparable<T>> T min(T[] items)`, the mirror of `max` above.
-4. Write a `Stack<T>` backed by an `ArrayList<T>` with `push`, `pop` and `isEmpty`. No arrays are needed, which is the point.
-5. Take the `Ring<T>` from the box above and add `T newest()`, using the same cast helper rather than a second `@SuppressWarnings`.
-
-<details>
-<summary>Hints</summary>
-
-1. `swap()` is `return new Pair<>(second, first);`. The diamond infers `Pair<B, A>` from the return type.
-2. The type parameter goes between `static` and the return type.
-3. Flip the comparison: `compareTo(best) < 0`.
-4. `pop` is `items.remove(items.size() - 1)`. Let `ArrayList` handle the growth.
-5. The newest slot is `(count - 1) % slots.length`; reuse `get`.
-
-</details>
+1. Write `Pair<A, B>` with `first()`, `second()`, and `swap()` returning `Pair<B, A>`.
+2. Write `public static <T> void printAll(T[] items)` and call it with `Integer[]` and `String[]`.
+3. Write `public static <T extends Comparable<T>> T min(T[] items)` and handle an empty array.
+4. Write `Stack<T>` backed by `ArrayList<T>` with `push`, `pop`, and `isEmpty`.
+5. Add `newest()` to `Ring<T>`. Reuse `valueAt` so only one declaration suppresses an unchecked warning.
 
 </ExerciseBox>
 
 <Sources items={[
-  {"source": "csce146", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "generics/", "note": "Generics."},
-  {"source": "java-tutorial", "path": "java/generics/index.html", "note": "Generics tutorial."},
-  {"source": "jls", "path": "jls-8.html", "note": "Type parameters (section 8.1.2)."},
-  {"source": "jls", "path": "jls-4.html", "note": "Parameterized types, wildcards, erasure (sections 4.5, 4.6)."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Object.html", "note": "<code>Object</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Double.html", "note": "<code>Double</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/ClassCastException.html", "note": "<code>ClassCastException</code> API reference."}
+  {"source":"csce146","note":"The course whose structure this lesson follows."},
+  {"source":"dev-java","path":"generics/","note":"Generic types, methods, bounds, and wildcards."},
+  {"source":"jls","path":"jls-4.html#jls-4.4","note":"Type variables and bounds."},
+  {"source":"jls","path":"jls-4.html#jls-4.5","note":"Parameterized types and wildcards."},
+  {"source":"jls","path":"jls-4.html#jls-4.6","note":"Type erasure."},
+  {"source":"jls","path":"jls-4.html#jls-4.7","note":"Reifiable types."},
+  {"source":"jls","path":"jls-4.html#jls-4.8","note":"Raw types."},
+  {"source":"jls","path":"jls-10.html#jls-10.5","note":"Runtime array store checks."},
+  {"source":"jls","path":"jls-15.html#jls-15.20.2","note":"Runtime type-test restrictions."},
+  {"source":"java-api","path":"java.base/java/lang/ClassCastException.html","note":"Failed cast behavior."},
+  {"source":"java-api","path":"java.base/java/lang/Comparable.html","note":"The comparison contract used by the bound."},
+  {"source":"java-api","path":"java.base/java/util/List.html","note":"The wildcard example's generic interface."}
 ]} />
 
-<LinkGrid
-  title="Related"
-  section="java"
-  links={[
-    {"label":"ArrayLists","id":"java-arraylists"},
-    {"label":"Interfaces","id":"java-interfaces"},
-    {"label":"A23: Generic Ring Buffer","url":"/java/assignments/a23-generic-ring-buffer"}
-  ]}
-/>
+<LinkGrid title="Related" section="java" links={[
+  {"label":"ArrayLists","id":"java-arraylists"},
+  {"label":"Interfaces","id":"java-interfaces"},
+  {"label":"A23: Generic Ring Buffer","url":"/java/assignments/a23-generic-ring-buffer"}
+]} />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Linked Lists", "id": "java-linked-lists"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label":"Linked Lists","id":"java-linked-lists"}]} />

@@ -11,193 +11,360 @@ duration: 30 min
 description: Declaring a capability that any class can claim, implementing several at once, and the default and static methods interfaces gained in modern Java.
 ---
 
-### Describing a capability
+## Describing a Capability
 
-An interface lists methods a class promises to provide, without saying how.
+This lesson builds on [Inheritance](/java/fundamentals/java-inheritance), [Abstract Classes and Methods](/java/fundamentals/java-abstract-classes), arrays, loops, methods, and access modifiers. You will use an interface to give otherwise different classes the same capability, then call that capability through one shared type.
+
+The complete examples run in the Java 17 browser playground and with the course's local Java 25 setup. In the browser, select **Run** beneath a complete program. To run one locally, replace the contents of `Main.java`, save the file, and follow [Compile And Run](/java/fundamentals/java-setup#compile-and-run). Run one `Main` program at a time.
+
+An interface names a capability and lists the methods that provide it. A class that implements the interface promises to provide those methods.
+
+These are console models: stopping a device prints a message and does not control a physical intake or camera. The following example is complete and runnable. The console should print the two lines shown below it.
 
 ```java
+public class Main {
+    public interface Stoppable {
+        public void stop();
+    }
+
+    public static class Intake implements Stoppable {
+        @Override
+        public void stop() {
+            System.out.println("intake stopped");
+        }
+    }
+
+    public static class Camera implements Stoppable {
+        @Override
+        public void stop() {
+            System.out.println("camera stopped");
+        }
+    }
+
+    public static void main(String[] args) {
+        Stoppable[] devices = {new Intake(), new Camera()};
+
+        for (Stoppable device : devices) {
+            device.stop();
+        }
+    }
+}
+```
+
+Output:
+
+```text
+intake stopped
+camera stopped
+```
+
+`Intake` and `Camera` do not share a specialized parent class, though every Java class other than `Object` ultimately inherits from `Object`. Both classes implement `Stoppable`, so a `Stoppable` variable can refer to an object of either class. The array uses that shared interface type to hold both objects.
+
+The types are nested inside `Main` so each code block remains one complete file. `public static` lets `main` use each nested type without first constructing a `Main` object. In a larger project, these types would usually be separate files, and a top-level interface would be `public interface Stoppable`.
+
+An interface describes methods that an object has. It does not create an object, and you cannot write `new Stoppable()`. You construct a class that implements the interface instead.
+
+## Implementing Several
+
+A class can extend one class and implement several interfaces. In a class declaration, `extends` comes first and `implements` follows:
+
+```java
+public class Main {
+    public static class Subsystem {
+        public void reportStatus() {
+            System.out.println("subsystem ready");
+        }
+    }
+
+    public interface Stoppable {
+        public void stop();
+    }
+
+    public interface Named {
+        public String name();
+    }
+
+    public static class Intake extends Subsystem implements Stoppable, Named {
+        @Override
+        public void stop() {
+            System.out.println("intake stopped");
+        }
+
+        @Override
+        public String name() {
+            return "intake";
+        }
+    }
+
+    public static void main(String[] args) {
+        Intake intake = new Intake();
+        intake.reportStatus();
+        System.out.println(intake.name());
+        intake.stop();
+    }
+}
+```
+
+Output:
+
+```text
+subsystem ready
+intake
+intake stopped
+```
+
+This is the case that [single inheritance](/java/fundamentals/java-inheritance#java-has-single-inheritance) cannot cover by itself. `Intake` gets shared class behavior from `Subsystem` and promises two separate capabilities through `Stoppable` and `Named`.
+
+<RulesBox title="Interface Methods Are Public">
+
+An abstract interface method is public even if its declaration omits `public`. GarageDocs writes the modifier so the access level stays visible while you learn. A class implementation must also be `public`:
+
+```java norun
 public interface Stoppable {
     public void stop();
 }
-```
 
-Any class can claim that capability, regardless of what else it is:
-
-```java norun
-public class Intake extends Subsystem implements Stoppable {
+public class Intake implements Stoppable {
     @Override
-    public void stop() {
-        motor.set(0);
-    }
-}
-
-public class Camera implements Stoppable {          // unrelated to Subsystem
-    @Override
-    public void stop() {
-        stopRecording();
-    }
+    private void stop() { }
 }
 ```
 
-`Intake` and `Camera` share no ancestor, but both are `Stoppable`, so code can handle them together:
-
-```java norun
-List<Stoppable> everything = List.of(intake, camera);
-for (Stoppable s : everything) {
-    s.stop();
-}
-```
-
-That is the thing [inheritance](/java/fundamentals/java-inheritance#java-has-single-inheritance) cannot do. A class extends one parent, but implements as many interfaces as it needs.
-
-### Implementing several
-
-```java norun
-public interface Stoppable  { public void stop(); }
-public interface Loggable   { public String toLogLine(); }
-
-public class Intake extends Subsystem implements Stoppable, Loggable {
-    @Override public void stop() { motor.set(0); }
-    @Override public String toLogLine() { return "intake: " + motor.get(); }
-}
-```
-
-`extends` comes first and names one class; `implements` follows and names any number of interfaces.
-
-<RulesBox title="Interface methods are public">
-
-The abstract interface methods shown here are public, and their implementations must be public too. Interfaces can also contain private helper methods with bodies. A private implementation of a public requirement is invalid:
-
-```java norun
-@Override
-private void stop() { }             // weaker access: will not compile
-```
-
-fails with "attempting to assign weaker access privileges". Java will not let an implementation be less visible than the interface promises. Always write `public` on interface implementations.
+This partial snippet does not compile because `private` gives `stop` less access than the interface promises. A compiler may report that the method is “attempting to assign weaker access privileges.”
 
 </RulesBox>
 
-### Default methods
+## Default Methods
 
-Originally every interface method was abstract. Modern Java lets an interface supply a body with `default`:
+A `default` method is an interface instance method with a body. An implementing class inherits that behavior unless the class overrides it.
 
 ```java
-public interface Stoppable {
-    public void stop();
+public class Main {
+    public interface Stoppable {
+        public void stop();
 
-    public default void emergencyStop() {
-        System.out.println("emergency stop requested");
-        stop();                              // may call abstract methods
+        public default void emergencyStop() {
+            System.out.println("emergency stop requested");
+            stop();
+        }
+    }
+
+    public static class Intake implements Stoppable {
+        @Override
+        public void stop() {
+            System.out.println("intake stopped");
+        }
+    }
+
+    public static void main(String[] args) {
+        Stoppable intake = new Intake();
+        intake.emergencyStop();
     }
 }
 ```
 
-Implementations get `emergencyStop` for free and may override it if they want something different.
+Output:
 
-A default method supplies behavior that an implementation can inherit. It can let an interface gain an operation without requiring each class to implement it. Conflicting inherited defaults can still require an explicit override.
+```text
+emergency stop requested
+intake stopped
+```
 
-<RulesBox title="Do not treat default methods as a replacement for abstract classes">
+The default method can call `stop()` because every `Stoppable` object promises to provide it. A class inherits the default only when a concrete method from its superclass does not already provide that method. If two inherited interfaces provide conflicting defaults, the class must override the method to resolve the conflict. Adding a default method can let existing implementations gain an operation without editing each class, but interface changes still require design work and testing.
 
-An interface has no instance fields of its own. A default method can use parameters, call other methods, and access interface constants.
+<RulesBox title="Default Methods and Shared State">
 
-When shared behaviour needs shared *data*, you still want an [abstract class](/java/fundamentals/java-abstract-classes#abstract-class-or-interface).
+An interface cannot declare per-object instance fields. A default method can use its parameters, call other instance methods, and read interface constants. When implementations need shared instance fields or constructor logic, use an [abstract class](/java/fundamentals/java-abstract-classes#abstract-class-or-interface).
 
 </RulesBox>
 
-### Static and private methods
+## Static and Private Methods
 
-An interface may also hold static helpers:
+A `static` interface method belongs to the interface itself. It does not run on one implementing object and is not inherited by implementing classes. Call it with the interface name, as in `Stoppable.stopAll(devices)`.
 
-```java norun
-public interface Stoppable {
-    public void stop();
+A `private` interface method is an internal helper with a body. Only other methods declared inside that same interface can call it. Implementing classes and outside code cannot call or override it. Java allows private interface methods so default and static methods in the interface can share implementation code.
 
-    public static void stopAll(List<Stoppable> items) {
-        for (Stoppable s : items) s.stop();
+This Java 17 example shows both forms:
+
+```java
+public class Main {
+    public interface Stoppable {
+        public void stop();
+
+        public default void emergencyStop() {
+            announce("emergency stop requested");
+            stop();
+        }
+
+        public static void stopAll(Stoppable[] devices) {
+            for (Stoppable device : devices) {
+                device.stop();
+            }
+        }
+
+        private void announce(String message) {
+            System.out.println(message);
+        }
+    }
+
+    public static class Intake implements Stoppable {
+        @Override
+        public void stop() {
+            System.out.println("intake stopped");
+        }
+    }
+
+    public static void main(String[] args) {
+        Stoppable intake = new Intake();
+        intake.emergencyStop();
+        Stoppable.stopAll(new Stoppable[] {intake});
     }
 }
-
-Stoppable.stopAll(everything);
 ```
 
-Static interface methods are **not** inherited by implementations; call them on the interface name.
+Output:
 
-Private interface methods also exist, purely so several `default` methods can share code without exposing it.
+```text
+emergency stop requested
+intake stopped
+intake stopped
+```
 
-### Constants
+## Constants
 
-Fields in an interface are implicitly `public static final`:
+Every field declared in an interface is implicitly `public static final`. It belongs to the interface, must receive a value when declared, and its variable cannot later be assigned a different value. If the value is a reference to a mutable object, `final` protects the reference binding rather than making that object unchangeable. Review [Static and Final](/java/fundamentals/java-static-and-final) for that distinction.
 
 ```java
-public interface RobotLimits {
-    public static final double MAX_SPEED = 4.5;              // public static final
+public class Main {
+    public interface RobotLimits {
+        // Invented value for this console example, not a real robot limit.
+        public static final double MAX_SPEED_METERS_PER_SECOND = 4.5;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(RobotLimits.MAX_SPEED_METERS_PER_SECOND);
+    }
 }
 ```
 
-This works but is generally poor practice. An interface should describe behaviour; a bag of constants is better as a `final` class with a private constructor, or an `enum`.
+Output:
 
-### Functional interfaces
-
-An interface with exactly one abstract method can be implemented by a [lambda](/java/fundamentals/java-lambdas#the-same-thing-shorter):
-
-```java
-@FunctionalInterface
-public interface ReadingTest {
-    public boolean matches(int reading);
-}
-
-ReadingTest above100 = r -> r > 100;      // no class needed
+```text
+4.5
 ```
 
-`default` and `static` methods do not count toward the "exactly one" rule; only abstract ones do. The `@FunctionalInterface` annotation is optional but makes the compiler reject a second abstract method, which would silently break every lambda written against it.
+The `4.5` meters-per-second value is invented for this example; it is not a limit for a real robot.
 
-This is the mechanism behind the whole [Functions as Data](/java/fundamentals/java-functions-as-data#functional-interfaces) module.
+An interface cannot hold a different field value for each object. If several classes need shared changing data or per-object state, the data belongs in a class instead.
 
-### Interface or abstract class
+## Functional Interfaces
+
+A lambda is a short way to supply the behavior for a functional interface. Lambdas are taught later in [Passing Functions as Data](/java/fundamentals/java-functions-as-data#functional-interfaces), so this section is an optional preview. You do not need lambda syntax for the required playground task on this page.
+
+A functional interface describes one operation to implement. In the common case, that means one abstract method:
+
+```java
+public class Main {
+    @FunctionalInterface
+    public interface ReadingTest {
+        public boolean matches(int reading);
+    }
+
+    public static void main(String[] args) {
+        ReadingTest above100 = reading -> reading > 100;
+        System.out.println(above100.matches(120));
+        System.out.println(above100.matches(80));
+    }
+}
+```
+
+Output:
+
+```text
+true
+false
+```
+
+The arrow `->` separates the lambda's input from its behavior. Here, `reading` is the input and `reading > 100` produces the `boolean` result required by `matches`. Keep this shape in mind for the optional exercise; the later lambda lesson explains it in detail.
+
+The `@FunctionalInterface` annotation is optional. When present, the compiler checks that the interface remains functional. Default, static, and private methods do not add abstract requirements. The precise Java rule also ignores abstract declarations that match public methods of `Object`, and compatible inherited abstract methods can count as one function contract. Java also excludes sealed interfaces, which restrict their implementations; this example uses an ordinary, unrestricted interface. Those exceptions matter when reading library interfaces; for interfaces you write now, keep one clearly named abstract method.
+
+## Interface or Abstract Class
 
 <ContentTable
   headers={["Need", "Use"]}
   rows={[
-    ["A capability unrelated classes might share", "Interface"],
-    ["A class to fill several roles", "Interface"],
-    ["Shared fields or constructor logic", "Abstract class"],
+    ["A capability that otherwise unrelated classes share", "Interface"],
+    ["A class that fills several roles", "Interface"],
+    ["Shared instance fields or constructor logic", "Abstract class"],
     ["A fixed sequence with subclass-supplied steps", "Abstract class"],
-    ["Something a lambda can implement", "Interface with one abstract method"],
-    ["Both would work", "Interface; it costs nothing to add later"]
+    ["A target for a lambda", "Functional interface"],
+    ["Either design could work", "Compare future changes, shared state, and the one-class inheritance limit"]
   ]}
 />
 
-The last row is the practical tie-breaker. A class extends only one class, so spending that slot is a real commitment; implementing an interface is not.
+Interfaces preserve the class's single `extends` slot, but implementing one still creates a promise that the class and its callers may depend on. Choose an interface when the promise describes a useful role or capability. Choose an abstract class when related subclasses need shared state or constructor behavior.
 
-### Naming
+## Naming
 
-Two conventions worth following. Capabilities often end in *-able*: `Stoppable`, `Comparable`, `Runnable`. Roles are plain nouns: `List`, `Command`, `MotorController`.
+Capability names often end in *-able*, such as `Stoppable`, `Comparable`, and `Runnable`. Role names are often nouns, such as `Command` or `MotorController`.
 
-Do not prefix with `I` (`IStoppable`). That convention comes from other ecosystems and looks out of place in Java.
+Java code normally does not add an `I` prefix such as `IStoppable`. Use the name that states the capability or role.
 
-### Programming to the interface
+## Programming to the Interface
 
-The main practical habit interfaces enable:
+An interface can be the type of a variable, parameter, return value, or array element. The value still refers to an object created from an implementing class.
 
 ```java
-List<String> names = new ArrayList<>();          // declared as the interface
-Map<String, Integer> ports = new HashMap<>();
+public class Main {
+    public interface SpeedSource {
+        public int readSpeedRpm();
+    }
+
+    public static class FixedSpeedSource implements SpeedSource {
+        private final int speedRpm;
+
+        public FixedSpeedSource(int speedRpm) {
+            this.speedRpm = speedRpm;
+        }
+
+        @Override
+        public int readSpeedRpm() {
+            return speedRpm;
+        }
+    }
+
+    public static void printSpeed(SpeedSource source) {
+        System.out.println(source.readSpeedRpm() + " rpm");
+    }
+
+    public static void main(String[] args) {
+        SpeedSource source = new FixedSpeedSource(120);
+        printSpeed(source);
+    }
+}
 ```
 
-Declaring the variable as the interface means switching implementation later touches one line. It also means methods taking `List` accept any list, rather than only `ArrayList`.
+Output:
 
-The same reasoning drives [dependency injection](/java/fundamentals/java-dependency-injection#injecting-an-interface): accept an interface, and callers decide what to supply, including a fake for testing.
+```text
+120 rpm
+```
 
-<RulesBox title="Common mistakes">
+This is a console model with a preset input. It does not read a sensor or control hardware, and `120 rpm` is an invented test value. `FixedSpeedSource` acts like a small fake because it returns a known value that the program can check.
 
-- **Forgetting `public`** on an implementation.
-- **Expecting instance fields.** Interfaces have none.
-- **Expecting a constructor.** Interfaces have none.
-- **Calling a static interface method on an instance.** Use the interface name.
-- **Adding a second abstract method** to a functional interface, breaking lambdas.
-- **Using an interface as a constants holder.**
-- **`IStoppable`-style naming.**
-- **Declaring variables as `ArrayList`** rather than `List`, losing the flexibility.
+Through `source`, the program can call methods declared by `SpeedSource` and the public methods available from `Object`. It cannot call extra methods that exist only on `FixedSpeedSource` unless the program first works with the more specific class type. This limit helps keep callers dependent on the small promise they need.
+
+The same idea supports [dependency injection](/java/fundamentals/java-dependency-injection#injecting-an-interface): a constructor or method accepts an interface, and its caller supplies the implementing object. A test can then supply a small fake implementation.
+
+<RulesBox title="Common Mistakes">
+
+- **Forgetting `public` on an implementation.** The method would have weaker access than the interface method.
+- **Trying to construct an interface.** Construct an implementing class and store its reference in an interface variable.
+- **Expecting instance fields or constructors.** Interfaces declare neither per-object state nor constructors.
+- **Calling a static method on an object.** Use the interface name.
+- **Calling a private helper from an implementing class.** Only methods inside the declaring interface can call it.
+- **Adding another abstract requirement to a functional interface.** Check the compiler error and any existing lambda users before changing its contract.
 
 </RulesBox>
 
@@ -205,44 +372,33 @@ The same reasoning drives [dependency injection](/java/fundamentals/java-depende
 
 <ExerciseBox title="Practice">
 
-1. Write a `Stoppable` interface and implement it in two classes that share no parent. Loop a mixed list and stop each.
-2. Write a class implementing two interfaces at once and confirm it satisfies both.
-3. Add a `default` method to an interface, then override it in one implementation and not the other. Confirm which runs.
-4. Write a functional interface and implement it with a lambda. Then add a second abstract method and read the compile error.
-5. Take a class with a hard-coded dependency and rewrite it to accept an interface, then test it with a fake implementation.
+1. Write a `Stoppable` interface and implement it in two classes that do not share a specialized parent class. Put one object of each class in a `Stoppable[]` array, loop over the array, and stop each object.
+2. Write a class implementing two interfaces at once and confirm that it satisfies both.
+3. Add a `default` method to an interface, then override it in one implementation and not the other. Confirm which version runs.
+4. Optional preview: write a functional interface and implement it with a lambda. Then add a second unrelated abstract method and read the compile error.
+5. Take a class with a hard-coded dependency and rewrite it to accept an interface, then test it with a fake implementation. For example, make a `SpeedDisplay` accept a `SpeedSource`; the fake can return a preset speed without needing a sensor.
 
 <details>
 <summary>Hints</summary>
 
-1. `List<Stoppable>` holding both.
-2. `implements A, B` and implement every method from each.
-3. The one that does not override inherits the default.
-4. With `@FunctionalInterface` the error is clear; without it, the failure shows up at the lambda instead.
-5. This is dependency injection. The fake records what it was told so the test can check it.
+1. Declare the array as `Stoppable[]`, then place both objects inside it.
+2. Use `implements A, B` and implement every required method.
+3. The class that does not override the method inherits the default implementation.
+4. With `@FunctionalInterface`, the declaration itself produces a clear error. Without the annotation, the error appears where the lambda is assigned.
+5. Give the interface one operation the class needs. Pass that interface into the class's constructor. A fake can return a preset value or record what it was told so the test can inspect the result.
 
 </details>
 
 </ExerciseBox>
 
-<LinkGrid
-  title="Related"
-  section="java"
-  links={[
-    { "label": "Runtime Polymorphism", "id": "java-runtime-polymorphism" },
-    { "label": "Passing Functions as Data", "id": "java-functions-as-data" }
-  ]}
-/>
-
 <Sources items={[
   {"source": "csce146", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "interfaces/", "note": "Interfaces."},
-  {"source": "dev-java", "path": "interfaces/defining-interfaces/", "note": "default and static methods."},
-  {"source": "jls", "path": "jls-9.html", "note": "Interfaces (chapter 9)."},
-  {"source": "java-api", "path": "java.base/java/lang/FunctionalInterface.html", "note": "<code>@FunctionalInterface</code>."},
-  {"source": "java-api", "path": "java.base/java/lang/Comparable.html", "note": "<code>Comparable</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Runnable.html", "note": "<code>Runnable</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/List.html", "note": "<code>List</code> API reference."}
+  {"source": "dev-java", "path": "interfaces/defining-interfaces/", "note": "Interface declarations, abstract methods, constants, and default and static methods."},
+  {"source": "dev-java", "path": "interfaces/examples/", "note": "Implementing interfaces, evolving interfaces with default methods, and private interface helpers."},
+  {"source": "jls", "path": "jls-4.html#jls-4.3.2", "note": "The class <code>Object</code> is a superclass of every other class."},
+  {"source": "jls", "path": "jls-9.html#jls-9.4", "note": "Access, inheritance, and bodies for abstract, default, static, and private interface methods."},
+  {"source": "jls", "path": "jls-9.html#jls-9.8", "note": "The complete functional-interface rule, including compatible inherited methods and public <code>Object</code> methods."},
+  {"source": "java-api", "path": "java.base/java/lang/FunctionalInterface.html", "note": "Purpose and compiler checks of <code>@FunctionalInterface</code>."}
 ]} />
 
 <LinkGrid
@@ -255,4 +411,5 @@ The same reasoning drives [dependency injection](/java/fundamentals/java-depende
   ]}
 />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Runtime Polymorphism", "id": "java-runtime-polymorphism"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "Runtime Polymorphism", "id": "java-runtime-polymorphism"}]} />
+

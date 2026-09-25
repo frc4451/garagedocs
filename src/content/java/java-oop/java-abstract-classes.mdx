@@ -11,195 +11,290 @@ duration: 30 min
 description: Declaring a method every subclass must supply, sharing real code alongside it, and preventing a half-finished class from being instantiated.
 ---
 
-### A class that is deliberately incomplete
+<a id="a-class-that-is-deliberately-incomplete"></a>
 
-Sometimes a base class knows *that* something must happen but not *how*. Every subsystem needs a periodic update, but what "update" means depends entirely on which subsystem it is.
+## Abstract Classes
 
-You could give the parent an empty method and hope subclasses remember to override it:
+This lesson builds on [Inheritance](/java/fundamentals/java-inheritance). You should already know how a subclass uses `extends`, calls `super(...)`, and overrides a method.
+
+An abstract class describes a family of objects while leaving part of the work for its subclasses. It can store fields, initialize them in a constructor, and provide methods that subclasses inherit. It can also declare an abstract method with no body when each concrete subclass needs to supply that behavior. A **concrete class** is complete enough for Java to create its objects.
+
+The following complete console program models two subsystems. It is a Java inheritance example, not a WPILib subsystem model. The parent class handles each subsystem's name and enabled state. Each concrete subclass supplies its own `periodic()` behavior.
+
+Predict which lines will print. Then select **Run** below the code, or replace the contents of a local `Main.java`, save it, and follow [Compile and Run](/java/fundamentals/java-setup#compile-and-run).
 
 ```java
-public class Subsystem {
-    public void periodic() { }         // does nothing; easy to forget to override
+public class Main {
+    public abstract static class Subsystem {
+        private final String name;
+        private boolean enabled;
+
+        protected Subsystem(String name) {
+            this.name = name;
+            this.enabled = false;
+        }
+
+        public final void enable() {
+            enabled = true;
+        }
+
+        public final boolean isEnabled() {
+            return enabled;
+        }
+
+        public final void describe() {
+            System.out.println(name + " enabled: " + enabled);
+        }
+
+        public abstract void periodic();
+
+        public final void update() {
+            if (enabled) {
+                periodic();
+            }
+        }
+    }
+
+    public static final class Intake extends Subsystem {
+        public Intake() {
+            super("intake");
+        }
+
+        @Override
+        public void periodic() {
+            System.out.println("checking intake sensor");
+        }
+    }
+
+    public static final class Arm extends Subsystem {
+        public Arm() {
+            super("arm");
+        }
+
+        @Override
+        public void periodic() {
+            System.out.println("holding arm position");
+        }
+    }
+
+    public static void main(String[] args) {
+        Subsystem intake = new Intake();
+        Subsystem arm = new Arm();
+
+        intake.enable();
+        intake.describe();
+        intake.update();
+
+        arm.describe();
+        arm.update();
+    }
 }
 ```
 
-That compiles, and a subclass that forgets silently does nothing at all. An abstract method makes it a compile error instead:
+The console should print:
 
-```java
-public abstract class Subsystem {
-    protected final String name;
-
-    public Subsystem(String name) {
-        this.name = name;
-    }
-
-    public abstract void periodic();       // no body; subclasses must supply one
-
-    public void describe() {               // ordinary method, inherited as usual
-        System.out.println("subsystem: " + name);
-    }
-}
+```text
+intake enabled: true
+checking intake sensor
+arm enabled: false
 ```
 
-An abstract method declares a signature and ends with a semicolon instead of a body. Any concrete subclass must implement it:
+`Subsystem`, `Intake`, and `Arm` are nested inside `Main` so the complete example fits in one file. The `static` modifier lets `main()` construct those nested classes without first constructing a `Main` object.
 
-```java
-public class Intake extends Subsystem {
-    public Intake() { super("intake"); }
+The declaration `public abstract void periodic();` ends with a semicolon because it has no method body. `Intake` and `Arm` are concrete classes, so each must have an implementation of every abstract method it inherits. That implementation can be declared in the concrete class or inherited from another superclass.
 
-    @Override
-    public void periodic() {
-        System.out.println("checking intake sensor");
-    }
-}
-```
+The variable type can still be the abstract type, as in `Subsystem intake`. The object assigned to that variable must come from a class that Java can instantiate, such as `Intake`.
 
-Omit `periodic` in `Intake` and the code will not compile. The requirement is enforced rather than hoped for.
+<a id="abstract-classes-cannot-be-instantiated"></a>
 
-### Abstract classes cannot be instantiated
+## Constructing Subclasses
+
+You cannot write `new Subsystem(...)` because `Subsystem` is abstract. Its constructor still has a job: it initializes the `Subsystem` part of every concrete subclass object. When `new Intake()` runs, the `Intake` constructor calls `super("intake")`, and that call initializes `name` and `enabled` before the rest of the `Intake` constructor continues.
+
+The constructor is `protected`, so subclasses and other classes in the same package can call it. This example uses that access because subclass constructors need `super(...)`. An abstract constructor is not possible in Java. Constructors are never inherited or overridden.
+
+This partial snippet belongs inside the `main()` method in the complete program above. Its first line does not compile, so keep it commented while running the second line.
 
 ```java norun
-Subsystem s = new Subsystem("thing");   // compile error
-Subsystem s = new Intake();             // fine
+// Subsystem unfinished = new Subsystem("unfinished"); // compile error
+Subsystem working = new Intake();                      // allowed
 ```
 
-This is the other half of the point. A `Subsystem` with no `periodic` is not a usable object, so Java refuses to create one. You can still use the type as a variable, parameter, or return type. You cannot construct it directly.
+## Mixing Abstract and Concrete
 
-<RulesBox title="The two effects of `abstract`">
+The concrete methods `enable()`, `describe()`, and `update()` are complete implementations. The subclasses inherit them. A concrete subclass does not need to rewrite a method that it already inherits in usable form.
 
-**On a method:** no body, and every concrete subclass must provide one.
+<RulesBox title="What `abstract` Changes">
 
-**On a class:** cannot be instantiated. Required if the class has any abstract method, but also usable on its own when you want to prevent direct construction.
+**On a method:** the declaration has no body. A concrete subclass needs an implementation, either one it declares or one it inherits.
 
-A class with an abstract method *must* be declared abstract. The reverse is not true: an abstract class may have no abstract methods at all.
+**On a class:** a class instance creation expression cannot create an object directly from that class. The class can still be used as a variable, parameter, or return type.
+
+A class that declares an abstract method must also be abstract. An abstract class does not have to declare any abstract methods, although abstract classes are intended to be completed by subclasses.
 
 </RulesBox>
 
-### Mixing abstract and concrete
+## Partial Implementations
 
-This is what abstract classes offer that interfaces historically did not: real fields, constructors, and finished methods alongside the abstract ones.
+An abstract subclass can complete some inherited methods and leave others abstract for a later subclass. This complete `Main.java` program defines the small `Motor` model it uses. Select **Run** below the code, or use the linked [Compile and Run](/java/fundamentals/java-setup#compile-and-run) steps.
 
 ```java
-public abstract class Subsystem {
-    protected final String name;
-    private boolean enabled = false;
-
-    public Subsystem(String name) {
-        this.name = name;
+public class Main {
+    public abstract static class Subsystem {
+        public abstract void periodic();
+        public abstract void stop();
     }
 
-    // concrete: shared by every subclass
-    public void enable()  { enabled = true; }
-    public void disable() { enabled = false; }
-    public boolean isEnabled() { return enabled; }
+    public static final class Motor {
+        private double output;
 
-    // abstract: each subclass decides
-    public abstract void periodic();
+        public void setOutput(double output) {
+            this.output = output;
+        }
 
-    // concrete, but built on the abstract part
-    public final void update() {
-        if (enabled) {
-            periodic();
+        public double getOutput() {
+            return output;
         }
     }
-}
-```
 
-`update` is interesting: it is finished code in the parent that calls a method the parent has not written. The parent controls *when* the work happens; the subclass controls *what* the work is.
+    public abstract static class MotorSubsystem extends Subsystem {
+        protected final Motor motor;
 
-Marking `update` as `final` means subclasses cannot change that ordering; they can only fill in `periodic`. That combination, a fixed skeleton with subclass-supplied steps, is a common and useful shape.
+        protected MotorSubsystem(Motor motor) {
+            this.motor = motor;
+        }
 
-### Partial implementations
-
-An abstract class may extend another abstract class and implement only some of the inherited abstract methods, leaving the rest for further subclasses:
-
-```java norun
-public abstract class Subsystem {
-    public abstract void periodic();
-    public abstract void stop();
-}
-
-public abstract class MotorSubsystem extends Subsystem {
-    protected final Motor motor;
-
-    public MotorSubsystem(Motor motor) { this.motor = motor; }
-
-    @Override
-    public void stop() {                    // supplied here for all motor subsystems
-        motor.set(0);
+        @Override
+        public final void stop() {
+            motor.setOutput(0.0);
+        }
     }
-    // periodic() left abstract; still each subclass's job
-}
 
-public class Intake extends MotorSubsystem {
-    public Intake(Motor motor) { super(motor); }
+    public static final class Intake extends MotorSubsystem {
+        public Intake(Motor motor) {
+            super(motor);
+        }
 
-    @Override
-    public void periodic() { motor.set(0.6); }
+        @Override
+        public void periodic() {
+            motor.setOutput(0.6);
+        }
+    }
+
+    public static void main(String[] args) {
+        Motor motor = new Motor();
+        Intake intake = new Intake(motor);
+        intake.periodic();
+        System.out.println(motor.getOutput());
+        intake.stop();
+        System.out.println(motor.getOutput());
+    }
 }
 ```
 
-`MotorSubsystem` is still abstract because `periodic` remains unimplemented, but it has removed duplication for everything below it.
+The console should print:
 
-### Abstract class or interface
+```text
+0.6
+0.0
+```
 
-Both let you write code against a type rather than a specific class. The distinction has narrowed since interfaces gained `default` methods, but real differences remain.
+Here, `Motor` only stores a requested output number. The value `0.6` is an example request, not a measured speed, and no physical motor moves.
+
+`MotorSubsystem` remains abstract because it does not provide `periodic()`. It does provide `stop()`, so `Intake` inherits that implementation and only needs to provide `periodic()`.
+
+## Abstract Class or Interface
+
+This is a preview of the next lesson. An **interface** declares a capability that a class promises to provide. Abstract classes and interfaces can both define a type that several classes share. Their members and inheritance rules differ.
 
 <ContentTable
-  headers={["", "Abstract class", "Interface"]}
+  headers={["Question", "Abstract class", "Interface"]}
   rows={[
-    ["How many can a class have?", "One", "Many"],
-    ["Instance fields", "Yes", "No; constants only"],
-    ["Constructors", "Yes", "No"],
-    ["Method bodies", "Yes", "Yes, via <code>default</code>"],
-    ["Private / protected members", "Yes", "Mostly public"],
-    ["Expresses", "<em>is a kind of</em>", "<em>is capable of</em>"]
+    ["How many can one class use?", "Extend one class", "Implement many interfaces"],
+    ["Per-object instance fields?", "Yes", "No; every interface field is <code>public static final</code> and belongs to the interface"],
+    ["Constructors?", "Yes", "No"],
+    ["Methods with bodies?", "Yes", "Yes; <code>default</code>, <code>static</code>, and <code>private</code> methods can have bodies"],
+    ["Abstract methods?", "Yes", "Yes"],
+    ["Member visibility?", "Members can be <code>public</code>, <code>protected</code>, or <code>private</code>", "Methods can be public or private; interfaces do not declare protected methods"]
   ]}
 />
 
-<RulesBox title="Choosing between them">
+An abstract class fits when closely related subclasses need the same instance fields, constructor setup, or inherited implementation. An interface fits when classes need to promise a capability without sharing per-object state, especially when otherwise unrelated classes need the same role.
 
-Use an **abstract class** when subclasses share **state**: fields, a constructor, or partially-finished behaviour that operates on those fields.
+An interface `default` method supplies an inherited instance-method body. A `static` interface method belongs to the interface itself. A `private` interface method can help other methods inside that interface, but implementing classes cannot call or override it. These bodies make interfaces more flexible, but they do not give an interface constructors or per-object instance fields.
 
-Use an **interface** when you are describing a **capability** that unrelated classes might have, or when a class needs to fill several roles at once.
+The official [dev.java abstract classes guide](https://dev.java/learn/inheritance/abstract-classes/) provides another worked comparison with interfaces if you want a second example.
 
-When both would work, prefer the interface. Single inheritance is a scarce resource: a class can implement many interfaces but extend only one class, so spending that slot commits the design in a way an interface does not.
+## A Template Method
 
-</RulesBox>
-
-### A template method
-
-The `update`/`periodic` split above has a name, the template method pattern. The parent defines the sequence; subclasses fill in steps.
+A parent method can define a sequence and call subclass-supplied steps. This structure is often called a template method. The following console demonstration calls the step three times. Predict the order, then select **Run** below the code or use [Compile and Run](/java/fundamentals/java-setup#compile-and-run) with a local `Main.java`.
 
 ```java
-public abstract class AutoRoutine {
-    // fixed sequence, subclasses cannot reorder it
-    public final void run() {
-        initialise();
-        while (!isFinished()) {
-            step();
+public class Main {
+    public abstract static class AutoRoutine {
+        public final void run(int stepCount) {
+            initialize();
+            for (int stepIndex = 0; stepIndex < stepCount; stepIndex++) {
+                performStep(stepIndex + 1);
+            }
+            cleanUp();
         }
-        cleanUp();
+
+        protected void initialize() {
+        }
+
+        protected abstract void performStep(int stepNumber);
+
+        protected void cleanUp() {
+        }
     }
 
-    public void initialise() { }             // optional hook, default does nothing
-    public abstract void step();             // required
-    public abstract boolean isFinished();    // required
-    public void cleanUp() { }                // optional hook
+    public static final class ConsoleRoutine extends AutoRoutine {
+        @Override
+        protected void initialize() {
+            System.out.println("preparing routine");
+        }
+
+        @Override
+        protected void performStep(int stepNumber) {
+            System.out.println("step " + stepNumber);
+        }
+
+        @Override
+        protected void cleanUp() {
+            System.out.println("routine complete");
+        }
+    }
+
+    public static void main(String[] args) {
+        AutoRoutine routine = new ConsoleRoutine();
+        routine.run(3);
+    }
 }
 ```
 
-Distinguishing required steps (`abstract`) from optional hooks (concrete, empty) is deliberate. A subclass must supply `step` and `isFinished`; it may ignore `initialise` and `cleanUp`.
+The console should print:
 
-<RulesBox title="Common mistakes">
+```text
+preparing routine
+step 1
+step 2
+step 3
+routine complete
+```
 
-- **A body on an abstract method.** It ends with a semicolon, not `{ }`.
-- **An abstract method in a non-abstract class.** The class must be abstract too.
-- **Trying to instantiate an abstract class.**
-- **Forgetting a subclass is still abstract** if it leaves any abstract method unimplemented.
-- **`private abstract`** is contradictory, since a private method cannot be overridden. It does not compile.
-- **Calling an abstract method from the constructor.** The subclass's version runs before its fields are initialised.
-- **Using an abstract class where an interface would do**, spending the one inheritance slot for nothing.
+`performStep()` is required because it is abstract. `initialize()` and `cleanUp()` are optional hooks because they already have empty bodies. A subclass may override either hook.
+
+The `final` modifier prevents a subclass from overriding `run()`, so a subclass cannot replace that method's order of calls. It does not make the whole object unchangeable, and it does not prevent overriding the non-final hook methods. A real robot routine also needs the scheduling and safety behavior taught in the FRC lessons; this console program only demonstrates the Java class structure.
+
+<RulesBox title="Common Mistakes">
+
+- **Giving an abstract method a body.** Its declaration ends with a semicolon instead of braces.
+- **Declaring an abstract method in a concrete class.** The class must also be declared abstract.
+- **Constructing an abstract class.** Construct a concrete subclass and store it in a variable of the abstract type when that type is useful.
+- **Leaving a concrete subclass incomplete.** It needs implementations for all inherited abstract methods, whether declared itself or inherited.
+- **Writing `private abstract`.** A private method cannot be overridden, so this combination does not compile.
+- **Calling an overridable method from a constructor.** The subclass method can run before the subclass fields have been initialized.
 
 </RulesBox>
 
@@ -207,19 +302,20 @@ Distinguishing required steps (`abstract`) from optional hooks (concrete, empty)
 
 <ExerciseBox title="Practice">
 
-1. Write an abstract `Shape` class with an abstract `area()` method and a concrete `describe()` that prints the area. Add `Circle` and `Rectangle`.
-2. Try to instantiate `Shape` directly and read the compile error.
-3. Write a subclass that forgets to implement `area()` and read that error too.
-4. Add an abstract `MotorSubsystem` between a `Subsystem` base and a concrete subclass, implementing only some methods at the middle level.
-5. Write a template method: a `final` method defining a fixed sequence, with one abstract step and one optional hook.
+1. Write an abstract `Shape` class with an abstract `area()` method and a concrete `describe()` method that prints the area. Add `Circle` and `Rectangle` subclasses. For a circle, calculate `Math.PI * radius * radius`. For a rectangle, calculate `width * height`. These formulas multiply ordinary `double` values; `Math.PI` supplies Java's built-in approximation of π (pi), about 3.14159. The radius is the distance from a circle's center to its edge. Use the same units for each length; the area is in square units.
+2. Try to instantiate `Shape` directly and read the compile error. Comment out that line before continuing.
+3. Write a concrete subclass that omits `area()` and read the compile error. Then either implement `area()` or mark the subclass abstract.
+4. Add an abstract `MotorSubsystem` between a `Subsystem` base and a concrete subclass. Define a small `Motor` class like the complete example above, and implement only some inherited methods in `MotorSubsystem`.
+5. Write a template method: a `final` method that defines a fixed, finite sequence with one abstract step and one optional hook. Run it with a concrete subclass and check the console order.
 
 <details>
 <summary>Hints</summary>
 
-1. `describe()` can call `area()` even though the parent never implements it.
-2. and 3. Both errors are worth seeing once so you recognise them later.
-4. The middle class stays abstract because something is still unimplemented.
-5. Empty concrete methods make good optional hooks.
+1. `describe()` can call `area()` even though `Shape` does not implement it. Store the circle's radius and the rectangle's width and height in instance fields initialized by constructors.
+2. Direct construction fails because `Shape` is abstract.
+3. An omitted method leaves the concrete subclass incomplete.
+4. The middle class stays abstract while an inherited abstract method remains without an implementation.
+5. Give the hook an empty body. Use a short `for` loop or a fixed list of calls so the example always ends.
 
 </details>
 
@@ -236,11 +332,11 @@ Distinguishing required steps (`abstract`) from optional hooks (concrete, empty)
 
 <Sources items={[
   {"source": "csce146", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "inheritance/abstract-classes/", "note": "Abstract classes and methods."},
-  {"source": "jls", "path": "jls-8.html", "note": "Abstract classes and methods (sections 8.1.1.1, 8.4.3.1)."},
-  {"url": "https://en.wikipedia.org/wiki/Template_method_pattern", "label": "Wikipedia: Template method pattern", "note": "The <code>update</code>/<code>periodic</code> shape."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."}
+  {"source": "dev-java", "path": "inheritance/abstract-classes/", "note": "Abstract classes, abstract methods, subclass implementations, and abstract-class constructors."},
+  {"url": "https://docs.oracle.com/javase/specs/jls/se17/html/jls-8.html", "label": "Java SE 17 Language Specification: Classes", "note": "Abstract classes and methods, constructors, overriding, and <code>final</code> methods (sections 8.1.1.1, 8.4.3.1, 8.4.3.3, and 8.8)."},
+  {"url": "https://docs.oracle.com/javase/specs/jls/se17/html/jls-9.html", "label": "Java SE 17 Language Specification: Interfaces", "note": "Interface fields and abstract, default, static, and private methods (sections 9.3 and 9.4)."},
+  {"source": "java-api", "path": "java.base/java/lang/Math.html#PI", "note": "The <code>Math.PI</code> constant used in the circle-area exercise."},
+  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "Console output through <code>System.out</code>."}
 ]} />
 
 <LinkGrid
@@ -252,4 +348,5 @@ Distinguishing required steps (`abstract`) from optional hooks (concrete, empty)
   ]}
 />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Interfaces", "id": "java-interfaces"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "Interfaces", "id": "java-interfaces"}]} />
+

@@ -11,67 +11,83 @@ duration: 30 min
 description: A structure where the first item added is the first one removed, plus priority queues for when order should depend on importance rather than arrival.
 ---
 
-### First in, first out
+### First In, First Out
 
-A queue is the opposite restriction from a stack. You add at the back and remove from the front, so items come out in the order they went in.
+A queue holds items until they are ready to be processed. In a regular queue, the first item added is the first item removed. This order is called **first in, first out**, or **FIFO**.
 
-The everyday picture is a line of people waiting: you join at the back, and the person at the front is served next.
+Picture a line of people: a person joins at the back, and the person at the front is served next. Java calls the front the **head** and the back the **tail**.
 
 <ContentTable
-  headers={["Operation", "Meaning", "When empty"]}
+  headers={["Operation", "Meaning", "If It Cannot Complete"]}
   rows={[
-    ["<code>offer</code> / <code>add</code>", "Add an item at the back", "&mdash;"],
-    ["<code>poll</code>", "Remove and return the front item", "Returns <code>null</code>"],
-    ["<code>remove</code>", "Remove and return the front item", "Throws"],
-    ["<code>peek</code>", "Look at the front item", "Returns <code>null</code>"]
+    ["<code>offer</code>", "Add at the tail", "Returns <code>false</code> if a capacity limit prevents it"],
+    ["<code>add</code>", "Add at the tail", "Throws if a capacity limit prevents it"],
+    ["<code>poll</code>", "Remove and return the head", "Returns <code>null</code> when empty"],
+    ["<code>remove</code>", "Remove and return the head", "Throws <code>NoSuchElementException</code> when empty"],
+    ["<code>peek</code>", "Return the head without removing it", "Returns <code>null</code> when empty"],
+    ["<code>element</code>", "Return the head without removing it", "Throws <code>NoSuchElementException</code> when empty"]
   ]}
 />
 
-Java gives you two names for most operations. The `offer`/`poll`/`peek` family returns a signal value when something goes wrong; the `add`/`remove`/`element` family throws. Pick one style and stay with it; mixing them is how you end up with an unexpected exception.
+The methods come in two families. `offer`, `poll`, and `peek` report an expected failure with `false` or `null`. `add`, `remove`, and `element` throw an exception instead. This lesson uses the first family so an empty queue can be handled directly.
 
-### Using one
+### Using One
 
-`ArrayDeque` again, this time declared as a `Queue`.
+`Queue<String>` says that the variable follows queue rules and holds strings. `ArrayDeque<String>` creates the object that stores them. An `ArrayDeque` grows as needed and rejects `null`, so `null` from `poll` clearly means the queue was empty.
 
 ```java
 import java.util.ArrayDeque;
 import java.util.Queue;
 
-Queue<String> tasks = new ArrayDeque<>();
+public class Main {
+    public static void main(String[] args) {
+        Queue<String> tasks = new ArrayDeque<>();
+        tasks.offer("calibrate");
+        tasks.offer("driveForward");
+        tasks.offer("shoot");
 
-tasks.offer("calibrate");
-tasks.offer("driveForward");
-tasks.offer("shoot");
-
-System.out.println(tasks.peek());    // calibrate
-System.out.println(tasks.poll());    // calibrate
-System.out.println(tasks.poll());    // driveForward
-System.out.println(tasks.size());    // 1
-```
-
-Draining a queue completely:
-
-```java norun
-while (!tasks.isEmpty()) {
-    String task = tasks.poll();
-    System.out.println("running: " + task);
+        System.out.println("next: " + tasks.peek());
+        while (!tasks.isEmpty()) {
+            System.out.println("running: " + tasks.poll());
+        }
+        System.out.println("after drain: " + tasks.poll());
+    }
 }
 ```
 
-<RulesBox title="Do not use LinkedList as your queue by default">
+Expected output:
 
-`LinkedList` also implements `Queue`, and older code often uses it. `ArrayDeque` is faster and uses less memory, for the cache reasons described in [Linked Lists](/java/fundamentals/java-linked-lists#why-indexing-is-expensive).
+```text
+next: calibrate
+running: calibrate
+running: driveForward
+running: shoot
+after drain: null
+```
 
-The exception is if you need `null` elements, which `ArrayDeque` rejects. That is rare and usually a sign the design should change instead.
+The loop **drains** the queue, which means it removes every remaining item. Save the example in a local file named `Main.java`, then run `javac Main.java` and `java Main`. You can also use Run below.
+
+<JavaPlayground id="java-queues" />
+
+<RulesBox title="Prefer ArrayDeque">
+
+`LinkedList` also implements `Queue`, but `ArrayDeque` is the usual FIFO choice. The Java API notes that it is likely to be faster than `LinkedList` when used as a queue.
+
+Do not add `null` as a queue item. `ArrayDeque` rejects it, and `Queue` uses `null` from `poll` and `peek` to mean empty.
 
 </RulesBox>
 
-### Where queues show up
+### Queue Uses
 
-**Task scheduling.** Actions queued in the order they should run, then drained one per cycle.
+A queue works well when work should stay in arrival order. A program can buffer sensor readings and process the oldest unread value first.
+
+The next class is a small FIFO work list for learning queue behavior. It is not WPILib's command scheduler and should not replace WPILib command scheduling on a robot.
 
 ```java
-public class ActionScheduler {
+import java.util.ArrayDeque;
+import java.util.Queue;
+
+public class Main {
     private final Queue<String> pending = new ArrayDeque<>();
 
     public void schedule(String action) {
@@ -85,91 +101,153 @@ public class ActionScheduler {
         }
     }
 
-    public boolean hasWork() { return !pending.isEmpty(); }
+    public boolean hasWork() {
+        return !pending.isEmpty();
+    }
+
+    public static void main(String[] args) {
+        Main scheduler = new Main();
+        scheduler.schedule("calibrate");
+        scheduler.schedule("drive");
+        while (scheduler.hasWork()) {
+            scheduler.runNext();
+        }
+    }
 }
 ```
 
-**Buffering readings.** Collect sensor values as they arrive and process them in order.
+Expected output:
 
-**Breadth-first search.** Exploring a grid or graph outward from a starting point, level by level, is a queue at its core, and it is what finds shortest paths in an unweighted graph. See [Graphs](/java/fundamentals/java-graphs#breadth-first-search).
+```text
+executing calibrate
+executing drive
+```
 
-```java norun
-Queue<int[]> frontier = new ArrayDeque<>();
-frontier.offer(new int[]{startRow, startCol});
+To run it locally, save it as `Main.java`, then run `javac Main.java` and `java Main`.
 
-while (!frontier.isEmpty()) {
-    int[] cell = frontier.poll();
-    // look at each neighbour and offer the unvisited ones
+Queues also power **breadth-first search**, an algorithm taught in the later [Graphs lesson](/java/fundamentals/java-graphs#breadth-first-search). It explores a graph, a set of connected locations, one distance level at a time.
+
+Its **frontier** is the queue of locations waiting to be explored. A **visited** marker records locations already added so they are not added repeatedly. Return to that use after learning graphs.
+
+### Priority Queues
+
+A regular queue uses arrival order. A `PriorityQueue` uses value order instead. With integers, Java's natural order puts the smallest number at the head.
+
+```java
+import java.util.PriorityQueue;
+import java.util.Queue;
+
+public class Main {
+    public static void main(String[] args) {
+        Queue<Integer> priorities = new PriorityQueue<>();
+        priorities.offer(50);
+        priorities.offer(10);
+        priorities.offer(30);
+        while (!priorities.isEmpty()) {
+            System.out.println(priorities.poll());
+        }
+    }
 }
 ```
 
-Swapping that queue for a stack turns breadth-first search into depth-first search. The structure choice *is* the algorithm choice, which is a good illustration of why these restrictions matter.
+Expected output:
 
-### Priority queues
+```text
+10
+30
+50
+```
 
-Sometimes arrival order is the wrong order. A `PriorityQueue` always hands back the *smallest* element, whatever order things were added.
+Save the example as `Main.java`, then run `javac Main.java` and `java Main`. Items with equal priority can come out in either order. If ties must follow arrival order, include an arrival number in the comparison.
+
+### Define the Comparison
+
+Java knows how to compare integers. For your own class, provide a **comparator**, an object that says which of two values comes first. The lambda `(a, b) -> ...` is a compact comparison. It returns a negative number, zero, or a positive number to place `a` before, tied with, or after `b`.
+
+```java
+import java.util.Comparator;
+import java.util.PriorityQueue;
+import java.util.Queue;
+
+public class Main {
+    private static final class Task {
+        private final String name;
+        private final int priority;
+
+        private Task(String name, int priority) {
+            this.name = name;
+            this.priority = priority;
+        }
+    }
+
+    public static void main(String[] args) {
+        Comparator<Task> first = (a, b) -> Integer.compare(a.priority, b.priority);
+        Queue<Task> tasks = new PriorityQueue<>(first);
+        tasks.offer(new Task("shoot", 3));
+        tasks.offer(new Task("stopMotors", 1));
+        tasks.offer(new Task("driveForward", 2));
+
+        while (!tasks.isEmpty()) {
+            System.out.println(tasks.poll().name);
+        }
+    }
+}
+```
+
+Expected output:
+
+```text
+stopMotors
+driveForward
+shoot
+```
+
+Save the example as `Main.java`, then run `javac Main.java` and `java Main`. `Integer.compare(a, b)` safely compares two `int` values. Do not use `a - b`; subtraction can overflow and reverse the intended order. For largest-first order, compare `b.priority` with `a.priority`.
+
+<RulesBox title="Poll for Priority Order">
+
+A `PriorityQueue` uses a **heap**, a tree-shaped arrangement that keeps the highest-priority item at the head without sorting every position. Only `peek` and repeated `poll` calls promise priority order. Iteration, including a for-each loop, does not.
 
 ```java
 import java.util.PriorityQueue;
 
-PriorityQueue<Integer> pq = new PriorityQueue<>();
-pq.offer(50);
-pq.offer(10);
-pq.offer(30);
+public class Main {
+    public static void main(String[] args) {
+        PriorityQueue<Integer> values = new PriorityQueue<>();
+        values.offer(50);
+        values.offer(10);
+        values.offer(30);
 
-System.out.println(pq.poll());   // 10
-System.out.println(pq.poll());   // 30
-System.out.println(pq.poll());   // 50
-```
-
-For your own types, supply a comparator saying what "smallest" means:
-
-```java
-public class Task {
-    public String name;
-    public int priority;
-    public Task(String name, int priority) { this.name = name; this.priority = priority; }
+        System.out.println("iteration:");
+        for (int value : values) {
+            System.out.println(value);
+        }
+        System.out.println("polling:");
+        while (!values.isEmpty()) {
+            System.out.println(values.poll());
+        }
+    }
 }
-
-PriorityQueue<Task> queue =
-    new PriorityQueue<>((a, b) -> Integer.compare(a.priority, b.priority));
-
-queue.offer(new Task("shoot", 3));
-queue.offer(new Task("stopMotors", 1));
-queue.offer(new Task("driveForward", 2));
-
-System.out.println(queue.poll().name);   // stopMotors
 ```
 
-Use `Integer.compare(a, b)` rather than `a - b`. Subtraction can overflow for large values and give the wrong sign, a bug that only appears on extreme inputs.
+The iteration section is not guaranteed to be sorted, so its exact output may vary. The polling section is guaranteed to print:
 
-For largest-first, reverse the comparison:
-
-```java norun
-new PriorityQueue<>((a, b) -> Integer.compare(b.priority, a.priority));
+```text possible
+polling:
+10
+30
+50
 ```
 
-<RulesBox title="A PriorityQueue is not sorted">
-
-This trips people up regularly:
-
-```java
-PriorityQueue<Integer> pq = new PriorityQueue<>();
-pq.offer(50); pq.offer(10); pq.offer(30);
-
-System.out.println(pq);              // may print [10, 50, 30]
-for (int v : pq) System.out.print(v); // NOT in sorted order
-```
-
-Only `peek` and `poll` respect priority. Printing it or iterating over it gives the internal heap layout, which is not sorted. To get every element in order, `poll` until empty.
+Save the example as `Main.java`, then run `javac Main.java` and `java Main`.
 
 </RulesBox>
 
-### Top K with a bounded heap
+### Keep the Top K
 
-Finding the five largest values does not require sorting the whole collection. Keep a priority queue of size K with its *smallest* element at the front. Add every value, and remove the front whenever the queue grows past K.
+To keep the largest `K` values, maintain a smallest-first priority queue with at most `K` items. When the queue grows past `K`, `poll` removes the smallest candidate.
 
-The remaining values are the K largest. This approach costs O(n log K), compared with O(n log n) for sorting the entire collection.
+Adding or removing one heap item takes time proportional to `log K`. Here, `log K` means the work grows by about one step each time `K` doubles. Processing `n` values takes `O(n log K)` time, while sorting all of them takes `O(n log n)` time.
 
 ```java
 import java.util.ArrayList;
@@ -179,79 +257,84 @@ import java.util.PriorityQueue;
 
 public class Main {
     public static List<Double> topK(double[] values, int k) {
-        PriorityQueue<Double> keep = new PriorityQueue<>();    // smallest at the front
-        for (double v : values) {
-            keep.offer(v);
-            if (keep.size() > k) keep.poll();                // drop the smallest of K + 1
+        PriorityQueue<Double> keep = new PriorityQueue<>();
+        for (double value : values) {
+            keep.offer(value);
+            if (keep.size() > k) {
+                keep.poll();
+            }
         }
-        List<Double> out = new ArrayList<>(keep);
-        Collections.sort(out, Collections.reverseOrder());
-        return out;
+        List<Double> result = new ArrayList<>(keep);
+        Collections.sort(result, Collections.reverseOrder());
+        return result;
     }
 
     public static void main(String[] args) {
-        double[] pickScores = { 65.5, 48.0, 113.0, 34.75, 107.5, 59.5, 88.5, 99.75 };
-        System.out.println(topK(pickScores, 3));   // [113.0, 107.5, 99.75]
+        double[] scores = {65.5, 48.0, 113.0, 34.75, 107.5, 59.5, 88.5, 99.75};
+        System.out.println(topK(scores, 3));
     }
 }
 ```
 
-The front of the queue holds the smallest of the current K values. Remove that value when the next candidate arrives. To keep the K *smallest* values instead, reverse the comparator.
+Expected output:
 
-This approach is the priority-queue version of the top-K query in [A26](/java/assignments/a26-stream-filter). It works well when the input is large or arrives one value at a time.
+```text
+[113.0, 107.5, 99.75]
+```
+
+`Collections.sort` sorts the result list. `Collections.reverseOrder()` supplies a comparator that puts larger values first. Save the example as `Main.java`, then run `javac Main.java` and `java Main`.
+
+This is the priority-queue version of the top-K query in [A26](/java/assignments/a26-stream-filter). It works well when input is large or arrives one value at a time.
 
 <ContentTable
   title="Costs"
-  headers={["Structure", "Add", "Remove front", "Peek"]}
+  headers={["Structure", "Add", "Remove Head", "Peek"]}
   rows={[
-    ["<code>ArrayDeque</code> as a queue", "Instant", "Instant", "Instant"],
-    ["<code>PriorityQueue</code>", "Proportional to log of size", "Proportional to log of size", "Instant"]
+    ["<code>ArrayDeque</code> as a queue", "Amortized constant time", "Constant time", "Constant time"],
+    ["<code>PriorityQueue</code>", "O(log n)", "O(log n)", "Constant time"]
   ]}
 />
 
-<RulesBox title="Common mistakes">
+“Amortized constant time” means an occasional resize costs more, but the average cost per operation stays constant over many operations.
 
-- **Mixing the throwing and returning families**, then being surprised by an exception.
-- **Not checking for `null`** after `poll` on a possibly-empty queue.
-- **Expecting a `PriorityQueue` to iterate in order.**
-- **Subtraction in a comparator**, which can overflow.
-- **Using `LinkedList`** where `ArrayDeque` is faster.
-- **Offering `null` to an `ArrayDeque`**, which throws.
+<RulesBox title="Common Mistakes">
+
+- Mixing the throwing and special-value method families.
+- Forgetting that `poll` can return `null` on an empty queue.
+- Expecting `PriorityQueue` iteration to follow priority order.
+- Assuming equal-priority items keep their arrival order.
+- Subtracting values in a comparator, which can overflow.
+- Offering `null` to an `ArrayDeque` or `PriorityQueue`, which throws `NullPointerException`.
 
 </RulesBox>
 
-<JavaPlayground id="java-queues" />
-
 <ExerciseBox title="Practice">
 
-1. Offer the numbers 1 through 5 to a queue, then poll and print them. Confirm the order is preserved, unlike a stack.
+1. Offer the numbers 1 through 5 to an `ArrayDeque` used as a queue. Drain it with `poll` and confirm FIFO order.
 2. Write a class that holds the last 10 sensor readings, discarding the oldest when an eleventh arrives.
-3. Write a method that takes a `Queue<String>` of task names and runs them in order, printing each.
-4. Use a `PriorityQueue` to print five tasks in priority order, lowest number first.
-5. Given a grid of `.` and `#`, use a queue to count how many `.` cells are reachable from the top-left.
+3. Write a method that takes a `Queue<String>` and runs task names in arrival order, printing each.
+4. Add five tasks to a `PriorityQueue`. Separately predict the order from a for-each loop and from repeated `poll` calls. Run it and explain which order Java guarantees.
+5. Later, after the [Graphs lesson](/java/fundamentals/java-graphs#breadth-first-search), use a queue to count the open cells reachable from the top-left of a grid made from `.` and `#` characters.
 
 <details>
 <summary>Hints</summary>
 
-1. Straight application; contrast with the stack exercise.
-2. Offer each new reading; if `size()` exceeds 10, `poll` one off the front.
-3. Drain with a `while (!queue.isEmpty())` loop.
-4. A comparator on the priority field.
-5. Breadth-first search. Offer the start cell, then repeatedly poll and offer the unvisited open neighbours. Mark cells visited **when you offer them**, not when you poll; otherwise the same cell gets queued several times.
+1. Add with `offer`, then `poll` in a `while` loop until empty.
+2. Offer each reading. If `size()` exceeds 10, poll the oldest reading.
+3. Drain with `while (!queue.isEmpty())`.
+4. Only repeated `poll` calls are guaranteed to follow priority order. Iteration exposes heap order.
+5. This depends on graph concepts. The frontier is the queue of cells waiting to be explored. Mark a cell visited when you offer it so it is not queued twice.
 
 </details>
 
 </ExerciseBox>
 
 <Sources items={[
-  {"source": "csce146", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "api/collections-framework/stacks-queues/", "note": "Queues."},
-  {"source": "java-api", "path": "java.base/java/util/Queue.html", "note": "<code>offer</code>/<code>poll</code>/<code>peek</code> versus <code>add</code>/<code>remove</code>/<code>element</code>."},
-  {"source": "java-api", "path": "java.base/java/util/PriorityQueue.html", "note": "<code>PriorityQueue</code>."},
-  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer.compare</code>."},
-  {"source": "java-api", "path": "java.base/java/util/ArrayDeque.html", "note": "<code>ArrayDeque</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/LinkedList.html", "note": "<code>LinkedList</code> API reference."}
+  {"source": "java-api", "path": "java.base/java/util/Queue.html", "note": "Queue ordering and the throwing versus special-value method families."},
+  {"source": "java-api", "path": "java.base/java/util/ArrayDeque.html", "note": "FIFO operations, null restrictions, and operation costs."},
+  {"source": "java-api", "path": "java.base/java/util/PriorityQueue.html", "note": "Priority ordering, heap costs, iteration order, null restrictions, and tie behavior."},
+  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "The contract for <code>Integer.compare</code>."},
+  {"source": "java-api", "path": "java.base/java/util/Collections.html", "note": "<code>Collections.sort</code> and <code>Collections.reverseOrder</code>."}
 ]} />
 
 <LinkGrid
@@ -264,4 +347,4 @@ This approach is the priority-queue version of the top-K query in [A26](/java/as
   ]}
 />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Deques", "id": "java-deques"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "Deques", "id": "java-deques"}]} />

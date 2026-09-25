@@ -11,434 +11,445 @@ duration: 45 min
 description: "A variable holds a reference, not the object: what assignment copies, what null means, passing and returning objects, and why equals() matters."
 ---
 
-### Understanding object references
+The previous [Objects lesson](/java/fundamentals/java-objects) showed that two variables can identify the same object. This lesson follows that idea through assignment, method calls, `null`, and equality.
 
-When you create an object in Java, the variable does not contain the object itself. It contains a **reference**, the object's location in memory. A reference is like the coordinates of where a robot is parked: the coordinates are not the robot, but they tell you where to find it.
+<a id="understanding-object-references"></a>
 
-### Creating object references
+## Object References
+
+A class-type variable stores a **reference value**. A non-null reference identifies an object; the special value `null` identifies no object. The reference and the object are different things.
+
+Java does not promise that a reference is a memory address you can inspect. Treat it as a value Java uses to identify an object.
+
+<a id="creating-object-references"></a>
+
+### Creating References
+
+This complete program creates one `Robot` object and stores its reference in `practiceBot`:
 
 ```java
-public class FRCRobot {
-    private String teamName;
-    private int teamNumber;
-    private double batteryLevel;
-    
-    public FRCRobot(String name, int number) {
-        this.teamName = name;
-        this.teamNumber = number;
-        this.batteryLevel = 100.0;
-    }
-    
-    public void useBattery(double amount) {
-        this.batteryLevel -= amount;
-        if (this.batteryLevel < 0) {
-            this.batteryLevel = 0;
+public class Main {
+    public static class Robot {
+        private String name;
+        private int taskCount;
+
+        public Robot(String name, int taskCount) {
+            this.name = name;
+            this.taskCount = taskCount;
+        }
+
+        public void setTaskCount(int taskCount) {
+            this.taskCount = taskCount;
+        }
+
+        public String status() {
+            return name + " tasks: " + taskCount;
         }
     }
-    
-    public double getBatteryLevel() {
-        return this.batteryLevel;
-    }
-    
-    public String toString() {
-        return teamName + " (Team " + teamNumber + ") - Battery: " + 
-               String.format("%.1f", batteryLevel) + "%";
+
+    public static void main(String[] args) {
+        Robot practiceBot = new Robot("Practice", 2);
+        System.out.println(practiceBot.status());
     }
 }
-
-// When you create an object, you get a reference to it
-FRCRobot robot = new FRCRobot("Lightning Bot", 12345);
-System.out.println(robot);  // Lightning Bot (Team 12345) - Battery: 100.0%
 ```
 
-### Reference assignment copies the reference
+The declaration has three parts:
 
-Assigning one object variable to another copies the reference, and no new object is created. Both variables now point to the same object in memory, so a change made through either variable is visible through the other.
+- `Robot` is the variable's type.
+- `practiceBot` is the variable's name.
+- `new Robot("Practice", 2)` creates an object and produces a reference to it.
 
-### Reference assignment example
+In the browser, select **Run** beneath the complete program. To run it locally, replace `Main.java` with the complete program, save the file, then use [Compile And Run](/java/fundamentals/java-setup#compile-and-run). The program prints `Practice tasks: 2`.
 
-```java
-FRCRobot robot1 = new FRCRobot("Thunder Bot", 54321);
-System.out.println("Original: " + robot1);
+<a id="reference-assignment-copies-the-reference"></a>
 
-// This copies the REFERENCE, not the object
-FRCRobot robot2 = robot1;
+## Assignment Copies References
 
-// Both variables point to the same object!
-robot2.useBattery(25.0);  // Use battery through robot2
+Assigning one object variable to another copies the reference value. It does not create another object.
 
-System.out.println("robot1: " + robot1);  // Shows 75% battery
-System.out.println("robot2: " + robot2);  // Shows 75% battery
+<a id="reference-assignment-example"></a>
 
-// They're the same object, so changes affect both variables
-System.out.println("Same object? " + (robot1 == robot2));  // true
-```
+### Assignment Example
 
-### The null reference
+Replace the `main` method in the previous program with this version. Keep it inside `Main` and outside the `Robot` class:
 
-A reference variable can be set to `null`, which means it does not point to any object. Calling a method through a null reference throws a **NullPointerException**, one of the most common errors in Java programming.
+```java norun
+public static void main(String[] args) {
+    Robot practiceBot = new Robot("Practice", 2);
+    Robot selectedBot = practiceBot;
+    selectedBot.setTaskCount(5);
 
-### Working with null references
-
-```java
-FRCRobot robot = new FRCRobot("Storm Bot", 98765);
-System.out.println(robot);  // Works fine
-
-// Set the reference to null
-robot = null;
-System.out.println(robot);  // Prints: null
-
-// This will cause a NullPointerException!
-// robot.useBattery(10.0);  // [ERROR] Don't do this!
-
-// Always check for null before using an object
-if (robot != null) {
-    robot.useBattery(10.0);
-    System.out.println("Battery used successfully");
-} else {
-    System.out.println("Robot reference is null - cannot use battery");
+    System.out.println(practiceBot.status());
+    System.out.println(selectedBot.status());
+    System.out.println(practiceBot == selectedBot);
 }
-
-// Safe way to create a new robot
-robot = new FRCRobot("Phoenix Bot", 11111);
-System.out.println("New robot created: " + robot);
 ```
 
-<RulesBox title="Avoiding NullPointerException">
+The output is:
 
-- Check `object != null` before calling a method on a reference that may be null
-- Give object variables a value where they are declared when one is known
-- Check parameters in methods that receive objects, and say what was wrong
-- Read the stack trace: it names the line, and since Java 14 the message names the variable that was null
-- Print the references involved to see which one is null
+```text
+Practice tasks: 5
+Practice tasks: 5
+true
+```
+
+Both variables identify the same object. Calling `setTaskCount` through `selectedBot` changes that shared object's state, so the change is also visible through `practiceBot`. Here, **state** means the values stored in the object's fields.
+
+Reassigning a variable changes which object that variable identifies. It does not move or replace the original object. Next, replace `main` with this version:
+
+```java norun
+public static void main(String[] args) {
+    Robot practiceBot = new Robot("Practice", 5);
+    Robot selectedBot = practiceBot;
+    selectedBot = new Robot("Competition", 0);
+
+    System.out.println(practiceBot.status());
+    System.out.println(selectedBot.status());
+}
+```
+
+This creates a second object. The variables now identify different objects, so the output is `Practice tasks: 5` followed by `Competition tasks: 0`.
+
+<a id="the-null-reference"></a>
+
+## Null References
+
+The value `null` means that a reference identifies no object. It is useful when “no object selected” is a meaningful state.
+
+<a id="working-with-null-references"></a>
+
+### Checking for Null
+
+Calling an instance method through `null` throws a `NullPointerException`. Guard a reference when `null` is an allowed value:
+
+Replace `Main.java` with this complete program, save it, and compile and run it:
+
+```java
+public class Main {
+    public static class Robot {
+        public void printReady() {
+            System.out.println("Ready");
+        }
+    }
+
+    public static void main(String[] args) {
+        Robot selectedBot = null;
+
+        if (selectedBot != null) {
+            selectedBot.printReady();
+        } else {
+            System.out.println("No robot selected");
+        }
+    }
+}
+```
+
+The output is `No robot selected`. If you remove the guard and call `selectedBot.printReady()`, the stack trace identifies the line where Java tried to use the null reference.
+
+<RulesBox title="Handling Null">
+
+- Use `null` only when “no object” is a valid state.
+- Check `reference != null` before using a reference that may be null.
+- When a method receives a required object, reject `null` near the start so the failure points to the bad input.
+- Read the first relevant line of a `NullPointerException` stack trace to find the operation that failed.
 
 </RulesBox>
 
-### Objects as method parameters
+<a id="objects-as-method-parameters"></a>
 
-An object can be passed to a method like a primitive value. What is copied is the reference, not the object, so the method works on the caller's object and can change it.
+## Method Parameters
 
-### Objects as parameters
+Java passes every argument **by value**. A method parameter receives a copy of the argument's value. For an object argument, that value is a reference.
+
+<a id="objects-as-parameters"></a>
+
+### Mutation and Reassignment
+
+This complete program separates two actions that can look similar. Replace `Main.java`, save it, and compile and run it.
+
+The helper method is `static` so `main` can call it through the class. The next lesson explains `static` in detail; here, focus on what happens to the reference parameter.
 
 ```java
-public class RobotMaintenance {
-    
-    // Method that takes a robot as a parameter
-    public static void performMaintenance(FRCRobot robot) {
-        if (robot == null) {
-            System.out.println("[ERROR] Cannot perform maintenance on null robot");
-            return;
+public class Main {
+    public static class Robot {
+        private String name;
+        private int taskCount;
+
+        public Robot(String name, int taskCount) {
+            this.name = name;
+            this.taskCount = taskCount;
         }
-        
-        System.out.println("[MAINTENANCE] Performing maintenance on: " + robot);
-        
-        // Simulate maintenance - restore battery to full
-        robot = new FRCRobot("Maintained Bot", 0);  // This creates a NEW object
-        // The original robot is unchanged because we changed the local reference
-        
-        System.out.println("[OK] Maintenance complete");
+
+        public void setTaskCount(int taskCount) {
+            this.taskCount = taskCount;
+        }
+
+        public String status() {
+            return name + " tasks: " + taskCount;
+        }
     }
-    
-    // Better maintenance method that actually modifies the robot
-    public static void rechargeBattery(FRCRobot robot) {
-        if (robot == null) {
-            System.out.println("[ERROR] Cannot recharge null robot");
-            return;
-        }
-        
-        System.out.println("🔋 Recharging: " + robot);
-        
-        // This modifies the original object by calling its methods
-        // We can't directly set batteryLevel because it's private
-        // But we can call methods that modify the object's state
-        
-        System.out.println("[OK] Battery recharged (simulated)");
+
+    public static void updateRobot(Robot robot) {
+        robot.setTaskCount(10);
+        robot = new Robot("Temporary", 99);
     }
-    
-    // Method that checks robot battery and recommends action
-    public static void checkBatteryStatus(FRCRobot robot) {
-        if (robot == null) {
-            System.out.println("[ERROR] Cannot check battery on null robot");
-            return;
-        }
-        
-        double battery = robot.getBatteryLevel();
-        System.out.printf("🔋 Battery level: %.1f%%\n", battery);
-        
-        if (battery < 20) {
-            System.out.println("[WARNING]  LOW BATTERY - Charge immediately!");
-        } else if (battery < 50) {
-            System.out.println("⚡ Consider charging soon");
-        } else {
-            System.out.println("[OK] Battery level is good");
-        }
+
+    public static void main(String[] args) {
+        Robot practiceBot = new Robot("Practice", 2);
+
+        updateRobot(practiceBot);
+
+        System.out.println(practiceBot.status());
     }
 }
-
-// Usage examples:
-FRCRobot competitionBot = new FRCRobot("Competition Bot", 12345);
-competitionBot.useBattery(60.0);  // Use 60% battery
-
-RobotMaintenance.checkBatteryStatus(competitionBot);
-RobotMaintenance.rechargeBattery(competitionBot);
-RobotMaintenance.performMaintenance(competitionBot);
-
-System.out.println("Final robot state: " + competitionBot);
 ```
 
-### Objects as return values
+The output is `Practice tasks: 10`.
 
-A method can also return an object. What comes back is a reference, which the caller can store in a variable. Factory methods, copies, and objects derived from other objects all work this way.
+When `updateRobot` starts, `robot` and `practiceBot` contain copies of the same reference. The call to `setTaskCount` mutates the shared object. The following assignment changes only the local parameter `robot`; it cannot change the reference stored in `practiceBot`.
 
-### Methods returning objects
+This is why “Java passes objects by reference” is misleading. Java passes a copy of a reference value.
+
+<a id="objects-as-return-values"></a>
+
+## Return Values
+
+A method can return a reference. The caller can store that reference in a variable.
+
+<a id="methods-returning-objects"></a>
+
+### Returning an Object
+
+The complete program below has two `static` helper methods so `main` can call them through the class. One creates a robot from new values. The other makes a separate object with the same field values, which is a **copy**. Replace `Main.java`, save it, and compile and run it.
 
 ```java
-public class RobotFactory {
-    private String manufacturer;
-    private int robotsBuilt;
-    
-    public RobotFactory(String manufacturer) {
-        this.manufacturer = manufacturer;
-        this.robotsBuilt = 0;
-    }
-    
-    // Method that returns a new robot object
-    public FRCRobot buildRobot(String teamName, int teamNumber) {
-        this.robotsBuilt++;
-        System.out.println("[FACTORY] Building robot #" + robotsBuilt + " for " + teamName);
-        
-        // Create and return a new robot
-        FRCRobot newRobot = new FRCRobot(teamName, teamNumber);
-        return newRobot;
-    }
-    
-    // Method that creates a copy of an existing robot
-    public FRCRobot cloneRobot(FRCRobot original) {
-        if (original == null) {
-            System.out.println("[ERROR] Cannot clone null robot");
-            return null;
+public class Main {
+    public static class Robot {
+        private String name;
+        private int taskCount;
+
+        public Robot(String name, int taskCount) {
+            this.name = name;
+            this.taskCount = taskCount;
         }
-        
-        System.out.println("[ROBOT] Cloning robot: " + original);
-        
-        // Create a new robot with similar properties
-        // Note: We can't access private fields directly, so we use available methods
-        FRCRobot clone = new FRCRobot("Clone Bot", 99999);
-        
-        // In a real implementation, you'd copy all the properties
-        return clone;
+
+        public String getName() {
+            return name;
+        }
+
+        public int getTaskCount() {
+            return taskCount;
+        }
+
+        public String status() {
+            return name + " tasks: " + taskCount;
+        }
     }
-    
-    // Method that returns a robot with specific configuration
-    public FRCRobot buildCompetitionRobot(String teamName, int teamNumber) {
-        FRCRobot robot = this.buildRobot(teamName, teamNumber);
-        
-        // Perform competition-specific setup
-        System.out.println("⚙️  Configuring for competition...");
-        
-        return robot;
+
+    public static Robot buildPracticeBot() {
+        Robot newBot = new Robot("Practice", 2);
+        return newBot;
     }
-    
-    public int getRobotsBuilt() {
-        return this.robotsBuilt;
+
+    public static Robot copyRobot(Robot original) {
+        return new Robot(original.getName(), original.getTaskCount());
+    }
+
+    public static void main(String[] args) {
+        Robot original = buildPracticeBot();
+        Robot copy = copyRobot(original);
+
+        System.out.println(copy.status());
+        System.out.println(original == copy);
     }
 }
-
-// Usage examples:
-RobotFactory factory = new RobotFactory("FRC Robotics Inc.");
-
-// Create new robots using factory methods
-FRCRobot robot1 = factory.buildRobot("Lightning Bolts", 12345);
-FRCRobot robot2 = factory.buildCompetitionRobot("Thunder Cats", 54321);
-FRCRobot robot3 = factory.cloneRobot(robot1);
-
-System.out.println("\n📊 Factory Status:");
-System.out.println("Robots built: " + factory.getRobotsBuilt());
-System.out.println("Robot 1: " + robot1);
-System.out.println("Robot 2: " + robot2);
-System.out.println("Robot 3: " + robot3);
 ```
 
-### Object equality and the equals() method
+`return newBot` copies the reference value back to the caller. The object remains available because `original` now identifies it. `copyRobot` reads the original object's values and uses `new` to create a separate object with those values. The output is `Practice tasks: 2` followed by `false`, confirming that the copy has matching state and a different identity.
 
-`==` on two object variables asks whether they refer to the same object. To compare objects by their content, override `equals()` and define which fields have to match.
+This copy is complete for the model shown because `Robot` has only `name` and `taskCount` fields. If a class later gains another field, its copy operation has to decide how to copy that field too. Fields that refer to other mutable objects require an additional design choice: share those objects or make copies of them.
 
-### Implementing equals() method
+A method may also return `null` to mean “no result,” but the caller then has to check for `null`. When possible, design the method so its return contract is clear and document whether `null` is allowed.
+
+<a id="object-equality-and-the-equals-method"></a>
+
+## Identity and Equality
+
+For references, `==` tests **identity**: whether both values identify the same object, or whether both are `null`. The `equals` method tests the equality rule defined by the object's class.
+
+The implementation inherited from `Object` uses identity. A class can override `equals` to compare selected field values instead.
+
+<a id="implementing-equals-method"></a>
+
+### Implementing Equals
+
+The `==` comparison is the essential idea for this lesson. The implementation below is an optional preview of concepts taught in later object-oriented programming lessons. It treats two sensors as equal when their type and ID match. A changing reading does not take part in equality.
+
+Several unfamiliar pieces appear in the preview:
+
+- `Object` is the common parent class of Java objects, so the method can receive any object reference.
+- `@Override` asks the compiler to check that this method replaces a method inherited from `Object`.
+- `compared instanceof Sensor` checks whether the reference identifies a `Sensor`. It is also false when `compared` is `null`.
+- `(Sensor) compared` is a **cast**. After the type check, it tells the compiler to treat the reference as a `Sensor` so the code can read sensor fields.
+
+Replace `Main.java` with the complete program, save it, and compile and run it:
 
 ```java
-public class FRCRobot {
-    private String teamName;
-    private int teamNumber;
-    private double batteryLevel;
-    
-    public FRCRobot(String name, int number) {
-        this.teamName = name;
-        this.teamNumber = number;
-        this.batteryLevel = 100.0;
+public class Main {
+    public static class Sensor {
+        private String type;
+        private int id;
+        private double reading;
+
+        public Sensor(String type, int id, double reading) {
+            this.type = type;
+            this.id = id;
+            this.reading = reading;
+        }
+
+        @Override
+        public boolean equals(Object compared) {
+            if (this == compared) {
+                return true;
+            }
+            if (!(compared instanceof Sensor)) {
+                return false;
+            }
+
+            Sensor other = (Sensor) compared;
+            return this.id == other.id
+                    && java.util.Objects.equals(this.type, other.type);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(type, id);
+        }
+
+        public void setReading(double reading) {
+            this.reading = reading;
+        }
     }
-    
-    // Override the equals method to compare robot content
-    @Override
-    public boolean equals(Object compared) {
-        // Check if they're the same object in memory
-        if (this == compared) {
+
+    public static void main(String[] args) {
+        Sensor first = new Sensor("Distance", 7, 1.2);
+        Sensor second = new Sensor("Distance", 7, 3.4);
+        Sensor alias = first;
+
+        System.out.println(first == second);
+        System.out.println(first.equals(second));
+        System.out.println(first == alias);
+    }
+}
+```
+
+The output is:
+
+```text
+false
+true
+true
+```
+
+`first` and `second` identify separate objects, so `==` is false. Their selected fields match, so `equals` is true. `alias` holds the same reference as `first`, so `==` is true.
+
+The `instanceof Sensor` check prevents a cast when `compared` is null or has another type. `Objects.equals` safely compares the two type references: it returns true when both are null or when the first non-null value's `equals` method accepts the second. That choice lets this small model accept a null `type` without throwing an exception during equality checks.
+
+Override `hashCode` whenever you override `equals`. A **hash code** is an integer summary that hash-based collections use to narrow a search. Equal objects must produce the same hash code. The example uses `type` and `id` in both methods, keeping the two definitions consistent. You will study hash-based collections later.
+
+<a id="object-equality-and-collections"></a>
+
+## Equality in an Array
+
+This optional section continues the `equals` preview with arrays, which were introduced earlier. This helper searches for an equal sensor:
+
+<a id="objects-in-collections"></a>
+
+### Searching Objects
+
+Place this helper inside `Main` and outside `main`. It assumes the `Sensor` class from the optional preview is also inside `Main`:
+
+```java norun
+public static boolean containsEqualSensor(Sensor[] sensors, Sensor target) {
+    for (int i = 0; i < sensors.length; i++) {
+        if (sensors[i] != null && sensors[i].equals(target)) {
             return true;
         }
-        
-        // Check if the compared object is null
-        if (compared == null) {
-            return false;
-        }
-        
-        // Check if the compared object is the right type
-        if (!(compared instanceof FRCRobot)) {
-            return false;
-        }
-        
-        // Cast to FRCRobot so we can access its properties
-        FRCRobot other = (FRCRobot) compared;
-        
-        // Compare the important properties
-        // Two robots are equal if they have the same team name and number
-        return this.teamName.equals(other.teamName) && 
-               this.teamNumber == other.teamNumber;
     }
-    
-    @Override
-    public int hashCode() {
-        return java.util.Objects.hash(teamName, teamNumber);
-    }
-
-    // Other methods...
-    public void useBattery(double amount) {
-        this.batteryLevel -= amount;
-        if (this.batteryLevel < 0) {
-            this.batteryLevel = 0;
-        }
-    }
-    
-    public String toString() {
-        return teamName + " (Team " + teamNumber + ") - Battery: " + 
-               String.format("%.1f", batteryLevel) + "%";
-    }
-}
-
-// Testing object equality:
-FRCRobot robot1 = new FRCRobot("Lightning Bolts", 12345);
-FRCRobot robot2 = new FRCRobot("Lightning Bolts", 12345);  // Same team
-FRCRobot robot3 = new FRCRobot("Thunder Cats", 54321);    // Different team
-
-System.out.println("Reference equality (==):");
-System.out.println("robot1 == robot2: " + (robot1 == robot2));  // false (different objects)
-System.out.println("robot1 == robot1: " + (robot1 == robot1));  // true (same object)
-
-System.out.println("\nContent equality (equals()):");
-System.out.println("robot1.equals(robot2): " + robot1.equals(robot2));  // true (same content)
-System.out.println("robot1.equals(robot3): " + robot1.equals(robot3));  // false (different content)
-System.out.println("robot1.equals(null): " + robot1.equals(null));      // false (null check)
-
-// Even if battery levels are different, they're still the same team
-robot2.useBattery(50.0);
-System.out.println("\nAfter using battery:");
-System.out.println("robot1: " + robot1);
-System.out.println("robot2: " + robot2);
-System.out.println("Still equal? " + robot1.equals(robot2));  // true (we ignore battery in equals)
-```
-
-Override hashCode alongside equals. Equal objects must return equal hash codes. This example uses teamName and teamNumber in both methods; batteryLevel does not affect identity. Inherited Object.equals uses reference identity unless a class overrides it.
-
-### Object equality and collections
-
-Collections depend on `equals()`. `ArrayList.contains()`, `indexOf()` and `remove(Object)` all use it to find an element, so a class without an `equals()` override is matched only against the identical object.
-
-### Objects in collections
-
-```java
-import java.util.ArrayList;
-
-public class TeamRoster {
-    public static void main(String[] args) {
-        ArrayList<FRCRobot> robots = new ArrayList<>();
-        
-        // Create some robots
-        FRCRobot robot1 = new FRCRobot("Lightning Bolts", 12345);
-        FRCRobot robot2 = new FRCRobot("Thunder Cats", 54321);
-        FRCRobot robot3 = new FRCRobot("Storm Surge", 98765);
-        
-        // Add robots to the roster
-        robots.add(robot1);
-        robots.add(robot2);
-        robots.add(robot3);
-        
-        System.out.println("[LIST] Team Roster:");
-        for (int i = 0; i < robots.size(); i++) {
-            System.out.println((i + 1) + ". " + robots.get(i));
-        }
-        
-        // Test contains() method - this uses equals()
-        FRCRobot searchRobot = new FRCRobot("Lightning Bolts", 12345);
-        
-        if (robots.contains(searchRobot)) {
-            System.out.println("\n[OK] Found Lightning Bolts in roster!");
-        } else {
-            System.out.println("\n[ERROR] Lightning Bolts not found in roster");
-        }
-        
-        // Test indexOf() method
-        int index = robots.indexOf(searchRobot);
-        if (index >= 0) {
-            System.out.println("Lightning Bolts is at position: " + (index + 1));
-        }
-        
-        // Test with a robot not in the list
-        FRCRobot unknownRobot = new FRCRobot("Mystery Bot", 00000);
-        if (robots.contains(unknownRobot)) {
-            System.out.println("Found Mystery Bot");
-        } else {
-            System.out.println("[ERROR] Mystery Bot is not in the roster");
-        }
-        
-        // Remove a robot using equals()
-        boolean removed = robots.remove(searchRobot);
-        if (removed) {
-            System.out.println("\n🗑️  Removed Lightning Bolts from roster");
-            System.out.println("Updated roster size: " + robots.size());
-        }
-        
-        // Show that the original robot1 is still in memory
-        System.out.println("\nOriginal robot1 still exists: " + robot1);
-        System.out.println("Are they the same object? " + (robot1 == searchRobot));  // false
-        System.out.println("Are they equal? " + robot1.equals(searchRobot));        // true
-    }
+    return false;
 }
 ```
+
+Call it from `main` with:
+
+```java norun
+Sensor[] sensors = {
+    new Sensor("Distance", 7, 1.2),
+    null
+};
+Sensor target = new Sensor("Distance", 7, 9.8);
+System.out.println(containsEqualSensor(sensors, target));
+```
+
+The output is `true`. The method skips null array elements, then asks each sensor whether it equals `target`. A later lesson introduces `ArrayList` and other collections whose search operations also rely on `equals`.
+
+<RulesBox title="Reference and Equality Rules">
+
+- Each `new` expression creates a separate object.
+- Assignment copies a reference value; it does not copy the object.
+- A copied reference can mutate the same object through another variable.
+- Reassigning one variable does not reassign another variable.
+- Java passes a copy of every argument value, including reference values.
+- Use `==` to test whether two references identify the same object.
+- Use `equals` to test the equality rule defined by a class.
+- Override `hashCode` whenever you override `equals`.
+
+</RulesBox>
+
+## Check Your Understanding
+
+Before running code, predict each result:
+
+1. `Robot b = a; b.setTaskCount(8);` What does `a.status()` report, and why?
+2. A method assigns `robot = new Robot("Spare", 0);`. Does the caller's variable change?
+3. Two separately created sensors have matching type and ID fields. Which comparison can be true: `==`, `equals`, or both?
+4. What happens if `Sensor selected = null;` is followed by `selected.setReading(2.0);`?
 
 <JavaPlayground id="java-objects-and-references" />
 
-<ExerciseBox title="Try it yourself" subtitle="Practice with objects and references" answers={[{"task":"Create a Sensor class with equals() method that compares sensor type and ID","content":"public class FRCSensor {\n    private String sensorType;\n    private String sensorId;\n    private double lastReading;\n    private boolean isConnected;\n    \n    public FRCSensor(String type, String id) {\n        this.sensorType = type;\n        this.sensorId = id;\n        this.lastReading = 0.0;\n        this.isConnected = true;\n    }\n    \n    @Override\n    public boolean equals(Object compared) {\n        // Same object reference\n        if (this == compared) {\n            return true;\n        }\n        \n        // Null check\n        if (compared == null) {\n            return false;\n        }\n        \n        // Type check\n        if (!(compared instanceof FRCSensor)) {\n            return false;\n        }\n        \n        // Cast and compare important properties\n        FRCSensor other = (FRCSensor) compared;\n        \n        // Two sensors are equal if they have same type and ID\n        return this.sensorType.equals(other.sensorType) && \n               this.sensorId.equals(other.sensorId);\n    }\n    \n    public void updateReading(double reading) {\n        this.lastReading = reading;\n    }\n    \n    public double getLastReading() {\n        return this.lastReading;\n    }\n    \n    public String getSensorType() {\n        return this.sensorType;\n    }\n    \n    public String getSensorId() {\n        return this.sensorId;\n    }\n    \n    public boolean isConnected() {\n        return this.isConnected;\n    }\n    \n    public void setConnected(boolean connected) {\n        this.isConnected = connected;\n    }\n    \n    @Override\n    public String toString() {\n        return sensorType + \" [\" + sensorId + \"] - \" + \n               String.format(\"%.2f\", lastReading) + \n               (isConnected ? \" (Connected)\" : \" (Disconnected)\");\n    }\n}\n\n// Usage example:\nFRCSensor ultrasonic1 = new FRCSensor(\"Ultrasonic\", \"US-001\");\nFRCSensor ultrasonic2 = new FRCSensor(\"Ultrasonic\", \"US-001\");  // Same type and ID\nFRCSensor gyro1 = new FRCSensor(\"Gyroscope\", \"GY-001\");\n\n// Test equality\nSystem.out.println(\"ultrasonic1.equals(ultrasonic2): \" + ultrasonic1.equals(ultrasonic2));  // true\nSystem.out.println(\"ultrasonic1.equals(gyro1): \" + ultrasonic1.equals(gyro1));              // false\nSystem.out.println(\"ultrasonic1 == ultrasonic2: \" + (ultrasonic1 == ultrasonic2));         // false\n\n// Test with different readings (should still be equal)\nultrasonic1.updateReading(25.5);\nultrasonic2.updateReading(30.2);\nSystem.out.println(\"After different readings:\");\nSystem.out.println(\"Still equal? \" + ultrasonic1.equals(ultrasonic2));  // true\nSystem.out.println(ultrasonic1);\nSystem.out.println(ultrasonic2);"},{"task":"Build a Robot class that can be safely cloned with all its sensor references","content":"import java.util.ArrayList;\n\npublic class FRCRobotAdvanced {\n    private String teamName;\n    private int teamNumber;\n    private ArrayList<FRCSensor> sensors;\n    private double batteryLevel;\n    \n    public FRCRobotAdvanced(String name, int number) {\n        this.teamName = name;\n        this.teamNumber = number;\n        this.sensors = new ArrayList<>();\n        this.batteryLevel = 100.0;\n    }\n    \n    // Safe method to add a sensor\n    public void addSensor(FRCSensor sensor) {\n        if (sensor != null && !sensors.contains(sensor)) {\n            sensors.add(sensor);\n            System.out.println(\"[OK] Added sensor: \" + sensor.getSensorType() + \" [\" + sensor.getSensorId() + \"]\");\n        } else if (sensor == null) {\n            System.out.println(\"[ERROR] Cannot add null sensor\");\n        } else {\n            System.out.println(\"[WARNING]  Sensor already exists: \" + sensor.getSensorType() + \" [\" + sensor.getSensorId() + \"]\");\n        }\n    }\n    \n    // Safe method to get a sensor by type and ID\n    public FRCSensor getSensor(String type, String id) {\n        for (FRCSensor sensor : sensors) {\n            if (sensor != null && sensor.getSensorType().equals(type) && sensor.getSensorId().equals(id)) {\n                return sensor;\n            }\n        }\n        return null;  // Not found\n    }\n    \n    // Clone method that creates a deep copy\n    public FRCRobotAdvanced clone() {\n        System.out.println(\"[ROBOT] Cloning robot: \" + this.teamName);\n        \n        // Create new robot with same basic properties\n        FRCRobotAdvanced clone = new FRCRobotAdvanced(this.teamName + \" (Clone)\", this.teamNumber);\n        clone.batteryLevel = this.batteryLevel;\n        \n        // Deep copy all sensors\n        for (FRCSensor sensor : this.sensors) {\n            if (sensor != null) {\n                // Create new sensor with same properties\n                FRCSensor clonedSensor = new FRCSensor(sensor.getSensorType(), sensor.getSensorId() + \"-CLONE\");\n                clonedSensor.updateReading(sensor.getLastReading());\n                clonedSensor.setConnected(sensor.isConnected());\n                clone.addSensor(clonedSensor);\n            }\n        }\n        \n        return clone;\n    }\n    \n    // Safe method to use battery\n    public void useBattery(double amount) {\n        if (amount > 0) {\n            this.batteryLevel = Math.max(0, this.batteryLevel - amount);\n        }\n    }\n    \n    // Safe method to get sensor count\n    public int getSensorCount() {\n        return sensors.size();\n    }\n    \n    // Safe method to get all sensors (returns copy to prevent external modification)\n    public ArrayList<FRCSensor> getAllSensors() {\n        ArrayList<FRCSensor> sensorCopy = new ArrayList<>();\n        for (FRCSensor sensor : sensors) {\n            if (sensor != null) {\n                sensorCopy.add(sensor);\n            }\n        }\n        return sensorCopy;\n    }\n    \n    @Override\n    public String toString() {\n        return teamName + \" (Team \" + teamNumber + \") - Battery: \" + \n               String.format(\"%.1f\", batteryLevel) + \"%, Sensors: \" + sensors.size();\n    }\n}\n\n// Usage example:\nFRCRobotAdvanced originalRobot = new FRCRobotAdvanced(\"Storm Surge\", 98765);\n\n// Add sensors safely\noriginalRobot.addSensor(new FRCSensor(\"Ultrasonic\", \"US-001\"));\noriginalRobot.addSensor(new FRCSensor(\"Gyroscope\", \"GY-001\"));\noriginalRobot.addSensor(null);  // Test null handling\n\n// Use some battery\noriginalRobot.useBattery(25.0);\n\nSystem.out.println(\"\\nOriginal robot: \" + originalRobot);\n\n// Clone the robot\nFRCRobotAdvanced clonedRobot = originalRobot.clone();\nSystem.out.println(\"Cloned robot: \" + clonedRobot);\n\n// Modify original robot\noriginalRobot.useBattery(30.0);\noriginalRobot.addSensor(new FRCSensor(\"Color\", \"CO-001\"));\n\nSystem.out.println(\"\\nAfter modifications:\");\nSystem.out.println(\"Original: \" + originalRobot);\nSystem.out.println(\"Clone: \" + clonedRobot);\nSystem.out.println(\"Are they the same object? \" + (originalRobot == clonedRobot));"}]}>
+The playground supplies `Cell` and `Main`. Complete only the marked lines in `main`: make `a` and `b` identify the same `Cell`, set the value through `a`, and print it through `b`.
 
-- Create a Sensor class with equals() method that compares sensor type and ID
-- Build a Robot class that can be safely cloned with all its sensor references
-- Design a Competition class that manages teams and handles null robot references safely
-- Create a method that finds robots with low battery levels in a team roster
+<ExerciseBox title="Practice">
 
-```java
-Test your understanding of object references, null handling, and object equality:
-```
+1. Create a `Sensor` class whose equality rule compares sensor type and ID. Use the optional preview as a pattern, but choose your own field names. Test two separate sensors with matching values using both `==` and `equals`.
+2. Give the sensors different readings and confirm that they remain equal. Explain why a changing reading should not identify a physical sensor in this model.
+3. Build a `Robot` class that can copy all of its sensor references into a new array. Decide whether the copy should share each `Sensor` object or create new sensor objects, then explain the effect of your choice before coding it.
+4. Design a `Competition` class that can represent a missing robot with `null`. Add a method that checks for `null` before calling any robot method.
+5. Write a method that searches a `Robot[]` for robots below a battery threshold. Include a null element in the test array and skip it safely.
+
+<details>
+<summary>Hints</summary>
+
+- For the robot copy, an ordinary method such as `copy()` can create a new `Robot` and copy each sensor value into a new array. This method is separate from Java's inherited `Object.clone()` mechanism, which this lesson does not use.
+- Decide whether “copy each sensor” means copying each reference or constructing a new `Sensor`. Write that choice in a comment before the loop.
+- In the competition and low-battery tasks, check `robot != null` before calling any method through `robot`.
+- For a battery search, create a result array large enough for the input, track how many matches you stored, and print only those occupied positions.
+
+</details>
 
 </ExerciseBox>
 
 <Sources items={[
-  {"source": "csce145", "note": "The course whose structure this lesson follows."},
-  {"source": "jls", "path": "jls-4.html", "note": "Reference types and values (section 4.3)."},
-  {"source": "dev-java", "path": "inheritance/objects/", "note": "<code>equals</code>, <code>hashCode</code>, <code>toString</code>."},
-  {"source": "java-api", "path": "java.base/java/lang/Object.html", "note": "<code>Object</code>."},
-  {"source": "java-api", "path": "java.base/java/lang/NullPointerException.html", "note": "Helpful <code>NullPointerException</code> messages."},
-  {"source": "java-api", "path": "java.base/java/util/Objects.html", "note": "<code>Objects</code>."},
-  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Override.html", "note": "<code>Override</code> API reference."}
+  {"source":"csce145","label":"Course Materials","note":"The course whose structure this lesson follows."},
+  {"source":"jls","path":"jls-4.html#jls-4.3.1","label":"JLS §4.3.1: Objects","note":"Objects, reference values, and the null reference."},
+  {"source":"jls","path":"jls-15.html#jls-15.9","label":"JLS §15.9: Class Instance Creation Expressions","note":"A class instance creation expression creates an object and produces a reference."},
+  {"source":"jls","path":"jls-15.html#jls-15.12.4.2","label":"JLS §15.12.4.2: Evaluate Arguments","note":"Method parameters are initialized with argument values, including copied reference values."},
+  {"source":"jls","path":"jls-15.html#jls-15.21.3","label":"JLS §15.21.3: Reference Equality Operators","note":"Reference equality compares object identity and null values."},
+  {"source":"java-api","path":"java.base/java/lang/Object.html#equals(java.lang.Object)","label":"Object.equals","note":"The inherited identity-based implementation and the contract for overrides."},
+  {"source":"java-api","path":"java.base/java/lang/Object.html#hashCode()","label":"Object.hashCode","note":"Equal objects must have equal hash codes."},
+  {"source":"java-api","path":"java.base/java/util/Objects.html#equals(java.lang.Object,java.lang.Object)","label":"Objects.equals","note":"Null-safe equality comparison used by the optional Sensor implementation."},
+  {"source":"java-api","path":"java.base/java/lang/NullPointerException.html","label":"NullPointerException","note":"Operations that use null where an object is required."}
 ]} />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Static and Final", "id": "java-static-and-final"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label":"Static And Final","id":"java-static-and-final"}]} />
