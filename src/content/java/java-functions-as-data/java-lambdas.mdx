@@ -8,10 +8,12 @@ groupOrder: 6
 order: 2
 difficulty: intermediate
 duration: 30 min
-description: Writing a functional interface implementation in one line, what the compiler fills in for you, and where the shorthand stops working.
+description: Writing a functional interface implementation in one line, what the compiler infers from context, and where the shorthand stops helping.
 ---
 
-### The same thing, shorter
+<span id="the-same-thing-shorter"></span>
+
+### The Same Behavior, with Less Boilerplate
 
 <ReferenceImage
   src="/media/java/callback.svg"
@@ -21,192 +23,224 @@ description: Writing a functional interface implementation in one line, what the
   sourceLabel="Wikimedia Commons, public domain"
 />
 
-An anonymous class implementing a one-method interface is mostly boilerplate:
+The previous lesson used an anonymous class to implement `ReadingTest`:
 
 ```java norun
-ReadingTest above100 = new ReadingTest() {
-    @Override
-    public boolean matches(int reading) {
+ReadingTest above100 =
+    new ReadingTest() {
+      @Override
+      public boolean matches(int reading) {
         return reading > 100;
-    }
-};
+      }
+    };
 ```
 
-Five of those six lines say nothing a reader could not work out. The interface has one method, so its name is known. The parameter type is declared in the interface. `@Override` is implied.
+Most of that code repeats facts Java already knows. The target interface supplies the method's parameter and return types. Because the interface has one abstract method, Java also knows which method the behavior implements.
 
-A lambda expression writes only what is undetermined: the parameter name and the body:
+A lambda keeps the part that changes: the parameter name and the method body.
 
-```java
+```java norun
 ReadingTest above100 = reading -> reading > 100;
 ```
 
-Both versions apply the same test here. A lambda supplies an implementation of a functional interface; it is not a textual rewrite into an anonymous class.
+Both forms provide behavior for the same functional interface. A lambda is not an anonymous class with text removed, however. Lambdas have their own rules for scope, `this`, and object identity.
 
-<RulesBox title="The interface supplies the type">
+<RulesBox title="The Interface Supplies the Target Type">
 
-A lambda needs a target functional interface. Here, `ReadingTest` tells Java the parameter type and return type.
+A lambda does not have a complete type by itself. Its context must provide a compatible functional interface.
 
-Lambdas and anonymous classes differ in scope and object identity. For example, `this` inside a lambda means the enclosing object, as the example below shows. Do not rely on two lambda evaluations creating two different objects.
+```java norun
+ReadingTest above100 = reading -> reading > 100; // target: ReadingTest
+```
+
+The target type tells Java that `reading` is an `int` and that the body must produce a `boolean`. The same lambda text could target a different compatible interface elsewhere.
 
 </RulesBox>
 
 <span id="syntactic-sugar"></span>
 
-
-### Syntax forms
+### Lambda Syntax
 
 ```java norun
-// one parameter, expression body: parentheses optional
-r -> r > 100
+// One parameter and an expression body: parentheses are optional.
+reading -> reading > 100
 
-// explicit parentheses, also fine
-(r) -> r > 100
+// Parentheses are also valid around one parameter.
+(reading) -> reading > 100
 
-// two parameters: parentheses required
-(a, b) -> a + b
+// Two parameters: parentheses are required.
+(left, right) -> left + right
 
-// no parameters: empty parentheses required
+// No parameters: empty parentheses are required.
 () -> System.out.println("done")
 
-// block body: needs braces and an explicit return if it returns something
-(a, b) -> {
-    int sum = a + b;
-    return sum * 2;
+// A block body needs braces and an explicit return when it produces a value.
+(left, right) -> {
+  int sum = left + right;
+  return sum * 2;
 }
 
-// explicit parameter types, occasionally needed to help inference
-(int a, int b) -> a + b
+// Explicit parameter types can help when inference is not enough.
+(int left, int right) -> left + right
 ```
 
-<RulesBox title="Expression body versus block body">
+<RulesBox title="Expression Body versus Block Body">
 
 ```java norun
-r -> r > 100            // expression: the value IS the return value
-r -> { return r > 100; }  // block: return is required
+reading -> reading > 100
+reading -> {
+  return reading > 100;
+}
 ```
 
-Mixing these up is the most common lambda syntax error. With braces you must write `return`. Without braces you must not.
-
-For a lambda returning nothing, an expression body works too:
+An expression body returns the expression's value. A value-producing block body needs `return`. A `void`-compatible expression, such as a call to `println`, does not return a value:
 
 ```java norun
-() -> System.out.println("hello")     // no return needed, nothing to return
+() -> System.out.println("hello")
 ```
 
 </RulesBox>
 
-### Applied to the earlier example
+### Applying Lambdas to `filter`
+
+The `filter` method from the previous lesson can now receive each rule without an anonymous class:
 
 ```java norun
-List<Integer> high     = filter(readings, r -> r > 100);
-List<Integer> even     = filter(readings, r -> r % 2 == 0);
-List<Integer> inRange  = filter(readings, r -> r >= 50 && r <= 150);
+List<Integer> high = filter(readings, reading -> reading > 100);
+List<Integer> even = filter(readings, reading -> reading % 2 == 0);
+List<Integer> inRange =
+    filter(readings, reading -> reading >= 50 && reading <= 150);
 ```
 
-Compare that with three anonymous classes. The intent is now visible at a glance. That is the gain: the interesting part is no longer buried.
+The behavior that differs is visible beside each call. That is the main benefit: the reader sees the rule without first working through class boilerplate.
 
-### Where you will meet them
+<span id="where-you-will-meet-them"></span>
 
-Lambdas turn up throughout the standard library.
+### Lambdas in Library Calls
+
+The standard library accepts functional interfaces in collection methods, sorting APIs, and thread constructors.
 
 ```java
-List<String> names = new ArrayList<>(List.of("intake", "drive", "shooter"));
+import java.util.ArrayList;
+import java.util.List;
 
-// sorting with a custom order
-names.sort((a, b) -> Integer.compare(a.length(), b.length()));
+public class Main {
+  public static void main(String[] args) {
+    List<String> names =
+        new ArrayList<>(List.of("intake", "drive", "shooter"));
 
-// removing matching elements
-names.removeIf(name -> name.startsWith("in"));
-
-// doing something with each element
-names.forEach(name -> System.out.println(name));
-
-// a thread's body
-new Thread(() -> System.out.println("running")).start();
+    names.sort(
+        (left, right) -> Integer.compare(left.length(), right.length()));
+    names.removeIf(name -> name.startsWith("in"));
+    names.forEach(name -> System.out.println(name));
+  }
+}
 ```
 
-In robotics code they are everywhere. A button binding takes the behaviour to run; a command takes a condition telling it when to finish. Both are lambdas.
+Expected output:
+
+```text
+drive
+shooter
+```
+
+Robot command APIs use the same idea. One callback can describe what should happen, while another can answer whether a command should finish.
 
 ```java norun
-// conceptually, though the real API differs:
+// Conceptual examples; use the method names from the library in your project.
 button.whenPressed(() -> intake.run());
 command.until(() -> sensor.isTriggered());
 ```
 
-### Capturing variables
+### Capturing Local Variables
 
-A lambda can use variables from the enclosing scope:
-
-```java norun
-int threshold = 100;
-ReadingTest test = r -> r > threshold;      // captures threshold
-```
-
-The captured variable must be **effectively final**: assigned once and never changed:
+A lambda can read a local variable declared in its enclosing scope:
 
 ```java norun
 int threshold = 100;
-ReadingTest test = r -> r > threshold;
-threshold = 200;          // compile error: threshold must be effectively final
+ReadingTest test = reading -> reading > threshold;
 ```
 
-The reason is lifetime. The lambda may run long after the enclosing method has returned, so Java copies the value rather than sharing the variable. Allowing reassignment would make it ambiguous which value the lambda sees.
+That local variable must be `final` or **effectively final**, which means the code assigns it once and never reassigns it.
 
-If you need a changing value, hold it in a field or an object:
-
-```java
-int[] counter = {0};
-Runnable increment = () -> counter[0]++;    // the array reference is final
+```java norun
+int threshold = 100;
+ReadingTest test = reading -> reading > threshold;
+threshold = 200; // Compile error: threshold is not effectively final.
 ```
 
-This works because `counter` itself never changes, only its contents. It is legal but slightly sneaky; a field on a class is usually clearer.
-
-### this means something different
-
-One difference from an anonymous class is the meaning of `this`.
+The lambda captures the local variable's value. If that value is an object reference, the lambda can observe changes inside the same object even though the local reference cannot be reassigned.
 
 ```java
-public class Robot {
-    private String name = "robot";
+public class Main {
+  public static void main(String[] args) {
+    int[] count = {0};
+    Runnable increment = () -> count[0]++;
 
-    public void anonymousVersion() {
-        Runnable r = new Runnable() {
-            @Override public void run() {
-                // `this` is the anonymous Runnable, NOT the Robot
-                System.out.println(this.getClass());
-            }
-        };
-    }
-
-    public void lambdaVersion() {
-        Runnable r = () -> {
-            // `this` is the Robot
-            System.out.println(name);      // works: no qualification needed
-        };
-    }
+    increment.run();
+    increment.run();
+    System.out.println(count[0]);
+  }
 }
 ```
 
-Inside a lambda, `this` refers to the enclosing object. Inside an anonymous class it refers to the anonymous instance. Lambdas behave the way most people expect, which is another reason to prefer them.
+Expected output:
 
-<RulesBox title="When not to use a lambda">
+```text
+2
+```
 
-- **The interface has more than one abstract method.** Not a functional interface; use a class.
-- **The body is long.** A lambda spanning fifteen lines is harder to read than a named method. Extract it and use a [method reference](/java/fundamentals/method-references#when-a-lambda-forwards-directly).
-- **You need a constructor or fields.** Use a real class.
-- **You need recursion.** A lambda has no straightforward way to refer to itself.
-- **The same lambda appears repeatedly.** Give it a name once and reuse it.
+The array makes the rule visible, but a named object or a field is usually clearer in application code. The local variable `count` still refers to the same array; only the array's contents change.
+
+### `this` Means the Enclosing Object
+
+`this` has different meanings in a lambda and an anonymous class.
+
+```java norun
+public class Robot {
+  private final String name = "robot";
+
+  public void anonymousVersion() {
+    Runnable action =
+        new Runnable() {
+          @Override
+          public void run() {
+            // `this` is the anonymous Runnable object.
+            System.out.println(this.getClass());
+          }
+        };
+  }
+
+  public void lambdaVersion() {
+    Runnable action =
+        () -> {
+          // `this` is the enclosing Robot object.
+          System.out.println(this.name);
+        };
+  }
+}
+```
+
+Inside a lambda, `this` refers to the enclosing instance. Inside an anonymous class, it refers to the anonymous instance.
+
+<RulesBox title="When Not to Use a Lambda">
+
+- **The target is not a functional interface.** Use a class when the interface requires multiple independent abstract methods.
+- **The body is long.** Extract a named method and consider a [method reference](/java/fundamentals/method-references#when-a-lambda-forwards-directly).
+- **The behavior needs its own fields or constructor.** Use a named class.
+- **The logic needs to call itself.** Put the recursive logic in a named method.
+- **The same behavior appears repeatedly.** Store it in a well-named variable or method and reuse it.
 
 </RulesBox>
 
-<RulesBox title="Common mistakes">
+<RulesBox title="Common Mistakes">
 
-- **`return` without braces**, or braces without `return`.
+- **Writing `return` without braces, or using braces without `return`** for a value-producing body.
 - **Reassigning a captured local variable.**
-- **Omitting parentheses with two parameters.**
-- **Expecting a lambda where the target is not a functional interface.**
-- **`a - b` in a comparator** instead of `Integer.compare(a, b)`. Subtraction can overflow.
-- **Very long lambda bodies** that should be named methods.
+- **Omitting parentheses around zero or multiple parameters.**
+- **Using a lambda where Java has no target functional interface.**
+- **Using `left - right` in a comparator** instead of `Integer.compare(left, right)`. Subtraction can overflow.
+- **Leaving a long block inside a lambda** when a named method would explain the behavior better.
 
 </RulesBox>
 
@@ -215,40 +249,30 @@ Inside a lambda, `this` refers to the enclosing object. Inside an anonymous clas
 <ExerciseBox title="Practice">
 
 1. Rewrite each anonymous class from the previous lesson's exercises as a lambda.
-2. Sort a `List<String>` by length, then alphabetically among equal lengths.
-3. Use `removeIf` to strip every empty or blank string from a list.
-4. Write a method taking a `Runnable` and calling it three times, then pass a lambda that prints a counter.
-5. Write a lambda that captures a threshold parameter and demonstrate the compile error when you try to reassign that variable afterwards.
+2. Sort a `List<String>` by length, then alphabetically among names with equal lengths.
+3. Use `removeIf` to remove every empty or blank string from a list.
+4. Write a method that takes a `Runnable` and calls it three times. Pass a lambda that updates and prints a value held in a small mutable object.
+5. Write a lambda that captures a threshold parameter. Then try to reassign that parameter and read the compiler message.
 
 <details>
 <summary>Hints</summary>
 
-1. Each five-line block collapses to one line.
-2. `Comparator.comparingInt(String::length).thenComparing(s -> s)`, or a single lambda comparing lengths and falling back to `compareTo`.
-3. `list.removeIf(s -> s.isBlank())`.
-4. The parameter type is `Runnable`; call `run()` in a loop.
-5. Assign after the lambda is created and read the compiler message; it is worth seeing the exact wording once.
+1. Each anonymous class should collapse to one lambda expression.
+2. Use `Comparator.comparingInt(String::length).thenComparing(name -> name)` or write one lambda that compares lengths before calling `compareTo`.
+3. `list.removeIf(value -> value.isBlank())` removes both empty and whitespace-only strings.
+4. The method parameter type is `Runnable`; call `run()` in a loop. A one-element array or a small class can hold the changing value.
+5. Reassign the parameter after creating the lambda. Java should report that the captured variable must be final or effectively final.
 
 </details>
 
 </ExerciseBox>
 
-<LinkGrid
-  title="Related"
-  section="java"
-  links={[
-    {"label":"Method References","id":"java-method-references"},
-    {"label":"Functional Interfaces","id":"java-functional-interfaces"}
-  ]}
-/>
-
 <Sources items={[
   {"source": "csce146", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "lambdas/", "note": "Lambda expressions."},
-  {"source": "java-tutorial", "path": "java/javaOO/lambdaexpressions.html", "note": "Lambda expressions tutorial."},
-  {"source": "jls", "path": "jls-15.html", "note": "Lambda expressions (section 15.27)."},
-  {"source": "java-api", "path": "java.base/java/util/Comparator.html", "note": "<code>Comparator</code> with lambdas."},
-  {"source": "java-api", "path": "java.base/java/lang/Runnable.html", "note": "<code>Runnable</code> API reference."}
+  {"source": "dev-java", "path": "lambdas/", "note": "Lambda expressions, target types, and captured values."},
+  {"source": "jls", "path": "jls-15.html", "note": "Lambda expressions and run-time evaluation (section 15.27)."},
+  {"source": "java-api", "path": "java.base/java/util/Comparator.html", "note": "Comparator factories and composition."},
+  {"source": "java-api", "path": "java.base/java/lang/Runnable.html", "note": "The <code>Runnable</code> functional interface."}
 ]} />
 
 <LinkGrid
@@ -256,8 +280,9 @@ Inside a lambda, `this` refers to the enclosing object. Inside an anonymous clas
   section="java"
   links={[
     {"label":"Functions as Data","id":"java-functions-as-data"},
-    {"label":"Runtime Polymorphism","id":"java-runtime-polymorphism"}
+    {"label":"Runtime Polymorphism","id":"java-runtime-polymorphism"},
+    {"label":"Method References","id":"java-method-references"}
   ]}
 />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Functional Interfaces", "id": "java-functional-interfaces"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "Functional Interfaces", "id": "java-functional-interfaces"}]} />

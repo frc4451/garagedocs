@@ -11,155 +11,196 @@ duration: 30 min
 description: Naming an existing method instead of wrapping it in a lambda, the four forms, and when the shorthand helps.
 ---
 
-### When a lambda forwards directly
+### When a Lambda Forwards Directly
 
-Some lambdas do nothing but call an existing method with the same arguments:
+Some lambdas do nothing except call an existing method with the values they receive:
 
 ```java norun
 names.forEach(name -> System.out.println(name));
 ```
 
-The lambda takes `name` and passes it straight to `println`. The parameter adds nothing; it exists only to be handed along.
-
-A method reference names the method directly:
+The parameter `name` is passed directly to `println`. A **method reference** can name that existing method without repeating the parameter:
 
 ```java norun
 names.forEach(System.out::println);
 ```
 
-Same behaviour, and the noise is gone. This is sugar over a lambda, which is itself sugar over an anonymous class: three layers of shorthand for the same underlying object.
+The lambda and method reference can provide equivalent behavior when they target the same compatible functional interface. A method reference is its own expression, however, not an anonymous class or lambda created by a textual rewrite.
 
-<RulesBox title="The test for using one">
+<RulesBox title="The Readability Test">
 
-Use a method reference when the lambda's entire body is a single call whose arguments are exactly the lambda's parameters, in the same order.
+Use a method reference when it makes the existing method and the data flow easier to recognize. These direct forwarding calls are good candidates:
 
-```java
-x -> foo(x)              ->  becomes a reference
-(a, b) -> foo(a, b)      ->  becomes a reference
-
-x -> foo(x, 10)          ->  keep the lambda: extra argument
-x -> foo(x) + 1          ->  keep the lambda: extra work
-(a, b) -> foo(b, a)      ->  keep the lambda: order swapped
-x -> foo(bar(x))         ->  keep the lambda: nested calls
+```java norun
+value -> Integer.parseInt(value) // Integer::parseInt
+value -> System.out.println(value) // System.out::println
+value -> value.length() // String::length
+() -> new ArrayList<>() // ArrayList::new
 ```
 
-If anything is added, reordered, or wrapped, the lambda stays.
+Keep the lambda when it adds an argument, changes argument order, combines calls, or performs other work:
+
+```java norun
+value -> parse(value, 10)
+value -> parse(value) + 1
+(left, right) -> combine(right, left)
+value -> parse(clean(value))
+```
+
+The shortest form is useful only when it stays clear.
 
 </RulesBox>
 
-### The four forms
+### The Four Forms
 
 <ContentTable
-  title="Method reference forms"
+  title="Method Reference Forms"
   headers={["Form", "Syntax", "Equivalent lambda"]}
   rows={[
-    ["Static method", "<code>Integer::parseInt</code>", "<code>s -> Integer.parseInt(s)</code>"],
-    ["Method of a specific object", "<code>System.out::println</code>", "<code>x -> System.out.println(x)</code>"],
-    ["Method of an arbitrary instance", "<code>String::length</code>", "<code>s -> s.length()</code>"],
-    ["Constructor", "<code>ArrayList::new</code>", "<code>() -> new ArrayList<>()</code>"]
+    ["Static method", "<code>Integer::parseInt</code>", "<code>value -&gt; Integer.parseInt(value)</code>"],
+    ["Bound instance method", "<code>System.out::println</code>", "<code>value -&gt; System.out.println(value)</code>"],
+    ["Unbound instance method", "<code>String::length</code>", "<code>value -&gt; value.length()</code>"],
+    ["Constructor", "<code>ArrayList::new</code>", "<code>() -&gt; new ArrayList&lt;&gt;()</code>"]
   ]}
 />
 
-The third form is the one that confuses people, so it is worth slowing down on.
+The bound and unbound instance forms look similar, but they receive their target objects in different ways.
 
-### The arbitrary-instance form
+### Bound and Unbound Instance Methods
 
-Compare these two:
+A **bound** reference includes the object that will receive the method call. An **unbound** reference receives that object as the functional interface's first argument.
 
 ```java
-String prefix = "drive";
-Predicate<String> a = prefix::startsWith;   // specific object
-Function<String, Integer> b = String::length; // arbitrary instance
+import java.util.List;
+import java.util.function.Function;
+import java.util.function.Predicate;
+
+public class Main {
+  public static void main(String[] args) {
+    String prefix = "drive";
+    Predicate<String> startsWithPrefix = prefix::startsWith;
+    Function<String, Integer> length = String::length;
+
+    System.out.println(startsWithPrefix.test("dr"));
+    System.out.println(length.apply("shooter"));
+
+    List.of("intake", "drive", "shooter").stream()
+        .map(String::length)
+        .forEach(System.out::println);
+  }
+}
 ```
 
-In the first, `prefix` is a particular object. Calling the predicate with `"x"` runs `prefix.startsWith("x")`: the object is fixed, the argument varies.
+Expected output:
 
-In the second, no object is named. Calling the function with `"hello"` runs `"hello".length()`: the argument *becomes* the object the method is called on.
-
-So `String::length` describes a function from a `String` to its length. The first parameter becomes the receiver.
-
-```java
-List<String> names = List.of("intake", "drive", "shooter");
-
-names.stream()
-     .map(String::length)          // each name becomes its length
-     .forEach(System.out::println);
+```text
+true
+7
+6
+5
+7
 ```
 
-### Constructor references
+In `prefix::startsWith`, `prefix` is fixed and the predicate supplies the method argument. In `String::length`, the function's argument becomes the object whose `length()` method is called.
 
-Useful where something needs to create objects without knowing which type:
+An unbound instance method can also have its own parameters. In that case, the functional interface's first parameter is the receiver and the remaining parameters become method arguments. For example, `String::startsWith` can target a `BiPredicate<String, String>`.
+
+### Constructor References
+
+A constructor reference describes how to create an object. The target functional interface determines which constructor signature must match.
 
 ```java
-Supplier<List<String>> maker = ArrayList::new;
-List<String> fresh = maker.get();          // a new empty ArrayList
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+public class Main {
+  public static void main(String[] args) {
+    Supplier<List<String>> emptyListFactory = ArrayList::new;
+    Function<Integer, ArrayList<String>> sizedListFactory = ArrayList::new;
+
+    List<String> first = emptyListFactory.get();
+    List<String> second = emptyListFactory.get();
+    ArrayList<String> sized = sizedListFactory.apply(20);
+
+    System.out.println(first == second);
+    System.out.println(sized.isEmpty());
+  }
+}
 ```
 
-With an argument, it maps to a matching constructor:
+Expected output:
 
-```java
+```text
+false
+true
+```
+
+The `Supplier` selects a no-argument constructor. The `Function<Integer, ArrayList<String>>` selects a constructor compatible with one `int` argument. The same `ArrayList::new` text can therefore select different constructors in different target contexts.
+
+For your own class, the pattern works the same way:
+
+```java norun
 public class Motor {
-    private final int port;
-    public Motor(int port) { this.port = port; }
+  private final int port;
+
+  public Motor(int port) {
+    this.port = port;
+  }
 }
 
 Function<Integer, Motor> motorFactory = Motor::new;
-Motor m = motorFactory.apply(3);           // calls new Motor(3)
+Motor driveMotor = motorFactory.apply(3);
 ```
 
-Which constructor gets used is decided by the functional interface's shape. A `Supplier` needs a no-argument constructor; a `Function` needs a one-argument one. If no constructor matches, it will not compile.
+If no accessible constructor matches the functional interface's parameter and return types, the reference does not compile.
 
-### Where they read well
+### Where Method References Read Well
+
+Method references work especially well when the method name already explains the operation:
 
 ```java norun
-// parsing a list of strings into numbers
-List<Integer> numbers = raw.stream()
-                           .map(Integer::parseInt)
-                           .toList();
+List<Integer> numbers = raw.stream().map(Integer::parseInt).toList();
 
-// sorting by a field
 motors.sort(Comparator.comparingInt(Motor::getPort));
 
-// filtering out blanks
 names.removeIf(String::isBlank);
 
-// running an existing method as a thread body
 new Thread(this::periodic).start();
 ```
 
-That last one is common in robot code. `this::periodic` refers to a method on the current object, which is the "specific object" form with `this` as the object.
+`this::periodic` is a bound instance reference. The current object is fixed as the receiver, and `Runnable.run()` supplies no arguments.
 
-<RulesBox title="Where they read badly">
+<RulesBox title="When a Lambda Reads Better">
 
-A method reference is only clearer when the method name explains itself. When the target is obscure, the explicit lambda is easier to follow:
+A method reference helps only when the referenced name communicates the work. If `Helper::process` leaves the reader wondering what is processed, expanding it to `item -> Helper.process(item)` does not solve the naming problem. A clearer method name or a small named method usually does.
 
-```java norun
-list.forEach(Helper::process);         // process what? how?
-list.forEach(item -> Helper.process(item));   // marginally clearer
-```
-
-Neither reads well; the fix is a better method name. Do not treat method references as automatically superior; the goal is a reader understanding the code quickly.
+Keep a lambda when its parameter names reveal useful roles, when the code performs more than one operation, or when the method reference would make the receiver-and-argument mapping difficult to see.
 
 </RulesBox>
 
-### Ambiguity
+### Target Types and Overloads
 
-Occasionally the compiler cannot tell which overload you mean:
+Like a lambda, a method reference needs a target functional interface. The target supplies parameter and return types that Java uses to select a compatible method or constructor.
 
-```java
-// if a class has both process(String) and process(int),
-// Helper::process may be ambiguous depending on the target type
+Overloads can make that selection unclear. If the compiler reports an ambiguous method reference, assign it to a specifically typed variable or write an explicitly typed lambda:
+
+```java norun
+Function<String, Integer> parseDecimal = Integer::parseInt;
+Function<String, Integer> parseExplicitly =
+    (String value) -> Integer.parseInt(value);
 ```
 
-When that happens, write the lambda instead; the argument types make it explicit. This is uncommon, but the error message can be cryptic, so it helps to know the cause.
+Do not add casts until you understand which target type and overload the call should use.
 
-<RulesBox title="Common mistakes">
+<RulesBox title="Common Mistakes">
 
-- **Using `::` when the lambda does extra work.** Only a pure forwarding call qualifies.
-- **Confusing the two instance forms.** `obj::method` fixes the object; `Type::method` makes the first argument the object.
-- **Expecting a reference to a method with the wrong number of parameters** to work. The shape must match the functional interface.
-- **Writing `Type::new` where no matching constructor exists.**
-- **Reaching for references reflexively** even when they obscure the intent.
+- **Using `::` when the lambda does extra work.** A reference names one existing method or constructor.
+- **Confusing bound and unbound instance forms.** `object::method` fixes the receiver; `Type::method` receives it as the first argument.
+- **Matching the wrong parameter count or types.** The functional interface and referenced declaration must be compatible.
+- **Using `Type::new` when no accessible constructor matches.**
+- **Choosing a method reference automatically** even when a lambda would show the data flow more clearly.
 
 </RulesBox>
 
@@ -167,44 +208,32 @@ When that happens, write the lambda instead; the argument types make it explicit
 
 <ExerciseBox title="Practice">
 
-1. Rewrite `list.forEach(s -> System.out.println(s))` as a method reference.
+1. Rewrite `list.forEach(value -> System.out.println(value))` as a method reference.
 2. Convert a `List<String>` of digits into a `List<Integer>` using a method reference.
 3. Sort a list of your own objects by an integer field using `Comparator.comparingInt` and a method reference.
-4. Use a constructor reference to create a `Supplier` that produces empty `ArrayList` objects, and call it twice; confirm you get two distinct lists.
-5. Write a lambda that cannot become a method reference, and explain in a comment why not.
+4. Use a constructor reference to create a `Supplier` that produces empty `ArrayList` objects. Call it twice and confirm that it returns two distinct lists.
+5. Write a lambda that cannot become a method reference, and explain in a comment what extra work prevents the conversion.
 
 <details>
 <summary>Hints</summary>
 
-1. `System.out::println`.
-2. `.map(Integer::parseInt)` on a stream, or a loop calling it.
-3. `Comparator.comparingInt(Motor::getPort)`.
-4. `Supplier<List<String>> s = ArrayList::new;` then call `get()` twice and compare with `==`; they should differ.
-5. Anything with an extra argument, reordered parameters, or arithmetic around the call. `x -> compute(x, 10)` will do.
+1. Use `System.out::println`.
+2. Use `.map(Integer::parseInt)` in a stream pipeline, or call the reference through a `Function<String, Integer>` in a loop.
+3. `Comparator.comparingInt(Motor::getPort)` works when `getPort()` returns an `int`.
+4. Store `ArrayList::new` in a `Supplier<List<String>>`, call `get()` twice, and compare the references with `==`. The result should be `false`.
+5. Adding a fixed argument, changing argument order, or doing arithmetic around a call keeps the lambda useful. `value -> parse(value, 10)` is one example.
 
 </details>
 
 </ExerciseBox>
 
-<LinkGrid
-  title="Related"
-  section="java"
-  links={[
-    {"label":"Functional Interfaces","id":"java-functional-interfaces"}
-  ]}
-/>
-
 <Sources items={[
   {"source": "csce146", "note": "The course whose structure this lesson follows."},
-  {"source": "dev-java", "path": "lambdas/method-references/", "note": "The four kinds."},
-  {"source": "java-tutorial", "path": "java/javaOO/methodreferences.html", "note": "Method references tutorial."},
-  {"source": "jls", "path": "jls-15.html", "note": "Method reference expressions (section 15.13)."},
-  {"source": "java-api", "path": "java.base/java/lang/String.html", "note": "<code>String</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/function/Supplier.html", "note": "<code>Supplier</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/ArrayList.html", "note": "<code>ArrayList</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/Integer.html", "note": "<code>Integer</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/lang/System.html", "note": "<code>System</code> API reference."},
-  {"source": "java-api", "path": "java.base/java/util/Comparator.html", "note": "<code>Comparator</code> API reference."}
+  {"source": "dev-java", "path": "lambdas/method-references/", "note": "Static, bound, unbound, and constructor method references."},
+  {"source": "jls", "path": "jls-15.html", "note": "Method reference expressions, target types, and run-time evaluation (section 15.13)."},
+  {"source": "java-api", "path": "java.base/java/util/function/Function.html", "note": "The target type used by several examples."},
+  {"source": "java-api", "path": "java.base/java/util/function/Supplier.html", "note": "The no-argument target used by constructor references."},
+  {"source": "java-api", "path": "java.base/java/util/Comparator.html", "note": "Comparator factories that accept key-extractor functions."}
 ]} />
 
 <LinkGrid
@@ -212,8 +241,9 @@ When that happens, write the lambda instead; the argument types make it explicit
   section="java"
   links={[
     {"label":"Lambdas","id":"java-lambdas"},
+    {"label":"Functional Interfaces","id":"java-functional-interfaces"},
     {"label":"Methods","id":"java-methods"}
   ]}
 />
 
-<LinkGrid title="Next lesson" section="java" links={[{"label": "Streams", "id": "java-streams"}]} />
+<LinkGrid title="Next Lesson" section="java" links={[{"label": "Streams", "id": "java-streams"}]} />

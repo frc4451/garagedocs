@@ -73,7 +73,9 @@ for (const file of walk(CONTENT)) {
 }
 
 const REQUEST_TIMEOUT_MS = 15_000;
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 5;
+const RETRY_BASE_DELAY_MS = 1_000;
+const MAX_RETRY_DELAY_MS = 30_000;
 const RETRYABLE_STATUS = new Set([403, 408, 425, 429]);
 
 function shouldRetry(status) {
@@ -102,23 +104,41 @@ async function checkOnce(url) {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     }
-    return res.status;
+    return {
+      status: res.status,
+      retryAfterMs: parseRetryAfter(res.headers.get('retry-after')),
+    };
   } catch (err) {
-    return `ERR ${err.message}`;
+    return { status: `ERR ${err.message}`, retryAfterMs: null };
   }
 }
 
-async function check(url) {
-  let status;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    status = await checkOnce(url);
-    if (!shouldRetry(status) || attempt === MAX_ATTEMPTS) return status;
+function parseRetryAfter(value) {
+  if (!value) return null;
 
-    // A small stagger keeps a temporary host or rate limit from receiving every
-    // retry at once. Permanent client errors such as 404 are never retried.
-    await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+
+  const date = Date.parse(value);
+  return Number.isNaN(date) ? null : Math.max(0, date - Date.now());
+}
+
+async function check(url) {
+  let result;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    result = await checkOnce(url);
+    if (!shouldRetry(result.status) || attempt === MAX_ATTEMPTS) return result.status;
+
+    // Give temporary host errors and rate limits time to recover. Honor Retry-After
+    // when provided, but cap it so one source cannot stall the complete check.
+    const exponentialDelay = RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+    const retryDelay = Math.min(
+      MAX_RETRY_DELAY_MS,
+      Math.max(exponentialDelay, result.retryAfterMs ?? 0),
+    );
+    await new Promise((resolve) => setTimeout(resolve, retryDelay));
   }
-  return status;
+  return result.status;
 }
 
 const failures = [];
