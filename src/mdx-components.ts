@@ -1,4 +1,6 @@
 import type { MDXComponents } from 'mdx/types';
+import Equation from '@/components/blocks/Equation.astro';
+import CalculusGraph from '@/components/blocks/CalculusGraph.astro';
 import RulesBox from '@/components/blocks/RulesBox.astro';
 import StepsBox from '@/components/blocks/StepsBox.astro';
 import CodeBlock from '@/components/blocks/CodeBlock.astro';
@@ -18,6 +20,8 @@ import PoseViewer from '@/components/blocks/PoseViewer.astro';
 import JavaPlayground from '@/components/java-playground/JavaPlayground.astro';
 
 export const components: MDXComponents = {
+  Equation,
+  CalculusGraph,
   TextBlock,
   JavaPlayground,
   YouTubeEmbed,

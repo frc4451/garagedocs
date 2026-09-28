@@ -1,5 +1,7 @@
 ---
 import LessonLayout from '@/layouts/LessonLayout.astro';
+import BadgeWorkInProgress from '@/components/BadgeWorkInProgress.astro';
+import { isBadgeWorkInProgress } from '@/lib/badge-publication';
 import { getSectionLessons, getSidebarGroups, getAdjacentLessons } from '@/lib/content';
 import { sections } from '@/config/navigation';
 import { render } from 'astro:content';
@@ -29,7 +31,8 @@ const { lesson } = Astro.props;
 
 const sidebarGroups = await getSidebarGroups(section);
 const { prev, next } = await getAdjacentLessons(section, lessonId);
-const { Content } = await render(lesson);
+const { Content, headings } = await render(lesson);
+const workInProgress = isBadgeWorkInProgress(section, lessonId);
 const currentPath = `/${section}/${lessonId}`;
 ---
 
@@ -46,5 +49,5 @@ const currentPath = `/${section}/${lessonId}`;
   javaExamples={section === 'java' || section === 'assignments'}
   sourcePath={lesson.filePath}
 >
-  <Content components={components} />
+  <>{workInProgress ? <BadgeWorkInProgress lessonId={lessonId} headings={headings} /> : <Content components={components} />}</>
 </LessonLayout>

@@ -1,5 +1,7 @@
 ---
 import LessonLayout from '@/layouts/LessonLayout.astro';
+import PublicBadgesOverview from '@/components/PublicBadgesOverview.astro';
+import { isBadgeWorkInProgress } from '@/lib/badge-publication';
 import { getOverview, getSidebarGroups, getJavaSidebarGroups } from '@/lib/content';
 import { sections } from '@/config/navigation';
 import { render } from 'astro:content';
@@ -18,7 +20,8 @@ const overview = await getOverview(section);
 if (!overview) throw new Error(`Overview not found for section: ${section}`);
 
 const sidebarGroups = section === 'java' ? await getJavaSidebarGroups() : await getSidebarGroups(section);
-const { Content } = await render(overview);
+const { Content, headings } = await render(overview);
+const publicBadgesOverview = section === 'badges' && isBadgeWorkInProgress(section, 'badge-2');
 const currentPath = `/${section}`;
 ---
 
@@ -30,5 +33,5 @@ const currentPath = `/${section}`;
   javaExamples={section === 'java' || section === 'assignments'}
   sourcePath={overview.filePath}
 >
-  <Content components={components} />
+  <>{publicBadgesOverview ? <PublicBadgesOverview groups={sidebarGroups} headings={headings} /> : <Content components={components} />}</>
 </LessonLayout>

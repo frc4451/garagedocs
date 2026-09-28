@@ -21,79 +21,95 @@ const A11_STARTER = `// Author:
 // What this program does:
 
 class Robot {
-    private final String name;
-    private final int teamNumber;
-    private double maxSpeedMps;
-    private int weightLbs;
+  private final String name;
+  private final int teamNumber;
+  private double maxSpeedMps;
+  private int weightLbs;
 
-    Robot(String name, int teamNumber, double maxSpeedMps, int weightLbs) {
-        // TODO validate every parameter, then store them
-        this.name = name;
-        this.teamNumber = teamNumber;
-        this.maxSpeedMps = maxSpeedMps;
-        this.weightLbs = weightLbs;
-    }
+  Robot(String name, int teamNumber, double maxSpeedMps, int weightLbs) {
+    // TODO validate every parameter, then store them
+    this.name = name;
+    this.teamNumber = teamNumber;
+    this.maxSpeedMps = maxSpeedMps;
+    this.weightLbs = weightLbs;
+  }
 
-    Robot(String name, int teamNumber) {
-        // TODO chain to the four-argument constructor with this(...)
-        this(name, teamNumber, 0.0, 0);
-    }
+  Robot(String name, int teamNumber) {
+    // TODO chain to the four-argument constructor with this(...)
+    this(name, teamNumber, 0.0, 0);
+  }
 
-    String getName() { return name; }
-    int getTeamNumber() { return teamNumber; }
-    double getMaxSpeedMps() { return maxSpeedMps; }
-    int getWeightLbs() { return weightLbs; }
+  String getName() {
+    return name;
+  }
 
-    void setMaxSpeedMps(double maxSpeedMps) {
-        // TODO validate
-        this.maxSpeedMps = maxSpeedMps;
-    }
+  int getTeamNumber() {
+    return teamNumber;
+  }
 
-    void setWeightLbs(int weightLbs) {
-        // TODO validate
-        this.weightLbs = weightLbs;
-    }
+  double getMaxSpeedMps() {
+    return maxSpeedMps;
+  }
 
-    // TODO override toString()
-    // TODO override equals(Object) comparing name and teamNumber only
+  int getWeightLbs() {
+    return weightLbs;
+  }
+
+  void setMaxSpeedMps(double maxSpeedMps) {
+    // TODO validate
+    this.maxSpeedMps = maxSpeedMps;
+  }
+
+  void setWeightLbs(int weightLbs) {
+    // TODO validate
+    this.weightLbs = weightLbs;
+  }
+
+  // TODO override toString()
+  // TODO override equals(Object) comparing name and teamNumber only
 }
 
 public class RobotTester {
-    // Leave main as it is. Implement Robot above.
-    public static void main(String[] args) {
-        Robot titan = new Robot("Titan", 1234, 4.5, 120);
-        Robot spare = new Robot("Spare", 4451);
-        System.out.println(titan);
-        System.out.println(spare);
+  // Leave main as it is. Implement Robot above.
+  public static void main(String[] args) {
+    Robot titan = new Robot("Titan", 1234, 4.5, 120);
+    Robot spare = new Robot("Spare", 4451);
+    System.out.println(titan);
+    System.out.println(spare);
 
-        spare.setMaxSpeedMps(3.0);
-        spare.setWeightLbs(95);
-        System.out.println(spare);
+    spare.setMaxSpeedMps(3.0);
+    spare.setWeightLbs(95);
+    System.out.println(spare);
 
-        System.out.println("same name and team: " + titan.equals(new Robot("Titan", 1234, 9.0, 50)));
-        System.out.println("different robot: " + titan.equals(spare));
-        System.out.println("null: " + titan.equals(null));
-        System.out.println("a String: " + titan.equals("Titan"));
+    System.out.println("same name and team: " + titan.equals(new Robot("Titan", 1234, 9.0, 50)));
+    System.out.println("different robot: " + titan.equals(spare));
+    System.out.println("null: " + titan.equals(null));
+    System.out.println("a String: " + titan.equals("Titan"));
 
-        System.out.println("blank name rejected: " + rejects(null, 1234, 1.0, 10));
-        System.out.println("team 0 rejected: " + rejects("X", 0, 1.0, 10));
-        System.out.println("team 100000 rejected: " + rejects("X", 100000, 1.0, 10));
-        System.out.println("speed 31 rejected: " + rejects("X", 1234, 31.0, 10));
-        System.out.println("weight 201 rejected: " + rejects("X", 1234, 1.0, 201));
+    System.out.println("blank name rejected: " + rejects(null, 1234, 1.0, 10));
+    System.out.println("team 0 rejected: " + rejects("X", 0, 1.0, 10));
+    System.out.println("team 100000 rejected: " + rejects("X", 100000, 1.0, 10));
+    System.out.println("speed 31 rejected: " + rejects("X", 1234, 31.0, 10));
+    System.out.println("weight 201 rejected: " + rejects("X", 1234, 1.0, 201));
 
-        System.out.println("chained defaults: " + spare.getName() + " starts at "
-            + new Robot("Fresh", 9999).getMaxSpeedMps() + " m/s and "
-            + new Robot("Fresh", 9999).getWeightLbs() + " lb");
+    System.out.println(
+        "chained defaults: "
+            + spare.getName()
+            + " starts at "
+            + new Robot("Fresh", 9999).getMaxSpeedMps()
+            + " m/s and "
+            + new Robot("Fresh", 9999).getWeightLbs()
+            + " lb");
+  }
+
+  static boolean rejects(String name, int team, double speed, int weight) {
+    try {
+      new Robot(name, team, speed, weight);
+      return false;
+    } catch (IllegalArgumentException e) {
+      return true;
     }
-
-    static boolean rejects(String name, int team, double speed, int weight) {
-        try {
-            new Robot(name, team, speed, weight);
-            return false;
-        } catch (IllegalArgumentException e) {
-            return true;
-        }
-    }
+  }
 }
 `;
 
@@ -102,86 +118,91 @@ const A13_STARTER = `// Author:
 // What this program does:
 
 class Robot {
-    private final String name;
-    private final int teamNumber;
-    private double maxSpeedMps;
+  private final String name;
+  private final int teamNumber;
+  private double maxSpeedMps;
 
-    Robot(String name, int teamNumber) {
-        // TODO validate
-        this.name = name;
-        this.teamNumber = teamNumber;
-    }
+  Robot(String name, int teamNumber) {
+    // TODO validate
+    this.name = name;
+    this.teamNumber = teamNumber;
+  }
 
-    String getName() { return name; }
-    double getMaxSpeedMps() { return maxSpeedMps; }
+  String getName() {
+    return name;
+  }
 
-    void setMaxSpeedMps(double v) {
-        // TODO validate
-        this.maxSpeedMps = v;
-    }
+  double getMaxSpeedMps() {
+    return maxSpeedMps;
+  }
 
-    // TODO override equals(Object) comparing name and teamNumber only
+  void setMaxSpeedMps(double v) {
+    // TODO validate
+    this.maxSpeedMps = v;
+  }
+
+  // TODO override equals(Object) comparing name and teamNumber only
 }
 
 public class ReferenceLab {
-    // Leave main as it is. Implement Robot above, then write a PREDICTION comment
-    // beside each experiment BEFORE you run it.
-    public static void main(String[] args) {
-        System.out.println("-- 1: aliasing --");
-        // PREDICTION:
-        Robot a1 = new Robot("Titan", 1234);
-        Robot b1 = a1;
-        b1.setMaxSpeedMps(5.0);
-        System.out.println(a1.getMaxSpeedMps());
-        System.out.println(a1 == b1);
-        System.out.println(a1.equals(b1));
+  // Leave main as it is. Implement Robot above, then write a PREDICTION comment
+  // beside each experiment BEFORE you run it.
+  public static void main(String[] args) {
+    System.out.println("-- 1: aliasing --");
+    // PREDICTION:
+    Robot a1 = new Robot("Titan", 1234);
+    Robot b1 = a1;
+    b1.setMaxSpeedMps(5.0);
+    System.out.println(a1.getMaxSpeedMps());
+    System.out.println(a1 == b1);
+    System.out.println(a1.equals(b1));
 
-        System.out.println("-- 2: separate construction --");
-        // PREDICTION:
-        Robot a2 = new Robot("Titan", 1234);
-        Robot b2 = new Robot("Titan", 1234);
-        System.out.println(a2 == b2);
-        System.out.println(a2.equals(b2));
-        a2.setMaxSpeedMps(5.0);
-        System.out.println(b2.getMaxSpeedMps());
+    System.out.println("-- 2: separate construction --");
+    // PREDICTION:
+    Robot a2 = new Robot("Titan", 1234);
+    Robot b2 = new Robot("Titan", 1234);
+    System.out.println(a2 == b2);
+    System.out.println(a2.equals(b2));
+    a2.setMaxSpeedMps(5.0);
+    System.out.println(b2.getMaxSpeedMps());
 
-        System.out.println("-- 3: a primitive argument --");
-        // PREDICTION:
-        int x = 5;
-        addOne(x);
-        System.out.println(x);
+    System.out.println("-- 3: a primitive argument --");
+    // PREDICTION:
+    int x = 5;
+    addOne(x);
+    System.out.println(x);
 
-        System.out.println("-- 4: an object argument --");
-        // PREDICTION:
-        Robot a4 = new Robot("Titan", 1234);
-        speedUp(a4);
-        System.out.println(a4.getMaxSpeedMps());
-        replace(a4);
-        System.out.println(a4.getName());
+    System.out.println("-- 4: an object argument --");
+    // PREDICTION:
+    Robot a4 = new Robot("Titan", 1234);
+    speedUp(a4);
+    System.out.println(a4.getMaxSpeedMps());
+    replace(a4);
+    System.out.println(a4.getName());
 
-        System.out.println("-- 5: the null reference --");
-        // PREDICTION:
-        Robot missing = null;
-        try {
-            System.out.println(missing.getName());
-        } catch (NullPointerException e) {
-            System.out.println("threw " + e.getClass().getSimpleName());
-        }
-        System.out.println("null == null: " + (missing == null));
+    System.out.println("-- 5: the null reference --");
+    // PREDICTION:
+    Robot missing = null;
+    try {
+      System.out.println(missing.getName());
+    } catch (NullPointerException e) {
+      System.out.println("threw " + e.getClass().getSimpleName());
     }
+    System.out.println("null == null: " + (missing == null));
+  }
 
-    public static void addOne(int n) {
-        n = n + 1;
-    }
+  public static void addOne(int n) {
+    n = n + 1;
+  }
 
-    public static void speedUp(Robot r) {
-        r.setMaxSpeedMps(7.0);
-    }
+  public static void speedUp(Robot r) {
+    r.setMaxSpeedMps(7.0);
+  }
 
-    public static void replace(Robot r) {
-        r = new Robot("Replacement", 9999);
-        r.setMaxSpeedMps(1.0);
-    }
+  public static void replace(Robot r) {
+    r = new Robot("Replacement", 9999);
+    r.setMaxSpeedMps(1.0);
+  }
 }
 `;
 
@@ -190,104 +211,119 @@ const A14_STARTER = `// Author:
 // What this program does:
 
 class Battery {
-    private final String serial;
-    private final double restingVoltage;
+  private final String serial;
+  private final double restingVoltage;
 
-    Battery(String serial, double restingVoltage) {
-        // TODO validate both
-        this.serial = serial;
-        this.restingVoltage = restingVoltage;
-    }
+  Battery(String serial, double restingVoltage) {
+    // TODO validate both
+    this.serial = serial;
+    this.restingVoltage = restingVoltage;
+  }
 
-    String getSerial() { return serial; }
-    double getRestingVoltage() { return restingVoltage; }
+  String getSerial() {
+    return serial;
+  }
 
-    // TODO override toString() as Battery[serial=ABC123, restingV=12.50]
+  double getRestingVoltage() {
+    return restingVoltage;
+  }
+
+  // TODO override toString() as Battery[serial=ABC123, restingV=12.50]
 }
 
 class Robot {
-    private final String name;
-    private final int teamNumber;
-    // TODO add a private final Battery field
-    private double maxSpeedMps;
-    private int weightLbs;
+  private final String name;
+  private final int teamNumber;
+  // TODO add a private final Battery field
+  private double maxSpeedMps;
+  private int weightLbs;
 
-    Robot(String name, int teamNumber, double maxSpeedMps, int weightLbs, Battery battery) {
-        // TODO validate, including a non-null battery, then store
-        this.name = name;
-        this.teamNumber = teamNumber;
-        this.maxSpeedMps = maxSpeedMps;
-        this.weightLbs = weightLbs;
-    }
+  Robot(String name, int teamNumber, double maxSpeedMps, int weightLbs, Battery battery) {
+    // TODO validate, including a non-null battery, then store
+    this.name = name;
+    this.teamNumber = teamNumber;
+    this.maxSpeedMps = maxSpeedMps;
+    this.weightLbs = weightLbs;
+  }
 
-    Robot(String name, int teamNumber) {
-        // TODO chain, supplying a default battery of your choice
-        this(name, teamNumber, 0.0, 0, null);
-    }
+  Robot(String name, int teamNumber) {
+    // TODO chain, supplying a default battery of your choice
+    this(name, teamNumber, 0.0, 0, null);
+  }
 
-    String getName() { return name; }
-    double getMaxSpeedMps() { return maxSpeedMps; }
-    // TODO add getBattery(). There is deliberately no setBattery.
+  String getName() {
+    return name;
+  }
 
-    void setMaxSpeedMps(double v) { this.maxSpeedMps = v; }
-    void setWeightLbs(int w) { this.weightLbs = w; }
+  double getMaxSpeedMps() {
+    return maxSpeedMps;
+  }
+  // TODO add getBattery(). There is deliberately no setBattery.
 
-    // TODO override toString() to include the battery
+  void setMaxSpeedMps(double v) {
+    this.maxSpeedMps = v;
+  }
+
+  void setWeightLbs(int w) {
+    this.weightLbs = w;
+  }
+
+  // TODO override toString() to include the battery
 }
 
 public class RobotPlusBatteryTester {
-    // Leave main as it is. Implement Battery and Robot above.
-    public static void main(String[] args) {
-        Battery shared = new Battery("ABC123", 12.5);
-        Robot titan = new Robot("Titan", 1234, 4.5, 120, shared);
-        System.out.println(shared);
-        System.out.println(titan);
+  // Leave main as it is. Implement Battery and Robot above.
+  public static void main(String[] args) {
+    Battery shared = new Battery("ABC123", 12.5);
+    Robot titan = new Robot("Titan", 1234, 4.5, 120, shared);
+    System.out.println(shared);
+    System.out.println(titan);
 
-        titan.setMaxSpeedMps(6.0);
-        System.out.println("after setMaxSpeedMps: " + titan.getMaxSpeedMps());
+    titan.setMaxSpeedMps(6.0);
+    System.out.println("after setMaxSpeedMps: " + titan.getMaxSpeedMps());
 
-        System.out.println("battery serial still: " + titan.getBattery().getSerial());
-        System.out.println("battery voltage still: " + titan.getBattery().getRestingVoltage());
+    System.out.println("battery serial still: " + titan.getBattery().getSerial());
+    System.out.println("battery voltage still: " + titan.getBattery().getRestingVoltage());
 
-        Robot spare = new Robot("Spare", 4451, 3.0, 95, shared);
-        System.out.println("same battery object: " + (titan.getBattery() == spare.getBattery()));
-        titan.setMaxSpeedMps(2.0);
-        System.out.println("spare unaffected speed: " + spare.getMaxSpeedMps());
-        System.out.println("spare sees same voltage: " + spare.getBattery().getRestingVoltage());
+    Robot spare = new Robot("Spare", 4451, 3.0, 95, shared);
+    System.out.println("same battery object: " + (titan.getBattery() == spare.getBattery()));
+    titan.setMaxSpeedMps(2.0);
+    System.out.println("spare unaffected speed: " + spare.getMaxSpeedMps());
+    System.out.println("spare sees same voltage: " + spare.getBattery().getRestingVoltage());
 
-        System.out.println("default battery: " + new Robot("Fresh", 9999).getBattery());
+    System.out.println("default battery: " + new Robot("Fresh", 9999).getBattery());
 
-        System.out.println("null battery rejected: " + rejectsNullBattery());
-        System.out.println("15 V rejected: " + rejectsVoltage(15.0));
-        System.out.println("blank serial rejected: " + rejectsSerial(" "));
+    System.out.println("null battery rejected: " + rejectsNullBattery());
+    System.out.println("15 V rejected: " + rejectsVoltage(15.0));
+    System.out.println("blank serial rejected: " + rejectsSerial(" "));
+  }
+
+  static boolean rejectsNullBattery() {
+    try {
+      new Robot("X", 1234, 1.0, 10, null);
+      return false;
+    } catch (IllegalArgumentException e) {
+      return true;
     }
+  }
 
-    static boolean rejectsNullBattery() {
-        try {
-            new Robot("X", 1234, 1.0, 10, null);
-            return false;
-        } catch (IllegalArgumentException e) {
-            return true;
-        }
+  static boolean rejectsVoltage(double v) {
+    try {
+      new Battery("S1", v);
+      return false;
+    } catch (IllegalArgumentException e) {
+      return true;
     }
+  }
 
-    static boolean rejectsVoltage(double v) {
-        try {
-            new Battery("S1", v);
-            return false;
-        } catch (IllegalArgumentException e) {
-            return true;
-        }
+  static boolean rejectsSerial(String s) {
+    try {
+      new Battery(s, 12.0);
+      return false;
+    } catch (IllegalArgumentException e) {
+      return true;
     }
-
-    static boolean rejectsSerial(String s) {
-        try {
-            new Battery(s, 12.0);
-            return false;
-        } catch (IllegalArgumentException e) {
-            return true;
-        }
-    }
+  }
 }
 `;
 
@@ -296,65 +332,66 @@ const A15_STARTER = `// Author:
 // What this program does:
 
 enum MatchPhase {
-    AUTO(0, 15, 1.0, "Autonomous"),
-    TELEOP(15, 120, 1.0, "Teleop"),
-    ENDGAME(120, 150, 0.7, "Endgame"),
-    OVER(150, Integer.MAX_VALUE, 0.0, "Match over");
+  AUTO(0, 15, 1.0, "Autonomous"),
+  TELEOP(15, 120, 1.0, "Teleop"),
+  ENDGAME(120, 150, 0.7, "Endgame"),
+  OVER(150, Integer.MAX_VALUE, 0.0, "Match over");
 
-    public final int startSeconds;
-    public final int endSecondsExclusive;
-    public final double maxDriveScaling;
-    public final String label;
+  public final int startSeconds;
+  public final int endSecondsExclusive;
+  public final double maxDriveScaling;
+  public final String label;
 
-    MatchPhase(int startSeconds, int endSecondsExclusive, double maxDriveScaling, String label) {
-        this.startSeconds = startSeconds;
-        this.endSecondsExclusive = endSecondsExclusive;
-        this.maxDriveScaling = maxDriveScaling;
-        this.label = label;
-    }
+  MatchPhase(int startSeconds, int endSecondsExclusive, double maxDriveScaling, String label) {
+    this.startSeconds = startSeconds;
+    this.endSecondsExclusive = endSecondsExclusive;
+    this.maxDriveScaling = maxDriveScaling;
+    this.label = label;
+  }
 
-    // TODO make this abstract and give each constant its own body
-    public String shortStatus(int currentSeconds) {
-        return "TODO";
-    }
+  // TODO make this abstract and give each constant its own body
+  public String shortStatus(int currentSeconds) {
+    return "TODO";
+  }
 
-    // TODO return true when seconds is in [startSeconds, endSecondsExclusive)
-    public boolean contains(int seconds) {
-        return false;
-    }
+  // TODO return true when seconds is in [startSeconds, endSecondsExclusive)
+  public boolean contains(int seconds) {
+    return false;
+  }
 
-    // TODO walk values() and return the first phase that contains seconds;
-    //      throw IllegalArgumentException when none does
-    public static MatchPhase phaseAt(int seconds) {
-        return OVER;
-    }
+  // TODO walk values() and return the first phase that contains seconds;
+  //      throw IllegalArgumentException when none does
+  public static MatchPhase phaseAt(int seconds) {
+    return OVER;
+  }
 }
 
 public class MatchPhaseTester {
-    // Leave main as it is. Fill in the enum above.
-    public static void main(String[] args) {
-        for (MatchPhase phase : MatchPhase.values()) {
-            System.out.printf("%-10s %6d %8d %5.2f%n",
-                phase.label, phase.startSeconds, phase.endSecondsExclusive, phase.maxDriveScaling);
-        }
-
-        int[] times = { 0, 14, 15, 75, 119, 120, 149, 150, 300 };
-        for (int t : times) {
-            MatchPhase phase = MatchPhase.phaseAt(t);
-            System.out.println(t + " -> " + phase.name() + " | " + phase.shortStatus(t));
-        }
-
-        System.out.println("AUTO contains 14: " + MatchPhase.AUTO.contains(14));
-        System.out.println("AUTO contains 15: " + MatchPhase.AUTO.contains(15));
-        System.out.println("ENDGAME scaling: " + MatchPhase.ENDGAME.maxDriveScaling);
-
-        try {
-            MatchPhase.phaseAt(-1);
-            System.out.println("negative rejected: false");
-        } catch (IllegalArgumentException e) {
-            System.out.println("negative rejected: true");
-        }
+  // Leave main as it is. Fill in the enum above.
+  public static void main(String[] args) {
+    for (MatchPhase phase : MatchPhase.values()) {
+      System.out.printf(
+          "%-10s %6d %8d %5.2f%n",
+          phase.label, phase.startSeconds, phase.endSecondsExclusive, phase.maxDriveScaling);
     }
+
+    int[] times = {0, 14, 15, 75, 119, 120, 149, 150, 300};
+    for (int t : times) {
+      MatchPhase phase = MatchPhase.phaseAt(t);
+      System.out.println(t + " -> " + phase.name() + " | " + phase.shortStatus(t));
+    }
+
+    System.out.println("AUTO contains 14: " + MatchPhase.AUTO.contains(14));
+    System.out.println("AUTO contains 15: " + MatchPhase.AUTO.contains(15));
+    System.out.println("ENDGAME scaling: " + MatchPhase.ENDGAME.maxDriveScaling);
+
+    try {
+      MatchPhase.phaseAt(-1);
+      System.out.println("negative rejected: false");
+    } catch (IllegalArgumentException e) {
+      System.out.println("negative rejected: true");
+    }
+  }
 }
 `;
 
@@ -363,93 +400,104 @@ const A16_STARTER = `// Author:
 // What this program does:
 
 abstract class Subsystem {
-    protected final String name;
-    protected boolean enabled = true;
+  protected final String name;
+  protected boolean enabled = true;
 
-    protected Subsystem(String name) {
-        this.name = name;
-    }
+  protected Subsystem(String name) {
+    this.name = name;
+  }
 
-    public String getName() { return name; }
-    public boolean isEnabled() { return enabled; }
-    public void enable() { enabled = true; }
-    public void disable() { enabled = false; }
+  public String getName() {
+    return name;
+  }
 
-    /** Run one tick of work. Each subsystem decides what that means. */
-    public abstract String performStep();
+  public boolean isEnabled() {
+    return enabled;
+  }
 
-    @Override
-    public String toString() {
-        return name + (enabled ? " [ON]" : " [OFF]");
-    }
+  public void enable() {
+    enabled = true;
+  }
+
+  public void disable() {
+    enabled = false;
+  }
+
+  /** Run one tick of work. Each subsystem decides what that means. */
+  public abstract String performStep();
+
+  @Override
+  public String toString() {
+    return name + (enabled ? " [ON]" : " [OFF]");
+  }
 }
 
 // TODO Drivetrain: double leftPower, rightPower.
 //      Enabled -> "Drivetrain: L=0.50 R=0.50"; disabled -> "Drivetrain: idle"
 class Drivetrain extends Subsystem {
-    Drivetrain(String name, double leftPower, double rightPower) {
-        super(name);
-    }
+  Drivetrain(String name, double leftPower, double rightPower) {
+    super(name);
+  }
 
-    @Override
-    public String performStep() {
-        return "TODO";
-    }
+  @Override
+  public String performStep() {
+    return "TODO";
+  }
 }
 
 // TODO Intake: boolean gateOpen. Enabled -> toggle, then
 //      "Intake: gate -> open" or "Intake: gate -> closed"; disabled -> "Intake: idle"
 class Intake extends Subsystem {
-    Intake(String name, boolean gateOpen) {
-        super(name);
-    }
+  Intake(String name, boolean gateOpen) {
+    super(name);
+  }
 
-    @Override
-    public String performStep() {
-        return "TODO";
-    }
+  @Override
+  public String performStep() {
+    return "TODO";
+  }
 }
 
 // TODO Shooter: int targetRPM, currentRPM. Enabled -> move currentRPM toward
 //      targetRPM by at most 500, then "Shooter: 1500 -> 2000"; disabled -> "Shooter: idle"
 class Shooter extends Subsystem {
-    Shooter(String name, int targetRPM, int currentRPM) {
-        super(name);
-    }
+  Shooter(String name, int targetRPM, int currentRPM) {
+    super(name);
+  }
 
-    @Override
-    public String performStep() {
-        return "TODO";
-    }
+  @Override
+  public String performStep() {
+    return "TODO";
+  }
 }
 
 public class RobotLoop {
-    // Leave main as it is. Implement the three subclasses above.
-    public static void main(String[] args) {
-        Subsystem[] subs = {
-            new Drivetrain("Drivetrain", 0.5, 0.5),
-            new Intake("Intake", false),
-            new Shooter("Shooter", 3000, 1500),
-        };
+  // Leave main as it is. Implement the three subclasses above.
+  public static void main(String[] args) {
+    Subsystem[] subs = {
+      new Drivetrain("Drivetrain", 0.5, 0.5),
+      new Intake("Intake", false),
+      new Shooter("Shooter", 3000, 1500),
+    };
 
-        for (int tick = 1; tick <= 5; tick++) {
-            System.out.println("--- Tick " + tick + " ---");
-            for (Subsystem s : subs) {
-                System.out.println(s.performStep());
-            }
-            if (tick == 2) {
-                subs[1].disable();
-            }
-            if (tick == 4) {
-                subs[1].enable();
-                subs[0].disable();
-            }
-        }
-
-        for (Subsystem s : subs) {
-            System.out.println(s.toString());
-        }
+    for (int tick = 1; tick <= 5; tick++) {
+      System.out.println("--- Tick " + tick + " ---");
+      for (Subsystem s : subs) {
+        System.out.println(s.performStep());
+      }
+      if (tick == 2) {
+        subs[1].disable();
+      }
+      if (tick == 4) {
+        subs[1].enable();
+        subs[0].disable();
+      }
     }
+
+    for (Subsystem s : subs) {
+      System.out.println(s.toString());
+    }
+  }
 }
 `;
 
@@ -556,9 +604,10 @@ toString reading Battery[serial=ABC123, restingV=12.50]. There are no setters: o
 a Battery exists its values are locked.
 
 Then give Robot a private final Battery field, take it as a fifth constructor
-argument, reject null, add getBattery(), and include the battery in toString. Add no
-setBattery — the field is final. The two-argument constructor supplies a default
-battery of your choosing.
+argument, reject null, and add getBattery(). Add no setBattery — the field is final.
+Robot's toString adds the battery as a fifth item, with no label:
+Robot[name=Titan, team=1234, maxSpeed=4.5 m/s, weight=120 lb, Battery[serial=ABC123, restingV=12.50]]
+The two-argument constructor supplies a default battery of your choosing.
 
 main is written for you — leave it alone.`,
     starter: A14_STARTER,
@@ -688,8 +737,8 @@ it while disabling the drivetrain. Leave main alone.`,
     showStdin: false,
     prompt: `Separate what the hardware can do from how it does it.
 
-The full assignment lets you pick a mechanism. In the browser it is pinned to a
-climber so the checks have something fixed to call; locally, pick your own.
+Build this climber in the browser and in your local files; the checks call its
+fixed method names. Designing an interface for another mechanism is extension work.
 
     interface ClimberIO     setVoltage, getPositionMeters, getCurrentAmps,
                             isAtHardLimit — signatures only, no fields, no logic
@@ -703,67 +752,93 @@ climber so the checks have something fixed to call; locally, pick your own.
                             one. climb(volts) sets 0.0 instead when at the limit.
 
 main runs the same five ticks through both implementations. Leave it alone.`,
-    starter: `// Author:
+    starter: `import java.util.Locale;
+
+// Author:
 // Date:
 // What this program does:
 
 // TODO the contract: four method signatures, nothing else
 interface ClimberIO {
-    void setVoltage(double volts);
-    double getPositionMeters();
-    double getCurrentAmps();
-    boolean isAtHardLimit();
+  void setVoltage(double volts);
+
+  double getPositionMeters();
+
+  double getCurrentAmps();
+
+  boolean isAtHardLimit();
 }
 
 // TODO prints what it would do, stores the voltage, reports flat readings
 class ClimberIOMock implements ClimberIO {
-    public void setVoltage(double volts) { }
-    public double getPositionMeters() { return 0.0; }
-    public double getCurrentAmps() { return 0.0; }
-    public boolean isAtHardLimit() { return false; }
+  public void setVoltage(double volts) {}
+
+  public double getPositionMeters() {
+    return 0.0;
+  }
+
+  public double getCurrentAmps() {
+    return 0.0;
+  }
+
+  public boolean isAtHardLimit() {
+    return false;
+  }
 }
 
 // TODO integrates position from voltage and stops at the hard limit
 class ClimberIOSim implements ClimberIO {
-    public void setVoltage(double volts) { }
-    public double getPositionMeters() { return 0.0; }
-    public double getCurrentAmps() { return 0.0; }
-    public boolean isAtHardLimit() { return false; }
+  public void setVoltage(double volts) {}
+
+  public double getPositionMeters() {
+    return 0.0;
+  }
+
+  public double getCurrentAmps() {
+    return 0.0;
+  }
+
+  public boolean isAtHardLimit() {
+    return false;
+  }
 }
 
 class Climber {
-    private final ClimberIO io;
+  private final ClimberIO io;
 
-    Climber(ClimberIO io) {
-        this.io = io;
-    }
+  Climber(ClimberIO io) {
+    this.io = io;
+  }
 
-    // TODO set 0.0 when already at the hard limit, otherwise the requested volts
-    void climb(double volts) {
-    }
+  // TODO set 0.0 when already at the hard limit, otherwise the requested volts
+  void climb(double volts) {}
 
-    String status() {
-        return String.format("pos=%.3f m amps=%.1f limit=%s",
-            io.getPositionMeters(), io.getCurrentAmps(), io.isAtHardLimit());
-    }
+  String status() {
+    return String.format(
+        Locale.ROOT,
+        "pos=%.3f m amps=%.1f limit=%s",
+        io.getPositionMeters(),
+        io.getCurrentAmps(),
+        io.isAtHardLimit());
+  }
 }
 
 public class ClimberDemo {
-    // Leave main as it is. Implement the two IO classes and Climber.climb above.
-    public static void main(String[] args) {
-        System.out.println("== mock ==");
-        run(new Climber(new ClimberIOMock()));
+  // Leave main as it is. Implement the two IO classes and Climber.climb above.
+  public static void main(String[] args) {
+    System.out.println("== mock ==");
+    run(new Climber(new ClimberIOMock()));
 
-        System.out.println("== sim ==");
-        run(new Climber(new ClimberIOSim()));
-    }
+    System.out.println("== sim ==");
+    run(new Climber(new ClimberIOSim()));
+  }
 
-    static void run(Climber climber) {
-        for (int tick = 1; tick <= 5; tick++) {
-            climber.climb(6.0);
-            System.out.println("tick " + tick + ": " + climber.status());
-        }
+  static void run(Climber climber) {
+    for (int tick = 1; tick <= 5; tick++) {
+      climber.climb(6.0);
+      System.out.println("tick " + tick + ": " + climber.status());
     }
+  }
 }
 `,
     tests: [
@@ -823,121 +898,117 @@ component to normalise it before it is stored. main is written for you.`,
 // What this program does:
 
 record VisionResult(
-    long timestampMs,
-    double xMeters,
-    double yMeters,
-    double areaSqPixels,
-    double confidence
-) implements Comparable<VisionResult> {
+    long timestampMs, double xMeters, double yMeters, double areaSqPixels, double confidence)
+    implements Comparable<VisionResult> {
 
-    // TODO compact constructor: reject a negative timestampMs, a confidence
-    //      outside [0.0, 1.0], and a negative areaSqPixels
+  // TODO compact constructor: reject a negative timestampMs, a confidence
+  //      outside [0.0, 1.0], and a negative areaSqPixels
 
-    // TODO compareTo: timestampMs ascending
-    public int compareTo(VisionResult other) {
-        return 0;
-    }
+  // TODO compareTo: timestampMs ascending
+  public int compareTo(VisionResult other) {
+    return 0;
+  }
 
-    // TODO count the results no more than maxAgeMs older than now
-    static int recent(VisionResult[] results, long maxAgeMs, long now) {
-        return 0;
-    }
+  // TODO count the results no more than maxAgeMs older than now
+  static int recent(VisionResult[] results, long maxAgeMs, long now) {
+    return 0;
+  }
 }
 
 record Setpoint(String name, double valueMeters, double toleranceMeters) {
 
-    // TODO compact constructor: trim the name, reject blank, reject a negative
-    //      tolerance. A compact constructor may reassign a component to normalise it.
+  // TODO compact constructor: trim the name, reject blank, reject a negative
+  //      tolerance. A compact constructor may reassign a component to normalise it.
 
-    // TODO true when current is within toleranceMeters of valueMeters
-    boolean isReached(double currentMeters) {
-        return false;
-    }
+  // TODO true when current is within toleranceMeters of valueMeters
+  boolean isReached(double currentMeters) {
+    return false;
+  }
 }
 
 public class RecordsTester {
-    // Leave main as it is. Implement the two records above.
-    public static void main(String[] args) {
-        long now = 10_000;
-        VisionResult[] results = {
-            new VisionResult(9_800, 1.5, 0.4, 220.0, 0.91),
-            new VisionResult(9_100, 1.2, 0.5, 180.0, 0.62),
-            new VisionResult(9_950, 1.6, 0.3, 240.0, 0.97),
-            new VisionResult(8_400, 0.9, 0.7, 140.0, 0.35),
-            new VisionResult(9_600, 1.4, 0.4, 205.0, 0.88),
-        };
+  // Leave main as it is. Implement the two records above.
+  public static void main(String[] args) {
+    long now = 10_000;
+    VisionResult[] results = {
+      new VisionResult(9_800, 1.5, 0.4, 220.0, 0.91),
+      new VisionResult(9_100, 1.2, 0.5, 180.0, 0.62),
+      new VisionResult(9_950, 1.6, 0.3, 240.0, 0.97),
+      new VisionResult(8_400, 0.9, 0.7, 140.0, 0.35),
+      new VisionResult(9_600, 1.4, 0.4, 205.0, 0.88),
+    };
 
-        Arrays.sort(results);
-        for (VisionResult r : results) {
-            System.out.println(r);
-        }
-
-        System.out.println("recent within 500ms: " + VisionResult.recent(results, 500, now));
-        System.out.println("recent within 2000ms: " + VisionResult.recent(results, 2000, now));
-
-        System.out.println("equal by value: "
-            + new VisionResult(9_100, 1.2, 0.5, 180.0, 0.62).equals(results[1]));
-        System.out.println("accessor: " + results[0].timestampMs() + " " + results[0].confidence());
-
-        Setpoint low = new Setpoint("  LOW  ", 0.20, 0.02);
-        Setpoint mid = new Setpoint("MID", 0.85, 0.02);
-        Setpoint high = new Setpoint("HIGH", 1.50, 0.05);
-        System.out.println(low);
-        System.out.println(mid);
-        System.out.println(high);
-
-        for (double current : new double[] { 0.19, 0.85, 1.40, 1.52 }) {
-            StringBuilder reached = new StringBuilder();
-            for (Setpoint s : new Setpoint[] { low, mid, high }) {
-                if (s.isReached(current)) {
-                    if (reached.length() > 0) reached.append(",");
-                    reached.append(s.name());
-                }
-            }
-            System.out.println(current + " reaches [" + reached + "]");
-        }
-
-        System.out.println("confidence 1.5 rejected: " + rejectsConfidence(1.5));
-        System.out.println("negative timestamp rejected: " + rejectsTimestamp(-1));
-        System.out.println("blank setpoint name rejected: " + rejectsName(" "));
-        System.out.println("negative tolerance rejected: " + rejectsTolerance(-0.1));
+    Arrays.sort(results);
+    for (VisionResult r : results) {
+      System.out.println(r);
     }
 
-    static boolean rejectsConfidence(double c) {
-        try {
-            new VisionResult(1, 0, 0, 1, c);
-            return false;
-        } catch (IllegalArgumentException e) {
-            return true;
+    System.out.println("recent within 500ms: " + VisionResult.recent(results, 500, now));
+    System.out.println("recent within 2000ms: " + VisionResult.recent(results, 2000, now));
+
+    System.out.println(
+        "equal by value: " + new VisionResult(9_100, 1.2, 0.5, 180.0, 0.62).equals(results[1]));
+    System.out.println("accessor: " + results[0].timestampMs() + " " + results[0].confidence());
+
+    Setpoint low = new Setpoint("  LOW  ", 0.20, 0.02);
+    Setpoint mid = new Setpoint("MID", 0.85, 0.02);
+    Setpoint high = new Setpoint("HIGH", 1.50, 0.05);
+    System.out.println(low);
+    System.out.println(mid);
+    System.out.println(high);
+
+    for (double current : new double[] {0.19, 0.85, 1.40, 1.52}) {
+      StringBuilder reached = new StringBuilder();
+      for (Setpoint s : new Setpoint[] {low, mid, high}) {
+        if (s.isReached(current)) {
+          if (reached.length() > 0) reached.append(",");
+          reached.append(s.name());
         }
+      }
+      System.out.println(current + " reaches [" + reached + "]");
     }
 
-    static boolean rejectsTimestamp(long t) {
-        try {
-            new VisionResult(t, 0, 0, 1, 0.5);
-            return false;
-        } catch (IllegalArgumentException e) {
-            return true;
-        }
-    }
+    System.out.println("confidence 1.5 rejected: " + rejectsConfidence(1.5));
+    System.out.println("negative timestamp rejected: " + rejectsTimestamp(-1));
+    System.out.println("blank setpoint name rejected: " + rejectsName(" "));
+    System.out.println("negative tolerance rejected: " + rejectsTolerance(-0.1));
+  }
 
-    static boolean rejectsName(String n) {
-        try {
-            new Setpoint(n, 1.0, 0.1);
-            return false;
-        } catch (IllegalArgumentException e) {
-            return true;
-        }
+  static boolean rejectsConfidence(double c) {
+    try {
+      new VisionResult(1, 0, 0, 1, c);
+      return false;
+    } catch (IllegalArgumentException e) {
+      return true;
     }
+  }
 
-    static boolean rejectsTolerance(double t) {
-        try {
-            new Setpoint("X", 1.0, t);
-            return false;
-        } catch (IllegalArgumentException e) {
-            return true;
-        }
+  static boolean rejectsTimestamp(long t) {
+    try {
+      new VisionResult(t, 0, 0, 1, 0.5);
+      return false;
+    } catch (IllegalArgumentException e) {
+      return true;
     }
+  }
+
+  static boolean rejectsName(String n) {
+    try {
+      new Setpoint(n, 1.0, 0.1);
+      return false;
+    } catch (IllegalArgumentException e) {
+      return true;
+    }
+  }
+
+  static boolean rejectsTolerance(double t) {
+    try {
+      new Setpoint("X", 1.0, t);
+      return false;
+    } catch (IllegalArgumentException e) {
+      return true;
+    }
+  }
 }
 `,
     tests: [
@@ -1008,117 +1079,156 @@ import java.util.Comparator;
 // What this program does:
 
 class TeamEntry implements Comparable<TeamEntry> {
-    private final int teamNumber;
-    private final String teamName;
-    private final double averagePoints;
-    private final double climbRate;
-    private final int matchesObserved;
+  private final int teamNumber;
+  private final String teamName;
+  private final double averagePoints;
+  private final double climbRate;
+  private final int matchesObserved;
 
-    TeamEntry(int teamNumber, String teamName, double averagePoints, double climbRate, int matchesObserved) {
-        // TODO validate teamNumber, climbRate and matchesObserved
-        this.teamNumber = teamNumber;
-        this.teamName = teamName;
-        this.averagePoints = averagePoints;
-        this.climbRate = climbRate;
-        this.matchesObserved = matchesObserved;
-    }
+  TeamEntry(
+      int teamNumber,
+      String teamName,
+      double averagePoints,
+      double climbRate,
+      int matchesObserved) {
+    // TODO validate teamNumber, climbRate and matchesObserved
+    this.teamNumber = teamNumber;
+    this.teamName = teamName;
+    this.averagePoints = averagePoints;
+    this.climbRate = climbRate;
+    this.matchesObserved = matchesObserved;
+  }
 
-    int teamNumber() { return teamNumber; }
-    String teamName() { return teamName; }
-    double averagePoints() { return averagePoints; }
-    double climbRate() { return climbRate; }
-    int matchesObserved() { return matchesObserved; }
+  int teamNumber() {
+    return teamNumber;
+  }
 
-    // TODO averagePoints + climbRate * 25.0
-    static double pickScore(TeamEntry t) {
-        return 0.0;
-    }
+  String teamName() {
+    return teamName;
+  }
 
-    // TODO natural order is team number ascending
-    public int compareTo(TeamEntry other) {
-        return 0;
-    }
+  double averagePoints() {
+    return averagePoints;
+  }
 
-    @Override
-    public String toString() {
-        return String.format("%d %s avg=%.1f climb=%.2f", teamNumber, teamName, averagePoints, climbRate);
-    }
+  double climbRate() {
+    return climbRate;
+  }
+
+  int matchesObserved() {
+    return matchesObserved;
+  }
+
+  // TODO averagePoints + climbRate * 25.0
+  static double pickScore(TeamEntry t) {
+    return 0.0;
+  }
+
+  // TODO natural order is team number ascending
+  public int compareTo(TeamEntry other) {
+    return 0;
+  }
+
+  @Override
+  public String toString() {
+    return String.format(
+        "%d %s avg=%.1f climb=%.2f", teamNumber, teamName, averagePoints, climbRate);
+  }
 }
 
 public class RosterSorter {
-    // Leave main as it is. Implement TeamEntry above.
-    public static void main(String[] args) {
-        TeamEntry[] roster = {
-            new TeamEntry(4451, "Bearcat", 42.0, 0.50, 9),
-            new TeamEntry(1234, "Titan", 55.5, 0.25, 10),
-            new TeamEntry(9999, "Comet", 38.0, 0.50, 8),
-            new TeamEntry(2056, "Orbit", 61.0, 0.90, 11),
-            new TeamEntry(3007, "Anvil", 47.5, 0.10, 7),
-            new TeamEntry(118, "Robonauts", 58.0, 0.75, 12),
-        };
+  // Leave main as it is. Implement TeamEntry above.
+  public static void main(String[] args) {
+    TeamEntry[] roster = {
+      new TeamEntry(4451, "Bearcat", 42.0, 0.50, 9),
+      new TeamEntry(1234, "Titan", 55.5, 0.25, 10),
+      new TeamEntry(9999, "Comet", 38.0, 0.50, 8),
+      new TeamEntry(2056, "Orbit", 61.0, 0.90, 11),
+      new TeamEntry(3007, "Anvil", 47.5, 0.10, 7),
+      new TeamEntry(118, "Robonauts", 58.0, 0.75, 12),
+    };
 
-        print("by team number", sortedCopy(roster, null));
-        print("by average points desc", sortedCopy(roster, new Comparator<TeamEntry>() {
-            @Override public int compare(TeamEntry a, TeamEntry b) {
+    print("by team number", sortedCopy(roster, null));
+    print(
+        "by average points desc",
+        sortedCopy(
+            roster,
+            new Comparator<TeamEntry>() {
+              @Override
+              public int compare(TeamEntry a, TeamEntry b) {
                 return Double.compare(b.averagePoints(), a.averagePoints());
-            }
-        }));
-        print("by climb rate desc", sortedCopy(roster, new Comparator<TeamEntry>() {
-            @Override public int compare(TeamEntry a, TeamEntry b) {
+              }
+            }));
+    print(
+        "by climb rate desc",
+        sortedCopy(
+            roster,
+            new Comparator<TeamEntry>() {
+              @Override
+              public int compare(TeamEntry a, TeamEntry b) {
                 return Double.compare(b.climbRate(), a.climbRate());
-            }
-        }));
-        print("by pick score desc, team asc", sortedCopy(roster, new Comparator<TeamEntry>() {
-            @Override public int compare(TeamEntry a, TeamEntry b) {
+              }
+            }));
+    print(
+        "by pick score desc, team asc",
+        sortedCopy(
+            roster,
+            new Comparator<TeamEntry>() {
+              @Override
+              public int compare(TeamEntry a, TeamEntry b) {
                 int byScore = Double.compare(TeamEntry.pickScore(b), TeamEntry.pickScore(a));
                 return byScore != 0 ? byScore : Integer.compare(a.teamNumber(), b.teamNumber());
-            }
-        }));
+              }
+            }));
 
-        TeamEntry[] byClimb = sortedCopy(roster, new Comparator<TeamEntry>() {
-            @Override public int compare(TeamEntry a, TeamEntry b) {
+    TeamEntry[] byClimb =
+        sortedCopy(
+            roster,
+            new Comparator<TeamEntry>() {
+              @Override
+              public int compare(TeamEntry a, TeamEntry b) {
                 return Double.compare(b.climbRate(), a.climbRate());
-            }
-        });
-        StringBuilder tied = new StringBuilder();
-        for (TeamEntry t : byClimb) {
-            if (t.climbRate() == 0.50) {
-                if (tied.length() > 0) tied.append(",");
-                tied.append(t.teamNumber());
-            }
-        }
-        System.out.println("stable tie order: " + tied);
-
-        System.out.println("bad team rejected: " + rejects(0, 0.5, 1));
-        System.out.println("bad climb rejected: " + rejects(1234, 1.5, 1));
-        System.out.println("bad matches rejected: " + rejects(1234, 0.5, -1));
+              }
+            });
+    StringBuilder tied = new StringBuilder();
+    for (TeamEntry t : byClimb) {
+      if (t.climbRate() == 0.50) {
+        if (tied.length() > 0) tied.append(",");
+        tied.append(t.teamNumber());
+      }
     }
+    System.out.println("stable tie order: " + tied);
 
-    static TeamEntry[] sortedCopy(TeamEntry[] roster, Comparator<TeamEntry> order) {
-        TeamEntry[] copy = Arrays.copyOf(roster, roster.length);
-        if (order == null) {
-            Arrays.sort(copy);
-        } else {
-            Arrays.sort(copy, order);
-        }
-        return copy;
-    }
+    System.out.println("bad team rejected: " + rejects(0, 0.5, 1));
+    System.out.println("bad climb rejected: " + rejects(1234, 1.5, 1));
+    System.out.println("bad matches rejected: " + rejects(1234, 0.5, -1));
+  }
 
-    static void print(String header, TeamEntry[] entries) {
-        System.out.println("-- " + header + " --");
-        for (TeamEntry t : entries) {
-            System.out.println("  " + t);
-        }
+  static TeamEntry[] sortedCopy(TeamEntry[] roster, Comparator<TeamEntry> order) {
+    TeamEntry[] copy = Arrays.copyOf(roster, roster.length);
+    if (order == null) {
+      Arrays.sort(copy);
+    } else {
+      Arrays.sort(copy, order);
     }
+    return copy;
+  }
 
-    static boolean rejects(int team, double climb, int matches) {
-        try {
-            new TeamEntry(team, "X", 10.0, climb, matches);
-            return false;
-        } catch (IllegalArgumentException e) {
-            return true;
-        }
+  static void print(String header, TeamEntry[] entries) {
+    System.out.println("-- " + header + " --");
+    for (TeamEntry t : entries) {
+      System.out.println("  " + t);
     }
+  }
+
+  static boolean rejects(int team, double climb, int matches) {
+    try {
+      new TeamEntry(team, "X", 10.0, climb, matches);
+      return false;
+    } catch (IllegalArgumentException e) {
+      return true;
+    }
+  }
 }
 `,
     tests: [
@@ -1183,69 +1293,76 @@ import java.util.Map;
 // What this program does:
 
 class Config {
-    private final double maxDriveSpeed;
-    private final double maxAccel;
-    private final int intakeRPM;
-    private final int shooterTargetRPM;
-    private final boolean climberEnabled;
-    private final int teamNumber;
+  private final double maxDriveSpeed;
+  private final double maxAccel;
+  private final int intakeRPM;
+  private final int shooterTargetRPM;
+  private final boolean climberEnabled;
+  private final int teamNumber;
 
-    Config(double maxDriveSpeed, double maxAccel, int intakeRPM,
-           int shooterTargetRPM, boolean climberEnabled, int teamNumber) {
-        // TODO validate each value, naming the bad key in the message
-        this.maxDriveSpeed = maxDriveSpeed;
-        this.maxAccel = maxAccel;
-        this.intakeRPM = intakeRPM;
-        this.shooterTargetRPM = shooterTargetRPM;
-        this.climberEnabled = climberEnabled;
-        this.teamNumber = teamNumber;
-    }
+  Config(
+      double maxDriveSpeed,
+      double maxAccel,
+      int intakeRPM,
+      int shooterTargetRPM,
+      boolean climberEnabled,
+      int teamNumber) {
+    // TODO validate each value, naming the bad key in the message
+    this.maxDriveSpeed = maxDriveSpeed;
+    this.maxAccel = maxAccel;
+    this.intakeRPM = intakeRPM;
+    this.shooterTargetRPM = shooterTargetRPM;
+    this.climberEnabled = climberEnabled;
+    this.teamNumber = teamNumber;
+  }
 
-    @Override
-    public String toString() {
-        return String.format("Config[drive=%.2f accel=%.1f intake=%d shooter=%d climber=%s team=%d]",
-            maxDriveSpeed, maxAccel, intakeRPM, shooterTargetRPM, climberEnabled, teamNumber);
-    }
+  @Override
+  public String toString() {
+    return String.format(
+        "Config[drive=%.2f accel=%.1f intake=%d shooter=%d climber=%s team=%d]",
+        maxDriveSpeed, maxAccel, intakeRPM, shooterTargetRPM, climberEnabled, teamNumber);
+  }
 }
 
 public class ConfigLoader {
 
-    // TODO read the file with try-with-resources, skip blanks and # comments,
-    //      split each line on the first =, then build a Config
-    static Config load(String path) throws IOException {
-        Map<String, String> values = new HashMap<String, String>();
-        try (BufferedReader in = new BufferedReader(new FileReader(path))) {
-            String line;
-            while ((line = in.readLine()) != null) {
-                // TODO
-            }
-        }
-        return new Config(0.0, 1.0, 0, 0, false, 1);
+  // TODO read the file with try-with-resources, skip blanks and # comments,
+  //      split each line on the first =, then build a Config
+  static Config load(String path) throws IOException {
+    Map<String, String> values = new HashMap<String, String>();
+    try (BufferedReader in = new BufferedReader(new FileReader(path))) {
+      String line;
+      while ((line = in.readLine()) != null) {
+        // TODO
+      }
     }
+    return new Config(0.0, 1.0, 0, 0, false, 1);
+  }
 
-    // ---- Leave everything below as it is. ----
+  // ---- Leave everything below as it is. ----
 
-    /** A directory that is writable both locally and in the in-page editor. */
-    static String dataDir() {
-        String[] candidates = { "/files", System.getProperty("java.io.tmpdir"), "." };
-        for (String c : candidates) {
-            if (c == null) continue;
-            File dir = new File(c);
-            if (dir.isDirectory() && dir.canWrite()) return dir.getPath();
-        }
-        return ".";
+  /** A directory that is writable both locally and in the in-page editor. */
+  static String dataDir() {
+    String[] candidates = {"/files", System.getProperty("java.io.tmpdir"), "."};
+    for (String c : candidates) {
+      if (c == null) continue;
+      File dir = new File(c);
+      if (dir.isDirectory() && dir.canWrite()) return dir.getPath();
     }
+    return ".";
+  }
 
-    static void write(String path, String body) throws IOException {
-        try (PrintWriter out = new PrintWriter(new FileWriter(path))) {
-            out.print(body);
-        }
+  static void write(String path, String body) throws IOException {
+    try (PrintWriter out = new PrintWriter(new FileWriter(path))) {
+      out.print(body);
     }
+  }
 
-    public static void main(String[] args) throws IOException {
-        String good = new File(dataDir(), "constants.txt").getPath();
-        write(good,
-            "# practice bot\\n"
+  public static void main(String[] args) throws IOException {
+    String good = new File(dataDir(), "constants.txt").getPath();
+    write(
+        good,
+        "# practice bot\\n"
             + "maxDriveSpeed = 0.85\\n"
             + "\\n"
             + "maxAccel = 2.5\\n"
@@ -1254,64 +1371,64 @@ public class ConfigLoader {
             + "shooterTargetRPM = 4500\\n"
             + "climberEnabled = TRUE\\n"
             + "teamNumber = 1234\\n");
-        System.out.println("loaded: " + load(good));
+    System.out.println("loaded: " + load(good));
 
-        System.out.println("out of range rejected: " + rejects(good, "maxDriveSpeed = 1.5"));
-        System.out.println("zero accel rejected: " + rejects(good, "maxAccel = 0"));
-        System.out.println("bad number rejected: " + rejects(good, "intakeRPM = fast"));
-        System.out.println("bad boolean rejected: " + rejects(good, "climberEnabled = maybe"));
-        System.out.println("missing key rejected: " + rejectsMissing(good));
-        System.out.println("missing file throws IOException: " + rejectsMissingFile());
-    }
+    System.out.println("out of range rejected: " + rejects(good, "maxDriveSpeed = 1.5"));
+    System.out.println("zero accel rejected: " + rejects(good, "maxAccel = 0"));
+    System.out.println("bad number rejected: " + rejects(good, "intakeRPM = fast"));
+    System.out.println("bad boolean rejected: " + rejects(good, "climberEnabled = maybe"));
+    System.out.println("missing key rejected: " + rejectsMissing(good));
+    System.out.println("missing file throws IOException: " + rejectsMissingFile());
+  }
 
-    static boolean rejects(String path, String replacement) throws IOException {
-        String key = replacement.substring(0, replacement.indexOf('=')).trim();
-        StringBuilder body = new StringBuilder();
-        for (String line : baseLines()) {
-            body.append(line.trim().startsWith(key) ? replacement : line).append('\\n');
-        }
-        write(path, body.toString());
-        try {
-            load(path);
-            return false;
-        } catch (IllegalArgumentException e) {
-            return true;
-        }
+  static boolean rejects(String path, String replacement) throws IOException {
+    String key = replacement.substring(0, replacement.indexOf('=')).trim();
+    StringBuilder body = new StringBuilder();
+    for (String line : baseLines()) {
+      body.append(line.trim().startsWith(key) ? replacement : line).append('\\n');
     }
+    write(path, body.toString());
+    try {
+      load(path);
+      return false;
+    } catch (IllegalArgumentException e) {
+      return true;
+    }
+  }
 
-    static boolean rejectsMissing(String path) throws IOException {
-        StringBuilder body = new StringBuilder();
-        for (String line : baseLines()) {
-            if (!line.trim().startsWith("teamNumber")) body.append(line).append('\\n');
-        }
-        write(path, body.toString());
-        try {
-            load(path);
-            return false;
-        } catch (IllegalArgumentException e) {
-            return true;
-        }
+  static boolean rejectsMissing(String path) throws IOException {
+    StringBuilder body = new StringBuilder();
+    for (String line : baseLines()) {
+      if (!line.trim().startsWith("teamNumber")) body.append(line).append('\\n');
     }
+    write(path, body.toString());
+    try {
+      load(path);
+      return false;
+    } catch (IllegalArgumentException e) {
+      return true;
+    }
+  }
 
-    static boolean rejectsMissingFile() {
-        try {
-            load(new File(dataDir(), "definitely-not-here.txt").getPath());
-            return false;
-        } catch (IOException e) {
-            return true;
-        }
+  static boolean rejectsMissingFile() {
+    try {
+      load(new File(dataDir(), "definitely-not-here.txt").getPath());
+      return false;
+    } catch (IOException e) {
+      return true;
     }
+  }
 
-    static String[] baseLines() {
-        return new String[] {
-            "maxDriveSpeed = 0.85",
-            "maxAccel = 2.5",
-            "intakeRPM = 1800",
-            "shooterTargetRPM = 4500",
-            "climberEnabled = true",
-            "teamNumber = 1234",
-        };
-    }
+  static String[] baseLines() {
+    return new String[] {
+      "maxDriveSpeed = 0.85",
+      "maxAccel = 2.5",
+      "intakeRPM = 1800",
+      "shooterTargetRPM = 4500",
+      "climberEnabled = true",
+      "teamNumber = 1234",
+    };
+  }
 }
 `,
     tests: [
@@ -1379,111 +1496,141 @@ import java.util.List;
 // What this program does:
 
 class TeamEntry {
-    private final int teamNumber;
-    private final String teamName;
-    private final String drivetrain;
-    private final int avgPoints;
-    private final boolean climbsHigh;
-    private final String notes;
+  private final int teamNumber;
+  private final String teamName;
+  private final String drivetrain;
+  private final int avgPoints;
+  private final boolean climbsHigh;
+  private final String notes;
 
-    TeamEntry(int teamNumber, String teamName, String drivetrain,
-              int avgPoints, boolean climbsHigh, String notes) {
-        // TODO reject negative avgPoints and unknown drivetrain values
-        this.teamNumber = teamNumber;
-        this.teamName = teamName;
-        this.drivetrain = drivetrain;
-        this.avgPoints = avgPoints;
-        this.climbsHigh = climbsHigh;
-        this.notes = notes;
-    }
+  TeamEntry(
+      int teamNumber,
+      String teamName,
+      String drivetrain,
+      int avgPoints,
+      boolean climbsHigh,
+      String notes) {
+    // TODO reject negative avgPoints and unknown drivetrain values
+    this.teamNumber = teamNumber;
+    this.teamName = teamName;
+    this.drivetrain = drivetrain;
+    this.avgPoints = avgPoints;
+    this.climbsHigh = climbsHigh;
+    this.notes = notes;
+  }
 
-    int teamNumber() { return teamNumber; }
-    String teamName() { return teamName; }
-    String drivetrain() { return drivetrain; }
-    int avgPoints() { return avgPoints; }
-    boolean climbsHigh() { return climbsHigh; }
-    String notes() { return notes; }
+  int teamNumber() {
+    return teamNumber;
+  }
 
-    @Override
-    public String toString() {
-        return teamNumber + "|" + teamName + "|" + drivetrain + "|" + avgPoints
-            + "|" + climbsHigh + "|" + notes;
-    }
+  String teamName() {
+    return teamName;
+  }
+
+  String drivetrain() {
+    return drivetrain;
+  }
+
+  int avgPoints() {
+    return avgPoints;
+  }
+
+  boolean climbsHigh() {
+    return climbsHigh;
+  }
+
+  String notes() {
+    return notes;
+  }
+
+  @Override
+  public String toString() {
+    return teamNumber
+        + "|"
+        + teamName
+        + "|"
+        + drivetrain
+        + "|"
+        + avgPoints
+        + "|"
+        + climbsHigh
+        + "|"
+        + notes;
+  }
 }
 
 class CsvIO {
-    static final String HEADER = "teamNumber,teamName,drivetrain,avgPoints,climbsHigh,notes";
+  static final String HEADER = "teamNumber,teamName,drivetrain,avgPoints,climbsHigh,notes";
 
-    // TODO header line, then one line per entry, with notes escaped
-    static void writeAll(String path, TeamEntry[] entries) throws IOException {
-    }
+  // TODO header line, then one line per entry, with notes escaped
+  static void writeAll(String path, TeamEntry[] entries) throws IOException {}
 
-    // TODO quote the value when it holds a comma or a quote, doubling inner quotes
-    static String escape(String value) {
-        return value;
-    }
+  // TODO quote the value when it holds a comma or a quote, doubling inner quotes
+  static String escape(String value) {
+    return value;
+  }
 
-    // TODO skip the header, parse each row, skip malformed rows with a warning
-    static TeamEntry[] readAll(String path) throws IOException {
-        return new TeamEntry[0];
-    }
+  // TODO skip the header, parse each row, skip malformed rows with a warning
+  static TeamEntry[] readAll(String path) throws IOException {
+    return new TeamEntry[0];
+  }
 
-    // TODO split on commas that are not inside quotes
-    static String[] splitCsv(String line) {
-        return line.split(",");
-    }
+  // TODO split on commas that are not inside quotes
+  static String[] splitCsv(String line) {
+    return line.split(",");
+  }
 }
 
 public class RoundTripDemo {
-    // Leave main and dataDir as they are. Implement TeamEntry and CsvIO above.
-    public static void main(String[] args) throws IOException {
-        TeamEntry[] original = {
-            new TeamEntry(1234, "Titan", "SWERVE", 55, true, "fast, but tips on defence"),
-            new TeamEntry(4451, "Bearcat", "TANK", 42, false, "driver said \\"needs practice\\""),
-            new TeamEntry(2056, "Orbit", "SWERVE", 61, true, "clean auto"),
-            new TeamEntry(118, "Robonauts", "MECANUM", 58, true, "climbs, scores, no notes"),
-        };
+  // Leave main and dataDir as they are. Implement TeamEntry and CsvIO above.
+  public static void main(String[] args) throws IOException {
+    TeamEntry[] original = {
+      new TeamEntry(1234, "Titan", "SWERVE", 55, true, "fast, but tips on defence"),
+      new TeamEntry(4451, "Bearcat", "TANK", 42, false, "driver said \\"needs practice\\""),
+      new TeamEntry(2056, "Orbit", "SWERVE", 61, true, "clean auto"),
+      new TeamEntry(118, "Robonauts", "MECANUM", 58, true, "climbs, scores, no notes"),
+    };
 
-        String path = new File(dataDir(), "scouting.csv").getPath();
-        CsvIO.writeAll(path, original);
+    String path = new File(dataDir(), "scouting.csv").getPath();
+    CsvIO.writeAll(path, original);
 
-        TeamEntry[] loaded = CsvIO.readAll(path);
-        System.out.println("round trip count: " + loaded.length);
-        for (TeamEntry t : loaded) {
-            System.out.println("  " + t);
-        }
-
-        boolean identical = original.length == loaded.length;
-        for (int i = 0; identical && i < original.length; i++) {
-            identical = original[i].toString().equals(loaded[i].toString());
-        }
-        System.out.println("identical after round trip: " + identical);
-
-        try (PrintWriter out = new PrintWriter(new FileWriter(path))) {
-            out.println(CsvIO.HEADER);
-            out.println("1234,Titan,SWERVE,55,true,fine");
-            out.println("not,enough");
-            out.println("9999,Comet,HOVERCRAFT,10,false,bad drivetrain");
-            out.println("2056,Orbit,SWERVE,-5,true,negative points");
-            out.println("118,Robonauts,TANK,58,true,also fine");
-        }
-        TeamEntry[] survivors = CsvIO.readAll(path);
-        System.out.println("survivors: " + survivors.length);
-        for (TeamEntry t : survivors) {
-            System.out.println("  " + t.teamNumber() + " " + t.teamName());
-        }
+    TeamEntry[] loaded = CsvIO.readAll(path);
+    System.out.println("round trip count: " + loaded.length);
+    for (TeamEntry t : loaded) {
+      System.out.println("  " + t);
     }
 
-    /** A directory that is writable both locally and in the in-page editor. */
-    static String dataDir() {
-        String[] candidates = { "/files", System.getProperty("java.io.tmpdir"), "." };
-        for (String c : candidates) {
-            if (c == null) continue;
-            File dir = new File(c);
-            if (dir.isDirectory() && dir.canWrite()) return dir.getPath();
-        }
-        return ".";
+    boolean identical = original.length == loaded.length;
+    for (int i = 0; identical && i < original.length; i++) {
+      identical = original[i].toString().equals(loaded[i].toString());
     }
+    System.out.println("identical after round trip: " + identical);
+
+    try (PrintWriter out = new PrintWriter(new FileWriter(path))) {
+      out.println(CsvIO.HEADER);
+      out.println("1234,Titan,SWERVE,55,true,fine");
+      out.println("not,enough");
+      out.println("9999,Comet,HOVERCRAFT,10,false,bad drivetrain");
+      out.println("2056,Orbit,SWERVE,-5,true,negative points");
+      out.println("118,Robonauts,TANK,58,true,also fine");
+    }
+    TeamEntry[] survivors = CsvIO.readAll(path);
+    System.out.println("survivors: " + survivors.length);
+    for (TeamEntry t : survivors) {
+      System.out.println("  " + t.teamNumber() + " " + t.teamName());
+    }
+  }
+
+  /** A directory that is writable both locally and in the in-page editor. */
+  static String dataDir() {
+    String[] candidates = {"/files", System.getProperty("java.io.tmpdir"), "."};
+    for (String c : candidates) {
+      if (c == null) continue;
+      File dir = new File(c);
+      if (dir.isDirectory() && dir.canWrite()) return dir.getPath();
+    }
+    return ".";
+  }
 }
 `,
     tests: [
@@ -1543,80 +1690,92 @@ import java.util.function.DoubleSupplier;
 // What this program does:
 
 class Button {
-    private final BooleanSupplier condition;
+  private final BooleanSupplier condition;
 
-    Button(BooleanSupplier condition) {
-        this.condition = condition;
-    }
+  Button(BooleanSupplier condition) {
+    this.condition = condition;
+  }
 
-    boolean get() { return condition.getAsBoolean(); }
+  boolean get() {
+    return condition.getAsBoolean();
+  }
 
-    // TODO register with the scheduler, then return this so calls chain
-    Button onTrue(Runnable action) {
-        return this;
-    }
+  // TODO register with the scheduler, then return this so calls chain
+  Button onTrue(Runnable action) {
+    return this;
+  }
 
-    Button whileTrue(Runnable action) {
-        return this;
-    }
+  Button whileTrue(Runnable action) {
+    return this;
+  }
 }
 
 class Scheduler {
-    // TODO hold the hooks. Remember each condition's previous value so onTrue
-    //      can tell a rising edge from a held button.
+  // TODO hold the hooks. Remember each condition's previous value so onTrue
+  //      can tell a rising edge from a held button.
 
-    static void registerOnTrue(BooleanSupplier when, Runnable then) {
-    }
+  static void registerOnTrue(BooleanSupplier when, Runnable then) {}
 
-    static void registerWhileTrue(BooleanSupplier when, Runnable then) {
-    }
+  static void registerWhileTrue(BooleanSupplier when, Runnable then) {}
 
-    static void tick() {
-    }
+  static void tick() {}
 }
 
 class Telemetry {
-    // TODO keep labels and their DoubleSuppliers, then print one line per poll:
-    //      telemetry: rpm=500.0
+  // TODO keep labels and their DoubleSuppliers, then print one line per poll:
+  //      telemetry: rpm=500.0
 
-    static void addDouble(String label, DoubleSupplier source) {
-    }
+  static void addDouble(String label, DoubleSupplier source) {}
 
-    static void poll() {
-    }
+  static void poll() {}
 }
 
 public class CommandDemo {
-    // Leave main as it is. Implement Button, Scheduler and Telemetry above.
-    static boolean trigger = false;
-    static double shooterRpm = 0.0;
+  // Leave main as it is. Implement Button, Scheduler and Telemetry above.
+  static boolean trigger = false;
+  static double shooterRpm = 0.0;
 
-    public static void main(String[] args) {
-        new Button(new BooleanSupplier() {
-            @Override public boolean getAsBoolean() { return trigger; }
-        })
-            .onTrue(new Runnable() {
-                @Override public void run() { System.out.println("onTrue: spin up"); }
+  public static void main(String[] args) {
+    new Button(
+            new BooleanSupplier() {
+              @Override
+              public boolean getAsBoolean() {
+                return trigger;
+              }
             })
-            .whileTrue(new Runnable() {
-                @Override public void run() {
-                    shooterRpm += 500;
-                    System.out.println("whileTrue: rpm now " + (int) shooterRpm);
-                }
+        .onTrue(
+            new Runnable() {
+              @Override
+              public void run() {
+                System.out.println("onTrue: spin up");
+              }
+            })
+        .whileTrue(
+            new Runnable() {
+              @Override
+              public void run() {
+                shooterRpm += 500;
+                System.out.println("whileTrue: rpm now " + (int) shooterRpm);
+              }
             });
 
-        Telemetry.addDouble("rpm", new DoubleSupplier() {
-            @Override public double getAsDouble() { return shooterRpm; }
+    Telemetry.addDouble(
+        "rpm",
+        new DoubleSupplier() {
+          @Override
+          public double getAsDouble() {
+            return shooterRpm;
+          }
         });
 
-        boolean[] pressed = { false, true, true, false, true };
-        for (int i = 0; i < pressed.length; i++) {
-            trigger = pressed[i];
-            System.out.println("-- tick " + (i + 1) + " pressed=" + trigger + " --");
-            Scheduler.tick();
-            Telemetry.poll();
-        }
+    boolean[] pressed = {false, true, true, false, true};
+    for (int i = 0; i < pressed.length; i++) {
+      trigger = pressed[i];
+      System.out.println("-- tick " + (i + 1) + " pressed=" + trigger + " --");
+      Scheduler.tick();
+      Telemetry.poll();
     }
+  }
 }
 `,
     tests: [

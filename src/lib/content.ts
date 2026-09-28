@@ -1,5 +1,6 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
 import { javaLessonSlug, type SectionId } from '@/config/navigation';
+import { publishedBadgeData } from '@/lib/badge-publication';
 
 export type LessonEntry = CollectionEntry<'tools' | 'hardware' | 'java' | 'assignments' | 'kit-bot' | 'frc' | 'badges'>;
 
@@ -22,7 +23,10 @@ export interface SidebarItem {
 
 export async function getSectionLessons(section: SectionId): Promise<LessonEntry[]> {
   const lessons = await getCollection(section, ({ data }) => !data.draft);
-  return lessons.sort((a, b) => {
+  return lessons.map((lesson) => ({
+    ...lesson,
+    data: publishedBadgeData(section, lesson.data),
+  })).sort((a, b) => {
     const groupOrder = (a.data.groupOrder ?? 0) - (b.data.groupOrder ?? 0);
     if (groupOrder !== 0) return groupOrder;
     return a.data.order - b.data.order;

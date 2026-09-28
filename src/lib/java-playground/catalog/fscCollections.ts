@@ -50,133 +50,145 @@ import java.util.NoSuchElementException;
 
 class RingBuffer<T> {
 
-    // TODO fields: an Object[] holding the values, plus the index of the oldest
-    //      element and the current count. No shifting, no copying on add.
+  // TODO fields: an Object[] holding the values, plus the index of the oldest
+  //      element and the current count. No shifting, no copying on add.
 
-    RingBuffer(int capacity) {
-        // TODO reject capacity < 1 with IllegalArgumentException
-    }
+  RingBuffer(int capacity) {
+    // TODO reject capacity < 1 with IllegalArgumentException
+  }
 
-    // TODO append; when the buffer is full, overwrite the oldest instead of growing
-    void add(T value) {
-    }
+  // TODO append; when the buffer is full, overwrite the oldest instead of growing
+  void add(T value) {}
 
-    // TODO the oldest element, or NoSuchElementException when empty
-    T oldest() {
-        return null;
-    }
+  // TODO the oldest element, or NoSuchElementException when empty
+  T oldest() {
+    return null;
+  }
 
-    // TODO the newest element, or NoSuchElementException when empty
-    T newest() {
-        return null;
-    }
+  // TODO the newest element, or NoSuchElementException when empty
+  T newest() {
+    return null;
+  }
 
-    int size() {
-        return 0;
-    }
+  int size() {
+    return 0;
+  }
 
-    int capacity() {
-        return 0;
-    }
+  int capacity() {
+    return 0;
+  }
 
-    boolean isEmpty() {
-        return true;
-    }
+  boolean isEmpty() {
+    return true;
+  }
 
-    boolean isFull() {
-        return false;
-    }
+  boolean isFull() {
+    return false;
+  }
 
-    void clear() {
-    }
+  void clear() {}
 
-    // TODO walk oldest -> newest
-    Iterable<T> oldestFirst() {
-        return List.of();
-    }
+  // TODO walk oldest -> newest
+  Iterable<T> oldestFirst() {
+    return List.of();
+  }
 
-    // TODO walk newest -> oldest
-    Iterable<T> newestFirst() {
-        return List.of();
-    }
+  // TODO walk newest -> oldest
+  Iterable<T> newestFirst() {
+    return List.of();
+  }
 
-    // TODO RingBuffer[1.0, 2.0, 3.0] — oldest first, empty prints RingBuffer[]
-    @Override
-    public String toString() {
-        return "TODO";
-    }
+  // TODO RingBuffer[1.0, 2.0, 3.0] — oldest first, empty prints RingBuffer[]
+  @Override
+  public String toString() {
+    return "TODO";
+  }
 }
 
 public class RingBufferDemo {
-    // Leave main as it is. Implement RingBuffer above.
-    public static void main(String[] args) {
-        RingBuffer<Double> volts = new RingBuffer<>(5);
-        for (int i = 1; i <= 7; i++) {
-            double v = i;
-            volts.add(v);
-            System.out.println("add " + v + " -> " + volts + " size=" + volts.size());
-        }
-
-        System.out.println("oldest=" + volts.oldest() + " newest=" + volts.newest());
-
-        StringBuilder forward = new StringBuilder();
-        for (double v : volts.oldestFirst()) {
-            forward.append(v).append(" ");
-        }
-        System.out.println("oldestFirst: " + forward.toString().trim());
-
-        StringBuilder backward = new StringBuilder();
-        for (double v : volts.newestFirst()) {
-            backward.append(v).append(" ");
-        }
-        System.out.println("newestFirst: " + backward.toString().trim());
-
-        System.out.println("full=" + volts.isFull() + " empty=" + volts.isEmpty()
-            + " capacity=" + volts.capacity() + " size=" + volts.size());
-
-        RingBuffer<String> tags = new RingBuffer<>(3);
-        for (String s : new String[] { "a", "b", "c", "d" }) {
-            tags.add(s);
-        }
-        System.out.println("strings: " + tags);
-        System.out.println("strings oldest=" + tags.oldest() + " newest=" + tags.newest());
-
-        volts.clear();
-        System.out.println("after clear: " + volts + " size=" + volts.size()
-            + " empty=" + volts.isEmpty() + " capacity=" + volts.capacity());
-
-        System.out.println("capacity 0 rejected: " + rejectsCapacity(0));
-        System.out.println("capacity -3 rejected: " + rejectsCapacity(-3));
-        System.out.println("empty oldest rejected: " + rejectsEmptyOldest());
-        System.out.println("empty newest rejected: " + rejectsEmptyNewest());
+  // Leave main as it is. Implement RingBuffer above.
+  public static void main(String[] args) {
+    RingBuffer<Double> volts = new RingBuffer<>(5);
+    for (int i = 1; i <= 7; i++) {
+      double v = i;
+      volts.add(v);
+      System.out.println("add " + v + " -> " + volts + " size=" + volts.size());
     }
 
-    static String rejectsCapacity(int capacity) {
-        try {
-            new RingBuffer<Double>(capacity);
-            return "no";
-        } catch (IllegalArgumentException e) {
-            return "yes";
-        }
-    }
+    System.out.println("oldest=" + volts.oldest() + " newest=" + volts.newest());
 
-    static String rejectsEmptyOldest() {
-        try {
-            new RingBuffer<Double>(5).oldest();
-            return "no";
-        } catch (NoSuchElementException e) {
-            return "yes";
-        }
+    StringBuilder forward = new StringBuilder();
+    for (double v : volts.oldestFirst()) {
+      forward.append(v).append(" ");
     }
+    System.out.println("oldestFirst: " + forward.toString().trim());
 
-    static String rejectsEmptyNewest() {
-        try {
-            new RingBuffer<Double>(5).newest();
-            return "no";
-        } catch (NoSuchElementException e) {
-            return "yes";
-        }
+    StringBuilder backward = new StringBuilder();
+    for (double v : volts.newestFirst()) {
+      backward.append(v).append(" ");
     }
+    System.out.println("newestFirst: " + backward.toString().trim());
+
+    System.out.println(
+        "full="
+            + volts.isFull()
+            + " empty="
+            + volts.isEmpty()
+            + " capacity="
+            + volts.capacity()
+            + " size="
+            + volts.size());
+
+    RingBuffer<String> tags = new RingBuffer<>(3);
+    for (String s : new String[] {"a", "b", "c", "d"}) {
+      tags.add(s);
+    }
+    System.out.println("strings: " + tags);
+    System.out.println("strings oldest=" + tags.oldest() + " newest=" + tags.newest());
+
+    volts.clear();
+    System.out.println(
+        "after clear: "
+            + volts
+            + " size="
+            + volts.size()
+            + " empty="
+            + volts.isEmpty()
+            + " capacity="
+            + volts.capacity());
+
+    System.out.println("capacity 0 rejected: " + rejectsCapacity(0));
+    System.out.println("capacity -3 rejected: " + rejectsCapacity(-3));
+    System.out.println("empty oldest rejected: " + rejectsEmptyOldest());
+    System.out.println("empty newest rejected: " + rejectsEmptyNewest());
+  }
+
+  static String rejectsCapacity(int capacity) {
+    try {
+      new RingBuffer<Double>(capacity);
+      return "no";
+    } catch (IllegalArgumentException e) {
+      return "yes";
+    }
+  }
+
+  static String rejectsEmptyOldest() {
+    try {
+      new RingBuffer<Double>(5).oldest();
+      return "no";
+    } catch (NoSuchElementException e) {
+      return "yes";
+    }
+  }
+
+  static String rejectsEmptyNewest() {
+    try {
+      new RingBuffer<Double>(5).newest();
+      return "no";
+    } catch (NoSuchElementException e) {
+      return "yes";
+    }
+  }
 }
 `,
     tests: [
@@ -269,163 +281,160 @@ import java.util.function.Predicate;
 // What this program does:
 
 record TeamEntry(
-    int teamNumber,
-    String teamName,
-    String drivetrain,
-    double avgPoints,
-    boolean climbsHigh
-) {
+    int teamNumber, String teamName, String drivetrain, double avgPoints, boolean climbsHigh) {
 
-    // TODO compact constructor: team number 1 to 99999, name not blank (trim it),
-    //      drivetrain one of TANK / MECANUM / SWERVE / OTHER, avgPoints >= 0
+  // TODO compact constructor: team number 1 to 99999, name not blank (trim it),
+  //      drivetrain one of TANK / MECANUM / SWERVE / OTHER, avgPoints >= 0
 
-    // TODO avgPoints, plus 25.0 when the team climbs high
-    double pickScore() {
-        return 0.0;
-    }
+  // TODO avgPoints, plus 25.0 when the team climbs high
+  double pickScore() {
+    return 0.0;
+  }
 }
 
 class ScoutingDatabase {
 
-    // TODO one private final ArrayList<TeamEntry> field
+  // TODO one private final ArrayList<TeamEntry> field
 
-    void add(TeamEntry entry) {
-    }
+  void add(TeamEntry entry) {}
 
-    // TODO true when something was removed. removeIf tells you this already.
-    boolean removeByTeamNumber(int teamNumber) {
-        return false;
-    }
+  // TODO true when something was removed. removeIf tells you this already.
+  boolean removeByTeamNumber(int teamNumber) {
+    return false;
+  }
 
-    // TODO Optional.empty() when absent — never null
-    Optional<TeamEntry> findByTeamNumber(int teamNumber) {
-        return Optional.empty();
-    }
+  // TODO Optional.empty() when absent — never null
+  Optional<TeamEntry> findByTeamNumber(int teamNumber) {
+    return Optional.empty();
+  }
 
-    // TODO the entries the predicate accepts, in insertion order
-    List<TeamEntry> filter(Predicate<TeamEntry> test) {
-        return List.of();
-    }
+  // TODO the entries the predicate accepts, in insertion order
+  List<TeamEntry> filter(Predicate<TeamEntry> test) {
+    return List.of();
+  }
 
-    // TODO express this with filter rather than a second loop
-    List<TeamEntry> filterByDrivetrain(String drivetrain) {
-        return List.of();
-    }
+  // TODO express this with filter rather than a second loop
+  List<TeamEntry> filterByDrivetrain(String drivetrain) {
+    return List.of();
+  }
 
-    // TODO a sorted copy, highest pick score first. Must not reorder the database.
-    List<TeamEntry> sortedByPickScore() {
-        return List.of();
-    }
+  // TODO a sorted copy, highest pick score first. Must not reorder the database.
+  List<TeamEntry> sortedByPickScore() {
+    return List.of();
+  }
 
-    int size() {
-        return 0;
-    }
+  int size() {
+    return 0;
+  }
 
-    void clear() {
-    }
+  void clear() {}
 
-    // TODO a read-only view of the entries — callers must not be able to mutate it
-    List<TeamEntry> all() {
-        return List.of();
-    }
+  // TODO a read-only view of the entries — callers must not be able to mutate it
+  List<TeamEntry> all() {
+    return List.of();
+  }
 }
 
 public class ScoutingCLI {
-    // Leave main and its helpers as they are. Implement the two types above.
-    public static void main(String[] args) {
-        ScoutingDatabase db = new ScoutingDatabase();
-        for (TeamEntry t : seed()) {
-            db.add(t);
-        }
-
-        Scanner in = new Scanner(System.in);
-        while (in.hasNextLine()) {
-            String line = in.nextLine().trim();
-            if (line.isEmpty()) {
-                continue;
-            }
-            String command = line.substring(0, 1);
-            String argument = line.length() > 1 ? line.substring(1).trim() : "";
-
-            if (command.equals("q")) {
-                System.out.println("bye");
-                break;
-            } else if (command.equals("l")) {
-                print("list", db.all());
-            } else if (command.equals("s")) {
-                print("sorted by pick score", db.sortedByPickScore());
-            } else if (command.equals("h")) {
-                print("high climb", db.filter(t -> t.climbsHigh()));
-            } else if (command.equals("d")) {
-                print(argument, db.filterByDrivetrain(argument));
-            } else if (command.equals("f")) {
-                int number = Integer.parseInt(argument);
-                System.out.println(db.findByTeamNumber(number)
-                    .map(t -> "found " + show(t))
-                    .orElse("no team " + number));
-            } else if (command.equals("r")) {
-                int number = Integer.parseInt(argument);
-                System.out.println(db.removeByTeamNumber(number)
-                    ? "removed " + number
-                    : "no team " + number);
-            } else if (command.equals("u")) {
-                System.out.println("all() is unmodifiable: " + unmodifiable(db));
-            } else if (command.equals("a")) {
-                System.out.println(addFrom(db, argument));
-            } else {
-                System.out.println("unknown command " + command);
-            }
-        }
-        in.close();
+  // Leave main and its helpers as they are. Implement the two types above.
+  public static void main(String[] args) {
+    ScoutingDatabase db = new ScoutingDatabase();
+    for (TeamEntry t : seed()) {
+      db.add(t);
     }
 
-    static List<TeamEntry> seed() {
-        return List.of(
-            new TeamEntry(1234, "Example Robotics", "SWERVE", 45.5, true),
-            new TeamEntry(2468, "Gear Grinders", "TANK", 38.0, false),
-            new TeamEntry(1339, "Mech Warriors", "SWERVE", 52.25, true),
-            new TeamEntry(3476, "Code Orange", "SWERVE", 61.0, false),
-            new TeamEntry(4451, "ROBOTOLOGY", "MECANUM", 29.75, true),
-            new TeamEntry(5190, "Green Machine", "TANK", 47.0, false)
-        );
-    }
+    Scanner in = new Scanner(System.in);
+    while (in.hasNextLine()) {
+      String line = in.nextLine().trim();
+      if (line.isEmpty()) {
+        continue;
+      }
+      String command = line.substring(0, 1);
+      String argument = line.length() > 1 ? line.substring(1).trim() : "";
 
-    static String show(TeamEntry t) {
-        return t.teamNumber() + " " + t.teamName() + " " + t.drivetrain()
-            + " " + t.avgPoints() + (t.climbsHigh() ? " climb" : "");
+      if (command.equals("q")) {
+        System.out.println("bye");
+        break;
+      } else if (command.equals("l")) {
+        print("list", db.all());
+      } else if (command.equals("s")) {
+        print("sorted by pick score", db.sortedByPickScore());
+      } else if (command.equals("h")) {
+        print("high climb", db.filter(t -> t.climbsHigh()));
+      } else if (command.equals("d")) {
+        print(argument, db.filterByDrivetrain(argument));
+      } else if (command.equals("f")) {
+        int number = Integer.parseInt(argument);
+        System.out.println(
+            db.findByTeamNumber(number).map(t -> "found " + show(t)).orElse("no team " + number));
+      } else if (command.equals("r")) {
+        int number = Integer.parseInt(argument);
+        System.out.println(
+            db.removeByTeamNumber(number) ? "removed " + number : "no team " + number);
+      } else if (command.equals("u")) {
+        System.out.println("all() is unmodifiable: " + unmodifiable(db));
+      } else if (command.equals("a")) {
+        System.out.println(addFrom(db, argument));
+      } else {
+        System.out.println("unknown command " + command);
+      }
     }
+    in.close();
+  }
 
-    static void print(String label, List<TeamEntry> entries) {
-        System.out.println(label + " (" + entries.size() + ")");
-        for (TeamEntry t : entries) {
-            System.out.println("  " + show(t));
-        }
-    }
+  static List<TeamEntry> seed() {
+    return List.of(
+        new TeamEntry(1234, "Example Robotics", "SWERVE", 45.5, true),
+        new TeamEntry(2468, "Gear Grinders", "TANK", 38.0, false),
+        new TeamEntry(1339, "Mech Warriors", "SWERVE", 52.25, true),
+        new TeamEntry(3476, "Code Orange", "SWERVE", 61.0, false),
+        new TeamEntry(4451, "ROBOTOLOGY", "MECANUM", 29.75, true),
+        new TeamEntry(5190, "Green Machine", "TANK", 47.0, false));
+  }
 
-    static String addFrom(ScoutingDatabase db, String csv) {
-        String[] parts = csv.split(",");
-        try {
-            TeamEntry entry = new TeamEntry(
-                Integer.parseInt(parts[0].trim()),
-                parts[1].trim(),
-                parts[2].trim(),
-                Double.parseDouble(parts[3].trim()),
-                Boolean.parseBoolean(parts[4].trim()));
-            db.add(entry);
-            return "added " + entry.teamNumber();
-        } catch (IllegalArgumentException e) {
-            return "rejected: " + e.getMessage();
-        }
-    }
+  static String show(TeamEntry t) {
+    return t.teamNumber()
+        + " "
+        + t.teamName()
+        + " "
+        + t.drivetrain()
+        + " "
+        + t.avgPoints()
+        + (t.climbsHigh() ? " climb" : "");
+  }
 
-    static String unmodifiable(ScoutingDatabase db) {
-        try {
-            db.all().add(new TeamEntry(9999, "Intruder", "OTHER", 1.0, false));
-            return "no";
-        } catch (UnsupportedOperationException e) {
-            return "yes";
-        }
+  static void print(String label, List<TeamEntry> entries) {
+    System.out.println(label + " (" + entries.size() + ")");
+    for (TeamEntry t : entries) {
+      System.out.println("  " + show(t));
     }
+  }
+
+  static String addFrom(ScoutingDatabase db, String csv) {
+    String[] parts = csv.split(",");
+    try {
+      TeamEntry entry =
+          new TeamEntry(
+              Integer.parseInt(parts[0].trim()),
+              parts[1].trim(),
+              parts[2].trim(),
+              Double.parseDouble(parts[3].trim()),
+              Boolean.parseBoolean(parts[4].trim()));
+      db.add(entry);
+      return "added " + entry.teamNumber();
+    } catch (IllegalArgumentException e) {
+      return "rejected: " + e.getMessage();
+    }
+  }
+
+  static String unmodifiable(ScoutingDatabase db) {
+    try {
+      db.all().add(new TeamEntry(9999, "Intruder", "OTHER", 1.0, false));
+      return "no";
+    } catch (UnsupportedOperationException e) {
+      return "yes";
+    }
+  }
 }
 `,
     tests: [
@@ -525,120 +534,119 @@ import java.util.Optional;
 // Date:
 // What this program does:
 
-record TeamEntry(int teamNumber, String teamName, String drivetrain) {
-}
+record TeamEntry(int teamNumber, String teamName, String drivetrain) {}
 
-record MatchOutcome(int score, boolean won) {
-}
+record MatchOutcome(int score, boolean won) {}
 
 record MatchKey(int matchNumber, String alliance) {
 
-    // TODO compact constructor: alliance must be RED or BLUE in any case, and is
-    //      stored upper case. Anything else is an IllegalArgumentException.
+  // TODO compact constructor: alliance must be RED or BLUE in any case, and is
+  //      stored upper case. Anything else is an IllegalArgumentException.
 }
 
 class AllianceData {
 
-    // TODO three private final maps — by team number, by drivetrain, by MatchKey
+  // TODO three private final maps — by team number, by drivetrain, by MatchKey
 
-    // TODO update teamsByNumber AND append to the right drivetrain list
-    void addTeam(TeamEntry t) {
-    }
+  // TODO update teamsByNumber AND append to the right drivetrain list
+  void addTeam(TeamEntry t) {}
 
-    // TODO build a MatchKey and store the outcome under it
-    void recordOutcome(int matchNumber, String alliance, int score, boolean won) {
-    }
+  // TODO build a MatchKey and store the outcome under it
+  void recordOutcome(int matchNumber, String alliance, int score, boolean won) {}
 
-    Optional<TeamEntry> getTeam(int number) {
-        return Optional.empty();
-    }
+  Optional<TeamEntry> getTeam(int number) {
+    return Optional.empty();
+  }
 
-    // TODO the teams with that drivetrain, in the order they were added
-    List<TeamEntry> teamsWith(String drivetrain) {
-        return List.of();
-    }
+  // TODO the teams with that drivetrain, in the order they were added
+  List<TeamEntry> teamsWith(String drivetrain) {
+    return List.of();
+  }
 
-    Optional<MatchOutcome> outcomeFor(int matchNumber, String alliance) {
-        return Optional.empty();
-    }
+  Optional<MatchOutcome> outcomeFor(int matchNumber, String alliance) {
+    return Optional.empty();
+  }
 
-    // TODO a fresh map: drivetrain -> how many teams run it
-    Map<String, Integer> countByDrivetrain() {
-        return Map.of();
-    }
+  // TODO a fresh map: drivetrain -> how many teams run it
+  Map<String, Integer> countByDrivetrain() {
+    return Map.of();
+  }
 
-    // TODO the mean of every recorded score, or 0.0 when there are none
-    double averageScore() {
-        return 0.0;
-    }
+  // TODO the mean of every recorded score, or 0.0 when there are none
+  double averageScore() {
+    return 0.0;
+  }
 }
 
 public class MapLookupDemo {
-    // Leave main as it is. Implement MatchKey and AllianceData above.
-    public static void main(String[] args) {
-        AllianceData data = new AllianceData();
-        data.addTeam(new TeamEntry(1234, "Example Robotics", "SWERVE"));
-        data.addTeam(new TeamEntry(2468, "Gear Grinders", "TANK"));
-        data.addTeam(new TeamEntry(1339, "Mech Warriors", "SWERVE"));
-        data.addTeam(new TeamEntry(3476, "Code Orange", "SWERVE"));
-        data.addTeam(new TeamEntry(4451, "ROBOTOLOGY", "MECANUM"));
-        data.addTeam(new TeamEntry(5190, "Green Machine", "TANK"));
-        data.addTeam(new TeamEntry(6328, "Mechanical Advantage", "OTHER"));
+  // Leave main as it is. Implement MatchKey and AllianceData above.
+  public static void main(String[] args) {
+    AllianceData data = new AllianceData();
+    data.addTeam(new TeamEntry(1234, "Example Robotics", "SWERVE"));
+    data.addTeam(new TeamEntry(2468, "Gear Grinders", "TANK"));
+    data.addTeam(new TeamEntry(1339, "Mech Warriors", "SWERVE"));
+    data.addTeam(new TeamEntry(3476, "Code Orange", "SWERVE"));
+    data.addTeam(new TeamEntry(4451, "ROBOTOLOGY", "MECANUM"));
+    data.addTeam(new TeamEntry(5190, "Green Machine", "TANK"));
+    data.addTeam(new TeamEntry(6328, "Mechanical Advantage", "OTHER"));
 
-        data.recordOutcome(1, "RED", 45, true);
-        data.recordOutcome(1, "BLUE", 38, false);
-        data.recordOutcome(2, "RED", 52, true);
-        data.recordOutcome(3, "RED", 61, false);
-        data.recordOutcome(3, "BLUE", 70, true);
-        data.recordOutcome(4, "BLUE", 28, false);
+    data.recordOutcome(1, "RED", 45, true);
+    data.recordOutcome(1, "BLUE", 38, false);
+    data.recordOutcome(2, "RED", 52, true);
+    data.recordOutcome(3, "RED", 61, false);
+    data.recordOutcome(3, "BLUE", 70, true);
+    data.recordOutcome(4, "BLUE", 28, false);
 
-        System.out.println("team 1234: " + data.getTeam(1234).map(Object::toString).orElse("empty"));
-        System.out.println("team 9999: " + data.getTeam(9999).map(Object::toString).orElse("empty"));
+    System.out.println("team 1234: " + data.getTeam(1234).map(Object::toString).orElse("empty"));
+    System.out.println("team 9999: " + data.getTeam(9999).map(Object::toString).orElse("empty"));
 
-        System.out.println("swerve teams: " + numbersOf(data.teamsWith("SWERVE")));
-        System.out.println("tank teams: " + numbersOf(data.teamsWith("TANK")));
-        System.out.println("hover teams: " + numbersOf(data.teamsWith("HOVER")));
+    System.out.println("swerve teams: " + numbersOf(data.teamsWith("SWERVE")));
+    System.out.println("tank teams: " + numbersOf(data.teamsWith("TANK")));
+    System.out.println("hover teams: " + numbersOf(data.teamsWith("HOVER")));
 
-        System.out.println("match 3 RED: " + data.outcomeFor(3, "RED").map(Object::toString).orElse("empty"));
-        System.out.println("match 3 red: " + data.outcomeFor(3, "red").map(Object::toString).orElse("empty"));
-        System.out.println("match 9 RED: " + data.outcomeFor(9, "RED").map(Object::toString).orElse("empty"));
+    System.out.println(
+        "match 3 RED: " + data.outcomeFor(3, "RED").map(Object::toString).orElse("empty"));
+    System.out.println(
+        "match 3 red: " + data.outcomeFor(3, "red").map(Object::toString).orElse("empty"));
+    System.out.println(
+        "match 9 RED: " + data.outcomeFor(9, "RED").map(Object::toString).orElse("empty"));
 
-        System.out.println("countByDrivetrain:");
-        Map<String, Integer> counts = data.countByDrivetrain();
-        List<String> keys = new ArrayList<>(counts.keySet());
-        Collections.sort(keys);
-        for (String key : keys) {
-            System.out.println("  " + key + " " + counts.get(key));
-        }
-
-        System.out.println("averageScore: " + data.averageScore());
-        System.out.println("empty averageScore: " + new AllianceData().averageScore());
-
-        MatchKey key1 = new MatchKey(3, "RED");
-        MatchKey key2 = new MatchKey(3, "red");
-        System.out.println("key1 == key2: " + (key1 == key2));
-        System.out.println("key1.equals(key2): " + key1.equals(key2));
-        System.out.println("hashCodes equal: " + (key1.hashCode() == key2.hashCode()));
-        System.out.println("alliance normalised: " + key2.alliance());
-        System.out.println("bad alliance rejected: " + rejectsAlliance("GREEN"));
+    System.out.println("countByDrivetrain:");
+    Map<String, Integer> counts = data.countByDrivetrain();
+    List<String> keys = new ArrayList<>(counts.keySet());
+    Collections.sort(keys);
+    for (String key : keys) {
+      System.out.println("  " + key + " " + counts.get(key));
     }
 
-    static List<Integer> numbersOf(List<TeamEntry> teams) {
-        List<Integer> numbers = new ArrayList<>();
-        for (TeamEntry t : teams) {
-            numbers.add(t.teamNumber());
-        }
-        return numbers;
-    }
+    System.out.println("averageScore: " + data.averageScore());
+    System.out.println("empty averageScore: " + new AllianceData().averageScore());
 
-    static String rejectsAlliance(String alliance) {
-        try {
-            new MatchKey(1, alliance);
-            return "no";
-        } catch (IllegalArgumentException e) {
-            return "yes";
-        }
+    MatchKey key1 = new MatchKey(3, "RED");
+    MatchKey key2 = new MatchKey(3, "red");
+    System.out.println("key1 == key2: " + (key1 == key2));
+    System.out.println("key1.equals(key2): " + key1.equals(key2));
+    System.out.println("hashCodes equal: " + (key1.hashCode() == key2.hashCode()));
+    System.out.println("alliance normalised: " + key2.alliance());
+    System.out.println("bad alliance rejected: " + rejectsAlliance("GREEN"));
+  }
+
+  static List<Integer> numbersOf(List<TeamEntry> teams) {
+    List<Integer> numbers = new ArrayList<>();
+    for (TeamEntry t : teams) {
+      numbers.add(t.teamNumber());
     }
+    return numbers;
+  }
+
+  static String rejectsAlliance(String alliance) {
+    try {
+      new MatchKey(1, alliance);
+      return "no";
+    } catch (IllegalArgumentException e) {
+      return "yes";
+    }
+  }
 }
 `,
     tests: [
@@ -722,148 +730,163 @@ import java.util.stream.Collectors;
 // What this program does:
 
 record TeamEntry(
-    int teamNumber,
-    String teamName,
-    String drivetrain,
-    double avgPoints,
-    double climbRate
-) {
-    double pickScore() {
-        return avgPoints + climbRate * 25.0;
-    }
+    int teamNumber, String teamName, String drivetrain, double avgPoints, double climbRate) {
+  double pickScore() {
+    return avgPoints + climbRate * 25.0;
+  }
 }
 
 public class StreamQueries {
 
-    // ---- the five queries, twice each -------------------------------------
+  // ---- the five queries, twice each -------------------------------------
 
-    // TODO one expression: filter, then toList
-    static List<TeamEntry> swerveTeamsStream(List<TeamEntry> teams) {
-        return List.of();
+  // TODO one expression: filter, then toList
+  static List<TeamEntry> swerveTeamsStream(List<TeamEntry> teams) {
+    return List.of();
+  }
+
+  static List<TeamEntry> swerveTeamsLoop(List<TeamEntry> teams) {
+    return List.of();
+  }
+
+  // TODO one expression: sorted by pick score descending, then limit, then toList
+  static List<TeamEntry> topKByPickScoreStream(List<TeamEntry> teams, int k) {
+    return List.of();
+  }
+
+  static List<TeamEntry> topKByPickScoreLoop(List<TeamEntry> teams, int k) {
+    return List.of();
+  }
+
+  // TODO one expression: Collectors.groupingBy with an averaging downstream
+  static Map<String, Double> avgClimbByDrivetrainStream(List<TeamEntry> teams) {
+    return Map.of();
+  }
+
+  static Map<String, Double> avgClimbByDrivetrainLoop(List<TeamEntry> teams) {
+    return Map.of();
+  }
+
+  // TODO one expression, and it must stop at the first match — so must the loop
+  static boolean anyTeamOverStream(List<TeamEntry> teams, double threshold) {
+    return false;
+  }
+
+  static boolean anyTeamOverLoop(List<TeamEntry> teams, double threshold) {
+    return false;
+  }
+
+  // TODO one expression ending in findFirst. The loop returns Optional too.
+  static Optional<TeamEntry> firstMatchingStream(List<TeamEntry> teams, Predicate<TeamEntry> test) {
+    return Optional.empty();
+  }
+
+  static Optional<TeamEntry> firstMatchingLoop(List<TeamEntry> teams, Predicate<TeamEntry> test) {
+    return Optional.empty();
+  }
+
+  // ---- main and its helpers are written for you -------------------------
+
+  public static void main(String[] args) {
+    List<TeamEntry> teams = sample();
+
+    List<TeamEntry> swerveStream = swerveTeamsStream(teams);
+    List<TeamEntry> swerveLoop = swerveTeamsLoop(teams);
+    System.out.println("swerve stream: " + numbersOf(swerveStream));
+    System.out.println("swerve loop: " + numbersOf(swerveLoop));
+    System.out.println("swerve agree: " + numbersOf(swerveStream).equals(numbersOf(swerveLoop)));
+
+    List<TeamEntry> topStream = topKByPickScoreStream(teams, 5);
+    List<TeamEntry> topLoop = topKByPickScoreLoop(teams, 5);
+    System.out.println("top5 stream: " + numbersOf(topStream));
+    System.out.println("top5 loop: " + numbersOf(topLoop));
+    System.out.println("top5 agree: " + numbersOf(topStream).equals(numbersOf(topLoop)));
+
+    System.out.println(
+        "top20 size stream: "
+            + topKByPickScoreStream(teams, 20).size()
+            + " loop: "
+            + topKByPickScoreLoop(teams, 20).size());
+    System.out.println(
+        "top0 size stream: "
+            + topKByPickScoreStream(teams, 0).size()
+            + " loop: "
+            + topKByPickScoreLoop(teams, 0).size());
+
+    Map<String, Double> avgStream = avgClimbByDrivetrainStream(teams);
+    Map<String, Double> avgLoop = avgClimbByDrivetrainLoop(teams);
+    System.out.println("avgClimb stream:");
+    for (Map.Entry<String, Double> e : rounded(avgStream).entrySet()) {
+      System.out.println("  " + e.getKey() + " " + e.getValue());
     }
+    System.out.println("avgClimb agree: " + rounded(avgStream).equals(rounded(avgLoop)));
 
-    static List<TeamEntry> swerveTeamsLoop(List<TeamEntry> teams) {
-        return List.of();
+    System.out.println(
+        "anyOver 80.0 stream: "
+            + anyTeamOverStream(teams, 80.0)
+            + " loop: "
+            + anyTeamOverLoop(teams, 80.0));
+    System.out.println(
+        "anyOver 200.0 stream: "
+            + anyTeamOverStream(teams, 200.0)
+            + " loop: "
+            + anyTeamOverLoop(teams, 200.0));
+    System.out.println(
+        "anyOver on empty stream: "
+            + anyTeamOverStream(List.of(), 0.0)
+            + " loop: "
+            + anyTeamOverLoop(List.of(), 0.0));
+
+    Predicate<TeamEntry> isOther = t -> t.drivetrain().equals("OTHER");
+    Predicate<TeamEntry> impossible = t -> t.avgPoints() > 500.0;
+    System.out.println(
+        "firstOTHER stream: "
+            + numberOr(firstMatchingStream(teams, isOther))
+            + " loop: "
+            + numberOr(firstMatchingLoop(teams, isOther)));
+    System.out.println(
+        "firstMissing stream: "
+            + numberOr(firstMatchingStream(teams, impossible))
+            + " loop: "
+            + numberOr(firstMatchingLoop(teams, impossible)));
+  }
+
+  static List<TeamEntry> sample() {
+    return List.of(
+        new TeamEntry(1234, "Example Robotics", "SWERVE", 45.5, 0.80),
+        new TeamEntry(2468, "Gear Grinders", "TANK", 38.0, 0.40),
+        new TeamEntry(1339, "Mech Warriors", "SWERVE", 52.25, 0.60),
+        new TeamEntry(3476, "Code Orange", "SWERVE", 61.0, 0.90),
+        new TeamEntry(4451, "ROBOTOLOGY", "MECANUM", 29.75, 0.20),
+        new TeamEntry(5190, "Green Machine", "TANK", 47.0, 0.50),
+        new TeamEntry(6328, "Mechanical Advantage", "SWERVE", 82.0, 0.95),
+        new TeamEntry(1678, "Citrus Circuits", "SWERVE", 78.5, 0.85),
+        new TeamEntry(254, "Cheesy Poofs", "SWERVE", 88.0, 1.00),
+        new TeamEntry(118, "Robonauts", "OTHER", 71.0, 0.70),
+        new TeamEntry(33, "Killer Bees", "TANK", 47.0, 0.50),
+        new TeamEntry(2056, "OP Robotics", "SWERVE", 85.0, 0.90));
+  }
+
+  static List<Integer> numbersOf(List<TeamEntry> teams) {
+    List<Integer> numbers = new ArrayList<>();
+    for (TeamEntry t : teams) {
+      numbers.add(t.teamNumber());
     }
+    return numbers;
+  }
 
-    // TODO one expression: sorted by pick score descending, then limit, then toList
-    static List<TeamEntry> topKByPickScoreStream(List<TeamEntry> teams, int k) {
-        return List.of();
+  static String numberOr(Optional<TeamEntry> found) {
+    return found.map(t -> String.valueOf(t.teamNumber())).orElse("empty");
+  }
+
+  /** Averages are compared at three decimals: 6.0 / 7 is not a literal to check. */
+  static Map<String, Double> rounded(Map<String, Double> raw) {
+    Map<String, Double> out = new TreeMap<>();
+    for (Map.Entry<String, Double> e : raw.entrySet()) {
+      out.put(e.getKey(), Math.round(e.getValue() * 1000.0) / 1000.0);
     }
-
-    static List<TeamEntry> topKByPickScoreLoop(List<TeamEntry> teams, int k) {
-        return List.of();
-    }
-
-    // TODO one expression: Collectors.groupingBy with an averaging downstream
-    static Map<String, Double> avgClimbByDrivetrainStream(List<TeamEntry> teams) {
-        return Map.of();
-    }
-
-    static Map<String, Double> avgClimbByDrivetrainLoop(List<TeamEntry> teams) {
-        return Map.of();
-    }
-
-    // TODO one expression, and it must stop at the first match — so must the loop
-    static boolean anyTeamOverStream(List<TeamEntry> teams, double threshold) {
-        return false;
-    }
-
-    static boolean anyTeamOverLoop(List<TeamEntry> teams, double threshold) {
-        return false;
-    }
-
-    // TODO one expression ending in findFirst. The loop returns Optional too.
-    static Optional<TeamEntry> firstMatchingStream(List<TeamEntry> teams, Predicate<TeamEntry> test) {
-        return Optional.empty();
-    }
-
-    static Optional<TeamEntry> firstMatchingLoop(List<TeamEntry> teams, Predicate<TeamEntry> test) {
-        return Optional.empty();
-    }
-
-    // ---- main and its helpers are written for you -------------------------
-
-    public static void main(String[] args) {
-        List<TeamEntry> teams = sample();
-
-        List<TeamEntry> swerveStream = swerveTeamsStream(teams);
-        List<TeamEntry> swerveLoop = swerveTeamsLoop(teams);
-        System.out.println("swerve stream: " + numbersOf(swerveStream));
-        System.out.println("swerve loop: " + numbersOf(swerveLoop));
-        System.out.println("swerve agree: " + numbersOf(swerveStream).equals(numbersOf(swerveLoop)));
-
-        List<TeamEntry> topStream = topKByPickScoreStream(teams, 5);
-        List<TeamEntry> topLoop = topKByPickScoreLoop(teams, 5);
-        System.out.println("top5 stream: " + numbersOf(topStream));
-        System.out.println("top5 loop: " + numbersOf(topLoop));
-        System.out.println("top5 agree: " + numbersOf(topStream).equals(numbersOf(topLoop)));
-
-        System.out.println("top20 size stream: " + topKByPickScoreStream(teams, 20).size()
-            + " loop: " + topKByPickScoreLoop(teams, 20).size());
-        System.out.println("top0 size stream: " + topKByPickScoreStream(teams, 0).size()
-            + " loop: " + topKByPickScoreLoop(teams, 0).size());
-
-        Map<String, Double> avgStream = avgClimbByDrivetrainStream(teams);
-        Map<String, Double> avgLoop = avgClimbByDrivetrainLoop(teams);
-        System.out.println("avgClimb stream:");
-        for (Map.Entry<String, Double> e : rounded(avgStream).entrySet()) {
-            System.out.println("  " + e.getKey() + " " + e.getValue());
-        }
-        System.out.println("avgClimb agree: " + rounded(avgStream).equals(rounded(avgLoop)));
-
-        System.out.println("anyOver 80.0 stream: " + anyTeamOverStream(teams, 80.0)
-            + " loop: " + anyTeamOverLoop(teams, 80.0));
-        System.out.println("anyOver 200.0 stream: " + anyTeamOverStream(teams, 200.0)
-            + " loop: " + anyTeamOverLoop(teams, 200.0));
-        System.out.println("anyOver on empty stream: " + anyTeamOverStream(List.of(), 0.0)
-            + " loop: " + anyTeamOverLoop(List.of(), 0.0));
-
-        Predicate<TeamEntry> isOther = t -> t.drivetrain().equals("OTHER");
-        Predicate<TeamEntry> impossible = t -> t.avgPoints() > 500.0;
-        System.out.println("firstOTHER stream: " + numberOr(firstMatchingStream(teams, isOther))
-            + " loop: " + numberOr(firstMatchingLoop(teams, isOther)));
-        System.out.println("firstMissing stream: " + numberOr(firstMatchingStream(teams, impossible))
-            + " loop: " + numberOr(firstMatchingLoop(teams, impossible)));
-    }
-
-    static List<TeamEntry> sample() {
-        return List.of(
-            new TeamEntry(1234, "Example Robotics", "SWERVE", 45.5, 0.80),
-            new TeamEntry(2468, "Gear Grinders", "TANK", 38.0, 0.40),
-            new TeamEntry(1339, "Mech Warriors", "SWERVE", 52.25, 0.60),
-            new TeamEntry(3476, "Code Orange", "SWERVE", 61.0, 0.90),
-            new TeamEntry(4451, "ROBOTOLOGY", "MECANUM", 29.75, 0.20),
-            new TeamEntry(5190, "Green Machine", "TANK", 47.0, 0.50),
-            new TeamEntry(6328, "Mechanical Advantage", "SWERVE", 82.0, 0.95),
-            new TeamEntry(1678, "Citrus Circuits", "SWERVE", 78.5, 0.85),
-            new TeamEntry(254, "Cheesy Poofs", "SWERVE", 88.0, 1.00),
-            new TeamEntry(118, "Robonauts", "OTHER", 71.0, 0.70),
-            new TeamEntry(33, "Killer Bees", "TANK", 47.0, 0.50),
-            new TeamEntry(2056, "OP Robotics", "SWERVE", 85.0, 0.90)
-        );
-    }
-
-    static List<Integer> numbersOf(List<TeamEntry> teams) {
-        List<Integer> numbers = new ArrayList<>();
-        for (TeamEntry t : teams) {
-            numbers.add(t.teamNumber());
-        }
-        return numbers;
-    }
-
-    static String numberOr(Optional<TeamEntry> found) {
-        return found.map(t -> String.valueOf(t.teamNumber())).orElse("empty");
-    }
-
-    /** Averages are compared at three decimals: 6.0 / 7 is not a literal to check. */
-    static Map<String, Double> rounded(Map<String, Double> raw) {
-        Map<String, Double> out = new TreeMap<>();
-        for (Map.Entry<String, Double> e : raw.entrySet()) {
-            out.put(e.getKey(), Math.round(e.getValue() * 1000.0) / 1000.0);
-        }
-        return out;
-    }
+    return out;
+  }
 }
 `,
     tests: [
@@ -933,118 +956,117 @@ whole reason powerFast exists.`,
 
 public class RecursionWarmups {
 
-    static int slowCalls = 0;
-    static int fastCalls = 0;
+  static int slowCalls = 0;
+  static int fastCalls = 0;
 
-    // TODO base case n <= 1 returns 1; reject n < 0
-    static long factorial(int n) {
-        return 0;
+  // TODO base case n <= 1 returns 1; reject n < 0
+  static long factorial(int n) {
+    return 0;
+  }
+
+  // TODO base case from == arr.length returns 0
+  static int sum(int[] arr, int from) {
+    return 0;
+  }
+
+  // TODO base case "" returns ""; peel off the first character and trust the rest
+  static String reverse(String s) {
+    return "";
+  }
+
+  // TODO count the call, then base case exp == 0 returns 1; reject exp < 0
+  static double powerSlow(double base, int exp) {
+    return 0.0;
+  }
+
+  // TODO count the call, then halve the exponent when it is even
+  static double powerFast(double base, int exp) {
+    return 0.0;
+  }
+
+  // TODO two base cases: low > high returns -1, arr[mid] == target returns mid
+  static int binarySearch(int[] sorted, int target, int low, int high) {
+    return -1;
+  }
+
+  static int binarySearch(int[] sorted, int target) {
+    return binarySearch(sorted, target, 0, sorted.length - 1);
+  }
+
+  // ---- main is written for you ------------------------------------------
+
+  public static void main(String[] args) {
+    System.out.println("factorial 0 = " + factorial(0));
+    System.out.println("factorial 1 = " + factorial(1));
+    System.out.println("factorial 5 = " + factorial(5));
+    System.out.println("factorial 10 = " + factorial(10));
+    System.out.println("factorial -1 rejected: " + rejectsFactorial(-1));
+
+    System.out.println("sum empty = " + sum(new int[0], 0));
+    System.out.println("sum single = " + sum(new int[] {5}, 0));
+    System.out.println("sum 1..5 = " + sum(new int[] {1, 2, 3, 4, 5}, 0));
+    System.out.println("sum mixed = " + sum(new int[] {-3, 3, -3, 3}, 0));
+
+    System.out.println("reverse HELLO -> " + reverse("HELLO"));
+    System.out.println("reverse ABC -> " + reverse("ABC"));
+    System.out.println("reverse A -> " + reverse("A"));
+    System.out.println("reverse of empty is empty: " + reverse("").isEmpty());
+
+    slowCalls = 0;
+    double slow = powerSlow(2.0, 10);
+    int slowUsed = slowCalls;
+    fastCalls = 0;
+    double fast = powerFast(2.0, 10);
+    int fastUsed = fastCalls;
+
+    System.out.println("powerSlow 2.0^10 = " + slow);
+    System.out.println("powerFast 2.0^10 = " + fast);
+    System.out.println("powerSlow calls=" + slowUsed + " powerFast calls=" + fastUsed);
+    System.out.println("powerFast uses fewer calls: " + (fastUsed < slowUsed));
+    System.out.println("both agree across nine pairs: " + powersAgree());
+    System.out.println("power 2.0^0 = " + powerSlow(2.0, 0));
+    System.out.println("power negative exponent rejected: " + rejectsPower(-1));
+
+    int[] sorted = {2, 5, 8, 12, 16, 23, 38, 56, 72};
+    System.out.println("binarySearch first = " + binarySearch(sorted, 2));
+    System.out.println("binarySearch middle = " + binarySearch(sorted, 16));
+    System.out.println("binarySearch last = " + binarySearch(sorted, 72));
+    System.out.println("binarySearch absent = " + binarySearch(sorted, 40));
+    System.out.println("binarySearch empty = " + binarySearch(new int[0], 1));
+    System.out.println("binarySearch single hit = " + binarySearch(new int[] {7}, 7));
+    System.out.println("binarySearch single miss = " + binarySearch(new int[] {7}, 9));
+  }
+
+  static boolean powersAgree() {
+    double[][] pairs = {
+      {2.0, 0}, {2.0, 1}, {2.0, 10}, {3.0, 5}, {1.5, 4}, {10.0, 3}, {0.5, 6}, {7.0, 2}, {2.0, 15}
+    };
+    for (double[] pair : pairs) {
+      int exp = (int) pair[1];
+      if (Math.abs(powerSlow(pair[0], exp) - powerFast(pair[0], exp)) > 1e-9) {
+        return false;
+      }
     }
+    return true;
+  }
 
-    // TODO base case from == arr.length returns 0
-    static int sum(int[] arr, int from) {
-        return 0;
+  static String rejectsFactorial(int n) {
+    try {
+      factorial(n);
+      return "no";
+    } catch (IllegalArgumentException e) {
+      return "yes";
     }
+  }
 
-    // TODO base case "" returns ""; peel off the first character and trust the rest
-    static String reverse(String s) {
-        return "";
+  static String rejectsPower(int exp) {
+    try {
+      powerSlow(2.0, exp);
+      return "no";
+    } catch (IllegalArgumentException e) {
+      return "yes";
     }
-
-    // TODO count the call, then base case exp == 0 returns 1; reject exp < 0
-    static double powerSlow(double base, int exp) {
-        return 0.0;
-    }
-
-    // TODO count the call, then halve the exponent when it is even
-    static double powerFast(double base, int exp) {
-        return 0.0;
-    }
-
-    // TODO two base cases: low > high returns -1, arr[mid] == target returns mid
-    static int binarySearch(int[] sorted, int target, int low, int high) {
-        return -1;
-    }
-
-    static int binarySearch(int[] sorted, int target) {
-        return binarySearch(sorted, target, 0, sorted.length - 1);
-    }
-
-    // ---- main is written for you ------------------------------------------
-
-    public static void main(String[] args) {
-        System.out.println("factorial 0 = " + factorial(0));
-        System.out.println("factorial 1 = " + factorial(1));
-        System.out.println("factorial 5 = " + factorial(5));
-        System.out.println("factorial 10 = " + factorial(10));
-        System.out.println("factorial -1 rejected: " + rejectsFactorial(-1));
-
-        System.out.println("sum empty = " + sum(new int[0], 0));
-        System.out.println("sum single = " + sum(new int[] { 5 }, 0));
-        System.out.println("sum 1..5 = " + sum(new int[] { 1, 2, 3, 4, 5 }, 0));
-        System.out.println("sum mixed = " + sum(new int[] { -3, 3, -3, 3 }, 0));
-
-        System.out.println("reverse HELLO -> " + reverse("HELLO"));
-        System.out.println("reverse ABC -> " + reverse("ABC"));
-        System.out.println("reverse A -> " + reverse("A"));
-        System.out.println("reverse of empty is empty: " + reverse("").isEmpty());
-
-        slowCalls = 0;
-        double slow = powerSlow(2.0, 10);
-        int slowUsed = slowCalls;
-        fastCalls = 0;
-        double fast = powerFast(2.0, 10);
-        int fastUsed = fastCalls;
-
-        System.out.println("powerSlow 2.0^10 = " + slow);
-        System.out.println("powerFast 2.0^10 = " + fast);
-        System.out.println("powerSlow calls=" + slowUsed + " powerFast calls=" + fastUsed);
-        System.out.println("powerFast uses fewer calls: " + (fastUsed < slowUsed));
-        System.out.println("both agree across nine pairs: " + powersAgree());
-        System.out.println("power 2.0^0 = " + powerSlow(2.0, 0));
-        System.out.println("power negative exponent rejected: " + rejectsPower(-1));
-
-        int[] sorted = { 2, 5, 8, 12, 16, 23, 38, 56, 72 };
-        System.out.println("binarySearch first = " + binarySearch(sorted, 2));
-        System.out.println("binarySearch middle = " + binarySearch(sorted, 16));
-        System.out.println("binarySearch last = " + binarySearch(sorted, 72));
-        System.out.println("binarySearch absent = " + binarySearch(sorted, 40));
-        System.out.println("binarySearch empty = " + binarySearch(new int[0], 1));
-        System.out.println("binarySearch single hit = " + binarySearch(new int[] { 7 }, 7));
-        System.out.println("binarySearch single miss = " + binarySearch(new int[] { 7 }, 9));
-    }
-
-    static boolean powersAgree() {
-        double[][] pairs = {
-            { 2.0, 0 }, { 2.0, 1 }, { 2.0, 10 }, { 3.0, 5 }, { 1.5, 4 },
-            { 10.0, 3 }, { 0.5, 6 }, { 7.0, 2 }, { 2.0, 15 }
-        };
-        for (double[] pair : pairs) {
-            int exp = (int) pair[1];
-            if (Math.abs(powerSlow(pair[0], exp) - powerFast(pair[0], exp)) > 1e-9) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    static String rejectsFactorial(int n) {
-        try {
-            factorial(n);
-            return "no";
-        } catch (IllegalArgumentException e) {
-            return "yes";
-        }
-    }
-
-    static String rejectsPower(int exp) {
-        try {
-            powerSlow(2.0, exp);
-            return "no";
-        } catch (IllegalArgumentException e) {
-            return "yes";
-        }
-    }
+  }
 }
 `,
     tests: [
@@ -1131,157 +1153,152 @@ import java.util.Set;
 
 public class BigOReading {
 
-    // ---- the ten snippets to tag ------------------------------------------
-    // Write your tag above each one: the complexity in terms of n, one sentence
-    // of reasoning, and whether best / average / worst differ.
+  // ---- the ten snippets to tag ------------------------------------------
+  // Write your tag above each one: the complexity in terms of n, one sentence
+  // of reasoning, and whether best / average / worst differ.
 
-    // TAG:
-    static int a(int[] arr) {
-        return arr[0] + arr[arr.length - 1];
+  // TAG:
+  static int a(int[] arr) {
+    return arr[0] + arr[arr.length - 1];
+  }
+
+  // TAG:
+  static int b(int[] arr) {
+    int sum = 0;
+    for (int x : arr) sum += x;
+    return sum;
+  }
+
+  // TAG:
+  static int c(int[] arr, int target) {
+    for (int x : arr) {
+      if (x == target) return x;
     }
+    return -1;
+  }
 
-    // TAG:
-    static int b(int[] arr) {
-        int sum = 0;
-        for (int x : arr) sum += x;
-        return sum;
+  // TAG:
+  static void d(int[] arr) {
+    for (int i = 0; i < arr.length; i++) for (int j = 0; j < arr.length; j++) arr[i] += arr[j];
+  }
+
+  // TAG:
+  static void e(int[] arr) {
+    for (int i = 0; i < arr.length; i++) for (int j = i + 1; j < arr.length; j++) arr[i] += arr[j];
+  }
+
+  // TAG:
+  static int f(int n) {
+    int count = 0;
+    while (n > 1) {
+      n /= 2;
+      count++;
     }
+    return count;
+  }
 
-    // TAG:
-    static int c(int[] arr, int target) {
-        for (int x : arr) {
-            if (x == target) return x;
+  // TAG:
+  static int g(int[] sorted, int target) {
+    int lo = 0, hi = sorted.length - 1;
+    while (lo <= hi) {
+      int mid = lo + (hi - lo) / 2;
+      if (sorted[mid] == target) return mid;
+      if (sorted[mid] < target) lo = mid + 1;
+      else hi = mid - 1;
+    }
+    return -1;
+  }
+
+  // TAG:
+  static int h(int n) {
+    if (n <= 1) return n;
+    return h(n - 1) + h(n - 2);
+  }
+
+  // TAG:
+  static int i(int n) {
+    int total = 0;
+    for (int k = 0; k < n; k++) for (int j = 1; j < n; j *= 2) total++;
+    return total;
+  }
+
+  // TAG:
+  static List<Integer> j(int[] arr) {
+    List<Integer> result = new ArrayList<>();
+    for (int x : arr) {
+      if (!result.contains(x)) result.add(x);
+    }
+    return result;
+  }
+
+  // ---- your turn --------------------------------------------------------
+
+  // TODO the same answer as j, in the same order, with a HashSet doing the
+  //      membership test so the whole thing is linear
+  static List<Integer> jFast(int[] arr) {
+    return List.of();
+  }
+
+  // TODO the median of samples. Even count: the mean of the middle two.
+  //      Sort a copy — the caller's array must come back untouched.
+  static long median(long[] samples) {
+    return 0;
+  }
+
+  // ---- main is written for you ------------------------------------------
+
+  public static void main(String[] args) {
+    int[] mixed = {5, 3, 5, 9, 1, 3, 9};
+    int[] duplicates = {4, 4, 4, 4};
+    int[] empty = new int[0];
+
+    System.out.println("j vs jFast on mixed: " + j(mixed).equals(jFast(mixed)));
+    System.out.println("j vs jFast on duplicates: " + j(duplicates).equals(jFast(duplicates)));
+    System.out.println("j vs jFast on empty: " + j(empty).equals(jFast(empty)));
+    System.out.println("jFast mixed: " + jFast(mixed));
+    System.out.println("jFast duplicates: " + jFast(duplicates));
+    System.out.println("jFast empty: " + jFast(empty));
+
+    long[] odd = {50, 10, 30};
+    long[] even = {50, 10, 30, 40};
+    System.out.println("median odd = " + median(odd));
+    System.out.println("median even = " + median(even));
+    System.out.println("median single = " + median(new long[] {7}));
+    System.out.println(
+        "median leaves the caller's array alone: " + (odd[0] == 50 && even[0] == 50));
+
+    System.out.println("timing (median of 3 runs, microseconds)");
+    int[] sizes = {500, 1000, 2000};
+    for (String snippet : new String[] {"b", "e", "jFast"}) {
+      StringBuilder row = new StringBuilder("  " + snippet);
+      for (int n : sizes) {
+        long[] samples = new long[3];
+        for (int run = 0; run < 3; run++) {
+          int[] data = ramp(n);
+          long started = System.nanoTime();
+          runSnippet(snippet, data);
+          samples[run] = (System.nanoTime() - started) / 1000;
         }
-        return -1;
+        row.append(" n=").append(n).append(" t=").append(median(samples));
+      }
+      System.out.println(row);
     }
+  }
 
-    // TAG:
-    static void d(int[] arr) {
-        for (int i = 0; i < arr.length; i++)
-            for (int j = 0; j < arr.length; j++)
-                arr[i] += arr[j];
+  /** Plenty of repeats, so the membership test in j and jFast has work to do. */
+  static int[] ramp(int n) {
+    int[] data = new int[n];
+    for (int k = 0; k < n; k++) {
+      data[k] = k % (n / 4 + 1);
     }
+    return data;
+  }
 
-    // TAG:
-    static void e(int[] arr) {
-        for (int i = 0; i < arr.length; i++)
-            for (int j = i + 1; j < arr.length; j++)
-                arr[i] += arr[j];
-    }
-
-    // TAG:
-    static int f(int n) {
-        int count = 0;
-        while (n > 1) {
-            n /= 2;
-            count++;
-        }
-        return count;
-    }
-
-    // TAG:
-    static int g(int[] sorted, int target) {
-        int lo = 0, hi = sorted.length - 1;
-        while (lo <= hi) {
-            int mid = lo + (hi - lo) / 2;
-            if (sorted[mid] == target) return mid;
-            if (sorted[mid] < target) lo = mid + 1;
-            else hi = mid - 1;
-        }
-        return -1;
-    }
-
-    // TAG:
-    static int h(int n) {
-        if (n <= 1) return n;
-        return h(n - 1) + h(n - 2);
-    }
-
-    // TAG:
-    static int i(int n) {
-        int total = 0;
-        for (int k = 0; k < n; k++)
-            for (int j = 1; j < n; j *= 2)
-                total++;
-        return total;
-    }
-
-    // TAG:
-    static List<Integer> j(int[] arr) {
-        List<Integer> result = new ArrayList<>();
-        for (int x : arr) {
-            if (!result.contains(x)) result.add(x);
-        }
-        return result;
-    }
-
-    // ---- your turn --------------------------------------------------------
-
-    // TODO the same answer as j, in the same order, with a HashSet doing the
-    //      membership test so the whole thing is linear
-    static List<Integer> jFast(int[] arr) {
-        return List.of();
-    }
-
-    // TODO the median of samples. Even count: the mean of the middle two.
-    //      Sort a copy — the caller's array must come back untouched.
-    static long median(long[] samples) {
-        return 0;
-    }
-
-    // ---- main is written for you ------------------------------------------
-
-    public static void main(String[] args) {
-        int[] mixed = { 5, 3, 5, 9, 1, 3, 9 };
-        int[] duplicates = { 4, 4, 4, 4 };
-        int[] empty = new int[0];
-
-        System.out.println("j vs jFast on mixed: " + j(mixed).equals(jFast(mixed)));
-        System.out.println("j vs jFast on duplicates: " + j(duplicates).equals(jFast(duplicates)));
-        System.out.println("j vs jFast on empty: " + j(empty).equals(jFast(empty)));
-        System.out.println("jFast mixed: " + jFast(mixed));
-        System.out.println("jFast duplicates: " + jFast(duplicates));
-        System.out.println("jFast empty: " + jFast(empty));
-
-        long[] odd = { 50, 10, 30 };
-        long[] even = { 50, 10, 30, 40 };
-        System.out.println("median odd = " + median(odd));
-        System.out.println("median even = " + median(even));
-        System.out.println("median single = " + median(new long[] { 7 }));
-        System.out.println("median leaves the caller's array alone: " + (odd[0] == 50 && even[0] == 50));
-
-        System.out.println("timing (median of 3 runs, microseconds)");
-        int[] sizes = { 500, 1000, 2000 };
-        for (String snippet : new String[] { "b", "e", "jFast" }) {
-            StringBuilder row = new StringBuilder("  " + snippet);
-            for (int n : sizes) {
-                long[] samples = new long[3];
-                for (int run = 0; run < 3; run++) {
-                    int[] data = ramp(n);
-                    long started = System.nanoTime();
-                    runSnippet(snippet, data);
-                    samples[run] = (System.nanoTime() - started) / 1000;
-                }
-                row.append(" n=").append(n).append(" t=").append(median(samples));
-            }
-            System.out.println(row);
-        }
-    }
-
-    /** Plenty of repeats, so the membership test in j and jFast has work to do. */
-    static int[] ramp(int n) {
-        int[] data = new int[n];
-        for (int k = 0; k < n; k++) {
-            data[k] = k % (n / 4 + 1);
-        }
-        return data;
-    }
-
-    static void runSnippet(String name, int[] data) {
-        if (name.equals("b")) b(data);
-        else if (name.equals("e")) e(data);
-        else jFast(data);
-    }
+  static void runSnippet(String name, int[] data) {
+    if (name.equals("b")) b(data);
+    else if (name.equals("e")) e(data);
+    else jFast(data);
+  }
 }
 `,
     tests: [

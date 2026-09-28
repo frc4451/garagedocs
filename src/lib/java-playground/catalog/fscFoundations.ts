@@ -21,42 +21,42 @@ const A03_STARTER = `// Author:
 // What this program does:
 
 public class StringToolkit {
-    // Leave main as it is. Implement the five methods below.
-    public static void main(String[] args) {
-        System.out.println(normaliseName("  jane   DOE "));
-        System.out.println(normaliseName("alex P. smith"));
-        System.out.println(normaliseName(null));
-        System.out.println(eventCodeKey(" sc-ROCK-2026 "));
-        System.out.println(eventCodeKey("PA_PIT_2026"));
-        System.out.println(namesMatch("  jane DOE ", "Jane Doe"));
-        System.out.println(namesMatch("Jane", "John"));
-        System.out.println(countVowels("hello world"));
-        System.out.println(countVowels(null));
-        String[] pair = firstAndLast("Casey  Lee ");
-        System.out.println(pair[0] + "|" + pair[1]);
-        String[] single = firstAndLast(" Avery ");
-        System.out.println(single[0] + "|" + single[1]);
-    }
+  // Leave main as it is. Implement the five methods below.
+  public static void main(String[] args) {
+    System.out.println(normaliseName("  jane   DOE "));
+    System.out.println(normaliseName("alex P. smith"));
+    System.out.println(normaliseName(null));
+    System.out.println(eventCodeKey(" sc-ROCK-2026 "));
+    System.out.println(eventCodeKey("PA_PIT_2026"));
+    System.out.println(namesMatch("  jane DOE ", "Jane Doe"));
+    System.out.println(namesMatch("Jane", "John"));
+    System.out.println(countVowels("hello world"));
+    System.out.println(countVowels(null));
+    String[] pair = firstAndLast("Casey  Lee ");
+    System.out.println(pair[0] + "|" + pair[1]);
+    String[] single = firstAndLast(" Avery ");
+    System.out.println(single[0] + "|" + single[1]);
+  }
 
-    public static String normaliseName(String raw) {
-        return null; // TODO
-    }
+  public static String normaliseName(String raw) {
+    return null; // TODO
+  }
 
-    public static String eventCodeKey(String raw) {
-        return null; // TODO
-    }
+  public static String eventCodeKey(String raw) {
+    return null; // TODO
+  }
 
-    public static boolean namesMatch(String a, String b) {
-        return false; // TODO
-    }
+  public static boolean namesMatch(String a, String b) {
+    return false; // TODO
+  }
 
-    public static int countVowels(String s) {
-        return 0; // TODO
-    }
+  public static int countVowels(String s) {
+    return 0; // TODO
+  }
 
-    public static String[] firstAndLast(String fullName) {
-        return null; // TODO
-    }
+  public static String[] firstAndLast(String fullName) {
+    return null; // TODO
+  }
 }
 `;
 
@@ -79,25 +79,25 @@ const A05_STARTER = `// Author:
 // What this program does:
 
 public class MatchPhaseDetector {
-    // Leave main as it is. Implement the two phase methods below.
-    public static void main(String[] args) {
-        int[] times = { -1, 0, 14, 15, 75, 119, 120, 149, 150, 151 };
-        for (int t : times) {
-            System.out.println(t + " " + phaseWithIfElse(t) + " " + phaseWithSwitch(t));
-        }
+  // Leave main as it is. Implement the two phase methods below.
+  public static void main(String[] args) {
+    int[] times = {-1, 0, 14, 15, 75, 119, 120, 149, 150, 151};
+    for (int t : times) {
+      System.out.println(t + " " + phaseWithIfElse(t) + " " + phaseWithSwitch(t));
     }
+  }
 
-    public static String phaseWithIfElse(int seconds) {
-        return "TODO";
-    }
+  public static String phaseWithIfElse(int seconds) {
+    return "TODO";
+  }
 
-    public static String phaseWithSwitch(int seconds) {
-        return "TODO";
-    }
+  public static String phaseWithSwitch(int seconds) {
+    return "TODO";
+  }
 
-    public static String label(int seconds, String phase) {
-        return "TODO";
-    }
+  public static String label(int seconds, String phase) {
+    return "TODO";
+  }
 }
 `;
 
@@ -121,36 +121,36 @@ const A08_STARTER = `import java.util.Scanner;
 // What this program does:
 
 public class StickCurve {
-    // Leave main as it is. Implement the four methods below.
-    public static void main(String[] args) {
-        Scanner in = new Scanner(System.in);
-        double threshold = in.nextDouble();
-        double exponent = in.nextDouble();
-        while (true) {
-            double raw = in.nextDouble();
-            if (raw == 999) {
-                break;
-            }
-            System.out.printf("%.4f %.4f%n", raw, applyCurve(raw, threshold, exponent));
-        }
-        in.close();
+  // Leave main as it is. Implement the four methods below.
+  public static void main(String[] args) {
+    Scanner in = new Scanner(System.in);
+    double threshold = in.nextDouble();
+    double exponent = in.nextDouble();
+    while (true) {
+      double raw = in.nextDouble();
+      if (raw == 999) {
+        break;
+      }
+      System.out.printf("%.4f %.4f%n", raw, applyCurve(raw, threshold, exponent));
     }
+    in.close();
+  }
 
-    public static double deadband(double raw, double threshold) {
-        return 0.0; // TODO
-    }
+  public static double deadband(double raw, double threshold) {
+    return 0.0; // TODO
+  }
 
-    public static double signPreservingPow(double value, double exponent) {
-        return 0.0; // TODO
-    }
+  public static double signPreservingPow(double value, double exponent) {
+    return 0.0; // TODO
+  }
 
-    public static double clamp(double value, double min, double max) {
-        return 0.0; // TODO
-    }
+  public static double clamp(double value, double min, double max) {
+    return 0.0; // TODO
+  }
 
-    public static double applyCurve(double raw, double deadbandThreshold, double exponent) {
-        return 0.0; // TODO
-    }
+  public static double applyCurve(double raw, double deadbandThreshold, double exponent) {
+    return 0.0; // TODO
+  }
 }
 `;
 
@@ -188,9 +188,9 @@ the top of the file filled in.`,
 // What this program does:
 
 public class HelloTeam {
-    public static void main(String[] args) {
-        // Print the four lines from the prompt
-    }
+  public static void main(String[] args) {
+    // Print the four lines from the prompt
+  }
 }
 `,
     tests: [
@@ -217,8 +217,8 @@ public class HelloTeam {
     vAtMotor = vRest - (current x resistance)
 
 Read three doubles from System.in, in this order: resting voltage, total
-resistance, worst-case current. Print all three inputs and the predicted voltage
-to two decimal places, then one verdict line:
+resistance, worst-case current. Print all three inputs and the predicted voltage,
+resistance to three decimal places and the rest to two, then one verdict line:
 
     >= 9.0 V              Healthy.
     7.0 V up to 9.0 V     Marginal, consider a fresh battery.
@@ -233,11 +233,11 @@ Put the two thresholds in final double constants. Run needs input — paste
 // What this program does:
 
 public class BatterySanity {
-    public static void main(String[] args) {
-        Scanner in = new Scanner(System.in);
-        // Read the three values, compute the prediction, print the report
-        in.close();
-    }
+  public static void main(String[] args) {
+    Scanner in = new Scanner(System.in);
+    // Read the three values, compute the prediction, print the report
+    in.close();
+  }
 }
 `,
     tests: [
@@ -335,17 +335,17 @@ into the box below, one per line.`,
 // What this program does:
 
 public class ScannerEcho {
-    public static void main(String[] args) {
-        Scanner in = new Scanner(System.in);
-        // Call one helper per input, then print the summary block
-        in.close();
-    }
+  public static void main(String[] args) {
+    Scanner in = new Scanner(System.in);
+    // Call one helper per input, then print the summary block
+    in.close();
+  }
 
-    // public static int readTeamNumber(Scanner in) { ... }
-    // public static String readTeamName(Scanner in) { ... }
-    // public static int readDriverCount(Scanner in) { ... }
-    // public static double readAvgScore(Scanner in) { ... }
-    // public static boolean readClimbed(Scanner in) { ... }
+  // public static int readTeamNumber(Scanner in) { ... }
+  // public static String readTeamName(Scanner in) { ... }
+  // public static int readDriverCount(Scanner in) { ... }
+  // public static double readAvgScore(Scanner in) { ... }
+  // public static boolean readClimbed(Scanner in) { ... }
 }
 `,
     tests: [
@@ -427,31 +427,44 @@ the box below, one per line.`,
 // Date:
 // What this program does:
 
-enum StartPosition { LEFT, CENTER, RIGHT }
+enum StartPosition {
+  LEFT,
+  CENTER,
+  RIGHT
+}
 
-enum PartnerPlan { SCORE, DEFENSE, UNKNOWN }
+enum PartnerPlan {
+  SCORE,
+  DEFENSE,
+  UNKNOWN
+}
 
-enum BatteryCondition { FRESH, WARM, COLD }
+enum BatteryCondition {
+  FRESH,
+  WARM,
+  COLD
+}
 
 enum AutoRoutine {
-    CENTER_CROSS_AND_SHOOT,
-    CENTER_CROSS_ONLY,
-    LEFT_AVOID,
-    RIGHT_AVOID,
-    SIDE_SPRINT,
-    SAFE_HOLD
+  CENTER_CROSS_AND_SHOOT,
+  CENTER_CROSS_ONLY,
+  LEFT_AVOID,
+  RIGHT_AVOID,
+  SIDE_SPRINT,
+  SAFE_HOLD
 }
 
 public class AutoPicker {
-    public static void main(String[] args) {
-        Scanner in = new Scanner(System.in);
-        // Read the three inputs, call chooseRoutine, print the routine and a reason
-        in.close();
-    }
+  public static void main(String[] args) {
+    Scanner in = new Scanner(System.in);
+    // Read the three inputs, call chooseRoutine, print the routine and a reason
+    in.close();
+  }
 
-    static AutoRoutine chooseRoutine(StartPosition pos, PartnerPlan partner, BatteryCondition battery) {
-        return AutoRoutine.SAFE_HOLD; // TODO
-    }
+  public static AutoRoutine chooseRoutine(
+      StartPosition pos, PartnerPlan partner, BatteryCondition battery) {
+    return AutoRoutine.SAFE_HOLD; // TODO
+  }
 }
 `,
     tests: [
@@ -513,11 +526,11 @@ so it stops after one pass.`,
 // What this program does:
 
 public class MatchCountdown {
-    public static void main(String[] args) {
-        Scanner in = new Scanner(System.in);
-        // do { print 151 lines; ask to run again; } while (answer is y)
-        in.close();
-    }
+  public static void main(String[] args) {
+    Scanner in = new Scanner(System.in);
+    // do { print 151 lines; ask to run again; } while (answer is y)
+    in.close();
+  }
 }
 `,
     tests: [
@@ -609,11 +622,11 @@ and the window into the box below, one per line.`,
 // What this program does:
 
 public class SmoothOne {
-    public static void main(String[] args) {
-        Scanner in = new Scanner(System.in);
-        // Read n, the readings and the window; build the smoothed array; print both
-        in.close();
-    }
+  public static void main(String[] args) {
+    Scanner in = new Scanner(System.in);
+    // Read n, the readings and the window; build the smoothed array; print both
+    in.close();
+  }
 }
 `,
     tests: [
@@ -644,7 +657,7 @@ public class SmoothOne {
     title: 'A10: Shooter Lookup Table',
     entryClass: 'ShooterLookup',
     showStdin: true,
-    prompt: `Turn a handful of measured distance/RPM pairs into a shooter lookup table.
+    prompt: `Turn a handful of sample distance/RPM pairs into a shooter lookup table.
 
 Read n, then n pairs of distance and RPM into a double[n][2]. Sort them by
 distance ascending with a sort you write yourself, print the sorted table, then
@@ -665,18 +678,18 @@ the assignment into the box below.`,
 // What this program does:
 
 public class ShooterLookup {
-    public static void main(String[] args) {
-        Scanner in = new Scanner(System.in);
-        // Read the samples, sort, print, then answer distance queries
-        in.close();
-    }
+  public static void main(String[] args) {
+    Scanner in = new Scanner(System.in);
+    // Read the samples, sort, print, then answer distance queries
+    in.close();
+  }
 
-    // public static double[][] readSamples(Scanner in, int n) { ... }
-    // public static void sortSamples(double[][] samples) { ... }
-    // public static int upperIndex(double[][] samples, double distance) { ... }
-    // public static double interpolate(double[][] samples, double distance) { ... }
-    // public static void printSamples(double[][] samples) { ... }
-    // public static double rpmFor(double[][] samples, double distance) { ... }
+  // public static double[][] readSamples(Scanner in, int n) { ... }
+  // public static void sortSamples(double[][] samples) { ... }
+  // public static int upperIndex(double[][] samples, double distance) { ... }
+  // public static double interpolate(double[][] samples, double distance) { ... }
+  // public static void printSamples(double[][] samples) { ... }
+  // public static double rpmFor(double[][] samples, double distance) { ... }
 }
 `,
     tests: [

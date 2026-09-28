@@ -190,3 +190,7 @@ Tools is reference material without durations or required sessions. Use paired P
 Develop and check robot behavior in simulation before hardware confirmation. Describe what simulation can establish and what still requires a physical check. Keep the documented exceptions to lesson duration limits when editing; do not shorten useful material just to meet a word count.
 
 Use the same section names as the navigation: Tools, Java, Practice, Kit Bot, and FRC. Introduce Visual Studio Code (VS Code) as Microsoft's editor. Retain source attribution and the site's disclosure of how lessons are drafted and reviewed.
+
+## Mathematical Typography
+
+Use Fira Math for mathematical notation through the shared build-time LaTeX renderer. Keep explanatory prose in Fira Sans and literal code in Fira Code. Follow [Math Notation and Rendering](math-notation.md), including symbol definitions, units, accessible explanations, and the distinction between continuous equations and sampled code.

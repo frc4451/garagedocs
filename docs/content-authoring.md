@@ -264,6 +264,10 @@ to GitHub Pages, which hosts static files only. Add approved links by editing
 `src/data/resources.json` directly: give each entry a unique `id` slug, then run
 `npm run build` to validate against the Zod schema.
 
+## Mathematical Notation
+
+Use the shared `Equation` component for mathematical expressions and explicit LaTeX delimiters in `ContentTable` strings. Equations render at build time as MathML in Fira Math; prose remains Fira Sans and code remains Fira Code. See [Math Notation and Rendering](math-notation.md) for syntax, teaching conventions, and validation requirements. Do not introduce Typst or a second equation renderer for individual lessons.
+
 ## Durations and sessions
 
 The default lesson target is **45 minutes or less**. Tools pages are references and have no durations or required sessions. Existing exceptions include R00 setup, multi-session assignments and the capstone, and the two-part Arm and Elevator PID practice pages.

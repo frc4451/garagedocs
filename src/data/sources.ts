@@ -17,6 +17,21 @@ export interface SourceDefinition {
 }
 
 export const sourceRegistry = {
+  math141: {
+    name: 'USC MATH 141: Calculus I, Frank Thorne',
+    base: 'https://thornef.github.io/math141/',
+    version: 'Fall 2023',
+  },
+  'openstax-calculus1': {
+    name: 'OpenStax Calculus Volume 1',
+    base: 'https://openstax.org/books/calculus-volume-1/pages/',
+    version: 'checked September 2026',
+  },
+  'openstax-calculus2': {
+    name: 'OpenStax Calculus Volume 2',
+    base: 'https://openstax.org/books/calculus-volume-2/pages/',
+    version: 'checked September 2026',
+  },
   mantik: {
     name: 'itkan-robotics/mantik',
     base: 'https://github.com/itkan-robotics/mantik/blob/main/',
