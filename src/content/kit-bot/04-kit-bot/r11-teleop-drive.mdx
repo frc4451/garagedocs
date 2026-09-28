@@ -23,7 +23,7 @@ You will make two changes:
 
 ## Create TeleopDrive
 
-In the VS Code Explorer, open `src/main/java/frc/robot/commands`. Create `TeleopDrive.java`, paste this **complete file**, and save it.
+In the VS Code Explorer, open `src/main/java/frc/robot/commands`. If the folder is missing, create it inside `frc/robot`: R04 deleted the template's example commands, and Git does not keep empty folders. Create `TeleopDrive.java`, paste this **complete file**, and save it.
 
 ```java
 package frc.robot.commands;
@@ -37,49 +37,42 @@ import java.util.function.DoubleSupplier;
 
 public class TeleopDrive extends Command {
 
-    private final Drive drive;
-    private final DoubleSupplier forwardSupplier;
-    private final DoubleSupplier rotationSupplier;
+  private final Drive drive;
+  private final DoubleSupplier forwardSupplier;
+  private final DoubleSupplier rotationSupplier;
 
-    public TeleopDrive(
-            Drive drive,
-            DoubleSupplier forwardSupplier,
-            DoubleSupplier rotationSupplier) {
-        this.drive = drive;
-        this.forwardSupplier = forwardSupplier;
-        this.rotationSupplier = rotationSupplier;
-        addRequirements(drive);
+  public TeleopDrive(Drive drive, DoubleSupplier forwardSupplier, DoubleSupplier rotationSupplier) {
+    this.drive = drive;
+    this.forwardSupplier = forwardSupplier;
+    this.rotationSupplier = rotationSupplier;
+    addRequirements(drive);
+  }
+
+  @Override
+  public void execute() {
+    if (!DriverStation.isTeleopEnabled()) {
+      drive.stop();
+      return;
     }
 
-    @Override
-    public void execute() {
-        if (!DriverStation.isTeleopEnabled()) {
-            drive.stop();
-            return;
-        }
+    double speed =
+        StickCurve.shape(forwardSupplier.getAsDouble(), DriveConstants.TELEOP_DEADBAND, 1.0);
 
-        double speed = StickCurve.shape(
-            forwardSupplier.getAsDouble(),
-            DriveConstants.TELEOP_DEADBAND,
-            1.0);
+    double rotation =
+        StickCurve.shape(rotationSupplier.getAsDouble(), DriveConstants.TELEOP_DEADBAND, 1.0);
 
-        double rotation = StickCurve.shape(
-            rotationSupplier.getAsDouble(),
-            DriveConstants.TELEOP_DEADBAND,
-            1.0);
+    drive.arcadeDrive(speed, rotation);
+  }
 
-        drive.arcadeDrive(speed, rotation);
-    }
+  @Override
+  public void end(boolean interrupted) {
+    drive.stop();
+  }
 
-    @Override
-    public void end(boolean interrupted) {
-        drive.stop();
-    }
-
-    @Override
-    public boolean isFinished() {
-        return false;
-    }
+  @Override
+  public boolean isFinished() {
+    return false;
+  }
 }
 ```
 
@@ -103,29 +96,19 @@ Replace `configureBindings()` with this method. Keep the launcher, distance, and
 
 ```java
 private void configureBindings() {
-    Trigger teleopEnabled = new Trigger(DriverStation::isTeleopEnabled);
+  Trigger teleopEnabled = new Trigger(DriverStation::isTeleopEnabled);
 
-    drive.setDefaultCommand(new TeleopDrive(
-        drive,
-        () -> -driver.getLeftY(),
-        () -> driver.getRightX()));
+  drive.setDefaultCommand(
+      new TeleopDrive(drive, () -> -driver.getLeftY(), () -> driver.getRightX()));
 
-    teleopEnabled.and(driver.rightBumper())
-        .whileTrue(launcher.launchFuel());
-    teleopEnabled.and(driver.leftBumper())
-        .whileTrue(launcher.intakeFuel());
-    teleopEnabled.and(driver.a())
-        .whileTrue(launcher.ejectFuel());
-    teleopEnabled.and(driver.povUp())
-        .whileTrue(launcher.launchAtDistance(Meters.of(1.0)));
-    teleopEnabled.and(driver.povDown())
-        .whileTrue(launcher.launchAtDistance(Meters.of(3.0)));
-    teleopEnabled.and(driver.y())
-        .whileTrue(drive.characterizeFeedforward());
-    teleopEnabled.and(driver.x())
-        .whileTrue(launcher.characterizeFeedforward());
-    teleopEnabled.and(driver.b())
-        .onTrue(drive.stopCommand());
+  teleopEnabled.and(driver.rightBumper()).whileTrue(launcher.launchFuel());
+  teleopEnabled.and(driver.leftBumper()).whileTrue(launcher.intakeFuel());
+  teleopEnabled.and(driver.a()).whileTrue(launcher.ejectFuel());
+  teleopEnabled.and(driver.povUp()).whileTrue(launcher.launchAtDistance(Meters.of(1.0)));
+  teleopEnabled.and(driver.povDown()).whileTrue(launcher.launchAtDistance(Meters.of(3.0)));
+  teleopEnabled.and(driver.y()).whileTrue(drive.characterizeFeedforward());
+  teleopEnabled.and(driver.x()).whileTrue(launcher.characterizeFeedforward());
+  teleopEnabled.and(driver.b()).onTrue(drive.stopCommand());
 }
 ```
 
@@ -155,16 +138,17 @@ These are robot-relative directions. The robot's location and direction on the f
 Before running, add these temporary lines at the end of `Drive.periodic()`:
 
 ```java
-System.out.printf("drive request: left=%.2f V, right=%.2f V%n",
+System.out.printf(
+    "drive request: left=%.2f V, right=%.2f V%n",
     leftVoltage.in(Volts), rightVoltage.in(Volts));
 ```
 
 Add these temporary lines at the end of `Launcher.periodic()`:
 
 ```java
-System.out.printf("launcher request: feeder=%.2f V, roller=%.2f V%n",
-    targetFeederVoltage.in(Volts),
-    targetIntakeLauncherVoltage.in(Volts));
+System.out.printf(
+    "launcher request: feeder=%.2f V, roller=%.2f V%n",
+    targetFeederVoltage.in(Volts), targetIntakeLauncherVoltage.in(Volts));
 ```
 
 Both files already use the static `Volts` import. These prints show the stored requests that the subsystems send to their IO objects. They provide the observable check before R13 adds measured launcher telemetry. Stored requests and measured applied voltage are different quantities, even when the simulation reports the same number.

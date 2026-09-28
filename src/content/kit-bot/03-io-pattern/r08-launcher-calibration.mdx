@@ -21,7 +21,9 @@ distance fraction = (2.5 - 2.0) / (3.0 - 2.0) = 0.5
 voltage = 8.0 + 0.5 × (10.0 - 8.0) = 9.0 V
 ```
 
-For this first version, the table maps distance in meters to voltage. The values below are examples for simulation. They are not measurements from a real Kit Bot.
+For this first version, the table maps distance in meters to the size of the launcher-roller voltage. The values below are examples for simulation. They are not measurements from a real Kit Bot.
+
+The table stores positive sizes only. Direction comes from `LauncherConstants.LAUNCH_ROLLER_VOLTAGE`, the -7 V request that Part 2's right-bumper launch already uses. Keeping the direction in one constant means a distance launch always turns the roller the same way as a bumper launch. If a mentor later inverts the launch direction, the table does not change.
 
 ## Add the Table
 
@@ -29,15 +31,14 @@ Add this field and helper to `Launcher`:
 
 ```java
 // Simulation examples only; these are not measured launcher settings.
-private final InterpolatingDoubleTreeMap simulationVoltageByDistance =
-    buildVoltageTable();
+private final InterpolatingDoubleTreeMap simulationVoltageByDistance = buildVoltageTable();
 
 private static InterpolatingDoubleTreeMap buildVoltageTable() {
-    InterpolatingDoubleTreeMap table = new InterpolatingDoubleTreeMap();
-    table.put(1.0, 6.0);
-    table.put(2.0, 8.0);
-    table.put(3.0, 10.0);
-    return table;
+  InterpolatingDoubleTreeMap table = new InterpolatingDoubleTreeMap();
+  table.put(1.0, 6.0);
+  table.put(2.0, 8.0);
+  table.put(3.0, 10.0);
+  return table;
 }
 ```
 
@@ -47,11 +48,15 @@ Add this method:
 
 ```java
 public Command launchAtDistance(Distance distance) {
-    Voltage launcherVoltage = Volts.of(
-        simulationVoltageByDistance.get(distance.in(Meters)));
-    return launchAtVoltage(launcherVoltage);
+  // The table stores sizes; LAUNCH_ROLLER_VOLTAGE sets the launch direction.
+  double voltageSize = simulationVoltageByDistance.get(distance.in(Meters));
+  Voltage launcherVoltage =
+      Volts.of(Math.copySign(voltageSize, LauncherConstants.LAUNCH_ROLLER_VOLTAGE.in(Volts)));
+  return launchAtVoltage(launcherVoltage);
 }
 ```
+
+`Math.copySign(size, direction)` returns `size` with the sign of `direction`. With the Part 2 constant of -7 V, a 1.0 m request becomes -6 V and a 3.0 m request becomes -10 V.
 
 Keep the existing `Command` and `Voltage` imports. Add `edu.wpi.first.units.measure.Distance` and static imports for `Meters` and `Volts` from `edu.wpi.first.units.Units`. This factory belongs on `Launcher` because the subsystem owns both fuel-path motors. It reuses the two-phase launch helper from Part 2, so the distance table changes the intake-launcher voltage while the feeder still waits through spin-up and then feeds.
 
@@ -62,16 +67,14 @@ The [WPILib interpolation map API](https://github.wpilib.org/allwpilib/docs/rele
 Add these bindings inside `RobotContainer.configureBindings()` and statically import `Meters` there too. Keep the D-pad bindings for the capstone distance check:
 
 ```java
-driver.povUp().whileTrue(
-    launcher.launchAtDistance(Meters.of(1.0)));
+driver.povUp().whileTrue(launcher.launchAtDistance(Meters.of(1.0)));
 
-driver.povDown().whileTrue(
-    launcher.launchAtDistance(Meters.of(3.0)));
+driver.povDown().whileTrue(launcher.launchAtDistance(Meters.of(3.0)));
 ```
 
 The D-pad is also called the POV control. With a physical controller on Joystick 0, press its up or down direction. With keyboard simulation, use the keys mapped to the controller POV in the simulation window.
 
-Run the simulator. Hold each D-pad direction and print RPM with the temporary X binding from R08 Part 2. The 3.0 m command requests 10 V instead of 6 V, so the simulated model should report a larger speed magnitude. Releasing the D-pad stops the launcher. Remove the temporary prints after recording the checks; keep the D-pad bindings for the capstone distance check.
+Run the simulator. Hold each D-pad direction and print RPM with the temporary X binding from R08 Part 2. The 3.0 m command requests -10 V instead of -6 V, so the simulated model should report a larger speed magnitude. Both speeds should have the same sign as the right-bumper launch; if they do not, check the `copySign` line. Releasing the D-pad stops the launcher. Remove the temporary prints after recording the checks; keep the D-pad bindings for the capstone distance check.
 
 ## Interpret the Table Correctly
 

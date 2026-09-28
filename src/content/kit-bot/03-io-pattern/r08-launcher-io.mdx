@@ -45,33 +45,34 @@ Create `src/main/java/frc/robot/subsystems/launcher/LauncherIO.java` with this c
 ```java
 package frc.robot.subsystems.launcher;
 
-import edu.wpi.first.units.measure.AngularVelocity;
-import edu.wpi.first.units.measure.Current;
-import edu.wpi.first.units.measure.Voltage;
 import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.RPM;
 import static edu.wpi.first.units.Units.Volts;
 
+import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Voltage;
+
 public interface LauncherIO {
 
-    /** Apply voltage to the feeder motor. */
-    public void setFeederVoltage(Voltage volts);
+  /** Apply voltage to the feeder motor. */
+  public void setFeederVoltage(Voltage volts);
 
-    /** Apply voltage to the roller that intakes and launches fuel. */
-    public void setIntakeLauncherVoltage(Voltage volts);
+  /** Apply voltage to the roller that intakes and launches fuel. */
+  public void setIntakeLauncherVoltage(Voltage volts);
 
-    /** Refresh both motors' readings. */
-    public void updateInputs(LauncherInputs inputs);
+  /** Refresh both motors' readings. */
+  public void updateInputs(LauncherInputs inputs);
 
-    public static final class LauncherInputs {
-        public AngularVelocity feederVelocity = RPM.zero();
-        public Current feederCurrent = Amps.zero();
-        public Voltage feederAppliedVoltage = Volts.zero();
+  public static final class LauncherInputs {
+    public AngularVelocity feederVelocity = RPM.zero();
+    public Current feederCurrent = Amps.zero();
+    public Voltage feederAppliedVoltage = Volts.zero();
 
-        public AngularVelocity intakeLauncherVelocity = RPM.zero();
-        public Current intakeLauncherCurrent = Amps.zero();
-        public Voltage intakeLauncherAppliedVoltage = Volts.zero();
-    }
+    public AngularVelocity intakeLauncherVelocity = RPM.zero();
+    public Current intakeLauncherCurrent = Amps.zero();
+    public Voltage intakeLauncherAppliedVoltage = Volts.zero();
+  }
 }
 ```
 
@@ -86,37 +87,35 @@ Create `src/main/java/frc/robot/subsystems/launcher/LauncherConstants.java` with
 ```java
 package frc.robot.subsystems.launcher;
 
-import edu.wpi.first.units.measure.MomentOfInertia;
-import edu.wpi.first.units.measure.Time;
-import edu.wpi.first.units.measure.Voltage;
 import static edu.wpi.first.units.Units.KilogramSquareMeters;
 import static edu.wpi.first.units.Units.Volts;
 
+import edu.wpi.first.units.measure.MomentOfInertia;
+import edu.wpi.first.units.measure.Voltage;
+
 public final class LauncherConstants {
 
-    public static final int FEEDER_CAN_ID = 21;
-    public static final int INTAKE_LAUNCHER_CAN_ID = 22;
-    public static final int SMART_CURRENT_LIMIT_AMPS = 60;
+  public static final int FEEDER_CAN_ID = 21;
+  public static final int INTAKE_LAUNCHER_CAN_ID = 22;
+  public static final int SMART_CURRENT_LIMIT_AMPS = 60;
 
-    public static final MomentOfInertia FEEDER_SIM_MOI =
-        KilogramSquareMeters.of(0.0010);
-    public static final MomentOfInertia INTAKE_LAUNCHER_SIM_MOI =
-        KilogramSquareMeters.of(0.0018);
-    public static final double SIM_GEAR_RATIO = 1.0;
+  public static final MomentOfInertia FEEDER_SIM_MOI = KilogramSquareMeters.of(0.0010);
+  public static final MomentOfInertia INTAKE_LAUNCHER_SIM_MOI = KilogramSquareMeters.of(0.0018);
+  public static final double SIM_GEAR_RATIO = 1.0;
 
-    public static final Voltage INTAKE_FEEDER_VOLTAGE = Volts.of(6.0);
-    public static final Voltage INTAKE_ROLLER_VOLTAGE = Volts.of(-4.0);
+  public static final Voltage INTAKE_FEEDER_VOLTAGE = Volts.of(6.0);
+  public static final Voltage INTAKE_ROLLER_VOLTAGE = Volts.of(-4.0);
 
-    public static final Voltage LAUNCH_SPINUP_FEEDER_VOLTAGE = Volts.of(1.0);
-    public static final Voltage LAUNCH_FEEDER_VOLTAGE = Volts.of(-7.0);
-    public static final Voltage LAUNCH_ROLLER_VOLTAGE = Volts.of(-7.0);
-    public static final double LAUNCH_SPINUP_SECONDS = 1.0;
+  public static final Voltage LAUNCH_SPINUP_FEEDER_VOLTAGE = Volts.of(1.0);
+  public static final Voltage LAUNCH_FEEDER_VOLTAGE = Volts.of(-7.0);
+  public static final Voltage LAUNCH_ROLLER_VOLTAGE = Volts.of(-7.0);
+  public static final double LAUNCH_SPINUP_SECONDS = 1.0;
 
-    public static final Voltage EJECT_FEEDER_VOLTAGE = Volts.of(-6.0);
-    public static final Voltage EJECT_ROLLER_VOLTAGE = Volts.of(4.0);
-    public static final Voltage IDLE_VOLTAGE = Volts.of(0.0);
+  public static final Voltage EJECT_FEEDER_VOLTAGE = Volts.of(-6.0);
+  public static final Voltage EJECT_ROLLER_VOLTAGE = Volts.of(4.0);
+  public static final Voltage IDLE_VOLTAGE = Volts.of(0.0);
 
-    private LauncherConstants() {}
+  private LauncherConstants() {}
 }
 ```
 
@@ -133,77 +132,64 @@ Create `src/main/java/frc/robot/subsystems/launcher/LauncherIOReal.java` with th
 ```java
 package frc.robot.subsystems.launcher;
 
-import com.revrobotics.spark.SparkMax;
-import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.ResetMode;
-import com.revrobotics.PersistMode;
-import com.revrobotics.spark.config.SparkMaxConfig;
-import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
-import edu.wpi.first.units.measure.AngularVelocity;
-import edu.wpi.first.units.measure.Current;
-import edu.wpi.first.units.measure.Voltage;
 import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.RPM;
 import static edu.wpi.first.units.Units.Volts;
 
+import com.revrobotics.PersistMode;
+import com.revrobotics.ResetMode;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+import com.revrobotics.spark.config.SparkMaxConfig;
+import edu.wpi.first.units.measure.Voltage;
+
 public class LauncherIOReal implements LauncherIO {
 
-    private final SparkMax feeder;
-    private final SparkMax intakeLauncher;
+  private final SparkMax feeder;
+  private final SparkMax intakeLauncher;
 
-    public LauncherIOReal() {
-        feeder = new SparkMax(
-            LauncherConstants.FEEDER_CAN_ID,
-            MotorType.kBrushless);
-        intakeLauncher = new SparkMax(
-            LauncherConstants.INTAKE_LAUNCHER_CAN_ID,
-            MotorType.kBrushless);
+  public LauncherIOReal() {
+    feeder = new SparkMax(LauncherConstants.FEEDER_CAN_ID, MotorType.kBrushless);
+    intakeLauncher = new SparkMax(LauncherConstants.INTAKE_LAUNCHER_CAN_ID, MotorType.kBrushless);
 
-        SparkMaxConfig feederConfig = new SparkMaxConfig();
-        feederConfig.idleMode(IdleMode.kBrake)
-            .smartCurrentLimit(LauncherConstants.SMART_CURRENT_LIMIT_AMPS);
+    SparkMaxConfig feederConfig = new SparkMaxConfig();
+    feederConfig
+        .idleMode(IdleMode.kBrake)
+        .smartCurrentLimit(LauncherConstants.SMART_CURRENT_LIMIT_AMPS);
 
-        SparkMaxConfig intakeLauncherConfig = new SparkMaxConfig();
-        intakeLauncherConfig.idleMode(IdleMode.kBrake)
-            .smartCurrentLimit(LauncherConstants.SMART_CURRENT_LIMIT_AMPS)
-            .inverted(true);
+    SparkMaxConfig intakeLauncherConfig = new SparkMaxConfig();
+    intakeLauncherConfig
+        .idleMode(IdleMode.kBrake)
+        .smartCurrentLimit(LauncherConstants.SMART_CURRENT_LIMIT_AMPS)
+        .inverted(true);
 
-        feeder.configure(
-            feederConfig,
-            ResetMode.kResetSafeParameters,
-            PersistMode.kPersistParameters);
-        intakeLauncher.configure(
-            intakeLauncherConfig,
-            ResetMode.kResetSafeParameters,
-            PersistMode.kPersistParameters);
-    }
+    feeder.configure(feederConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    intakeLauncher.configure(
+        intakeLauncherConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+  }
 
-    @Override
-    public void setFeederVoltage(Voltage volts) {
-        feeder.setVoltage(volts.in(Volts));
-    }
+  @Override
+  public void setFeederVoltage(Voltage volts) {
+    feeder.setVoltage(volts.in(Volts));
+  }
 
-    @Override
-    public void setIntakeLauncherVoltage(Voltage volts) {
-        intakeLauncher.setVoltage(volts.in(Volts));
-    }
+  @Override
+  public void setIntakeLauncherVoltage(Voltage volts) {
+    intakeLauncher.setVoltage(volts.in(Volts));
+  }
 
-    @Override
-    public void updateInputs(LauncherInputs inputs) {
-        inputs.feederVelocity =
-            RPM.of(feeder.getEncoder().getVelocity());
-        inputs.feederCurrent = Amps.of(feeder.getOutputCurrent());
-        inputs.feederAppliedVoltage = Volts.of(
-            feeder.getAppliedOutput() * feeder.getBusVoltage());
+  @Override
+  public void updateInputs(LauncherInputs inputs) {
+    inputs.feederVelocity = RPM.of(feeder.getEncoder().getVelocity());
+    inputs.feederCurrent = Amps.of(feeder.getOutputCurrent());
+    inputs.feederAppliedVoltage = Volts.of(feeder.getAppliedOutput() * feeder.getBusVoltage());
 
-        inputs.intakeLauncherVelocity =
-            RPM.of(intakeLauncher.getEncoder().getVelocity());
-        inputs.intakeLauncherCurrent =
-            Amps.of(intakeLauncher.getOutputCurrent());
-        inputs.intakeLauncherAppliedVoltage = Volts.of(
-            intakeLauncher.getAppliedOutput()
-                * intakeLauncher.getBusVoltage());
-    }
+    inputs.intakeLauncherVelocity = RPM.of(intakeLauncher.getEncoder().getVelocity());
+    inputs.intakeLauncherCurrent = Amps.of(intakeLauncher.getOutputCurrent());
+    inputs.intakeLauncherAppliedVoltage =
+        Volts.of(intakeLauncher.getAppliedOutput() * intakeLauncher.getBusVoltage());
+  }
 }
 ```
 
@@ -220,70 +206,63 @@ Create `src/main/java/frc/robot/subsystems/launcher/LauncherIOSim.java` with thi
 ```java
 package frc.robot.subsystems.launcher;
 
-import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.system.plant.LinearSystemId;
-import edu.wpi.first.units.measure.Voltage;
-import edu.wpi.first.wpilibj.simulation.FlywheelSim;
 import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.KilogramSquareMeters;
 import static edu.wpi.first.units.Units.Volts;
 
+import edu.wpi.first.math.system.plant.DCMotor;
+import edu.wpi.first.math.system.plant.LinearSystemId;
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj.simulation.FlywheelSim;
+
 public class LauncherIOSim implements LauncherIO {
 
-    private final FlywheelSim feederSim;
-    private final FlywheelSim intakeLauncherSim;
-    private Voltage feederVoltage = Volts.of(0);
-    private Voltage intakeLauncherVoltage = Volts.of(0);
+  private final FlywheelSim feederSim;
+  private final FlywheelSim intakeLauncherSim;
+  private Voltage feederVoltage = Volts.of(0);
+  private Voltage intakeLauncherVoltage = Volts.of(0);
 
-    public LauncherIOSim() {
-        feederSim = createSim(LauncherConstants.FEEDER_SIM_MOI);
-        intakeLauncherSim = createSim(
-            LauncherConstants.INTAKE_LAUNCHER_SIM_MOI);
-    }
+  public LauncherIOSim() {
+    feederSim = createSim(LauncherConstants.FEEDER_SIM_MOI);
+    intakeLauncherSim = createSim(LauncherConstants.INTAKE_LAUNCHER_SIM_MOI);
+  }
 
-    private static FlywheelSim createSim(
-            edu.wpi.first.units.measure.MomentOfInertia moi) {
-        return new FlywheelSim(
-            LinearSystemId.createFlywheelSystem(
-                DCMotor.getNEO(1),
-                moi.in(KilogramSquareMeters),
-                LauncherConstants.SIM_GEAR_RATIO),
-            DCMotor.getNEO(1));
-    }
+  private static FlywheelSim createSim(edu.wpi.first.units.measure.MomentOfInertia moi) {
+    return new FlywheelSim(
+        LinearSystemId.createFlywheelSystem(
+            DCMotor.getNEO(1), moi.in(KilogramSquareMeters), LauncherConstants.SIM_GEAR_RATIO),
+        DCMotor.getNEO(1));
+  }
 
-    @Override
-    public void setFeederVoltage(Voltage volts) {
-        feederVoltage = clamp(volts);
-        feederSim.setInputVoltage(feederVoltage.in(Volts));
-    }
+  @Override
+  public void setFeederVoltage(Voltage volts) {
+    feederVoltage = clamp(volts);
+    feederSim.setInputVoltage(feederVoltage.in(Volts));
+  }
 
-    @Override
-    public void setIntakeLauncherVoltage(Voltage volts) {
-        intakeLauncherVoltage = clamp(volts);
-        intakeLauncherSim.setInputVoltage(
-            intakeLauncherVoltage.in(Volts));
-    }
+  @Override
+  public void setIntakeLauncherVoltage(Voltage volts) {
+    intakeLauncherVoltage = clamp(volts);
+    intakeLauncherSim.setInputVoltage(intakeLauncherVoltage.in(Volts));
+  }
 
-    @Override
-    public void updateInputs(LauncherInputs inputs) {
-        feederSim.update(0.020);
-        intakeLauncherSim.update(0.020);
+  @Override
+  public void updateInputs(LauncherInputs inputs) {
+    feederSim.update(0.020);
+    intakeLauncherSim.update(0.020);
 
-        inputs.feederVelocity = feederSim.getAngularVelocity();
-        inputs.feederCurrent = Amps.of(feederSim.getCurrentDrawAmps());
-        inputs.feederAppliedVoltage = feederVoltage;
+    inputs.feederVelocity = feederSim.getAngularVelocity();
+    inputs.feederCurrent = Amps.of(feederSim.getCurrentDrawAmps());
+    inputs.feederAppliedVoltage = feederVoltage;
 
-        inputs.intakeLauncherVelocity =
-            intakeLauncherSim.getAngularVelocity();
-        inputs.intakeLauncherCurrent =
-            Amps.of(intakeLauncherSim.getCurrentDrawAmps());
-        inputs.intakeLauncherAppliedVoltage = intakeLauncherVoltage;
-    }
+    inputs.intakeLauncherVelocity = intakeLauncherSim.getAngularVelocity();
+    inputs.intakeLauncherCurrent = Amps.of(intakeLauncherSim.getCurrentDrawAmps());
+    inputs.intakeLauncherAppliedVoltage = intakeLauncherVoltage;
+  }
 
-    private static Voltage clamp(Voltage volts) {
-        return Volts.of(Math.max(
-            -12.0, Math.min(12.0, volts.in(Volts))));
-    }
+  private static Voltage clamp(Voltage volts) {
+    return Volts.of(Math.max(-12.0, Math.min(12.0, volts.in(Volts))));
+  }
 }
 ```
 

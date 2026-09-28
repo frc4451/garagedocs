@@ -1,0 +1,80 @@
+---
+title: "Step 9: Object Detection and Acquisition Geometry"
+lessonId: badge-3-object-detection
+section: badges
+group: badge-3
+groupLabel: "Badge 3: Advanced FRC"
+groupOrder: 3
+order: 9
+difficulty: advanced
+description: "Detecting a Game Piece work, evidence, and mentor review for the Badge 3 capstone."
+---
+
+The student builds a camera input path for one stationary game piece and uses observations to choose an acquisition pose. Start from the Badge 2 pose and AprilTag work. Observation IO and geometry can proceed alongside mechanism refinement; Step 10 requires this module and the subsystem states together. Read [Pose Geometry](/frc/pose-geometry), [Vision Simulation](/frc/vision-simulation), and Cobra's object-detection IO and tracker linked below.
+
+## Build the IO Boundary
+
+Create `ObjectDetectionIO`, `ObjectDetectionIOReal`, and `ObjectDetectionIOSim`. The simulated implementation extends the real implementation and supplies a `PhotonCameraSim`, following the same pattern used for AprilTags. Both modes consume PhotonVision results through the real parsing path. REPLAY reads recorded inputs without constructing cameras or field physics.
+
+The input record contains connection state, observation timestamps, target yaw and pitch, available class/confidence information, and rejection reasons. Process unread results once. An empty result means no target in that frame; no new frame means the age of the previous observation continues increasing. Clear or expire targets deliberately rather than treating an old result as current.
+
+The provided coprocessor and color camera already run PhotonVision with a working pipeline. Installation and model training are supplied setup. The student owns the robot-side IO, transform configuration, validity rules, tracking and selection.
+
+## Turn a Measurement into a Location
+
+A camera bearing identifies a ray, not a complete three-dimensional position. For the stationary floor-piece exercise, a known target-center height provides the missing constraint. Intersect the transformed camera ray with that height plane, reject nearly parallel or backward intersections, and bound the accepted distance. Record the assumptions that make the estimate possible.
+
+Use `FieldToRobot`, `RobotToCamera`, and `CameraToPiece` names when drawing the transforms. Use the robot pose at the observation timestamp when history is available. If the exercise uses a stationary robot to avoid motion compensation, state that limitation. The same calculation with the current pose on a moving robot needs a latency-error analysis.
+
+The guided example checks a known target ahead of the camera, then moves it to the side. The student predicts the sign of yaw, verifies the library's yaw convention, and compares estimated field position with the configured simulation position. Log the estimate and truth separately. The selection logic sees only the estimate.
+
+## Prepare for Moving Observations
+
+The stationary physical camera check establishes geometry without demonstrating motion compensation. Before Step 10, the student documents how observations are related to robot pose during the simulated approach. Use pose history at capture time when available, or stop and obtain a fresh stationary observation before calculating a field target. State the permitted observation age and motion conditions; reject frames outside them. A current-pose calculation on a moving robot requires a quantified latency-error bound and a justified acceptance limit.
+
+Test a delayed frame during simulated motion and show the compensation or rejection decision in the log. This bridge belongs to the observation evidence in B3-08.2. The target remains a stationary piece; the robot may move.
+
+## Select an Acquisition Pose
+
+Track the single stationary piece with an expiry time. Select a valid target using a documented rule. Calculate a robot goal that puts the intake at the piece, including the robot-to-intake offset and desired heading. Driving the robot center onto the piece is not equivalent to aligning the intake.
+
+Test no target, stale target, out-of-bounds position, near-horizontal ray, and a deliberately wrong mounting transform. Save both accepted and rejected observations. The mentor chooses a different camera transform for an independent prediction and correction.
+
+## Physical Camera Check
+
+Use the provided Orange Pi 5 or Rubik Pi 3 and camera with the mentor present. Measure the mounting transform and place the stationary target at several known locations. Compare observations and calculated positions with tape measurements. Record lighting, pipeline, target type, distances, timestamp behavior and limitations. This demonstration does not require autonomous motion on hardware.
+
+## Badge Check
+
+S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review. The student records an evidence link, mentor signature, and date for each row. The mentor asks the student to explain a change and its result before signing.
+
+| Row | Work | Done When |
+| --- | --- | --- |
+| B3-08.1 | Object-detection IO | S/W: Build `ObjectDetectionIO`, `ObjectDetectionIOReal`, and `ObjectDetectionIOSim` extending the real implementation, following the Badge 2 AprilTag pattern. A separate vision subsystem is allowed. |
+| B3-08.2 | Observations and target selection | S/W: Process camera observations, convert coordinate frames, track the one stationary piece, select a target, calculate an acquisition pose, and handle stale or missing observations. Explain the robot-to-piece acquisition offset and demonstrate the timestamp/motion rule with a delayed frame before autonomous integration. |
+| B3-08.3 | Physical camera | H/M: Use the provided Orange Pi 5 or Rubik Pi 3 with working PhotonVision and color camera. Measure/configure mounting transform and compare stationary observations at known locations. Installation and model preparation are supplied setup. |
+
+<Sources items={[
+  {
+    "source": "advantagekit",
+    "path": "data-flow/recording-inputs/io-interfaces/",
+    "note": "IO boundaries and recorded inputs used in these exercises."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/vision/ObjectDetectionIOPhoton.java",
+    "note": "Reading unread observations and projecting object detections."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/vision/ObjectDetectionIOPhotonSim.java",
+    "note": "Simulation extends the real PhotonVision implementation."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/vision/FuelTracker.java",
+    "note": "Tracking reference to inspect and adapt."
+  }
+]} />
+
+<LinkGrid title="Continue" section="badges" links={[{"label": "Step 10: One-Piece Autonomous", "id": "badge-3-acquisition"}, {"label": "Badge 3: Advanced FRC", "id": "badge-3"}]} />

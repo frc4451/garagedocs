@@ -33,38 +33,36 @@ Swerve adds a sideways rate and a steering angle for each module. A **module sta
 
 For each module, combine the requested translation with the motion caused by turning:
 
-```text
-module forward velocity = vx - omega × y
-module left velocity    = vy + omega × x
-```
+<Equation display tex="v_{\mathrm{forward}} = v_x - \omega y" />
+<Equation display tex="v_{\mathrm{left}} = v_y + \omega x" />
+
+The symbol <Equation tex="\omega" /> (omega) is the chassis turning rate.
 
 The turning contribution depends on where that module sits. A module at the front moves left during a counterclockwise turn; a module on the left moves backward. The two equations express those directions. Apply them separately to every module.
 
 These two components describe an arrow. Its length gives wheel speed, and its direction gives steering angle:
 
-```text
-speed = sqrt(forward velocity² + left velocity²)
-angle = atan2(left velocity, forward velocity)
-```
+<Equation display tex="\mathrm{speed} = \sqrt{v_{\mathrm{forward}}^2 + v_{\mathrm{left}}^2}" />
+<Equation display tex="\mathrm{angle} = \operatorname{atan2}(v_{\mathrm{left}}, v_{\mathrm{forward}})" />
 
 `sqrt` means square root. `atan2` finds the arrow's direction while accounting for the signs of both components, including a zero forward component. Java's result is in radians; the tables below show degrees. Zero degrees points forward and +90 degrees points left. You can use a calculator for these operations; [Vector Math](/java/fundamentals/vector-math#magnitude-and-normalization) explains the length calculation.
 
 Consider a square robot whose modules are 0.30 meters forward/backward and 0.30 meters left/right of its center. Use the same request as the tank example: `vx = 1.0`, `vy = 0.0`, and `omega = 1.0`.
 
-| Module | Location `(x, y)` in Meters | Velocity `(forward, left)` in m/s | Speed in m/s | Angle |
+| Module | Location <Equation tex="(x, y)" /> in Meters | Velocity `(forward, left)` in m/s | Speed in m/s | Angle |
 | --- | --- | --- | --- | --- |
 | Front left | `(0.30, 0.30)` | `(0.70, 0.30)` | 0.762 | +23.2° |
 | Front right | `(0.30, -0.30)` | `(1.30, 0.30)` | 1.334 | +13.0° |
 | Back left | `(-0.30, 0.30)` | `(0.70, -0.30)` | 0.762 | -23.2° |
 | Back right | `(-0.30, -0.30)` | `(1.30, -0.30)` | 1.334 | -13.0° |
 
-For the front-left module, the speed is `sqrt(0.70² + 0.30²)`, about 0.762 m/s. Its forward component matches the tank's left-side result, but the module also needs a leftward component because it sits ahead of the turning center. The azimuth controller points the wheel to +23.2°, while the drive controller requests 0.762 m/s along that direction. Swerve needs both targets to produce the combined arrow.
+For the front-left module, the speed is <Equation tex="\sqrt{0.70^2 + 0.30^2}" />, about 0.762 m/s. Its forward component matches the tank's left-side result, but the module also needs a leftward component because it sits ahead of the turning center. The azimuth controller points the wheel to +23.2°, while the drive controller requests 0.762 m/s along that direction. Swerve needs both targets to produce the combined arrow.
 
 `SwerveDriveKinematics.toSwerveModuleStates(robotRelativeSpeeds)` performs the conversion using the module locations supplied to its constructor. Keep the returned array in that same module order.
 
 ## Work Through One Angle
 
-For the front-left module, `0.70² + 0.30² = 0.58`. The square root is about 0.762. Its leftward component is positive, so the wheel points left of forward. Calculating `atan2(0.30, 0.70)` gives about 0.405 radians, or 23.2 degrees after multiplying by `180 / pi`.
+For the front-left module, <Equation tex="0.70^2 + 0.30^2 = 0.58" />. The square root is about 0.762. Its leftward component is positive, so the wheel points left of forward. Calculating `atan2(0.30, 0.70)` gives about 0.405 radians, or 23.2 degrees after multiplying by <Equation tex="180 / \pi" />.
 
 If your calculator has only ordinary inverse tangent, `atan(0.30 / 0.70)` gives the same angle for this particular pair of positive components. Use `atan2` in code because other quadrants and a zero forward component need correct handling. [Vector Math](/java/fundamentals/vector-math) explains components and directions in more detail.
 
@@ -92,7 +90,7 @@ Use the procedure for your module and control library. The steps below explain w
 
 1. Identify the module, its drive controller, its steering controller, and its absolute encoder. Record the device IDs so a front-left reading cannot be mistaken for front right.
 2. With motor output disabled, place the module in the manufacturer's reference orientation using its alignment tool or specified method. Follow the vendor's handling procedure. Keep hands and tools clear before any powered test.
-3. Open the encoder reading in the vendor tool or robot telemetry. Confirm its units: one rotation is 360° or `2 × pi` radians. Check the configured sensor direction before recording the offset; the final robot-relative angle should increase when the module turns counterclockwise.
+3. Open the encoder reading in the vendor tool or robot telemetry. Confirm its units: one rotation is 360° or <Equation tex="2\pi" /> radians. Check the configured sensor direction before recording the offset; the final robot-relative angle should increase when the module turns counterclockwise.
 4. Record or set the offset using the library's convention. Preserve it in the configuration used after restart. Check whether startup code overwrites a setting made in the vendor tool.
 5. Verify the final **robot-relative module angle**, after all sensor and mounting corrections. It should read approximately 0° when positive wheel travel points forward, +90° when it points left, and 180° or -180° when it points backward.
 6. Restart with the module in a different known orientation and verify that the reported angle still matches. Do not declare whatever position it occupies at startup to be zero. Recheck calibration after replacing or moving an encoder or its mechanical connection.
@@ -103,9 +101,9 @@ Use the procedure for your module and control library. The steps below explain w
 
 For this illustrative calculation, assume the sensor already increases counterclockwise, its reading is in degrees, and its physical reference is robot-forward. Define the offset as the reading recorded at that reference:
 
-```text
-robot-relative angle = wrap(raw absolute angle - zero offset)
-```
+<Equation display tex="\theta_{\mathrm{robot}} = \operatorname{wrap}(\theta_{\mathrm{raw}} - \theta_{\mathrm{offset}})" />
+
+The three <Equation tex="\theta" /> (theta) values are the robot-relative angle, raw absolute angle, and stored zero offset, respectively.
 
 Here, `wrap` adds or subtracts full turns to express the same direction between -180° inclusive and +180° exclusive. It does not change the physical orientation.
 
@@ -132,7 +130,7 @@ The swerve angles are the unoptimized kinematic results. A module can produce th
 
 For example, +170 degrees at +1 m/s describes the same wheel motion as -10 degrees at -1 m/s. Optimization chooses between equivalent states based on the module's current angle. Compare both angle and signed speed when inspecting a log.
 
-If one calculated speed exceeds the allowed maximum, `SwerveDriveKinematics.desaturateWheelSpeeds` can scale all wheel speeds by a common factor. With a largest calculated speed of 1.334 m/s and a 1.0 m/s limit, that factor is about `1.0 / 1.334 = 0.750`. The smaller 0.762 m/s speed becomes about 0.571 m/s. Scaling preserves their ratios; clipping only the largest wheel would change the requested motion.
+If one calculated speed exceeds the allowed maximum, `SwerveDriveKinematics.desaturateWheelSpeeds` can scale all wheel speeds by a common factor. With a largest calculated speed of 1.334 m/s and a 1.0 m/s limit, that factor is about <Equation tex="1.0 / 1.334 \approx 0.750" />. The smaller 0.762 m/s speed becomes about 0.571 m/s. Scaling preserves their ratios; clipping only the largest wheel would change the requested motion.
 
 ## Practice With Geometry
 

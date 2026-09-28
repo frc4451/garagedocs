@@ -20,9 +20,9 @@ You met three feedforward terms in [Kit Bot R09 Parts 1 and 2](/kit-bot/r09-char
 
 For any mechanism, the output needed to make it do what you asked is close to a sum of four things:
 
-```text
-output = kS · sign(velocity)  +  kG · (gravity term)  +  kV · velocity  +  kA · acceleration
-```
+<Equation display tex="\text{output}=k_S\operatorname{sgn}(v)+k_G\,g(\theta)+k_V v+k_A a" />
+
+Here, <Equation tex="v" /> is velocity, <Equation tex="a" /> is acceleration, and <Equation tex="g(\theta)" /> is the mechanism's gravity factor: zero for a horizontal roller, one for an elevator, or <Equation tex="\cos\theta" /> for an arm measured from horizontal. The subscripted gains correspond to the code names `kS`, `kG`, `kV`, and `kA`.
 
 Each term cancels one physical effect. Each has a gain (`kS`, `kG`, `kV`, `kA`) that is a **property of the mechanism**, not a tuning preference, which is why, unlike PID gains, they can be measured.
 
@@ -43,13 +43,13 @@ Each term cancels one physical effect. Each has a gain (`kS`, `kG`, `kV`, `kA`) 
 <ContentTable
   headers={["Mechanism", "Feedforward", "WPILib class", "Phoenix 6 Slot0"]}
   rows={[
-    ["Roller, flywheel, turret, drivetrain wheel", "<code>kS·sgn(v) + kV·v + kA·a</code>", "<code>SimpleMotorFeedforward(kS, kV, kA)</code>", "<code>kS, kV, kA</code>; <code>kG = 0</code>"],
-    ["Elevator, climber, linear slide", "<code>kS·sgn(v) + kG + kV·v + kA·a</code>", "<code>ElevatorFeedforward(kS, kG, kV, kA)</code>", "<code>kS, kG, kV, kA</code> with <code>GravityType = Elevator_Static</code>"],
-    ["Arm, pivot, hood, wrist", "<code>kS·sgn(v) + kG·cos(θ) + kV·v + kA·a</code>", "<code>ArmFeedforward(kS, kG, kV, kA)</code>; <code>calculate(θ, v)</code> needs the angle", "<code>kS, kG, kV, kA</code> with <code>GravityType = Arm_Cosine</code>; the mechanism position must read <strong>0 when horizontal</strong>"]
+    ["Roller, flywheel, turret, drivetrain wheel", "\\(k_S\\operatorname{sgn}(v)+k_V v+k_A a\\)", "<code>SimpleMotorFeedforward(kS, kV, kA)</code>", "<code>kS, kV, kA</code>; <code>kG = 0</code>"],
+    ["Elevator, climber, linear slide", "\\(k_S\\operatorname{sgn}(v)+k_G+k_V v+k_A a\\)", "<code>ElevatorFeedforward(kS, kG, kV, kA)</code>", "<code>kS, kG, kV, kA</code> with <code>GravityType = Elevator_Static</code>"],
+    ["Arm, pivot, hood, wrist", "\\(k_S\\operatorname{sgn}(v)+k_G\\cos\\theta+k_V v+k_A a\\)", "<code>ArmFeedforward(kS, kG, kV, kA)</code>; <code>calculate(θ, v)</code> needs the angle", "<code>kS, kG, kV, kA</code> with <code>GravityType = Arm_Cosine</code>; the mechanism position must read <strong>0 when horizontal</strong>"]
   ]}
 />
 
-The arm's angle convention is the one that bites: for `cos(θ)` to be 1 at the worst case, θ must be **zero with the arm horizontal**, positive rotating up. If your encoder reads zero with the arm hanging straight down, the gravity term is applied backwards. Establishing that zero is what [CANcoder: a consistent zero](/frc/cancoder-absolute-position) is for. Cobra's hood and intake pivot both run `Arm_Cosine` for this reason, and their offsets are chosen so that horizontal is zero.
+The arm's angle convention is the one that bites: for <Equation tex="\cos\theta" /> to be 1 at the worst case, θ must be **zero with the arm horizontal**, positive rotating up. If your encoder reads zero with the arm hanging straight down, the gravity term is applied backwards. Establishing that zero is what [CANcoder: a consistent zero](/frc/cancoder-absolute-position) is for. Cobra's hood and intake pivot both run `Arm_Cosine` for this reason, and their offsets are chosen so that horizontal is zero.
 
 ### Units, and why Cobra's numbers are in amps
 
@@ -102,7 +102,7 @@ new Slot0Configs()
     .withKP(150).withKI(0).withKD(0);
 ```
 
-The controller computes `kS·sgn(v) + kG·cos(θ) + kV·v + kA·a` itself, at 1 kHz, from the Motion Magic profile it is generating, and adds the PID correction on top. Nothing to write in `periodic()`. `StaticFeedforwardSign` chooses whether `kS` follows the velocity sign (right for a profiled move, and the default FRC 4451 uses) or the closed-loop error sign (for a pure position hold, where velocity is zero but you still want to break friction toward the target). This is the form every `…IOTalonFX` in the ROBOTZ Garage library uses; the gains come from a `MotorConfigs` record ([Motor Controller Configuration](/frc/motor-controller-configuration)).
+The controller computes <Equation tex="k_S\operatorname{sgn}(v)+k_G\cos\theta+k_V v+k_A a" /> itself, at 1 kHz, from the Motion Magic profile it is generating, and adds the PID correction on top. Nothing to write in `periodic()`. `StaticFeedforwardSign` chooses whether `kS` follows the velocity sign (right for a profiled move, and the default FRC 4451 uses) or the closed-loop error sign (for a pure position hold, where velocity is zero but you still want to break friction toward the target). This is the form every `…IOTalonFX` in the ROBOTZ Garage library uses; the gains come from a `MotorConfigs` record ([Motor Controller Configuration](/frc/motor-controller-configuration)).
 
 </CodeTab>
 </CodeTabs>
@@ -119,7 +119,7 @@ Because the gains are physical, you measure them, once, with the mechanism on th
 
 <StepsBox title="In the order the terms are found">
 
-1. **`kG` by holding.** Zero every gain. Command a small output and raise it until the elevator (or the horizontal arm) neither rises nor falls. That output is `kG`. For an arm, do it horizontal, where `cos θ = 1`. (The bracket version, the smallest output that stops it falling and the largest that does not lift it, gives `kG` as their midpoint and `kS` as half their difference in one experiment; [Manual PID Tuning](/frc/manual-tuning-arm-and-elevator) walks through it.)
+1. **`kG` by holding.** Zero every gain. Command a small output and raise it until the elevator (or the horizontal arm) neither rises nor falls. That output is `kG`. For an arm, do it horizontal, where <Equation tex="\cos\theta=1" />. (The bracket version, the smallest output that stops it falling and the largest that does not lift it, gives `kG` as their midpoint and `kS` as half their difference in one experiment; [Manual PID Tuning](/frc/manual-tuning-arm-and-elevator) walks through it.)
 2. **`kS` and `kV` by steady states.** Apply a fixed output, wait for velocity to settle, record both; repeat at several outputs. Plot output against velocity: the line's intercept is `kS`, its slope is `kV`. Cobra's `SingleRoller.steadyStateCharacterization(unit)` does this: twenty steps, 1.5 s settle each, a least-squares fit, the result printed and logged under `TuningRoutine/SteadyState/<name>/`. (The `quasistaticCharacterization` variant ramps continuously; it is faster and slightly contaminated by `kA`.)
 3. **`kA` by a step.** A sudden output step; the acceleration you get versus the output you applied, after `kS`/`kV` are accounted for. WPILib's [SysId](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/system-identification/index.html) dynamic test does this and reports all three at once; [Tunable Constants](/frc/tunable-constants-and-characterization#measure-feedforward-do-not-guess-it) shows how FRC 4451 exposes SysId from the auto chooser.
 4. **Then, and only then, PID.** With feedforward carrying the load, `kP` is tuned against a much smaller error, and `kI` is usually unnecessary.
@@ -133,8 +133,8 @@ A guessed `kV` that is 30 % off looks like a PID problem. The mechanism lags and
 Open [commanded versus measured](/frc/simulation-in-advantagescope#the-line-graph-commanded-versus-measured) with the applied output on the second axis. With feedforward right:
 
 - At rest, the applied output equals `kG` (for an elevator) and the position sits exactly on the goal. Output above `kG` at rest means the PID is fighting something: an under-measured `kG`, or friction the `kS` sign convention is not covering.
-- During a constant-velocity stretch of a profile, the output is flat at `kS + kG + kV·v`, and the measured velocity sits on the setpoint velocity. A measured velocity consistently *below* the setpoint is `kV` too small; above, too large.
-- At the start and end of a move, the output shows a brief extra bump (`kA·a`) and the position tracks the profile through the corners. Lag only at the corners is `kA`.
+- During a constant-velocity stretch of a profile, the output is flat at <Equation tex="k_S+k_G+k_V v" />, and the measured velocity sits on the setpoint velocity. A measured velocity consistently *below* the setpoint is `kV` too small; above, too large.
+- At the start and end of a move, the output shows a brief extra bump (<Equation tex="k_A a" />) and the position tracks the profile through the corners. Lag only at the corners is `kA`.
 
 If the picture is right with `kP` set to zero, meaning the mechanism follows the profile closely on feedforward alone, the feedforward is measured correctly. That test, feedforward-only, is the first thing to run on a new mechanism.
 

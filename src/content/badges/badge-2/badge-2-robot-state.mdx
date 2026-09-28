@@ -1,16 +1,16 @@
 ---
-title: "Step 12: Robot State"
+title: "Step 13: Robot State"
 lessonId: badge-2-robot-state
 section: badges
 group: badge-2
 groupLabel: "Badge 2: Intermediate FRC"
 groupOrder: 2
-order: 12
+order: 13
 difficulty: advanced
 description: "A smaller BobotState-style object that receives robot-wide observations, derives logged facts, exposes narrow read access and triggers, and owns no actuator."
 ---
 
-In Step 12, the student builds one deliberately shared object in `Badge2Robot`: a `BobotState`-style class that stores robot-wide observations and derived facts. It holds the pose, velocity, accepted vision observations, at least one target-relative calculation, and at least one field-zone predicate. It exposes them through narrow getters, records, and `Trigger`s. Mutable collections are copied on entry with `List.copyOf`, and getters return the stored unmodifiable snapshot instead of the caller's list or the drivetrain's queue. A record with another mutable component makes a defensive copy in its constructor and accessor. `BobotState` does not own a motor, component, or subsystem, and nothing calls it to set an output. Subsystems keep their local state (the intake's deployment, the flywheel's readiness), while `BobotState` may combine those facts into a derived readiness condition without setting their motors.
+In Step 13, the student builds one deliberately shared object in `Badge2Robot`: a `BobotState`-style class that stores robot-wide observations and derived facts. It holds the pose, velocity, accepted vision observations, at least one target-relative calculation, and at least one field-zone predicate. It exposes them through narrow getters, records, and `Trigger`s. Mutable collections are copied on entry with `List.copyOf`, and getters return the stored unmodifiable snapshot instead of the caller's list or the drivetrain's queue. A record with another mutable component makes a defensive copy in its constructor and accessor. `BobotState` does not own a motor, component, or subsystem, and nothing calls it to set an output. Subsystems keep their local state (the intake's deployment, the flywheel's readiness), while `BobotState` may combine those facts into a derived readiness condition without setting their motors.
 
 ## References to Review
 
@@ -19,6 +19,10 @@ In Step 12, the student builds one deliberately shared object in `Badge2Robot`: 
 - [VARC](/frc/varc)
 - [Lombok](/frc/lombok)
 - [Why State Machines](/frc/why-state-machines)
+
+## Check Collection Ownership
+
+The student passes a mutable list of observation records to a small test object, stores a `List.copyOf` snapshot, and then changes the caller's list. The stored snapshot should keep its original entries. The student also verifies that callers cannot add entries through the returned snapshot. This protects the list structure; a record containing mutable data still needs its own defensive copies. The student applies that distinction to the observation types before adding them to `BobotState`.
 
 ## Guided Example
 
@@ -29,7 +33,7 @@ Start with estimated pose and one fixed field target. Derive the robot-to-target
 Once per robot loop, through the [`VirtualSubsystem`](/frc/virtual-subsystem#the-class) pattern, the Badge 2 `BobotState`:
 
 - receives the current estimated pose and the robot-relative or field-relative velocity from the drivetrain, which is the only writer of the pose;
-- receives accepted vision observations from Step 11; if the integration uses a queue, the drivetrain owns and drains that queue while the vision callback only appends observations;
+- receives accepted vision observations from Step 12; if the integration uses a queue, the drivetrain owns and drains that queue while the vision callback only appends observations;
 - calculates at least one target-relative transform or distance (`fieldToHub.relativeTo(fieldToRobot)` and its translation's `getNorm()`, in the [VARC](/frc/varc#what-a-varc-holds) shape);
 - calculates at least one field-zone predicate (inside the alliance zone, within shooting range of the hub);
 - copies mutable inputs on entry and exposes only narrow values or unmodifiable snapshots, never the drivetrain's queue or a caller-owned mutable collection;
@@ -41,7 +45,7 @@ The [Why State Machines](/frc/why-state-machines) lesson explains where a full s
 
 ### Lombok Applied on Purpose
 
-Step 3 added Lombok to the project. Here it is used where it removes routine code without hiding a decision:
+Step 5 added Lombok to the project. Here it is used where it removes routine code without hiding a decision:
 
 - `@Builder` constructs immutable configuration or observation records.
 - `@Getter` exposes read-only derived state.
@@ -51,17 +55,17 @@ Step 3 added Lombok to the project. Here it is used where it removes routine cod
 
 ## Independent Change
 
-Add one field-zone predicate chosen for the student's simulated route and bind its trigger to a command on a Step 8 subsystem. The student chooses the zone boundary, logs the inputs and result, and verifies the transition in simulation.
+Add one field-zone predicate chosen for the student's simulated route and bind its trigger to a command on a Step 9 subsystem. The student chooses the zone boundary, logs the inputs and result, and verifies the transition in simulation.
 
 | # | Work | Lesson | Done when |
 |---|---|---|---|
 | 12.1 | A `VirtualSubsystem` | [VirtualSubsystem](/frc/virtual-subsystem#writing-one) | `BobotState extends VirtualSubsystem`, registers itself once, and its `periodic()` runs every loop before the command scheduler's subsystems |
 | 12.2 | Pose and velocity in | [BobotState](/frc/bobot-state#the-flow-through-one-loop) | The drivetrain writes the estimated pose and velocity into `BobotState`; no other class writes them |
-| 12.3 | Observations in | [BobotState](/frc/bobot-state#the-flow-through-one-loop) | Accepted Step 11 observations reach `BobotState`; if a queue is used, the drivetrain owns and drains it after the callback appends each observation |
+| 12.3 | Observations in | [BobotState](/frc/bobot-state#the-flow-through-one-loop) | Accepted Step 12 observations reach `BobotState`; if a queue is used, the drivetrain owns and drains it after the callback appends each observation |
 | 12.4 | One target calculation | [VARC](/frc/varc#writing-one) | A distance or transform to a fixed target is recomputed every loop from the current pose and logged |
 | 12.5 | One zone predicate | [BobotState](/frc/bobot-state#zones-and-game-logic-as-triggers) | A field-zone predicate is computed from the pose and logged |
 | 12.6 | Defensive ownership | [BobotState](/frc/bobot-state#adding-to-it-without-ruining-it) | Mutable collections are copied on entry, getters return unmodifiable snapshots or individual values, no getter exposes the drivetrain's queue, and no method sets a subsystem output |
-| 12.7 | Triggers | [BobotState](/frc/bobot-state#zones-and-game-logic-as-triggers) | At least one `Trigger` built on a derived fact is bound in `RobotContainer` to a command on a Step 8 subsystem |
+| 12.7 | Triggers | [BobotState](/frc/bobot-state#zones-and-game-logic-as-triggers) | At least one `Trigger` built on a derived fact is bound in `RobotContainer` to a command on a Step 9 subsystem |
 | 12.8 | Lombok on purpose | [Lombok](/frc/lombok#rules-for-using-it) | `@Builder`, `@Getter` and `@NonNull` appear where the list above allows; `delombok` output is committed to nothing and shown at the check |
 | 12.9 | Subsystem state stays home | [Why State Machines](/frc/why-state-machines#when-to-reach-for-it) | Intake deployment and flywheel readiness live in their subsystems; `BobotState` may combine them into a derived readiness fact and does not set their motors |
 
@@ -95,8 +99,8 @@ The evidence is one trace, in code and in a log.
 ]} />
 
 <LinkGrid links={[
-  {"label":"Step 13: Integration Capstone","id":"badge-2-capstone"},
-  {"label":"Step 11: Observations and Vision","id":"badge-2-photonvision"},
+  {"label":"Step 14: Integration Capstone","id":"badge-2-capstone"},
+  {"label":"Step 12: Observations and Vision","id":"badge-2-photonvision"},
   {"label":"BobotState","url":"/frc/bobot-state"},
   {"label":"VirtualSubsystem","url":"/frc/virtual-subsystem"}
 ]} title="Next" section="badges" />

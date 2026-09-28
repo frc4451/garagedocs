@@ -121,6 +121,15 @@ Part 1 printed velocities to four decimal places while the Java calculation used
 
 Predict voltage at one new speed inside the measured range and include units. Predictions outside the measured range are extrapolation, so the data does not test how well the line represents that region.
 
+## Read a Simulation kS
+
+The WPILib drivetrain and flywheel models used in this course have no friction term, so a simulation fit has no friction to find. Expect these patterns:
+
+- **Drivetrain `kS` near zero.** Each volt adds the same speed, so the fitted line passes through the origin.
+- **Launcher `kS` slightly above zero.** A small positive offset usually means a step had not finished settling. A step that starts from rest reads a lower speed than it would after a longer wait, which raises the intercept. Repeat the test with a longer settle time and compare.
+
+Neither result is a friction measurement. Real hardware adds friction, so a physical `kS` needs its own samples.
+
 ## Keep the Units Attached
 
 The drivetrain and launcher use the same math but different velocity units:
@@ -147,11 +156,9 @@ Part 1 waited 1.5 seconds after each voltage step. If the mechanism had settled,
 [WPILib's `SimpleMotorFeedforward` API](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/controller/SimpleMotorFeedforward.html) uses the same model. This is a reading example, not a required project edit. Its constructor and `calculate` method take raw `double` values, so the class cannot check the velocity unit for you. The unit used for `targetVelocity` must match the unit used to calculate `kV`:
 
 ```java
-SimpleMotorFeedforward feedforward =
-    new SimpleMotorFeedforward(kS, kV);
+SimpleMotorFeedforward feedforward = new SimpleMotorFeedforward(kS, kV);
 
-double requestedVolts =
-    feedforward.calculate(targetVelocity);
+double requestedVolts = feedforward.calculate(targetVelocity);
 ```
 
 For negative target velocity, `SimpleMotorFeedforward` applies `kS` in the negative direction. The [WPILib feedforward introduction](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/introduction/introduction-to-feedforward.html) explains the full model. This page has only fitted and checked the positive-direction, two-term case.

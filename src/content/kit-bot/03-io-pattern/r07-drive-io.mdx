@@ -61,34 +61,35 @@ Create `src/main/java/frc/robot/subsystems/drive/DriveIO.java`. This is a **comp
 ```java
 package frc.robot.subsystems.drive;
 
-import edu.wpi.first.units.measure.Current;
-import edu.wpi.first.units.measure.Distance;
-import edu.wpi.first.units.measure.LinearVelocity;
-import edu.wpi.first.units.measure.Voltage;
 import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.Volts;
 
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.LinearVelocity;
+import edu.wpi.first.units.measure.Voltage;
+
 public interface DriveIO {
 
-    /** Set per-side voltages, each in [-12, 12] V. */
-    public void setVoltages(Voltage leftVolts, Voltage rightVolts);
+  /** Set per-side voltages, each in [-12, 12] V. */
+  public void setVoltages(Voltage leftVolts, Voltage rightVolts);
 
-    /** Refresh the inputs object with the latest readings. */
-    public void updateInputs(DriveInputs inputs);
+  /** Refresh the inputs object with the latest readings. */
+  public void updateInputs(DriveInputs inputs);
 
-    /** Snapshot of everything the subsystem reads each tick. */
-    public static final class DriveInputs {
-        public Distance leftPosition = Meters.zero();
-        public Distance rightPosition = Meters.zero();
-        public LinearVelocity leftVelocity = MetersPerSecond.zero();
-        public LinearVelocity rightVelocity = MetersPerSecond.zero();
-        public Voltage leftAppliedVoltage = Volts.zero();
-        public Voltage rightAppliedVoltage = Volts.zero();
-        public Current leftCurrent = Amps.zero();
-        public Current rightCurrent = Amps.zero();
-    }
+  /** Snapshot of everything the subsystem reads each tick. */
+  public static final class DriveInputs {
+    public Distance leftPosition = Meters.zero();
+    public Distance rightPosition = Meters.zero();
+    public LinearVelocity leftVelocity = MetersPerSecond.zero();
+    public LinearVelocity rightVelocity = MetersPerSecond.zero();
+    public Voltage leftAppliedVoltage = Volts.zero();
+    public Voltage rightAppliedVoltage = Volts.zero();
+    public Current leftCurrent = Amps.zero();
+    public Current rightCurrent = Amps.zero();
+  }
 }
 ```
 
@@ -110,32 +111,33 @@ R03 created `DriveConstants.java`. Replace it with this **complete file** if you
 ```java
 package frc.robot.subsystems.drive;
 
-import edu.wpi.first.units.measure.Distance;
 import static edu.wpi.first.units.Units.Inches;
+
+import edu.wpi.first.units.measure.Distance;
 
 public final class DriveConstants {
 
-    // CAN IDs
-    public static final int LEFT_LEADER_CAN_ID    = 40;
-    public static final int LEFT_FOLLOWER_CAN_ID  = 41;
-    public static final int RIGHT_LEADER_CAN_ID   = 50;
-    public static final int RIGHT_FOLLOWER_CAN_ID = 51;
+  // CAN IDs
+  public static final int LEFT_LEADER_CAN_ID = 40;
+  public static final int LEFT_FOLLOWER_CAN_ID = 41;
+  public static final int RIGHT_LEADER_CAN_ID = 50;
+  public static final int RIGHT_FOLLOWER_CAN_ID = 51;
 
-    // Curriculum starter value; approve against the physical circuit before First Deploy.
-    public static final int SMART_CURRENT_LIMIT_AMPS = 60;
+  // Curriculum starter value; approve against the physical circuit before First Deploy.
+  public static final int SMART_CURRENT_LIMIT_AMPS = 60;
 
-    // Curriculum starter geometry. Verify against the assembled robot before First Deploy.
-    public static final Distance WHEEL_DIAMETER = Inches.of(6);
-    public static final double GEAR_RATIO =
-        (50.0 / 14.0)  // first stage: driven gear / driver gear
-        * (48.0 / 16.0); // second stage: driven gear / driver gear
-    public static final Distance TRACK_WIDTH = Inches.of(22);
+  // Curriculum starter geometry. Verify against the assembled robot before First Deploy.
+  public static final Distance WHEEL_DIAMETER = Inches.of(6);
+  public static final double GEAR_RATIO =
+      (50.0 / 14.0) // first stage: driven gear / driver gear
+          * (48.0 / 16.0); // second stage: driven gear / driver gear
+  public static final Distance TRACK_WIDTH = Inches.of(22);
 
-    // Tele driving caps (dimensionless fractions, not units)
-    public static final double MAX_DRIVE_PERCENT = 0.85;
-    public static final double TELEOP_DEADBAND   = 0.05;
+  // Tele driving caps (dimensionless fractions, not units)
+  public static final double MAX_DRIVE_PERCENT = 0.85;
+  public static final double TELEOP_DEADBAND = 0.05;
 
-    private DriveConstants() {}
+  private DriveConstants() {}
 }
 ```
 
@@ -154,110 +156,104 @@ Create `src/main/java/frc/robot/subsystems/drive/DriveIOReal.java`. This is a **
 ```java
 package frc.robot.subsystems.drive;
 
-import com.revrobotics.spark.SparkMax;
-import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.ResetMode;
-import com.revrobotics.PersistMode;
-import com.revrobotics.spark.config.SparkMaxConfig;
-import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
-import edu.wpi.first.units.measure.Current;
-import edu.wpi.first.units.measure.Distance;
-import edu.wpi.first.units.measure.LinearVelocity;
-import edu.wpi.first.units.measure.Voltage;
 import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.Volts;
 
+import com.revrobotics.PersistMode;
+import com.revrobotics.ResetMode;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+import com.revrobotics.spark.config.SparkMaxConfig;
+import edu.wpi.first.units.measure.Voltage;
+
 public class DriveIOReal implements DriveIO {
 
-    private final SparkMax leftLeader;
-    private final SparkMax leftFollower;
-    private final SparkMax rightLeader;
-    private final SparkMax rightFollower;
+  private final SparkMax leftLeader;
+  private final SparkMax leftFollower;
+  private final SparkMax rightLeader;
+  private final SparkMax rightFollower;
 
-    public DriveIOReal() {
-        leftLeader     = new SparkMax(DriveConstants.LEFT_LEADER_CAN_ID,    MotorType.kBrushless);
-        leftFollower   = new SparkMax(DriveConstants.LEFT_FOLLOWER_CAN_ID,  MotorType.kBrushless);
-        rightLeader    = new SparkMax(DriveConstants.RIGHT_LEADER_CAN_ID,   MotorType.kBrushless);
-        rightFollower  = new SparkMax(DriveConstants.RIGHT_FOLLOWER_CAN_ID, MotorType.kBrushless);
+  public DriveIOReal() {
+    leftLeader = new SparkMax(DriveConstants.LEFT_LEADER_CAN_ID, MotorType.kBrushless);
+    leftFollower = new SparkMax(DriveConstants.LEFT_FOLLOWER_CAN_ID, MotorType.kBrushless);
+    rightLeader = new SparkMax(DriveConstants.RIGHT_LEADER_CAN_ID, MotorType.kBrushless);
+    rightFollower = new SparkMax(DriveConstants.RIGHT_FOLLOWER_CAN_ID, MotorType.kBrushless);
 
-        SparkMaxConfig leftLeaderCfg = leaderConfig(false);
-        SparkMaxConfig leftFollowerCfg = followerConfig(DriveConstants.LEFT_LEADER_CAN_ID, false);
-        SparkMaxConfig rightLeaderCfg = leaderConfig(true);     // right side inverted
-        SparkMaxConfig rightFollowerCfg = followerConfig(DriveConstants.RIGHT_LEADER_CAN_ID, false);
+    SparkMaxConfig leftLeaderCfg = leaderConfig(false);
+    SparkMaxConfig leftFollowerCfg = followerConfig(DriveConstants.LEFT_LEADER_CAN_ID, false);
+    SparkMaxConfig rightLeaderCfg = leaderConfig(true); // right side inverted
+    SparkMaxConfig rightFollowerCfg = followerConfig(DriveConstants.RIGHT_LEADER_CAN_ID, false);
 
-        configure(leftLeader,    leftLeaderCfg);
-        configure(leftFollower,  leftFollowerCfg);
-        configure(rightLeader,   rightLeaderCfg);
-        configure(rightFollower, rightFollowerCfg);
+    configure(leftLeader, leftLeaderCfg);
+    configure(leftFollower, leftFollowerCfg);
+    configure(rightLeader, rightLeaderCfg);
+    configure(rightFollower, rightFollowerCfg);
 
-        leftLeader.getEncoder().setPosition(0);
-        rightLeader.getEncoder().setPosition(0);
-    }
+    leftLeader.getEncoder().setPosition(0);
+    rightLeader.getEncoder().setPosition(0);
+  }
 
-    @Override
-    public void setVoltages(Voltage leftVolts, Voltage rightVolts) {
-        leftLeader.setVoltage(leftVolts.in(Volts));
-        rightLeader.setVoltage(rightVolts.in(Volts));
-    }
+  @Override
+  public void setVoltages(Voltage leftVolts, Voltage rightVolts) {
+    leftLeader.setVoltage(leftVolts.in(Volts));
+    rightLeader.setVoltage(rightVolts.in(Volts));
+  }
 
-    @Override
-    public void updateInputs(DriveInputs inputs) {
-        inputs.leftPosition = Meters.of(
-            motorRotationsToMeters(leftLeader.getEncoder().getPosition()));
-        inputs.rightPosition = Meters.of(
-            motorRotationsToMeters(rightLeader.getEncoder().getPosition()));
-        inputs.leftVelocity = MetersPerSecond.of(
-            motorRpmToMetersPerSecond(leftLeader.getEncoder().getVelocity()));
-        inputs.rightVelocity = MetersPerSecond.of(
-            motorRpmToMetersPerSecond(rightLeader.getEncoder().getVelocity()));
-        inputs.leftAppliedVoltage = Volts.of(
-            leftLeader.getAppliedOutput() * leftLeader.getBusVoltage());
-        inputs.rightAppliedVoltage = Volts.of(
-            rightLeader.getAppliedOutput() * rightLeader.getBusVoltage());
-        inputs.leftCurrent = Amps.of(
-            leftLeader.getOutputCurrent() + leftFollower.getOutputCurrent());
-        inputs.rightCurrent = Amps.of(
-            rightLeader.getOutputCurrent() + rightFollower.getOutputCurrent());
-    }
+  @Override
+  public void updateInputs(DriveInputs inputs) {
+    inputs.leftPosition = Meters.of(motorRotationsToMeters(leftLeader.getEncoder().getPosition()));
+    inputs.rightPosition =
+        Meters.of(motorRotationsToMeters(rightLeader.getEncoder().getPosition()));
+    inputs.leftVelocity =
+        MetersPerSecond.of(motorRpmToMetersPerSecond(leftLeader.getEncoder().getVelocity()));
+    inputs.rightVelocity =
+        MetersPerSecond.of(motorRpmToMetersPerSecond(rightLeader.getEncoder().getVelocity()));
+    inputs.leftAppliedVoltage =
+        Volts.of(leftLeader.getAppliedOutput() * leftLeader.getBusVoltage());
+    inputs.rightAppliedVoltage =
+        Volts.of(rightLeader.getAppliedOutput() * rightLeader.getBusVoltage());
+    inputs.leftCurrent = Amps.of(leftLeader.getOutputCurrent() + leftFollower.getOutputCurrent());
+    inputs.rightCurrent =
+        Amps.of(rightLeader.getOutputCurrent() + rightFollower.getOutputCurrent());
+  }
 
-    // ---- helpers ----
+  // ---- helpers ----
 
-    private static SparkMaxConfig leaderConfig(boolean inverted) {
-        SparkMaxConfig cfg = new SparkMaxConfig();
-        cfg.idleMode(IdleMode.kBrake)
-           .smartCurrentLimit(DriveConstants.SMART_CURRENT_LIMIT_AMPS)
-           .inverted(inverted);
-        return cfg;
-    }
+  private static SparkMaxConfig leaderConfig(boolean inverted) {
+    SparkMaxConfig cfg = new SparkMaxConfig();
+    cfg.idleMode(IdleMode.kBrake)
+        .smartCurrentLimit(DriveConstants.SMART_CURRENT_LIMIT_AMPS)
+        .inverted(inverted);
+    return cfg;
+  }
 
-    private static SparkMaxConfig followerConfig(int leaderCanId, boolean invertRelativeToLeader) {
-        SparkMaxConfig cfg = new SparkMaxConfig();
-        cfg.idleMode(IdleMode.kBrake)
-           .smartCurrentLimit(DriveConstants.SMART_CURRENT_LIMIT_AMPS)
-           .follow(leaderCanId, invertRelativeToLeader);
-        return cfg;
-    }
+  private static SparkMaxConfig followerConfig(int leaderCanId, boolean invertRelativeToLeader) {
+    SparkMaxConfig cfg = new SparkMaxConfig();
+    cfg.idleMode(IdleMode.kBrake)
+        .smartCurrentLimit(DriveConstants.SMART_CURRENT_LIMIT_AMPS)
+        .follow(leaderCanId, invertRelativeToLeader);
+    return cfg;
+  }
 
-    private static void configure(SparkMax motor, SparkMaxConfig cfg) {
-        motor.configure(cfg,
-            ResetMode.kResetSafeParameters,
-            PersistMode.kPersistParameters);
-    }
+  private static void configure(SparkMax motor, SparkMaxConfig cfg) {
+    motor.configure(cfg, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+  }
 
-    // The unit is stated in the method name and destination field.
-    // These private helpers convert vendor sensor values at the IO boundary.
-    private static double motorRotationsToMeters(double motorRotations) {
-        double wheelRotations = motorRotations / DriveConstants.GEAR_RATIO;
-        return wheelRotations * Math.PI * DriveConstants.WHEEL_DIAMETER.in(Meters);
-    }
+  // The unit is stated in the method name and destination field.
+  // These private helpers convert vendor sensor values at the IO boundary.
+  private static double motorRotationsToMeters(double motorRotations) {
+    double wheelRotations = motorRotations / DriveConstants.GEAR_RATIO;
+    return wheelRotations * Math.PI * DriveConstants.WHEEL_DIAMETER.in(Meters);
+  }
 
-    private static double motorRpmToMetersPerSecond(double motorRpm) {
-        double wheelRpm = motorRpm / DriveConstants.GEAR_RATIO;
-        double wheelRps = wheelRpm / 60.0;
-        return wheelRps * Math.PI * DriveConstants.WHEEL_DIAMETER.in(Meters);
-    }
+  private static double motorRpmToMetersPerSecond(double motorRpm) {
+    double wheelRpm = motorRpm / DriveConstants.GEAR_RATIO;
+    double wheelRps = wheelRpm / 60.0;
+    return wheelRps * Math.PI * DriveConstants.WHEEL_DIAMETER.in(Meters);
+  }
 }
 ```
 
@@ -279,52 +275,52 @@ Create `src/main/java/frc/robot/subsystems/drive/DriveIOSim.java`. This is a **c
 ```java
 package frc.robot.subsystems.drive;
 
-import edu.wpi.first.units.measure.Voltage;
-import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim;
-import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotMotor;
-import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotGearing;
-import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotWheelSize;
+import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.MetersPerSecond;
-import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.Volts;
+
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim;
+import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotGearing;
+import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotMotor;
+import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim.KitbotWheelSize;
 
 public class DriveIOSim implements DriveIO {
 
-    private final DifferentialDrivetrainSim sim;
-    private Voltage leftAppliedVoltage  = Volts.of(0);
-    private Voltage rightAppliedVoltage = Volts.of(0);
+  private final DifferentialDrivetrainSim sim;
+  private Voltage leftAppliedVoltage = Volts.of(0);
+  private Voltage rightAppliedVoltage = Volts.of(0);
 
-    public DriveIOSim() {
-        sim = DifferentialDrivetrainSim.createKitbotSim(
+  public DriveIOSim() {
+    sim =
+        DifferentialDrivetrainSim.createKitbotSim(
             KitbotMotor.kDoubleNEOPerSide,
             KitbotGearing.k10p71,
             KitbotWheelSize.kSixInch,
-            null   // optional measurement noise; null = no noise
-        );
-    }
+            null // optional measurement noise; null = no noise
+            );
+  }
 
-    @Override
-    public void setVoltages(Voltage leftVolts, Voltage rightVolts) {
-        leftAppliedVoltage  = Volts.of(Math.max(-12.0, Math.min(12.0, leftVolts.in(Volts))));
-        rightAppliedVoltage = Volts.of(Math.max(-12.0, Math.min(12.0, rightVolts.in(Volts))));
-        sim.setInputs(leftAppliedVoltage.in(Volts), rightAppliedVoltage.in(Volts));
-    }
+  @Override
+  public void setVoltages(Voltage leftVolts, Voltage rightVolts) {
+    leftAppliedVoltage = Volts.of(Math.max(-12.0, Math.min(12.0, leftVolts.in(Volts))));
+    rightAppliedVoltage = Volts.of(Math.max(-12.0, Math.min(12.0, rightVolts.in(Volts))));
+    sim.setInputs(leftAppliedVoltage.in(Volts), rightAppliedVoltage.in(Volts));
+  }
 
-    @Override
-    public void updateInputs(DriveInputs inputs) {
-        sim.update(0.020);                                  // 20 ms tick
-        inputs.leftPosition = Meters.of(sim.getLeftPositionMeters());
-        inputs.rightPosition = Meters.of(sim.getRightPositionMeters());
-        inputs.leftVelocity =
-            MetersPerSecond.of(sim.getLeftVelocityMetersPerSecond());
-        inputs.rightVelocity =
-            MetersPerSecond.of(sim.getRightVelocityMetersPerSecond());
-        inputs.leftAppliedVoltage = leftAppliedVoltage;
-        inputs.rightAppliedVoltage = rightAppliedVoltage;
-        inputs.leftCurrent = Amps.of(sim.getLeftCurrentDrawAmps());
-        inputs.rightCurrent = Amps.of(sim.getRightCurrentDrawAmps());
-    }
+  @Override
+  public void updateInputs(DriveInputs inputs) {
+    sim.update(0.020); // 20 ms tick
+    inputs.leftPosition = Meters.of(sim.getLeftPositionMeters());
+    inputs.rightPosition = Meters.of(sim.getRightPositionMeters());
+    inputs.leftVelocity = MetersPerSecond.of(sim.getLeftVelocityMetersPerSecond());
+    inputs.rightVelocity = MetersPerSecond.of(sim.getRightVelocityMetersPerSecond());
+    inputs.leftAppliedVoltage = leftAppliedVoltage;
+    inputs.rightAppliedVoltage = rightAppliedVoltage;
+    inputs.leftCurrent = Amps.of(sim.getLeftCurrentDrawAmps());
+    inputs.rightCurrent = Amps.of(sim.getRightCurrentDrawAmps());
+  }
 }
 ```
 

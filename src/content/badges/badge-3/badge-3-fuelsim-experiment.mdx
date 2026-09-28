@@ -1,0 +1,80 @@
+---
+title: "Step 6: FuelSim Launch Experiment"
+lessonId: badge-3-fuelsim-experiment
+section: badges
+group: badge-3
+groupLabel: "Badge 3: Advanced FRC"
+groupOrder: 3
+order: 6
+difficulty: advanced
+description: "Required measured-speed FuelSim experiment following flywheel characterization and tuning."
+---
+
+The student connects a measured flywheel response to one simulated shot. Complete this required step after [Step 5: Flywheel Characterization and Tuning](/badges/badge-3-flywheel). Its fixed-pitch experiment can run alongside the pivot module; both are needed for final autonomous integration. The launch model and controlled experiment provide the evidence for rows B3-04.3 and B3-04.4 in the assessment table below. Use the mentor-supplied `curriculum-reference` with its pinned dependencies and preserved FuelSim licence. The source record identifies the copied upstream revision; an unrecorded replacement from `main` is a dependency change.
+
+## Run the Reference
+
+Open the reference project outside OneDrive. Run the focused test from its root:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+.\gradlew.bat test --tests frc.robot.curriculum.CurriculumTest
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```sh
+./gradlew test --tests frc.robot.curriculum.CurriculumTest
+```
+
+</CodeTab>
+</CodeTabs>
+
+Find `fuelMeasuredSpeedScoresAndControlledMissDoesNot` in the test report. Read the test beside `BadgeFuelWorld`. The test runs the general flywheel model to a measured 22 rotations per second, then launches from field position (2.00 m, 4.02 m), heading zero, at 60 degrees and 0.80 m height. The wheel radius is 0.05 m and the first slip factor is 0.85. These are simulation experiment values, not hardware recommendations.
+
+The measured angular speed is approximately 138.23 radians per second, so the launch speed is approximately 5.87 metres per second. The reference checks the change in FuelSim's blue-hub score rather than assuming every launch scores. The controlled miss changes only the slip factor to 0.50, producing approximately 3.46 metres per second from the same measured motor speed. The scoring test passed for the pinned model; another model or geometry may produce a different result.
+
+## Trace the Ownership
+
+`BadgeFuelWorld` extends the copied FuelSim class in the same package so it can expose the upstream protected fuel positions. Preserve that package relationship if using this adapter. Its `fire` method checks possession and readiness, uses measured speed, and consumes the held piece only after launching. Calling it again with no held piece produces no projectile.
+
+The world registers robot dimensions, a true-pose supplier for physics, and field-relative speeds. Robot control still uses the estimator. The world is updated once per 20 ms simulation period; FuelSim owns its internal subticks. `stepSim()` advances physics directly in the test. A robot loop using `updateSim()` must call `start()` first.
+
+FuelSim's own NetworkTables publishing does not establish saved AdvantageKit evidence. Call the adapter's `record()` from the simulation owner to mirror positions, possession, launch count and score. Record launch speed and pitch at the event. For replay, consume the saved robot inputs and inspect the original recorded world outputs; do not run a fresh physics world and describe it as reconstructed input evidence.
+
+## Make the Student Adaptation
+
+1. Reproduce the supplied scoring shot and controlled miss. Record the model version, initial state, measured speed, radius, slip, angle, height, and score delta.
+2. Connect `fire` to the student's measured flywheel input and one explicit launch event. Keep fixed angle and height for this first experiment. Confirm that a goal change does not instantly become the launch speed.
+3. Predict the effect of one changed parameter. Repeat from the same initial conditions, save the trace, and compare the prediction with the result.
+4. Demonstrate that not-ready and empty requests do not launch. Cancel while preparing and confirm that the feeder stops.
+5. Write reproduction instructions for another member. Step 10 later replaces the fixed pitch with measured pivot angle and connects the same world to collection and PhotonVision.
+
+The student explains model assumptions separately from controller performance. A successful simulated shot does not calibrate slip, drag or contact behavior for a physical shooter.
+
+## Badge Check
+
+S means simulation and W means written reasoning. The student records an evidence link, mentor signature, and date for each row.
+
+| Row | Work | Done When |
+| --- | --- | --- |
+| B3-04.3 | FuelSim launch model | S/W: Pin the source and preserve its licence; adapt an integration using measured simulated flywheel speed, wheel radius and an explicit slip/model assumption. A fixed documented angle and height are allowed for this first experiment. |
+| B3-04.4 | Controlled shot experiment | S/W: Predict and vary one parameter from a repeatable initial state. Show a scoring shot and controlled miss, log the launch and model outcome, and distinguish controller tuning from launch-model fitting. |
+
+<Sources items={[
+  {
+    "source": "fuelsim",
+    "path": "FuelSim.java",
+    "note": "Launch units, intake callbacks, field-relative speeds and hub scoring."
+  },
+  {
+    "source": "advantagekit",
+    "path": "data-flow/recording-outputs/",
+    "note": "Explicit saved outputs for world and launch evidence."
+  }
+]} />
+
+<LinkGrid title="Continue" section="badges" links={[{"label": "Step 7: Pivot Reference, Limits, and Profiles", "id": "badge-3-pivot"}, {"label": "Badge 3: Advanced FRC", "id": "badge-3"}]} />

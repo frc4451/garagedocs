@@ -1,16 +1,16 @@
 ---
-title: "Step 5: Testing Fundamentals"
+title: "Step 6: Testing Fundamentals"
 lessonId: badge-2-testing
 section: badges
 group: badge-2
 groupLabel: "Badge 2: Intermediate FRC"
 groupOrder: 2
-order: 5
+order: 6
 difficulty: beginner
 description: "Add a small pure-Java configuration rule and meaningful JUnit tests to Badge2Robot before testing mechanisms in simulation."
 ---
 
-Step 5 adds the first automated tests to `Badge2Robot`. These tests exercise pure Java configuration and decision logic, so a failure points to one rule and runs without a simulated motor controller. Mechanism and HAL simulation tests come later in [Unit Tests in Simulation](/frc/unit-tests-in-simulation).
+Step 6 adds the first automated tests to `Badge2Robot`. These tests exercise pure Java configuration and decision logic, so a failure points to one rule and runs without a simulated motor controller. Mechanism and HAL simulation tests come later in [Unit Tests in Simulation](/frc/unit-tests-in-simulation).
 
 ## Verify the Test Setup
 
@@ -123,7 +123,25 @@ Temporarily change the upper clamp assertion from `1.4` to `1.3`. Run the tests 
 
 ## Independent Change
 
-Add one method that answers a new configuration question, such as whether a position is inside the inclusive range. Write tests for a value in the middle, both exact limits, and one value outside each side. Give each test method a name that states the behavior it checks.
+Apply the guided assertion patterns to the [motor configuration record from Step 5](/badges/badge-2-io-and-generated-code#guided-lombok-example). These tests construct records and builders without constructing an IO implementation or motor controller. They replace the separate exercise of adding another method to `MechanismLimits`.
+
+Write tests that prove:
+
+- Direct and builder construction preserve the same valid settings and produce equal records.
+- Missing required selections and an omitted device ID are rejected; documented optional defaults produce the intended values.
+- Reduction rejects zero, negative values, `NaN`, and infinity.
+- Each current limit accepts its documented boundaries and rejects values outside the fixture's approved range, including non-finite input. A permitted lower current limit remains unchanged.
+- The independent setting added in Step 5 follows its documented validation and omission behavior.
+
+Use expected values taken from the written configuration contract. Give each test a name that states the behavior it checks. The student explains why a passing record test establishes valid construction but does not prove that the IO applied the settings. That trace and the physical evidence follow in Step 7.
+
+## Test the Controller Inputs
+
+Turn the [Step 3 controller demonstration](/badges/badge-2-project-architecture#build-a-robot-controller-class) into automated tests. Use `XboxControllerSim` with the controller's underlying HID, initialize HAL as shown in [Unit Tests in Simulation](/frc/unit-tests-in-simulation), and notify new input data before reading the getters. These tests read inputs; they do not need command scheduling or a mechanism model.
+
+Check centered input, both signs, the deadband boundary, and full-scale input on each implemented axis. With deadband 0.10, raw values ±0.55 should yield approximately ±0.50 after deadband and ±0.25 after signed squaring. Use a numeric tolerance. Also call the overridden getter through a `CommandXboxController` reference to the same object and verify that the processed result is unchanged. Restore simulated input state during teardown.
+
+Name the tests for the behavior they prove and retain their results in the evidence table. Trigger scheduling and rumble lifecycle checks follow in Step 9, after commands have a subsystem to operate.
 
 ## Rows
 
@@ -131,25 +149,28 @@ Add one method that answers a new configuration question, such as whether a posi
 |---|---|---|
 | 5.1 | Verify JUnit setup | The evidence table records the JUnit Jupiter dependency and version from the preserved template; `useJUnitPlatform()` and `wpi.java.configureTestTasks(test)` remain present |
 | 5.2 | Add pure configuration logic | `MechanismLimits.java` contains the complete validation and clamp behavior; it imports no WPILib or vendor class |
-| 5.3 | Test normal and edge behavior | The four supplied tests pass and the student adds meaningful tests for an independent method |
+| 5.3 | Test normal and edge behavior | The four supplied tests and the motor configuration tests pass, covering direct/builder equivalence, missing values, reduction, current limits, and the independent setting |
 | 5.4 | Read a failure and restore it | The student shows the temporary failed result, explains expected versus actual, restores the correct assertion, and shows a passing rerun |
 | 5.5 | Keep the build healthy | The PowerShell or Terminal commands shown above pass for both `test` and `build`; the HTML report is linked from the evidence table or its location is recorded |
+| 5.6 | Test controller inputs | The Step 3 controller passes axis boundary, signed-squaring, and parent-reference dispatch tests with simulated inputs |
 
 ## Badge Check
 
 <StepsBox title="Testing Fundamentals Badge Check">
 
 1. The student shows the exact JUnit dependency supplied by the recorded template release and points to `useJUnitPlatform()` and `wpi.java.configureTestTasks(test)`.
-2. The student runs the PowerShell or Terminal test command shown above and opens the report showing all configuration tests passing.
-3. The mentor gives one valid value and one edge value. The student predicts which test covers each and explains the assertion.
-4. The student repeats the temporary failure exercise, reads the useful fields in the failure, restores the assertion, and reruns the tests successfully.
-5. The student changes one rule or boundary in `MechanismLimits`, updates the tests to express the agreed behavior, and completes a passing build with the command for their operating system.
+2. The student shows the controller input tests and explains one boundary assertion and the parent-reference check.
+3. The student runs the PowerShell or Terminal test command shown above and opens the report showing all configuration tests passing.
+4. The mentor gives one valid motor setting and one invalid or omitted setting. The student predicts the direct-constructor and builder results, identifies the tests, and explains why no hardware is created.
+5. The student repeats the temporary failure exercise, reads the useful fields in the failure, restores the assertion, and reruns the tests successfully.
+6. The student changes one rule or boundary in `MechanismLimits`, updates the tests to express the agreed behavior, and completes a passing build with the command for their operating system.
 
 </StepsBox>
 
 If Gradle reports that `org.junit.jupiter` does not exist, first confirm that the test file is under `src/test/java/`, then compare `build.gradle` with the recorded template release. If no tests are found, check the `@Test` imports, package path, and `useJUnitPlatform()` before adding dependencies.
 
 <Sources items={[
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/XboxControllerSim.html", "note": "Simulated controller inputs and notification used to test the Step 3 subclass."},
   {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/unit-testing.html", "note": "JUnit 5 availability, the Java test source set, assertions, test reports, and running tests from WPILib VS Code."},
   {"url": "https://github.com/wpilibsuite/GradleRIO", "label": "GradleRIO repository", "note": "The official GradleRIO build command behavior, including tests during <code>build</code>."},
   {"url": "https://github.com/Mechanical-Advantage/AdvantageKit/blob/v26.0.2/template_projects/template/build.gradle", "label": "AdvantageKit v26.0.2 template build.gradle", "note": "The exact JUnit Jupiter 5.10.1 dependency, launcher dependency, JUnit Platform task, and GradleRIO test configuration shipped by the recorded template release."},
@@ -157,7 +178,7 @@ If Gradle reports that `org.junit.jupiter` does not exist, first confirm that th
 ]} />
 
 <LinkGrid links={[
-  {"label":"Step 6: One Complete Mechanism","id":"badge-2-first-mechanism"},
-  {"label":"Step 4: IO and Generated Code","id":"badge-2-io-and-generated-code"},
+  {"label":"Step 7: One Complete Mechanism","id":"badge-2-first-mechanism"},
+  {"label":"Step 5: Software Abstraction and Generated Code","id":"badge-2-io-and-generated-code"},
   {"label":"Unit Tests in Simulation","url":"/frc/unit-tests-in-simulation"}
 ]} title="Next" section="badges" />

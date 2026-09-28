@@ -72,112 +72,105 @@ import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
 
 public final class SteadyStateCharacterization {
-    private static final double[] VOLTAGE_STEPS =
-        {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
-    private static final double SETTLE_SECONDS = 1.5;
+  private static final double[] VOLTAGE_STEPS = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+  private static final double SETTLE_SECONDS = 1.5;
 
-    private SteadyStateCharacterization() {}
+  private SteadyStateCharacterization() {}
 
-    public static Command run(
-            String name,
-            Subsystem subsystem,
-            DoubleConsumer outputVolts,
-            DoubleSupplier velocity,
-            String velocityUnit,
-            double minimumVelocity) {
+  public static Command run(
+      String name,
+      Subsystem subsystem,
+      DoubleConsumer outputVolts,
+      DoubleSupplier velocity,
+      String velocityUnit,
+      double minimumVelocity) {
 
-        List<Double> velocitySamples = new ArrayList<>();
-        List<Double> voltageSamples = new ArrayList<>();
-        Command[] steps = new Command[VOLTAGE_STEPS.length];
+    List<Double> velocitySamples = new ArrayList<>();
+    List<Double> voltageSamples = new ArrayList<>();
+    Command[] steps = new Command[VOLTAGE_STEPS.length];
 
-        for (int i = 0; i < VOLTAGE_STEPS.length; i++) {
-            double volts = VOLTAGE_STEPS[i];
+    for (int i = 0; i < VOLTAGE_STEPS.length; i++) {
+      double volts = VOLTAGE_STEPS[i];
 
-            steps[i] = Commands.sequence(
-                Commands.runOnce(
-                    () -> outputVolts.accept(volts), subsystem),
-                Commands.waitSeconds(SETTLE_SECONDS),
-                Commands.runOnce(() -> {
+      steps[i] =
+          Commands.sequence(
+              Commands.runOnce(() -> outputVolts.accept(volts), subsystem),
+              Commands.waitSeconds(SETTLE_SECONDS),
+              Commands.runOnce(
+                  () -> {
                     double measuredVelocity = velocity.getAsDouble();
 
-                    if (Double.isFinite(measuredVelocity)
-                            && measuredVelocity > minimumVelocity) {
-                        velocitySamples.add(measuredVelocity);
-                        voltageSamples.add(volts);
-                        System.out.printf(
-                            "%s sample: %.2f V, %.4f %s%n",
-                            name, volts, measuredVelocity, velocityUnit);
+                    if (Double.isFinite(measuredVelocity) && measuredVelocity > minimumVelocity) {
+                      velocitySamples.add(measuredVelocity);
+                      voltageSamples.add(volts);
+                      System.out.printf(
+                          "%s sample: %.2f V, %.4f %s%n",
+                          name, volts, measuredVelocity, velocityUnit);
                     } else {
-                        System.out.printf(
-                            "%s skipped: %.2f V, %.4f %s%n",
-                            name, volts, measuredVelocity, velocityUnit);
+                      System.out.printf(
+                          "%s skipped: %.2f V, %.4f %s%n",
+                          name, volts, measuredVelocity, velocityUnit);
                     }
-                }, subsystem)
-            );
-        }
+                  },
+                  subsystem));
+    }
 
-        return Commands.sequence(
-            Commands.runOnce(() -> {
-                velocitySamples.clear();
-                voltageSamples.clear();
-                System.out.println("Starting " + name + " characterization");
-            }, subsystem),
+    return Commands.sequence(
+            Commands.runOnce(
+                () -> {
+                  velocitySamples.clear();
+                  voltageSamples.clear();
+                  System.out.println("Starting " + name + " characterization");
+                },
+                subsystem),
             Commands.sequence(steps),
             Commands.runOnce(
-                () -> printResults(
-                    name, velocitySamples, voltageSamples, velocityUnit),
-                subsystem)
-        ).finallyDo(() -> outputVolts.accept(0.0));
+                () -> printResults(name, velocitySamples, voltageSamples, velocityUnit), subsystem))
+        .finallyDo(() -> outputVolts.accept(0.0));
+  }
+
+  private static void printResults(
+      String name, List<Double> velocity, List<Double> voltage, String velocityUnit) {
+
+    int n = velocity.size();
+    if (n < 2) {
+      System.out.println("Not enough moving samples for " + name);
+      return;
     }
 
-    private static void printResults(
-            String name,
-            List<Double> velocity,
-            List<Double> voltage,
-            String velocityUnit) {
+    double sumX = 0.0;
+    double sumY = 0.0;
+    double sumXY = 0.0;
+    double sumX2 = 0.0;
 
-        int n = velocity.size();
-        if (n < 2) {
-            System.out.println("Not enough moving samples for " + name);
-            return;
-        }
-
-        double sumX = 0.0;
-        double sumY = 0.0;
-        double sumXY = 0.0;
-        double sumX2 = 0.0;
-
-        for (int i = 0; i < n; i++) {
-            double x = velocity.get(i);
-            double y = voltage.get(i);
-            sumX += x;
-            sumY += y;
-            sumXY += x * y;
-            sumX2 += x * x;
-        }
-
-        double denominator = n * sumX2 - sumX * sumX;
-        if (Math.abs(denominator) < 1e-9) {
-            System.out.println("Samples do not cover enough different speeds");
-            return;
-        }
-
-        double kS =
-            (sumY * sumX2 - sumX * sumXY) / denominator;
-        double kV =
-            (n * sumXY - sumX * sumY) / denominator;
-
-        if (!Double.isFinite(kS) || !Double.isFinite(kV)) {
-            System.out.println("Fit produced a non-finite result for " + name);
-            return;
-        }
-
-        System.out.printf("%s positive requested-voltage results:%n", name);
-        System.out.printf("  samples = %d%n", n);
-        System.out.printf("  kS = %.6f volts%n", kS);
-        System.out.printf(
-            "  kV = %.6f volts per %s%n", kV, velocityUnit);
+    for (int i = 0; i < n; i++) {
+      double x = velocity.get(i);
+      double y = voltage.get(i);
+      sumX += x;
+      sumY += y;
+      sumXY += x * y;
+      sumX2 += x * x;
     }
+
+    double denominator = n * sumX2 - sumX * sumX;
+    if (Math.abs(denominator) < 1e-9) {
+      System.out.println("Samples do not cover enough different speeds");
+      return;
+    }
+
+    double kS = (sumY * sumX2 - sumX * sumXY) / denominator;
+    double kV = (n * sumXY - sumX * sumY) / denominator;
+
+    if (!Double.isFinite(kS) || !Double.isFinite(kV)) {
+      System.out.println("Fit produced a non-finite result for " + name);
+      return;
+    }
+
+    System.out.printf("%s positive requested-voltage results:%n", name);
+    System.out.printf("  samples = %d%n", n);
+    System.out.printf("  kS = %.6f volts%n", kS);
+    System.out.printf("  kV = %.6f volts per %s%n", kV, velocityUnit);
+  }
 }
 ```
 
@@ -202,23 +195,17 @@ Add these methods to `Drive`:
 
 ```java
 public void runCharacterizationVolts(double volts) {
-    leftVoltage = Volts.of(volts);
-    rightVoltage = Volts.of(volts);
+  leftVoltage = Volts.of(volts);
+  rightVoltage = Volts.of(volts);
 }
 
 public double characterizationVelocity() {
-    return (leftVelocity().in(MetersPerSecond)
-        + rightVelocity().in(MetersPerSecond)) / 2.0;
+  return (leftVelocity().in(MetersPerSecond) + rightVelocity().in(MetersPerSecond)) / 2.0;
 }
 
 public Command characterizeFeedforward() {
-    return SteadyStateCharacterization.run(
-        "Drive",
-        this,
-        this::runCharacterizationVolts,
-        this::characterizationVelocity,
-        "m/s",
-        0.1);
+  return SteadyStateCharacterization.run(
+      "Drive", this, this::runCharacterizationVolts, this::characterizationVelocity, "m/s", 0.1);
 }
 ```
 
@@ -230,21 +217,21 @@ Add these methods to `Launcher`:
 
 ```java
 public void runCharacterizationVolts(double volts) {
-    runAt(LauncherConstants.IDLE_VOLTAGE, Volts.of(volts));
+  runAt(LauncherConstants.IDLE_VOLTAGE, Volts.of(volts));
 }
 
 public double characterizationVelocity() {
-    return launcherVelocity().in(RotationsPerSecond);
+  return launcherVelocity().in(RotationsPerSecond);
 }
 
 public Command characterizeFeedforward() {
-    return SteadyStateCharacterization.run(
-        "Launcher",
-        this,
-        this::runCharacterizationVolts,
-        this::characterizationVelocity,
-        "rot/s",
-        0.1);
+  return SteadyStateCharacterization.run(
+      "Launcher",
+      this,
+      this::runCharacterizationVolts,
+      this::characterizationVelocity,
+      "rot/s",
+      0.1);
 }
 ```
 

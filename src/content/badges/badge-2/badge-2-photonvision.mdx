@@ -1,16 +1,22 @@
 ---
-title: "Step 11: Observations and Vision"
+title: "Step 12: Observations and Vision"
 lessonId: badge-2-photonvision
 section: badges
 group: badge-2
 groupLabel: "Badge 2: Intermediate FRC"
 groupOrder: 2
-order: 11
+order: 12
 difficulty: advanced
 description: "A replayable AdvantageKit observation contract, one real and simulated PhotonVision camera, named filtering and residuals, measured low-resource simulation, then a second independently configured camera."
 ---
 
-In Step 11, the student builds a real and a simulated AprilTag vision IO in `Badge2Robot` and connects accepted observations to the swerve template's pose estimator. The step reuses the vocabulary of [Step 9](/badges/badge-2-math): the filter is a set of named predicates, the residual is a vector magnitude, and every rejected observation is logged with its reason. Object detection is out of scope for Badge 2. Pages that mention it are read for their AprilTag content only.
+In Step 12, the student builds a real and a simulated AprilTag vision IO in `Badge2Robot` and connects accepted observations to the swerve template's pose estimator. The step reuses the vocabulary of [Step 10: Pose, Frames, and Odometry](/badges/badge-2-math): the filter is a set of named predicates, the residual is a vector magnitude, and every rejected observation is logged with its reason. Object detection is out of scope for Badge 2. Pages that mention it are read for their AprilTag content only.
+
+## Prepare the Camera Data
+
+The student first completes [Step 10's camera preparation](/badges/badge-2-math#complete-the-work-in-two-stages), rows 9.6–9.10 and 9.12. This puts 3D transforms and filter calculations beside the camera code that uses them.
+
+Before processing observations, the student practices an empty and a present `Optional`: the empty value supplies no pose, and the present value is inspected only after its presence check. The student then collects two observation records in a list, converts the list to the input array, and explains when the consumer callback runs. Arrays, lists, records, and callbacks were introduced in the earlier Java work; this exercise connects them to the vision contract.
 
 ## References to Review
 
@@ -31,7 +37,7 @@ Three classes and a plain Java observation family:
 
 - `AprilTagIO`: the data contract. Its `@AutoLog` inputs carry `Observation[]` and `RejectedObservation[]` arrays produced during that loop. `Logger.processInputs` records those arrays on the robot and restores them from the log during replay. The interface's default `updateInputs` method leaves replayed values in place.
 - `AprilTagIOPhoton`: one real PhotonVision camera. It owns a `PhotonCamera`, a `PhotonPoseEstimator`, the camera's `robotToCamera` transform and the field layout.
-- `AprilTagIOPhotonSim`: extends `AprilTagIOPhoton` and adds the camera to a `VisionSystemSim`. The real class's constructor runs first, so the estimator, the transform and the filter are the ones the robot uses; only the source of pixels changes. This is the [vendor-sim-state pattern](/frc/physics-in-the-io-layer#the-vendor-sim-state-pattern) from Step 6, applied to a camera.
+- `AprilTagIOPhotonSim`: extends `AprilTagIOPhoton` and adds the camera to a `VisionSystemSim`. The real class's constructor runs first, so the estimator, the transform and the filter are the ones the robot uses; only the source of pixels changes. This is the [vendor-sim-state pattern](/frc/physics-in-the-io-layer#the-vendor-sim-state-pattern) from Step 7, applied to a camera.
 - Plain Java observation records with the timestamp, pose candidate, tag count, ambiguity, and uncertainty the estimator needs. A rejected observation uses an enum for its first failed predicate. AdvantageKit serializes custom record arrays as structs when every record component is a primitive, enum, struct-compatible WPILib type, or another compatible record. Array-valued record components are not supported, so tag IDs or other repeated values use a separate top-level array.
 
 `AprilTagIOPhoton` reads every unread result once per loop with `getAllUnreadResults()`. Each result becomes an `Optional<Observation>` after pose calculation and filtering. The implementation may collect results in a `List` while processing, then converts them to the record arrays stored in the `@AutoLog` inputs. After `Logger.processInputs` returns, the vision subsystem iterates the restored accepted array and passes each value to a `Consumer<Observation>`. This ordering makes the same observations flow to the estimator during replay. The callback itself does not drain anything. If the integration uses a queue, the drivetrain owns that queue, the consumer appends to it, and the drivetrain drains it before calling `addVisionMeasurement` once per accepted observation, as the [swerve example](/frc/swerve-pose-estimation-example#apply-accepted-observations) does.
@@ -68,8 +74,8 @@ After the first camera passes its check, add a second camera with a different na
 | 11.1 | The contract | [Vision Subsystem](/frc/vision-subsystem#define-the-observation) | `AprilTagIO` has `@AutoLog` inputs with top-level `Observation[]` and `RejectedObservation[]`; each struct-compatible record carries timestamp, pose, tag count, ambiguity, and standard deviations without an array-valued component |
 | 11.2 | One real camera | [Vision Subsystem](/frc/vision-subsystem#configure-one-camera) | `AprilTagIOPhoton` constructs a `PhotonCamera` and a `PhotonPoseEstimator` from a per-camera configuration record with the camera name and `robotToCamera` |
 | 11.3 | Read once | [Vision Subsystem](/frc/vision-subsystem#process-unread-results-once) | `getAllUnreadResults()` is drained once per loop and each result keeps its own timestamp |
-| 11.4 | Named predicates | [Vision Subsystem](/frc/vision-subsystem#reject-measurements-for-stated-reasons) | The six predicates from Step 9 are methods or named conditions; the first failure is recorded per rejected observation |
-| 11.5 | Residual logged | [Step 9](/badges/badge-2-math#a-residual-is-a-vector) | The translation residual against the current estimate is logged for every observation |
+| 11.4 | Named predicates | [Vision Subsystem](/frc/vision-subsystem#reject-measurements-for-stated-reasons) | The six predicates from Step 10 are methods or named conditions; the first failure is recorded per rejected observation |
+| 11.5 | Residual logged | [Step 10: Pose, Frames, and Odometry](/badges/badge-2-math#a-residual-is-a-vector) | The translation residual against the current estimate is logged for every observation |
 | 11.6 | Uncertainty separate | [Vision Subsystem](/frc/vision-subsystem#assign-uncertainty) | Standard deviations are chosen after acceptance, from tag count and distance, and attached to the observation |
 | 11.7 | Replay, then publish | [Fused Pose Estimation](/frc/fused-pose-estimation#add-each-accepted-observation-once) | `Logger.processInputs` runs before the accepted array is iterated; a `Consumer<Observation>` accepts each restored result, and any queue is owned and drained by the drivetrain before one `addVisionMeasurement` call per observation |
 | 11.8 | The simulation IO | [Vision Simulation](/frc/vision-simulation#the-three-pieces) | `AprilTagIOPhotonSim extends AprilTagIOPhoton`, calls `super(...)` first, and adds a `PhotonCameraSim` to the shared `VisionSystemSim` |
@@ -82,7 +88,7 @@ After the first camera passes its check, add a second camera with a different na
 <StepsBox title="PhotonVision badge check">
 
 1. The student simulates `Badge2Robot` with the streams disabled and drives near a tag. AdvantageScope's 2D field shows the camera's pose observations landing on the robot; the 3D field shows each camera drawn on the robot where its transform says.
-2. The student resets the estimator to a deliberately wrong pose. Accepted observations pull the estimate back; the log shows the residual shrinking.
+2. The student resets the estimator to a documented wrong pose inside the configured acceptance gate. Accepted observations pull the estimate back; the log shows the residual shrinking. A separate offset outside the gate demonstrates rejection and the need for a deliberate recovery policy rather than an unconditional correction.
 3. The student opens the log and shows rejected observations with their reasons, then changes one filter limit and shows a different predicate rejecting.
 4. Before the check, the mentor plants a wrong `robotToCamera` (a swapped sign, or the inverse transform). The student finds it from the field view, names the symptom, corrects it, and shows the observations landing on the robot again.
 5. The student explains why `AprilTagIOPhotonSim` extends the real implementation instead of copying it, and what would go wrong if the simulation had its own filter.
@@ -116,8 +122,8 @@ After the first camera passes its check, add a second camera with a different na
 ]} />
 
 <LinkGrid links={[
-  {"label":"Step 12: Robot State","id":"badge-2-robot-state"},
-  {"label":"Step 10: Path Following","id":"badge-2-path-following"},
+  {"label":"Step 13: Robot State","id":"badge-2-robot-state"},
+  {"label":"Step 11: Path Following","id":"badge-2-path-following"},
   {"label":"Vision Simulation","url":"/frc/vision-simulation"},
   {"label":"Vision Subsystem","url":"/frc/vision-subsystem"}
 ]} title="Next" section="badges" />

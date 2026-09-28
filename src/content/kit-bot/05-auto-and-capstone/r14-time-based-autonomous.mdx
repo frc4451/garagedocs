@@ -36,22 +36,19 @@ import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.launcher.Launcher;
 
 public final class AutoRoutines {
-    public static Command driveForward(
-            Drive drive, double speed, Time duration) {
-        return drive.driveAt(speed, 0.0).withTimeout(duration);
-    }
+  public static Command driveForward(Drive drive, double speed, Time duration) {
+    return drive.driveAt(speed, 0.0).withTimeout(duration);
+  }
 
-    public static Command shoot(Launcher launcher, Time duration) {
-        return launcher.launchFuel().withTimeout(duration);
-    }
+  public static Command shoot(Launcher launcher, Time duration) {
+    return launcher.launchFuel().withTimeout(duration);
+  }
 
-    public static Command driveThenShoot(
-            Drive drive, Launcher launcher) {
-        return driveForward(drive, 0.4, Seconds.of(1.5))
-            .andThen(shoot(launcher, Seconds.of(2.0)));
-    }
+  public static Command driveThenShoot(Drive drive, Launcher launcher) {
+    return driveForward(drive, 0.4, Seconds.of(1.5)).andThen(shoot(launcher, Seconds.of(2.0)));
+  }
 
-    private AutoRoutines() {}
+  private AutoRoutines() {}
 }
 ```
 
@@ -80,20 +77,15 @@ import frc.robot.commands.AutoRoutines;
 Add this field inside `RobotContainer`, above the constructor:
 
 ```java
-private final SendableChooser<Command> autoChooser =
-    new SendableChooser<>();
+private final SendableChooser<Command> autoChooser = new SendableChooser<>();
 ```
 
 In the constructor, add this block after `drive` and `launcher` are created and before `configureBindings()` runs:
 
 ```java
 autoChooser.setDefaultOption("Do nothing", Commands.none());
-autoChooser.addOption(
-    "Drive forward",
-    AutoRoutines.driveForward(drive, 0.4, Seconds.of(1.5)));
-autoChooser.addOption(
-    "Drive then shoot",
-    AutoRoutines.driveThenShoot(drive, launcher));
+autoChooser.addOption("Drive forward", AutoRoutines.driveForward(drive, 0.4, Seconds.of(1.5)));
+autoChooser.addOption("Drive then shoot", AutoRoutines.driveThenShoot(drive, launcher));
 
 SmartDashboard.putData("Auto Chooser", autoChooser);
 ```
@@ -104,7 +96,7 @@ Replace the existing `getAutonomousCommand()` method with this **replacement met
 
 ```java
 public Command getAutonomousCommand() {
-    return autoChooser.getSelected();
+  return autoChooser.getSelected();
 }
 ```
 
@@ -121,19 +113,19 @@ private Command m_autonomousCommand;
 
 @Override
 public void autonomousInit() {
-    m_autonomousCommand = m_robotContainer.getAutonomousCommand();
+  m_autonomousCommand = m_robotContainer.getAutonomousCommand();
 
-    if (m_autonomousCommand != null) {
-        CommandScheduler.getInstance().schedule(m_autonomousCommand);
-    }
+  if (m_autonomousCommand != null) {
+    CommandScheduler.getInstance().schedule(m_autonomousCommand);
+  }
 }
 
 @Override
 public void teleopInit() {
-    if (m_autonomousCommand != null) {
-        CommandScheduler.getInstance().cancel(m_autonomousCommand);
-        m_autonomousCommand = null;
-    }
+  if (m_autonomousCommand != null) {
+    CommandScheduler.getInstance().cancel(m_autonomousCommand);
+    m_autonomousCommand = null;
+  }
 }
 ```
 

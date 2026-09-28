@@ -142,6 +142,8 @@ LoggedTunableNumber.ifChanged(
 
 The first argument is an id used to track "changed since last check" per caller. `hashCode()` is the usual choice, so two objects watching the same tunable do not interfere with each other.
 
+For the bounded Cobra quasistatic adaptation, including cancellation cleanup and regression checks, follow [Badge 3 Flywheel Tuning](/badges/badge-3-flywheel).
+
 ### The Tuning Loop
 
 <StepsBox title="Tuning a mechanism">
@@ -170,7 +172,7 @@ Drag `Intake/targetPos` and `Intake/Position` onto one line graph and the tuning
 
 <RulesBox title="Tunables are logged; dashboard entries are not">
 
-A plain editable NetworkTables entry vanishes when the dashboard closes. A logged tunable is recorded into the log file, so a log from three weeks ago still tells you exactly what the robot was running.
+An editable NetworkTables topic alone does not establish a saved record of the value used by the robot. A logged tunable records its input when AdvantageKit logging is configured, so the saved run can show the value used at that time. Closing a dashboard does not reliably reset a robot-side topic.
 
 That is the difference between "the shooter was off that day" and "the shooter was off that day because kP was 0.9."
 
@@ -178,7 +180,7 @@ That is the difference between "the shooter was off that day" and "the shooter w
 
 ### Measure Feedforward, Do Not Guess It
 
-Feedback gains have to be tuned by feel. Feedforward gains do not; they are physical properties and can be measured.
+Use measured response and stated performance targets to choose feedback gains. Characterization estimates feedforward coefficients for a selected model; validate those estimates on a separate run.
 
 <ContentTable
   headers={["Routine", "Produces", "How it works"]}
@@ -235,12 +237,12 @@ public double veloInterpolate(double d) {
 }
 ```
 
-Fitting a curve to the same data is the alternative, and it is worth keeping both. The equation extrapolates sensibly past the ends of the data; the table is exactly what was measured in between. Clamping to the endpoints, as above, keeps a bad pose estimate from asking for an absurd flywheel speed.
+Fitting a curve to the same data is the alternative, and it is worth keeping both. A fitted equation can extrapolate beyond the measurements, but that region is unvalidated; the table is exactly what was measured in between. Clamping to the endpoints, as above, keeps a bad pose estimate from asking for an absurd flywheel speed.
 
 <RulesBox title="Common mistakes">
 
 - **Shipping with `tuningMode = true`.** The robot then depends on the dashboard.
-- **Tuned values never copied back into code.** They vanish when the dashboard closes.
+- **Tuned values never copied back into code.** A dashboard session is not a reproducible source-code configuration.
 - **Re-applying configuration every loop** instead of acting only on change.
 - **Tuning by watching the mechanism.** Use the graph.
 - **Guessing feedforward** when a characterization routine measures it.

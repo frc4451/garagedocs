@@ -68,28 +68,27 @@ package frc.robot.subsystems.drive;
 
 public final class StickCurve {
 
-    /**
-     * Applies an unscaled deadband, squares with sign, then clamps.
-     * Assumes finite input in [-1, 1], deadband in [0, 1),
-     * and maxOutput in [0, 1]. Axis negation belongs at the call site.
-     */
-    public static double shape(double rawStick, double deadband, double maxOutput) {
-        if (Math.abs(rawStick) < deadband) {
-            return 0.0;
-        }
-        double sign = Math.signum(rawStick);
-        double scaled = sign * Math.pow(Math.abs(rawStick), 2);
-        double capped = Math.max(-maxOutput, Math.min(maxOutput, scaled));
-        return capped;
+  /**
+   * Applies an unscaled deadband, squares with sign, then clamps. Assumes finite input in [-1, 1],
+   * deadband in [0, 1), and maxOutput in [0, 1]. Axis negation belongs at the call site.
+   */
+  public static double shape(double rawStick, double deadband, double maxOutput) {
+    if (Math.abs(rawStick) < deadband) {
+      return 0.0;
     }
+    double sign = Math.signum(rawStick);
+    double scaled = sign * Math.pow(Math.abs(rawStick), 2);
+    double capped = Math.max(-maxOutput, Math.min(maxOutput, scaled));
+    return capped;
+  }
 
-    private StickCurve() {}
+  private StickCurve() {}
 }
 ```
 
 The helper checks the raw input against the deadband, squares its size, restores its sign, and clamps the result. The deadband check goes first: squaring a small input makes it smaller and could otherwise put it below the threshold.
 
-For `-0.30`, the magnitude is `0.30`. Squaring gives `0.30 × 0.30 = 0.09`; restoring the negative sign gives `-0.09`. Clamping leaves that value inside the permitted range.
+For `-0.30`, the magnitude is `0.30`. Squaring gives <Equation tex="0.30 \times 0.30 = 0.09" />; restoring the negative sign gives `-0.09`. Clamping leaves that value inside the permitted range.
 
 | Raw Input | Result With Deadband 0.05 and Maximum 1.0 | Reason |
 | ---: | ---: | --- |
@@ -123,26 +122,26 @@ Replace only the `drive.setDefaultCommand(...)` call inside `RobotContainer.conf
 drive.setDefaultCommand(
     Commands.runEnd(
         () -> {
-            double rawY = -driver.getLeftY();         // negate Y
-            double rawRot = driver.getRightX();      // positive X requests a right turn
+          double rawY = -driver.getLeftY(); // negate Y
+          double rawRot = driver.getRightX(); // positive X requests a right turn
 
-            double speed = StickCurve.shape(
-                rawY,
-                DriveConstants.TELEOP_DEADBAND,
-                1.0                                     // full [-1, 1]; arcadeDrive applies MAX_DRIVE_PERCENT
-            );
-            double rotation = StickCurve.shape(
-                rawRot,
-                DriveConstants.TELEOP_DEADBAND,
-                1.0                                     // full [-1, 1]; arcadeDrive applies MAX_DRIVE_PERCENT
-            );
+          double speed =
+              StickCurve.shape(
+                  rawY,
+                  DriveConstants.TELEOP_DEADBAND,
+                  1.0 // full [-1, 1]; arcadeDrive applies MAX_DRIVE_PERCENT
+                  );
+          double rotation =
+              StickCurve.shape(
+                  rawRot,
+                  DriveConstants.TELEOP_DEADBAND,
+                  1.0 // full [-1, 1]; arcadeDrive applies MAX_DRIVE_PERCENT
+                  );
 
-            drive.arcadeDrive(speed, rotation);
+          drive.arcadeDrive(speed, rotation);
         },
         drive::stop,
-        drive
-    )
-);
+        drive));
 ```
 
 What changed from the R07 version:
@@ -169,7 +168,7 @@ If centered input requests motion, inspect the raw axis value and confirm this c
 
 The deadband `0.05` is a curriculum starting value. Inspect the controller’s centered readings before changing it. A larger deadband ignores more travel near the center; a smaller one accepts more of that travel.
 
-`MAX_DRIVE_PERCENT = 0.85` limits each requested voltage to `12 × 0.85 = 10.2 V` inside `Drive.arcadeDrive`. Battery voltage and controller limits can make actual applied voltage different. Keep that cap in one place. Changing the curve changes the request for intermediate stick positions, not the cap or a measured top speed.
+`MAX_DRIVE_PERCENT = 0.85` limits each requested voltage to <Equation tex="12\times0.85=10.2\;\mathrm{V}" /> inside `Drive.arcadeDrive`. Battery voltage and controller limits can make actual applied voltage different. Keep that cap in one place. Changing the curve changes the request for intermediate stick positions, not the cap or a measured top speed.
 
 Later, with a mentor and an approved driving area, compare one change at a time using the same driver and route. Keep the exponent at `2` for this lesson’s checks.
 

@@ -1,20 +1,32 @@
 ---
-title: "Step 4: IO and Generated Code"
+title: "Step 5: Software Abstraction and Generated Code"
 lessonId: badge-2-io-and-generated-code
 section: badges
 group: badge-2
 groupLabel: "Badge 2: Intermediate FRC"
 groupOrder: 2
-order: 4
+order: 5
 difficulty: beginner
-description: "Trace AdvantageKit's real, simulation, and replay paths, then add and inspect narrowly scoped Lombok-generated code."
+description: "Separate mechanism behavior from device IO, trace real/sim/replay, and build validated motor configuration records with Lombok."
 ---
 
-Step 4 teaches two kinds of code the student will read throughout Badge 2. AdvantageKit chooses an IO implementation for the current mode. Lombok writes ordinary Java members during the build. The student traces both processes before relying on them.
+Step 5 traces how the robot selects its IO and prepares a motor configuration for the roller. The student starts with a validated record, then uses Lombok to generate a builder with named settings. The mode-selection code chooses the IO implementation, and that implementation applies the configuration. AdvantageKit generates the input logging and replay support through a separate annotation processor.
 
 ## Before You Start
 
-Complete [Step 3: Project Setup](/badges/badge-2-project-architecture). Review [AdvantageKit](/frc/advantagekit), [Physics in the IO Layer](/frc/physics-in-the-io-layer), [Log Replay](/frc/log-replay), and [Lombok](/frc/lombok).
+Complete [Step 4: Hardware Setup and Utilization](/badges/badge-2-hardware). Use the fixture record and observed hardware behavior to explain what the software must configure, request and measure. Review [AdvantageKit](/frc/advantagekit), [Physics in the IO Layer](/frc/physics-in-the-io-layer), [Log Replay](/frc/log-replay), and [Lombok](/frc/lombok).
+
+## Prepare the Bench Project
+
+The mentor supplies `Badge2Bench`, a minimal AdvantageKit robot project with a recorded release, build instructions, mode selection, logging and bounded commands that start stopped. Its devices match the secured fixture recorded in Step 4. Build it unchanged and record its revision. Keep the swerve template's shipped device IDs and constants in simulation.
+
+The student identifies the selected vendor dependency and follows one supplied request to a device call and one sensor value into the log. Compare device identities and configuration values with the Step 4 setup sheet. This is a source-code trace; powered robot-code checks follow in Step 7 after simulation and tests.
+
+## Keep the Boundary Explicit
+
+The component requests mechanism behavior through `RollerIO` and reads logged measurements. The selected adapter owns vendor calls. REAL uses the fixture's controller, SIM selects the general model or a named CTRE device simulation, and REPLAY restores recorded inputs without devices or physics. Swapping the implementation keeps the component contract stable, while supported capabilities and configuration remain explicit.
+
+The student will apply this boundary to `RollerIOTalonFX`, `RollerIOTalonFXS` and, when supplied, `RollerIONova`. The two CTRE adapters also serve their simulation paths. A vendor simulation can wrap or extend its voltage IO adapter, keeping configuration and measurement code shared. Simulation wiring stays inside that path; the component never calls `getSimState()`.
 
 ## Guided IO Trace
 
@@ -42,19 +54,43 @@ case SIM -> {
 }
 ```
 
-Keep `simMode` set to `SIM`, start **Simulate Robot Code**, drive the template chassis for at least ten seconds, and stop the simulation. The new `.wpilog` appears under the project's `logs/` folder. This change adds a file receiver; it does not change the drivetrain IO classes, logged input fields, or control logic. Record the template release and logging-only change in the evidence notes. Keep this writer in the `SIM` branch for later mechanism and autonomous logs. Add it to both badge projects when each needs a saved simulation log; it does not belong in the replay branch, which already writes its replay result.
+Keep `simMode` set to `SIM`, start **Simulate Robot Code**, drive the template chassis for at least ten seconds, and stop the simulation. The new `.wpilog` appears under the project's `logs/` folder. This change adds a file receiver; it does not change the drivetrain IO classes, logged input fields, or control logic. Record the template release and logging-only change in the evidence notes. Keep this writer in the `SIM` branch for later mechanism and autonomous logs. Add it to both simulation projects when each needs a saved simulation log; it does not belong in the replay branch, which already writes its replay result.
 
 Set `Constants.simMode` to `REPLAY`. Open the original log in AdvantageScope, then start **Simulate Robot Code**. `LogFileUtil.findReplayLog()` first checks `AKIT_LOG_PATH`, then the file open in AdvantageScope, then prompts for a file. The template disables the simulation GUI by default for replay. A successful run reads the original log with `WPILOGReader` and writes a new file with `_sim` added to its name.
 
-Open the replay result in AdvantageScope. Confirm that the original input table is present and that `ReplayOutputs` advances through the whole log. Restore `Constants.simMode` to `SIM` before the next step. This exercise proves the template path with a known log; the student records their own mechanism logs after Step 6 adds a mechanism.
+Open the replay result in AdvantageScope. Confirm that the original input table is present and that `ReplayOutputs` advances through the whole log. Restore `Constants.simMode` to `SIM` before the next step. This exercise proves the template path with a known log; the student records their own mechanism logs after Step 7 adds a mechanism.
+
+## Extend the Mode Selection
+
+The mechanism components use the same typed interface in every mode. One construction point in `RobotContainer` or a factory selects the implementation. The student records the selected model or controller in run metadata.
+
+| Mode | Required Mechanism Implementation | Evidence |
+| --- | --- | --- |
+| `REAL` | The provided FX, FXS or Nova roller IO, constructed in `Badge2Bench` | Step 7 physical log and mentor demonstration. |
+| `SIM` | General WPILib physics for all four families; required FX and FXS roller device simulations; one CTRE pivot profile comparison | Model configuration, tests, and saved logs in `Badge2Robot`. |
+| `REPLAY` | Empty implementation of the same IO interface | Recorded inputs restored by AdvantageKit; no motor, model, or notifier constructed. |
+
+The student traces the bench's REAL mode alongside the template traces. An unavailable physical mechanism has no REAL configuration to select. A startup check reports that unsupported choice instead of silently substituting replay IO. The general simulation is a mechanism model; it is not a claim to emulate Nova firmware.
+
+Before Step 7, the student opens a template inputs class annotated with `@AutoLog`, builds, and locates its generated `InputsAutoLogged` class under the build output. The student identifies how the generated class records and restores input fields. This is AdvantageKit's annotation processing. The motor configuration exercise below uses Lombok to generate a builder for constructing settings. Neither generated output is edited by hand or committed.
 
 ## Guided Lombok Example
 
-Follow [Lombok: Adding It to a Project](/frc/lombok#adding-it-to-a-project) and use the plugin version supported by the recorded template release. Add the `io.freefair.lombok` plugin to `Badge2Robot`, refresh the Java project, and build before adding annotations.
+The task is to describe the provided roller's motor setup in one record and pass it into the IO constructor. The record states the requested configuration; constructing it does not contact or configure a motor. The IO implementation owns the vendor calls that apply it.
 
-Create a configuration record with `@Builder` and a separate class with one limited `@Getter`. Keep the annotations focused. Do not add `@Data`, and do not generate a setter for a field that one class owns.
+Bring the plain `RollerConfig` practice from Step 2 into `Badge2Robot`. Use it as the starting point for one controller-specific record, with the proposed name `TalonFXConfig`, `TalonFXSConfig` or `ThriftyNovaConfig`, matching the fixture chosen in Step 4. Keep the original practice file as evidence. First construct the new record directly and explain each argument. Start with the provided controller's record. In Step 7, add the corresponding FX and FXS records needed for the two CTRE simulations, reusing shared value records only where meanings and units agree.
 
-Run the `delombok` task, then open the source and its expanded result under `build/delombok/` side by side. Name the builder methods and getter that Lombok generated. The generated folder is build output and is not committed.
+Use named components for the device ID, reduction, direction, neutral behavior, and the approved current limits the adapter will apply. Define reduction as motor revolutions per mechanism revolution. Distinguish supply current from stator current wherever both are used. Add the feedback selection and, for FXS, motor arrangement required by the fixture. Use explicit units in component names or the project's immutable unit values. Required settings are explicit; each optional setting has a documented default and meaning. Device identity and required selections must not silently inherit an omitted builder value. A boxed ID with a non-null check can distinguish an omitted ID from a valid zero ID; validate its range against the selected controller's documentation.
+
+Keep the record constructor free of hardware creation and vendor calls. It validates required values, finite positive reduction, and the fixture's approved current-limit bounds. Reject an invalid value with a useful message instead of silently increasing a requested current limit. The record contains configuration values; it does not own a motor, mutable control request, or running controller. A record containing a mutable object still shares that object's state, so use small value components for this exercise.
+
+As the constructor gains arguments, add named construction methods with Lombok. Follow [Lombok: Adding It to a Project](/frc/lombok#adding-it-to-a-project) and use the plugin version supported by the recorded template release. Add the `io.freefair.lombok` plugin to `Badge2Robot`, refresh the Java project, and build before adding `@Builder` to the motor configuration record. Replace one direct constructor call with a builder call that supplies the same values. Both constructions must pass through the record's validation and produce equal values.
+
+Lombok's ordinary builder leaves unspecified values at zero, `false`, or `null`. The student identifies what happens if each required setting is omitted and defines defaults only where omission has a deliberate meaning. Records already supply component accessors, so this exercise needs no separate class made only to demonstrate `@Getter`. Do not add `@Data` or generated setters to mechanism state.
+
+Run the `delombok` task, then open the source and its expanded result under `build/delombok/` side by side. Trace `builder()`, one named setting method, and `build()` into the record constructor. Identify the validation written by the student and the construction code generated by Lombok. The generated folder is build output and is not committed.
+
+The record and builder are prepared here without creating hardware. In [Step 7: One Complete Mechanism](/badges/badge-2-first-mechanism#configuration-to-hardware), the student passes the finished record to the selected roller IO constructor and traces each setting into its application. Use the same source revision and compatible Lombok setup in the bench project when transferring that implementation.
 
 <CodeTabs>
 <CodeTab label="PowerShell">
@@ -75,27 +111,29 @@ Run the `delombok` task, then open the source and its expanded result under `bui
 
 ## Independent Change
 
-Add one optional configuration component to the record. Update the builder call that constructs it, rebuild, run the `delombok` task with the command for the student's operating system, and identify the new generated builder field and method. Then remove a requested setter if it would let another class change owned state directly, and write the public method that expresses the allowed operation instead.
+The mentor selects one additional setting supported by the supplied controller, such as a documented ramp setting. The student defines its units, valid values, and omission behavior, then updates the record and construction calls. After rebuilding and running `delombok`, the student identifies the added builder method and predicts where the IO will consume the setting. Record that application point for Step 7; adding a field alone does not change motor behavior.
 
 ## Rows
 
 | # | Work | Done when |
 |---|---|---|
+| 3.7 | Prepare the physical project | `Badge2Bench` builds from the recorded release; the student matches its device configuration to the Step 4 fixture sheet and traces a request and sensor input through supplied code. |
 | 4.1 | Trace Kit Bot modes | The student points to `REAL`, `SIM`, and `REPLAY` in `KitBotPathPlanner`, names the drivetrain IO each constructs, and matches the logger setup |
-| 4.2 | Trace swerve modes | The student repeats the trace for `Badge2Robot`, including `ModuleIOTalonFX`, `ModuleIOSim`, and replay's empty IO |
+| 4.2 | Trace swerve modes | The student repeats the trace for `Badge2Robot`, including `ModuleIOTalonFX`, `ModuleIOSim`, and replay's empty IO; the student also traces the provided bench's REAL roller route |
 | 4.3 | Complete replay and restore simulation | The supplied or logging-only simulation `.wpilog` runs to completion in `REPLAY`; the generated `_sim` file contains the original inputs and `ReplayOutputs`; `simMode` is restored to `SIM` afterward |
-| 4.4 | Add Lombok | The plugin line is in `Badge2Robot`'s `build.gradle`; the recorded template still builds; VS Code resolves a generated getter |
-| 4.5 | Read generated code | The `delombok` task runs; the student opens one expanded class beside its source and names every generated method |
-| 4.6 | Use Lombok on purpose | One configuration record carries `@Builder`; one class carries a limited `@Getter`; no mechanism or state class carries `@Data` or a generated setter for a field one owner controls |
+| 4.4 | Add Lombok | The plugin line is in `Badge2Robot`'s `build.gradle`; the recorded template still builds; VS Code resolves the motor configuration builder |
+| 4.5 | Read generated code | The `delombok` task runs; the student traces builder creation, a named setting, and `build()` into the validated record constructor |
+| 4.6 | Use Lombok on purpose | The selected motor configuration works through direct and builder construction; required values and omission behavior are explained; no mechanism state receives generated setters |
+| 4.7 | Read generated inputs | After building, the student locates a template `InputsAutoLogged` class and explains its recording/replay purpose separately from Lombok. |
 
 ## Badge Check
 
-<StepsBox title="IO and Generated Code Badge Check">
+<StepsBox title="Software Abstraction Badge Check">
 
 1. The mentor names one mode in either template. The student points to the branch, constructed IO object, and matching logger setup.
 2. The student switches `Badge2Robot` to simulation, runs it, and identifies the simulation IO selected by the source.
 3. The student opens the recorded template log in AdvantageScope, sets `simMode` to `REPLAY`, runs the whole log, and shows the generated `_sim` file with the original inputs and `ReplayOutputs`. Replay success is required; a source-code explanation alone does not complete this row.
-4. The student runs the `delombok` task with the command for their operating system, opens the generated version of the configuration record, and explains that Lombok ran during the build and produced ordinary Java.
+4. The student constructs equal motor configurations directly and through the builder, then opens the delomboked source and traces the generated construction methods into validation. The student explains why neither construction contacts hardware.
 5. The mentor names one field on a Badge 2 class. The student says whether another class should receive a getter, a setter, or a named operation, and explains who owns the field.
 
 </StepsBox>
@@ -114,8 +152,8 @@ If an annotation remains unresolved after the build succeeds, refresh the Java l
 ]} />
 
 <LinkGrid links={[
-  {"label":"Step 5: Testing Fundamentals","id":"badge-2-testing"},
-  {"label":"Step 3: Project Setup","id":"badge-2-project-architecture"},
+  {"label":"Step 6: Testing Fundamentals","id":"badge-2-testing"},
+  {"label":"Step 4: Hardware Setup and Utilization","id":"badge-2-hardware"},
   {"label":"Lombok","url":"/frc/lombok"},
   {"label":"Log Replay","url":"/frc/log-replay"}
 ]} title="Next" section="badges" />

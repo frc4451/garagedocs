@@ -1,134 +1,212 @@
 ---
-title: "Step 6: One Complete Mechanism"
+title: "Step 7: One Complete Mechanism"
 lessonId: badge-2-first-mechanism
 section: badges
 group: badge-2
 groupLabel: "Badge 2: Intermediate FRC"
 groupOrder: 2
-order: 6
+order: 7
 difficulty: advanced
-description: "A guided Talon FX roller from component contract through IO, simulation, logging, and a focused test, followed by one independent change before the student expands the pattern into the full mechanism library."
+description: "Build a roller in general, Talon FX and Talon FXS simulation, then demonstrate its IO on the supplied FX, FXS or Nova fixture."
 ---
 
-In Step 6, the student builds one complete roller in `Badge2Robot`. This is the first working path through the mechanism architecture: a `Roller` component, its IO boundary, a Talon FX implementation, a Talon FX simulation, AdvantageKit logging, and a focused simulation test.
+Step 7 builds one roller from a command to a measured response. The student first proves the component in simulation, then runs the same component on the provided Talon FX, Talon FXS or Thrifty Nova. The mentor helps with the first setup and asks the student to explain one independent change.
 
-The student finishes and tests this path before adding the second controller or another mechanism family. The result provides one known working example that the student can explain and extend in [Step 7](/badges/badge-2-mechanism-library).
+Complete [Testing Fundamentals](/badges/badge-2-testing) and the [hardware preparation in Step 4](/badges/badge-2-hardware#complete-the-setup-sheet). Talon FX is one of the supported Badge 2 physical routes. The drivetrain template remains a simulation project; the mechanism's physical check uses the mentor-provided bench project prepared in [Step 5](/badges/badge-2-io-and-generated-code#prepare-the-bench-project).
 
 ## References to Review
 
-- [Rollers](/frc/roller-example)
-- [Motor Controller Configuration](/frc/motor-controller-configuration#essentials)
-- [Control Requests](/frc/control-requests#the-grid)
-- [TalonFX Simulation](/frc/talonfx-simulation#writing-a-new-one)
-- [Unit Tests in Simulation](/frc/unit-tests-in-simulation#a-mechanism-in-the-loop)
-- [AdvantageKit IO Interfaces](/frc/advantagekit#how-replay-uses-the-io-layer)
-- [Step 5: Testing Fundamentals](/badges/badge-2-testing)
-- [Threads and Concurrency](/java/fundamentals/threads-and-concurrency#why-this-is-hard) and [Race Conditions and Synchronization](/java/fundamentals/race-conditions-and-synchronization#synchronized)
+- [Rollers](/frc/roller-example) and [Physics in the IO Layer](/frc/physics-in-the-io-layer)
+- [Units and Interpolation](/frc/math-toolbox-units-and-interpolation#the-units-library)
+- [AdvantageKit](/frc/advantagekit) and [Unit Tests in Simulation](/frc/unit-tests-in-simulation)
+- [Talon FX](/hardware/ctre-talon-fx), [Talon FXS](/hardware/ctre-talon-fxs) and [Thrifty Nova, Motor Runner, and Motor Choices](/hardware/thrifty-nova-and-motors)
+- [Bring-Up Checklist](/hardware/hardware-bring-up-checklist)
+
+## Prepare for Simulation
+
+The student distinguishes a general physics model from a simulated vendor device. All students implement a general roller plus Talon FX and Talon FXS vendor simulation paths. Those paths exchange device output and sensor feedback with physics; they do not prove wiring, mechanical assembly or physical configuration. No Nova firmware-simulation API is assumed for this curriculum's recorded release.
+
+The two CTRE simulations use corresponding FX and FXS voltage IO adapters even when Nova is supplied physically. Each configuration runs separately with its documented motor model, reduction and sensor arrangement. Extra physical controller ports and additional mechanism-by-controller combinations remain extensions.
 
 ## Guided Example
 
-Build the roller under `org/<name>/mechanisms/roller/`. The guided result contains these classes:
+The student builds the roller under `org/<name>/mechanisms/roller/` in `Badge2Robot`. These are proposed student class names:
 
-- `Roller`, a plain Java object that owns the requested voltage, stop behavior, input processing, and log path;
-- `RollerIO`, whose inputs report position, velocity, applied voltage, and current;
-- `RollerIOInputsAutoLogged`, generated from the `@AutoLog` inputs class;
-- `RollerIOTalonFX`, which configures the controller and sends `VoltageOut` requests;
-- `RollerIOSimTalonFX`, which extends the real IO and connects `TalonFXSimState` to `DCMotorSim`; and
-- `RollerTest`, which initializes the Hardware Abstraction Layer (HAL), enables the simulated Driver Station, runs the component's normal 20 ms path, and closes every resource it creates.
+- `Roller` owns the requested voltage, stop behavior, cached measurements, and log path.
+- `RollerIO` defines requests and the input snapshot.
+- `RollerIOInputsAutoLogged` is generated from the inputs class annotated with `@AutoLog`.
+- `RollerIOSim` implements the interface using WPILib's `DCMotorSim`.
+- `RollerIOTalonFX` and `RollerIOTalonFXS` supply the voltage IO used by the required CTRE simulations; the supplied physical controller selects one of those or `RollerIONova`.
+- `RollerIOSimTalonFX` and `RollerIOSimTalonFXS` connect those adapters to their corresponding simulated device and physics model.
+- `RollerTest` checks behavior through the same measurements that the component reads.
 
-The component does not extend `SubsystemBase` and does not create commands. A parent subsystem will own it later. For this step, `Badge2Robot` may use a small test subsystem or container-owned harness that calls `Roller.periodic()` once per robot loop and gives commands one WPILib requirement. Keep that temporary ownership visible in the README so Step 8 can replace it with a composed parent subsystem.
+The component is a plain Java object. A small parent subsystem calls its `periodic()` once per robot loop and gives its commands one WPILib requirement. Step 9 extends that ownership pattern. The component contains no vendor imports and does not create a motor controller or a command.
+
+## Start with the Physics Model
+
+`RollerIOSim` owns a `DCMotorSim` configured with the selected motor model, reduction, and load inertia. The student uses `Voltage` for requests, `Angle` for position, `AngularVelocity` for speed, and `Current` for current. Numeric conversions belong at the model or vendor boundary. For example, a voltage becomes a number in volts only when a method needs that number.
+
+On each 20 ms input update, the simulation applies the bounded voltage request, advances the model once, and copies its measurements into the inputs. Disabled operation applies zero voltage. The student identifies that one update owner; advancing the same model again in `simulationPeriodic()` would advance its motion twice.
+
+The simulation reports current draw to one robot-level battery owner. That owner sums the active mechanism loads, calculates loaded voltage with `BatterySim`, and updates `RoboRioSim.setVInVoltage` once per cycle. Each model reads the shared supply on its next update. A component does not overwrite the battery with its own load alone.
+
+The first demonstration is positive voltage, reverse voltage, stop, and disable. Positive voltage should produce positive measured velocity under the documented direction convention. Stop removes applied effort; a roller may continue coasting. A second run changes reduction or inertia after the student predicts the effect.
 
 ## IO and Logging
 
-`Roller.periodic()` calls `io.updateInputs(inputs)` and then `Logger.processInputs(logPath, inputs)`. The component reads the cached inputs after that call. This gives the real robot, simulation, and replay modes the same component path through the IO boundary.
+`Roller.periodic()` calls `io.updateInputs(inputs)` and then `Logger.processInputs(logPath, inputs)`. The component reads the resulting snapshot. In REPLAY, the empty IO constructs no hardware or physics, and AdvantageKit restores recorded measurements before the component uses them.
 
-The IO implementation owns CTRE details. It applies `SensorToMechanismRatio` once, documents which direction is positive, and sends `VoltageOut` for run and stop requests. The component records the requested voltage as an output. The IO inputs record measured values returned by the controller. Requested voltage and measured applied voltage are different facts, so both belong in the log.
+The student logs requested voltage separately from feedback. The input record identifies position, velocity, supply information, current, device status, and whether an applied-voltage value is measured or estimated. Unsupported feedback has an explicit validity flag or documented absence. A requested voltage copied into a feedback field does not establish the motor's applied voltage.
+
+## Configuration to Hardware
+
+Carry the tested motor configuration record from Steps 5 and 6 into the roller implementation. The proposed constructor is `RollerIOTalonFX(TalonFXConfig config)`, `RollerIOTalonFXS(TalonFXSConfig config)` or `RollerIONova(ThriftyNovaConfig config)`. The robot's construction code supplies the fixture's named settings through the builder and passes the completed record into that constructor. The component continues to depend only on `RollerIO`.
+
+Before constructing or enabling the hardware, the student and mentor compare those settings with the Step 4 fixture record. The IO constructs the device and translates the record into the pinned vendor API's configuration calls. For every required setting, keep an evidence table with the record component, units, application point, and available readback or physical check. A setting controlled only through a vendor tool is identified in the fixture record; an unused record field does not count as an applied setting. Apply and verify configuration using the selected release's documented status or readback support, report failure clearly, and keep output disabled until the startup checks pass.
+
+The student traces one setting from the builder method through constructor validation to its application and observed result. Building the record prepares values; constructing and initializing the IO applies them. Normal voltage commands and measurements still pass through the existing IO methods and logged inputs.
+
+`RollerIOSim` receives its own model configuration, including motor model, reduction, and inertia. Shared physical values agree with the hardware setup, but a simulation record does not need a CAN ID. REPLAY constructs neither motor nor model. Record the selected configuration values or a reproducible configuration revision with the run evidence so the logs can be compared later.
+
+Copy the vendor-independent component and selected physical IO from `Badge2Robot` into `Badge2Bench`, preserving package names and recording the source revision. Carry its configuration record and compatible Lombok setup with it. Rebuild the bench project after each deliberate transfer; it constructs only the actual fixture devices.
+
+## Implement the Provided Controller
+
+The student reads all three controller introductions. Implement FX and FXS voltage adapters for their simulation paths and the supplied-controller route for the physical check. One physical controller demonstration is required; physical demonstrations on additional controllers are extensions.
+
+For Talon FX and Talon FXS, the IO configures the actual motor and feedback arrangement, direction, current limits and reduction. FXS additionally requires its supported motor arrangement to be selected explicitly. The voltage request uses `VoltageOut`. The student explains whether a reported position is already in mechanism units before applying another reduction. The device and the component must not both divide the same measurement by the reduction.
+
+For Thrifty Nova, the IO uses the pinned ThriftyLib release and the motor selection established with Thrifty Config. The student identifies the encoder source and checks its position and velocity units against that release. The mentor reviews one rotation-to-mechanism conversion before the powered check.
+
+Nova's documented `setPercent` request is a fraction of output, not volts. For a release whose selected adapter uses percent output, the student implements voltage compensation at the IO boundary: read the supply voltage, reject a nonfinite or nonpositive supply, clamp the voltage request to the approved bound and available supply, then divide it by supply voltage to obtain a fraction between minus one and one. Invalid input produces zero output and a recorded fault. Stop sends zero. The student records the source of the supply reading; using roboRIO battery voltage is an approximation of the controller's supply. Requested duty multiplied by that supply is an estimated output, and the log names it accordingly.
+
+The student tests that conversion independently: a 3 V request with a 12 V supply produces a 0.25 fraction; the same request at 10 V produces 0.30. The negative cases preserve direction. A zero or invalid supply produces zero, and a request beyond the configured bound is limited. If the pinned release provides a verified native voltage method, the student can use it and cite that exact API instead. A numeric voltage is never passed unchanged to `setPercent`.
 
 ## Simulation Loop
 
-`RollerIOSimTalonFX` reuses the real IO constructor. That keeps the controller configuration and control request identical in real and simulated modes. Its simulation code owns two objects with different jobs: `TalonFXSimState` represents the controller, and `DCMotorSim` represents the mechanism physics.
+First prove the general `RollerIOSim` and its fixed 20 ms update. Then follow [TalonFX Simulation](/frc/talonfx-simulation), including its FXS section, to implement both `RollerIOSimTalonFX` and `RollerIOSimTalonFXS`. These are required paths for every student, including a student using Nova physically. They reuse the matching voltage IO configuration and measurement code. Apply the Step 6 constructor/builder validation tests to any configuration records added for these adapters. Select one path at a time; do not advance several models for one roller.
 
-Run their exchange in a 5 ms `Notifier`. On each callback:
+For each CTRE path, record the supported device/motor arrangement, supply, reduction, direction and model inertia. Read the device's simulated motor voltage into the physics model, advance that model through one owner, and feed rotor position and velocity back through the appropriate `SimState`. The general model's mechanism-side rotation must be converted to rotor rotation with the documented reduction; the device then applies its configured feedback ratio. Check the orientation and avoid applying the reduction twice.
 
-1. Measure elapsed time from the previous callback instead of assuming the callback ran at exactly 5 ms.
-2. Set the Talon FX supply voltage from `RobotController.getBatteryVoltage()`.
-3. Read motor voltage from the Talon FX sim state and apply it to `DCMotorSim`.
-4. Advance the physics model by the measured elapsed time.
-5. Write position and velocity back to the Talon FX sim state in rotor units. Multiply mechanism rotations by the configured reduction once.
-6. Publish the latest simulated current draw for the simulation owner to read.
+Before using a background notifier, complete [Threads and Concurrency](/java/fundamentals/threads-and-concurrency) and [Race Conditions and Synchronization](/java/fundamentals/race-conditions-and-synchronization). Follow the reference's vendor timing procedure, measure elapsed time, coordinate shared-state access and log on the main thread. Close the notifier and device resources after the run. The general simulation retains its separate fixed-step procedure.
 
-The simulation harness owns the one robot battery. Once per simulation cycle, it reads the roller's latest current, calculates loaded voltage with `BatterySim`, and calls `RoboRioSim.setVInVoltage` once. Step 7 keeps this owner and adds every active mechanism current to the same calculation. A mechanism notifier never writes robot battery voltage by itself, so adding mechanisms cannot turn the battery into a last-writer-wins race.
+For both CTRE paths, demonstrate positive voltage, reverse voltage, stop, disable, and a changed reduction. Record requested and device-reported output, rotor feedback and mechanism measurements with units. Predict the conversion before running. Compare each result with a general model using matching motor and load parameters; FX and FXS may use different motors, so equal traces between those devices are not an acceptance criterion.
 
-The notifier callback and the main robot loop can touch the same simulation IO at the same time. That creates a race unless access is coordinated. Keep the shared data small: the physics model, the device sim state, the last timestamp, and the latest current draw. Guard each complete read or update of that shared group with the same private lock, using a short `synchronized` block or synchronized private method. Do not hold the lock while logging or waiting. The [Java synchronization lesson](/java/fundamentals/race-conditions-and-synchronization#synchronized) explains why one lock must protect the whole operation.
-
-`updateInputs` remains the main-loop boundary that supplies one coherent snapshot to the component and AdvantageKit. AdvantageKit logging calls stay on the main robot thread because its logging APIs are not thread-safe. The student does not need the rest of the Java concurrency unit for this mechanism, but should understand that the notifier is a second thread, shared mutable data needs one owner or one lock, and cleanup ends that thread's lifecycle.
-
-The simulation class owns the `Notifier`, so it also owns cleanup. Provide an idempotent `close()` that stops and closes the notifier, and have the test call it in teardown even when an assertion fails. The test also restores simulated battery voltage and closes any controller or harness resource it created. This prevents a background callback from leaking into the next test.
+These simulations establish the IO/device/physics connection and its tests. The physical demonstration establishes the actual fixture behavior. The general WPILib model does not emulate Nova firmware, and no Nova-specific simulation API is required.
 
 ## First Test
 
-Step 5 established JUnit assertions and lifecycle annotations with pure Java `MechanismLimits`; it did not initialize WPILib or run a motor simulation. This step adds the mechanism-in-the-loop setup from [Unit Tests in Simulation](/frc/unit-tests-in-simulation#a-mechanism-in-the-loop). In `@BeforeAll`, initialize HAL, enable `DriverStationSim`, notify new data, and allow Phoenix to observe the enabled state before constructing the roller. A helper then calls the same `periodic()` path the robot uses and waits 20 ms with `Timer.delay(0.020)` so the Phoenix device and 5 ms notifier advance in real time.
+The student initializes the WPILib test environment as described in [Unit Tests in Simulation](/frc/unit-tests-in-simulation), supplies enabled or disabled Driver Station state, and advances the general model through its normal 20 ms path. A fixed-step general model does not need Phoenix's real-time device test setup. Both required CTRE simulations use the vendor's documented timing procedure separately. Run their checks with distinct device identities and clean up every device and notifier after each test.
 
-Do not pause the WPILib scheduler clock for this roller test. A paused clock with `SimHooks.stepTiming` is useful for command timing and appears later in Step 8's interlock tests. The simulated Talon FX runs on Phoenix timing, so this mechanism test uses real elapsed time and tolerances that do not depend on one exact callback count.
-
-The focused test proves both required roller behaviors:
-
-1. A positive voltage request produces positive measured velocity in the documented direction.
-2. `stop()` produces zero applied voltage after the simulated loop advances.
-
-The assertion reads the component's normal logged input path or its public measured-state accessors. It does not reach into `DCMotorSim` to decide whether the component passed. A test that reads the same boundary as robot code can catch a broken ratio, direction, or `updateInputs` path.
+The assertions read cached inputs or public component accessors. They check positive and negative motion, zero applied effort after stop, and zero applied effort while disabled. Each test restores Driver Station and battery state and closes resources it created. The test also checks the reduction and unit conversion using expected values calculated before running.
 
 ## Check the Result
 
-Run `Badge2Robot` in simulation with one controller binding for positive voltage and another for stop. In AdvantageScope, graph requested voltage, applied voltage, velocity, current, and battery voltage. Positive voltage should produce positive velocity. Applied voltage should return to zero after stop. Battery voltage should fall as simulated current rises.
+The mentor and student complete the Step 4 fixture record before applying power. The mechanism is secured, its travel is clear, its limits are configured, and the mentor identifies the disable operator and power disconnect. The student deploys only the bench project configured for the actual fixture. The simulated swerve template's device IDs and constants are not a bench configuration.
 
-Simulation establishes the software path, conversion, direction convention, and cleanup behavior. It does not establish that a wired motor spins safely in the intended physical direction. That check happens later with the mechanism secured, a current limit configured, and a mentor present.
+The student demonstrates a bounded positive request, stops, then demonstrates a bounded reverse request. The mentor checks motor direction and feedback direction separately. Controller bindings then prove stop on release, interruption, and disable. The student saves the physical log and compares requested effort, measured speed, and available current and supply readings with the simulation log.
+
+An unexpected sign or scale is a reason to stop and check configuration and conversion. The mentor helps identify the cause; the student repeats the affected check after the correction. A successful vendor-tool or Motor Runner test does not replace the robot-code demonstration.
 
 ## Independent Change
 
-After the guided roller passes, the student changes one configuration value without following a copied solution. Choose a different reduction or moment of inertia, calculate the expected effect before running, update the configuration and test expectation, and then explain the observed change in the velocity graph.
-
-The student may read the cited lessons and source files. The submitted classes must fit the student's package names, ownership, constants, and test harness. Copying a complete mechanism implementation from another repository does not demonstrate this step because the student still needs to explain every boundary and lifecycle choice in their own project.
+The student changes reduction or inertia in simulation, predicts the result, and explains the saved comparison. On the physical fixture, the mentor selects a permitted output bound or command duration to change. The student predicts and demonstrates that change without altering unrelated configuration.
 
 ## Rows
 
-| # | Work | Lesson | Done when |
-|---|---|---|---|
-| 6.1 | Define the roller contract | [Rollers](/frc/roller-example) | `Roller` is a plain object with voltage, stop, measured-state, periodic, and log-path behavior; the README names its temporary owner |
-| 6.2 | Build the IO boundary | [AdvantageKit](/frc/advantagekit#how-replay-uses-the-io-layer) | The IO inputs carry position, velocity, applied voltage, and current through `updateInputs` and `Logger.processInputs` |
-| 6.3 | Configure the Talon FX | [Motor Controller Configuration](/frc/motor-controller-configuration#essentials) | `RollerIOTalonFX` sets direction and `SensorToMechanismRatio` once and sends `VoltageOut` requests |
-| 6.4 | Connect the simulation | [TalonFX Simulation](/frc/talonfx-simulation#writing-a-new-one) | `RollerIOSimTalonFX` extends the real IO and exchanges supply voltage, motor voltage, rotor position, rotor velocity, and current with `DCMotorSim` |
-| 6.5 | Manage the background loop | [TalonFX Simulation](/frc/talonfx-simulation#writing-a-new-one) | The 5 ms notifier uses measured elapsed time, synchronizes shared state, performs no logging, and has an idempotent cleanup path |
-| 6.6 | Prove run and stop | [Unit Tests in Simulation](/frc/unit-tests-in-simulation#a-mechanism-in-the-loop) | The focused test proves positive voltage gives positive measured velocity and `stop()` gives zero applied voltage, then closes every resource in teardown |
-| 6.7 | Read the log | [AdvantageKit](/frc/advantagekit#logging) | AdvantageScope shows requested voltage, applied voltage, velocity, current, and battery voltage from one simulation run |
-| 6.8 | Make an independent change | [Rollers](/frc/roller-example#calculate-torque-and-contact-force) | The student predicts, implements, tests, and explains the graph change from one new reduction or inertia value |
+These rows use the September 2026 revised site requirements. Earlier evidence is reviewed by behavior, as explained in [Sign-Off](/badges/badge-2-sign-off#required-sheet).
+
+| # | Work | Done When |
+| --- | --- | --- |
+| HW.3 | Identify simulation boundaries | The student distinguishes general physics, FX/FXS device simulation and physical evidence, and records the two CTRE simulation configurations before implementation. |
+| 6.1 | Component and ownership | The plain `Roller` has typed voltage requests, stop behavior, cached measurements, and one parent owner. |
+| 6.2 | Inputs and replay | Inputs pass through `updateInputs` and `Logger.processInputs`; requested, measured, and estimated values are distinguishable. |
+| 6.2a | General physics | `RollerIOSim` has one update owner, a documented model, shared battery handling, and zero disabled output. |
+| 6.3 | Hardware IO | The supplied FX, FXS or Nova adapter accepts the tested configuration record; each required setting has an application and verification trace; the student explains startup failure handling and the voltage boundary. |
+| 6.4 | Conversion tests | Direction, reduction, equivalent units, and any voltage-to-duty conversion pass independent checks, including invalid input. |
+| 6.5 | Update ownership | The student names the model and battery owners; tests restore state and close resources. Both CTRE simulation paths have verified timing, shared-state handling and cleanup. |
+| 6.6 | Run and stop tests | Positive, reverse, stop, and disable behavior pass through the normal input path. |
+| 6.7 | Simulation log | Requested effort, motion, current, and battery behavior can be explained from the saved run. |
+| 6.8 | Independent change | The simulation prediction, changed configuration, tests, and observed result are recorded. |
+| 6.9 | Physical demonstration | The provided FX, FXS or Nova runs from the bench robot code; direction, feedback, release, interruption, and disable are demonstrated to the mentor. |
+| 6.10 | Physical comparison | The fixture record, physical log, independent hardware change, and comparison with simulation are saved. |
+| 6.11 | Talon FX roller simulation | The FX voltage adapter and device simulation pass direction, conversion, stop and disable checks; the student traces device voltage to physics and rotor feedback to logged inputs. |
+| 6.12 | Talon FXS roller simulation | The FXS path repeats the checks with its supported motor arrangement, documented model and feedback units; the student explains the differences and verifies cleanup. |
 
 ## Badge Check
 
 <StepsBox title="One Complete Mechanism Badge Check">
 
-1. From a clean clone, the student runs `RollerTest`. Both behavior assertions pass, and the process exits without a surviving notifier thread.
-2. The student simulates the roller from controller bindings and shows the five required signals in AdvantageScope.
-3. The mentor points to one boundary in the path from controller command to measured velocity. The student identifies its owner and explains why that code belongs there.
-4. The student explains the conversion from mechanism position to rotor position and shows where the reduction is applied once.
-5. The student explains how the background loop is stopped and why logging remains on the main thread.
-6. The student shows the independent configuration change, the prediction made before running it, and the resulting test and graph.
+1. The student builds from a clean clone and runs the general, FX and FXS simulation checks and conversion tests, naming each selected implementation.
+2. The student traces a builder setting through record validation, the selected IO constructor, and its application evidence, then traces a command through the component, measurement, and log.
+3. The student shows the simulation prediction and explains the changed response.
+4. With the mentor, the student runs the physical checks using the recorded fixture configuration.
+5. The mentor selects a signal from the physical log. The student explains its units, source, and whether it is measured or estimated.
+6. The student explains what the simulation established and what required the physical check.
 
 </StepsBox>
 
 <Sources items={[
-  {"source": "ctre", "path": "docs/api-reference/simulation/simulation-intro.html", "note": "The Talon FX sim-state exchange, rotor-unit feedback, supply voltage, and recommendation to update simulated PID more frequently with a Notifier."},
-  {"source": "ctre", "path": "docs/api-reference/wpilib-integration/unit-testing.html", "note": "HAL and Driver Station setup for Phoenix device tests and the delay that lets the simulated device observe the enabled state."},
-  {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html", "note": "The physics-simulation model used for the roller."},
-  {"url": "https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/BatterySim.html", "label": "WPILib BatterySim Javadoc", "note": "The loaded-voltage method accepts one or more current draws and pairs with <code>RoboRioSim.setVInVoltage</code>."},
-  {"source": "advantagekit", "path": "data-flow/recording-inputs/io-interfaces/", "note": "The IO boundary, one input snapshot per loop, and real, simulation, and replay implementations."},
-  {"source": "advantagekit", "path": "getting-started/common-issues/multithreading/", "note": "Background work belongs inside IO implementations, and AdvantageKit logging APIs stay on the main thread."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFX.java", "note": "A project-specific example of Talon FX sim-state plumbing to study while designing the student's own implementation."}
+  {
+    "source": "wpilib",
+    "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html",
+    "note": "General motor physics, model inputs, and simulation updates."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/basic-programming/java-units.html",
+    "note": "Typed mechanism requests and measurements."
+  },
+  {
+    "source": "advantagekit",
+    "path": "data-flow/recording-inputs/io-interfaces/",
+    "note": "Cached inputs and the common replay boundary."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/hardware-reference/talonfxs/index.html",
+    "note": "FXS motor arrangement and supported hardware."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/api-reference/device-specific/talonfx/open-loop-requests.html",
+    "note": "Voltage-output requests on the CTRE implementation."
+  },
+  {
+    "source": "thrifty",
+    "path": "thrifty-nova/software-resources/set-output",
+    "note": "Nova percent output; the voltage-to-duty conversion and its tests are a curriculum design."
+  },
+  {
+    "source": "thrifty",
+    "path": "thrifty-nova/software-resources/unit-conversions",
+    "note": "Nova rotational feedback and conversion conventions."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/wpilib-tools/robot-simulation/unit-testing.html",
+    "note": "HAL and simulated Driver Station preparation for tests."
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/wpilibj/simulation/BatterySim.html",
+    "note": "Combining mechanism current draws into one simulated supply."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/api-reference/simulation/simulation-intro.html",
+    "note": "Required FX and FXS vendor simulation, feedback units and timing."
+  },
+  {
+    "source": "advantagekit",
+    "path": "getting-started/common-issues/multithreading/",
+    "note": "Main-thread logging and background IO ownership."
+  }
 ]} />
 
 <LinkGrid links={[
-  {"label":"Step 7: Mechanism Library","id":"badge-2-mechanism-library"},
-  {"label":"Step 5: Testing Fundamentals","id":"badge-2-testing"},
+  {"label":"Step 8: Mechanism Library","id":"badge-2-mechanism-library"},
+  {"label":"Step 6: Testing Fundamentals","id":"badge-2-testing"},
   {"label":"TalonFX Simulation","url":"/frc/talonfx-simulation"},
   {"label":"Unit Tests in Simulation","url":"/frc/unit-tests-in-simulation"}
 ]} title="Next" section="badges" />

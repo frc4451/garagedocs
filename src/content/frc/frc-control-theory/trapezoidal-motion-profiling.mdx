@@ -7,73 +7,141 @@ groupLabel: "Control Theory"
 groupOrder: 9
 order: 3
 difficulty: intermediate
-duration: 15 min
-description: "Trapezoidal motion profiles: velocity and acceleration constraints, using them for position control, tuning, and the usual failure modes."
+duration: 10 min
+description: "Move a simulated pivot through bounded software setpoints, distinguish a profile from feedback control, then move profile generation into CTRE Motion Magic."
 ---
+
+Move a simulated pivot from one angle to another without asking it to reach the final angle in one loop. A **motion profile** supplies intermediate position and velocity setpoints. The controller then tries to make the measured mechanism follow them.
+
+Use the existing simulated pivot and IO boundary in `Badge2Robot`. Read [Physics in the IO Layer](/frc/physics-in-the-io-layer), [PID Control](/frc/pid-control), and [Feedforward](/frc/feedforward) first. This exercise begins with a software profile and ends with the same goal sent to Motion Magic. Hardware tuning is separate work.
 
 ### Template Project
 
-Start with the **Command Robot** template project. Motion profiling is typically implemented in subsystems, so the command-based structure works well. Create a new subsystem class in the `subsystems` package.
+Keep the WPILib 2026 project and dependencies already recorded for the badge. Add the helper below to that project; no additional template or SPARK MAX controller is needed. The helper generates setpoints only. The existing pivot simulation provides the physics and voltage-producing feedback loop.
 
-### Limit velocity and acceleration
+### Limit Velocity and Acceleration
 
-A trapezoidal profile limits velocity and acceleration while moving a mechanism toward a goal. It accelerates at a constant rate, may hold its maximum velocity, then decelerates at a constant rate. The velocity graph forms a trapezoid when the move is long enough to reach the velocity limit; shorter moves form a triangle.
+A trapezoidal profile accelerates, may cruise at a velocity limit, then decelerates to the goal. A short move can finish without reaching the velocity limit, producing a triangular velocity graph. The limits constrain the planned motion; they do not guarantee that a motor can follow it.
 
-<RulesBox title="Hardware Support" subtitle="Built-in controller features:">
+Keep three values separate in the log:
 
-- **REV (SPARK MAX):** Uses `MAXMotion` (Trapezoidal).
-- **CTRE (Talon FX):** Uses `Motion Magic®` (Trapezoidal/S-Curve).
+- **Goal:** the final requested angle.
+- **Setpoint:** the angle and velocity the profile requests for this loop.
+- **Measurement:** the angle and velocity reported through the IO inputs.
 
-</RulesBox>
+If the setpoint reaches the goal while the mechanism remains behind, the profile has finished but the mechanism has not. Completion needs measured-state evidence.
 
 ### Step 1: Understand Configuration Parameters
 
-Two main parameters control the profile: **Max Velocity** sets the top speed during the cruise phase. **Max Acceleration** determines how quickly the mechanism speeds up and slows down. Optional **Jerk** (for Talon FX) smooths the acceleration transitions.
+Choose position units before choosing constraints. This example uses radians inside `TrapezoidProfile`, so its velocity is radians per second and its acceleration is radians per second squared. The public methods take WPILib `Angle` and `AngularVelocity` measurements.
+
+The illustrative limits below describe a simulation exercise: travel from 0 to 90 degrees, maximum velocity 45 degrees per second, and maximum acceleration 90 degrees per second squared. Use the actual simulated mechanism's range and a reachable motion demand when connecting it. These are not hardware settings.
 
 ### Step 2: Configure Motion Profile Constraints
 
-We configure the motion profile constraints in the motor configuration. These values are typically set in rotations per second (RPS) for velocity and rotations per second squared (RPS²) for acceleration. Start with conservative values and tune based on your mechanism's capabilities.
+Save this complete helper as `PivotProfile.java` in the stated package. It builds profile states; it does not drive a motor or initialize a physics model.
 
-<CodeTabs tabs={[{"label":"Talon FX (Motion Magic®)","code":"public void configureMotionProfile() {\n    MotionMagicConfigs mm = new MotionMagicConfigs();\n    // Max velocity in rotations/sec\n    mm.MotionMagicCruiseVelocity = 10;\n    // Max acceleration in rotations/sec²\n    mm.MotionMagicAcceleration = 20;\n    // Optional: Jerk limit for smoothing (rotations/sec³)\n    mm.MotionMagicJerk = 100;\n    motor.getConfigurator().apply(mm);\n}","language":"java"},{"label":"SPARK MAX (MAXMotion)","code":"public void configureMotionProfile() {\n    SparkMaxConfig config = new SparkMaxConfig();\n    // Configure motion profile constraints for Slot 0\n    // Max velocity in RPM (adjust based on your mechanism)\n    config.closedLoop.maxMotion\n        .maxVelocity(3000, ClosedLoopSlot.kSlot0)\n        // Max acceleration in RPM/s\n        .maxAcceleration(2000, ClosedLoopSlot.kSlot0);\n    motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n}","language":"java"}]} />
+```java
+package frc.robot.examples;
 
-### Step 3: Use Motion Profile Control
+import static edu.wpi.first.units.Units.Radians;
+import static edu.wpi.first.units.Units.RadiansPerSecond;
 
-Once configured, use the motion profile control mode when setting positions. The controller automatically generates the trapezoidal profile based on your constraints and the current position.
+import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
+import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.AngularVelocity;
 
-<CodeTabs tabs={[{"label":"Talon FX","code":"private final MotionMagicVoltage m_request = new MotionMagicVoltage(0);\n\npublic void setPosition(double target) {\n    // Use Motion Magic® position control\n    motor.setControl(m_request.withPosition(target));\n}","language":"java"},{"label":"SPARK MAX","code":"public void setPosition(double target) {\n    // Use MAXMotion position control (trapezoidal profile)\n    controller.setReference(target, ControlType.kMAXMotionPositionControl);\n}","language":"java"}]} />
+public final class PivotProfile {
+  private final TrapezoidProfile profile =
+      new TrapezoidProfile(
+          new TrapezoidProfile.Constraints(Math.toRadians(45), Math.toRadians(90)));
+  private TrapezoidProfile.State setpoint = new TrapezoidProfile.State();
+  private TrapezoidProfile.State goal = new TrapezoidProfile.State();
 
-### Tuning Trapezoidal Profiles
+  public void reset(Angle measuredAngle, AngularVelocity measuredVelocity) {
+    setpoint =
+        new TrapezoidProfile.State(
+            measuredAngle.in(Radians), measuredVelocity.in(RadiansPerSecond));
+    goal = new TrapezoidProfile.State(setpoint.position, 0.0);
+  }
 
-Tuning a trapezoidal profile requires balancing speed and smoothness. Start by determining your mechanism's maximum safe speed and acceleration, then adjust based on performance.
+  public void setGoal(Angle requestedAngle) {
+    double boundedRadians = MathUtil.clamp(requestedAngle.in(Radians), 0.0, Math.PI / 2.0);
+    goal = new TrapezoidProfile.State(boundedRadians, 0.0);
+  }
 
-<RulesBox title="Tuning Process" subtitle="Follow this order:">
+  public void advance(double dtSeconds) {
+    if (!Double.isFinite(dtSeconds) || dtSeconds <= 0.0) {
+      throw new IllegalArgumentException("dtSeconds must be finite and positive");
+    }
+    setpoint = profile.calculate(dtSeconds, setpoint, goal);
+  }
 
-- **1. Find Maximum Velocity:** Set acceleration very high, gradually increase velocity until the mechanism struggles to maintain speed or hits physical limits. Back off 10-20% for safety.
-- **2. Find Maximum Acceleration:** Keep velocity at your maximum, increase acceleration until you see overshoot, vibration, or mechanical stress. Reduce by 15-25%.
-- **3. Balance for Performance:** If movement is too slow, increase both values proportionally. If there's overshoot or vibration, reduce acceleration first.
+  public Angle getPositionSetpoint() {
+    return Radians.of(setpoint.position);
+  }
 
-</RulesBox>
+  public AngularVelocity getVelocitySetpoint() {
+    return RadiansPerSecond.of(setpoint.velocity);
+  }
 
-### Tuning Tips
+  public Angle getGoal() {
+    return Radians.of(goal.position);
+  }
+}
+```
 
-Use dashboard tools to monitor position, velocity, and current draw during motion. The velocity graph should form a clean trapezoid: sharp ramp up, flat top, sharp ramp down. Oscillation or overshoot indicates acceleration is too high. Slow, sluggish movement means values are too conservative.
+Initialize or reset the profile from the measured angle and velocity before starting a move, then set its goal. On each enabled simulation loop, advance from the **previous setpoint**, not from a newly substituted measurement. The feedback controller uses the measurement to correct tracking error; the profile maintains the planned motion.
 
-### Common Issues and Solutions
+For a fixed 20 ms exercise loop, pass `0.020` once each cycle. If the loop uses measured elapsed time, use that interval consistently in the profile, control calculation, and physics update. Do not advance one model from two different callbacks.
 
-**Overshoot at end:** Reduce acceleration, increase PID derivative gain, or add jerk smoothing (Talon FX). **Too slow:** Increase velocity and acceleration together, but verify mechanism can handle it. **Vibration during motion:** Reduce acceleration significantly, check for mechanical issues. **Can't reach target:** Increase max velocity, check if distance is achievable with current constraints.
+### Step 3: Follow the Setpoint
 
-### Full Code Example
+In the general pivot simulation IO, use one `PIDController` to compare measured angle with `getPositionSetpoint()`, in radians. Add an appropriate `ArmFeedforward` evaluated with the profile's angle and velocity, then limit the resulting voltage to the simulated supply before applying it to `SingleJointedArmSim`. If the selected feedforward includes acceleration, derive that from consecutive velocity setpoints and the same loop interval.
 
-<CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot.subsystems;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.ctre.phoenix6.configs.MotionMagicConfigs;\nimport com.ctre.phoenix6.controls.MotionMagicVoltage;\nimport com.ctre.phoenix6.hardware.TalonFX;\n\n// Create this class in the subsystems package (template provides ExampleSubsystem as reference)\npublic class Elevator extends SubsystemBase {\n    private TalonFX motor = new TalonFX(1);\n    private final MotionMagicVoltage m_request = new MotionMagicVoltage(0);\n    \n    public Elevator() {\n        configureMotionProfile();\n    }\n    \n    public void configureMotionProfile() {\n        // Configure Motion Magic® (trapezoidal profile)\n        MotionMagicConfigs mm = new MotionMagicConfigs();\n        mm.MotionMagicCruiseVelocity = 10;  // Max velocity in rotations/sec\n        mm.MotionMagicAcceleration = 20;    // Max acceleration in rotations/sec²\n        mm.MotionMagicJerk = 100;           // Jerk limit for smoothing\n        motor.getConfigurator().apply(mm);\n    }\n    \n    public void setPosition(double target) {\n        // Use Motion Magic® position control\n        motor.setControl(m_request.withPosition(target));\n    }\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot.subsystems;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\nimport com.revrobotics.spark.config.SparkMaxConfig;\nimport com.revrobotics.spark.ClosedLoopController.ControlType;\nimport com.revrobotics.spark.ClosedLoopController.ClosedLoopSlot;\nimport com.revrobotics.spark.SparkBase.ResetMode;\nimport com.revrobotics.spark.SparkBase.PersistMode;\n\n// Create this class in the subsystems package (template provides ExampleSubsystem as reference)\npublic class Elevator extends SubsystemBase {\n    private SparkMax motor = new SparkMax(1, MotorType.kBrushless);\n    private SparkClosedLoopController controller = motor.getClosedLoopController();\n    \n    public Elevator() {\n        configureMotionProfile();\n    }\n    \n    public void configureMotionProfile() {\n        SparkMaxConfig config = new SparkMaxConfig();\n        // Configure motion profile constraints for Slot 0\n        config.closedLoop.maxMotion\n            .maxVelocity(3000, ClosedLoopSlot.kSlot0)  // Max velocity in RPM\n            .maxAcceleration(2000, ClosedLoopSlot.kSlot0); // Max acceleration in RPM/s\n        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n    }\n    \n    public void setPosition(double target) {\n        // Use MAXMotion position control (trapezoidal profile)\n        controller.setReference(target, ControlType.kMAXMotionPositionControl);\n    }\n}","language":"java"}]} />
+Advance the arm model once and fill the normal typed IO inputs from its measurements. The parent component's goal, limits, and logging interface stay unchanged. While disabled, apply zero motor voltage and reset the profile from measured state before the next enabled move; gravity can still move an unpowered model.
+
+Use the [guided simulation baseline procedure](/badges/badge-2-mechanism-library#establish-a-simulation-baseline) with the mentor before judging tracking. A motion profile alone supplies no voltage, and a default controller with zero gains does not make the arm follow it.
+
+`ProfiledPIDController` is a second implementation option: it combines a trapezoidal setpoint generator with PID and exposes its setpoint for feedforward. It replaces the separate profile and PID pair. Do not place both profile generators in the same path. For the first exercise, keep the explicit helper so the state update is visible.
+
+### Read the Earlier Robot
+
+Ember2024's `PivotSubsystem` stores separate `setpoint` and `goal` states, advances the profile in `runTrapezoidProfile()`, and converts its degree-based position setpoint to radians for the IO. It also logs measured, setpoint, and goal values separately. Trace that flow, then explain the radian convention and typed boundary in the new helper.
+
+Ember's `PivotIOSim` contains placeholder physical values and disables gravity. Use it to study the boundary, not as a validated arm model or a set of gains to copy. The student's model and baseline must describe the selected simulation.
+
+### Move the Profile onto the Controller
+
+After the software version works, select the pivot's vendor simulation IO. Configure its feedback ratio and voltage-output gains, then set Motion Magic cruise velocity and acceleration in the controller's configured rotation units. For the illustrative constraints above, 45 degrees per second is 0.125 rotations per second, and 90 degrees per second squared is 0.25 rotations per second squared. Start with zero jerk for the trapezoidal comparison.
+
+Send the final angle using `MotionMagicVoltage`. The controller generates intermediate setpoints; the Java `PivotProfile` helper is no longer in this control path. Keep the same physical model, angle goals, and logs so the student can compare where the work happens.
+
+Check gain units before transferring settings. A software position gain in volts per radian does not have the same numeric value as a controller gain in volts per rotation. Likewise, entering an angle in rotations is separate from configuring motor-to-mechanism gearing. Follow [Control Requests](/frc/control-requests) and [TalonFX Simulation](/frc/talonfx-simulation) for the request and feedback path.
+
+### Check the Result
+
+1. Run a long move and a short move. Identify cruise motion where it occurs and explain why the short profile need not reach its maximum speed.
+2. Plot goal, setpoint, and measurement. Check the profile's velocity and acceleration against the configured constraints separately from measured tracking error.
+3. Request a goal beyond the allowed range. Show the bounded goal and confirm that the simulation stays inside its configured travel.
+4. Disable during movement, then re-enable from the measured state. Confirm zero applied voltage while disabled and explain the restart behavior.
+5. Repeat the valid moves using Motion Magic on the same pivot component. Identify the profile owner in each version and explain any difference in tracking.
 
 <Sources items={[
-  {"source": "mantik", "path": "src/content/frc/frc-control-theory/trapezoidal-motion-profiling.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
-  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/trapezoidal-profiles.html", "note": "<code>TrapezoidProfile</code>: constraints, states, <code>calculate</code>."},
-  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/profiled-pidcontroller.html", "note": "<code>ProfiledPIDController</code> wrapping a profile around PID."},
-  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/trajectory/TrapezoidProfile.html", "note": "The API used in the examples."},
-  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/motion-magic.html", "note": "The same profile generated on the controller: cruise velocity, acceleration, jerk."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "The mechanism the profile is applied to."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "Loop period the profile is stepped at."}
+  {"source": "mantik", "path": "src/content/frc/frc-control-theory/trapezoidal-motion-profiling.mdx", "note": "Original topic and outline; the Badge 2 software-to-vendor exercise is written for GarageDocs."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/trapezoidal-profiles.html", "note": "Constraints, current profile state, goal and time-step calculation."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/profiled-pidcontroller.html", "note": "The combined profile/PID alternative and its setpoint and reset behavior."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/trajectory/TrapezoidProfile.html", "note": "The State and calculate API used by the complete helper."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/controller/ArmFeedforward.html", "note": "Angle, velocity and acceleration conventions for arm feedforward."},
+  {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/motion-magic.html", "note": "Controller-generated profiles, rotation-based constraints, voltage gain units and jerk."},
+  {"source": "ember", "path": "src/main/java/frc/robot/subsystems/pivot/PivotSubsystem.java", "note": "Historical degree-based software profile, radian IO request and separate measured/setpoint/goal logging."},
+  {"source": "ember", "path": "src/main/java/frc/robot/subsystems/pivot/PivotIOSim.java", "note": "The earlier arm model and its explicitly provisional physical values and disabled gravity."}
 ]} />
 
-<LinkGrid links={[{"label":"Exponential Motion Profiling","id":"exponential-motion-profiling"},{"label":"PID Control","id":"pid-control"},{"label":"CTRE Motion Magic® Documentation","url":"https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html"}]} title="Resources" section="frc" />
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Step 7: Mechanism Library","url":"/badges/badge-2-mechanism-library"},
+  {"label":"Why Motion Magic","id":"why-motion-magic"},
+  {"label":"Feedforward","id":"feedforward"},
+  {"label":"Exponential Motion Profiling","id":"exponential-motion-profiling"}
+]} />
