@@ -64,6 +64,23 @@ function visit(node, base) {
     }
   }
 
+  // Literal HTML written in MDX remains a JSX node rather than a HAST element.
+  // Rewrite only native URL attributes with string values; expressions and custom
+  // components keep control of their own paths.
+  if (node.type === 'mdxJsxFlowElement' || node.type === 'mdxJsxTextElement') {
+    const jsxAttributes = URL_ATTRIBUTES[node.name];
+    if (jsxAttributes && Array.isArray(node.attributes)) {
+      for (const attribute of node.attributes) {
+        if (attribute.type !== 'mdxJsxAttribute' || typeof attribute.value !== 'string') continue;
+        const name = attribute.name === 'srcSet' ? 'srcset' : attribute.name;
+        if (!jsxAttributes.includes(name)) continue;
+        attribute.value = name === 'srcset'
+          ? prefixSrcset(attribute.value, base)
+          : prefix(attribute.value, base);
+      }
+    }
+  }
+
   if (Array.isArray(node.children)) {
     for (const child of node.children) visit(child, base);
   }
