@@ -11,17 +11,24 @@ duration: 30 min
 description: "The wanted-state and system-state pattern inside one subsystem, read line by line from FRC 2910's hopper; how Cobra's Hood, Intake and Flywheel already use states three different ways; and the rules that keep a subsystem state machine from growing into the tangle Chief Delphi warns about."
 ---
 
-A subsystem state machine owns one mechanism. It takes a **wanted state** from outside (a command, a trigger, the superstructure), works out a **system state** from the wanted state and its sensors, and applies that system state to its motors. Three parts, in that order, every loop. This page reads a real one, then looks at the three ways Cobra's subsystems hold state today and which of them is the pattern.
+A subsystem state machine owns one mechanism. It takes a **wanted state** from outside (a command, a
+trigger, the superstructure), works out a **system state** from the wanted state and its sensors,
+and applies that system state to its motors. Three parts, in that order, every loop. This page reads
+a real one, then looks at the three ways Cobra's subsystems hold state today and which of them is
+the pattern.
 
 <RulesBox title="Before you start">
 
-[Why State Machines](/frc/why-state-machines) for the vocabulary, [IO Layers](/frc/io-layers) because every example below sits on an `IO` interface, [Subsystems](/frc/subsystems) for the command-factory shape this extends.
+[Why State Machines](/frc/why-state-machines) for the vocabulary, [IO Layers](/frc/io-layers)
+because every example below sits on an `IO` interface, [Subsystems](/frc/subsystems) for the
+command-factory shape this extends.
 
 </RulesBox>
 
 ### 2910's hopper, line by line
 
-FRC 2910's 2026 `HopperSubsystem` moves fuel from a hopper to the shooter's feeder. Two range sensors: one sees the hopper, one sees the feeder. The whole state machine is 40 lines.
+FRC 2910's 2026 `HopperSubsystem` moves fuel from a hopper to the shooter's feeder. Two range
+sensors: one sees the hopper, one sees the feeder. The whole state machine is 40 lines.
 
 The two enums:
 
@@ -38,7 +45,10 @@ private enum SystemState {
 }
 ```
 
-`WantedState` is public: it is the vocabulary the rest of the robot uses to ask for things, and it is small on purpose. `SystemState` is private: it is what the subsystem is actually doing, and it has one more value than the request, because `PRELOADING` is something the subsystem decides on its own.
+`WantedState` is public: it is the vocabulary the rest of the robot uses to ask for things, and it
+is small on purpose. `SystemState` is private: it is what the subsystem is actually doing, and it
+has one more value than the request, because `PRELOADING` is something the subsystem decides on its
+own.
 
 The loop:
 
@@ -57,7 +67,8 @@ public void periodic() {
 }
 ```
 
-Inputs first, then decide, then log, then act. The debouncer is part of "inputs": a range sensor flickers, and the state machine should see a clean boolean.
+Inputs first, then decide, then log, then act. The debouncer is part of "inputs": a range sensor
+flickers, and the state machine should see a clean boolean.
 
 The decision:
 
@@ -75,7 +86,11 @@ private SystemState handleStateTransition() {
 }
 ```
 
-This is the method to study. It has no side effects and reads only the wanted state and the inputs. Asked for `DEFAULT`, the hopper stays off unless the hopper is full and the feeder is empty, in which case it preloads a piece toward the shooter so the next shot is ready. Nobody outside the subsystem asks for preloading; it is the subsystem's own idea of what `DEFAULT` means, and that is the point of having a separate `SystemState`.
+This is the method to study. It has no side effects and reads only the wanted state and the inputs.
+Asked for `DEFAULT`, the hopper stays off unless the hopper is full and the feeder is empty, in
+which case it preloads a piece toward the shooter so the next shot is ready. Nobody outside the
+subsystem asks for preloading; it is the subsystem's own idea of what `DEFAULT` means, and that is
+the point of having a separate `SystemState`.
 
 The action:
 
@@ -97,21 +112,34 @@ public void setWantedState(WantedState wantedState) {
 }
 ```
 
-A plain setter, no scheduling, no requirements. Whoever calls it (a `Commands.runOnce` bound to a button, or the superstructure on the next page) is stating a request; the subsystem decides what to do with it on its next `periodic()`.
+A plain setter, no scheduling, no requirements. Whoever calls it (a `Commands.runOnce` bound to a
+button, or the superstructure on the next page) is stating a request; the subsystem decides what to
+do with it on its next `periodic()`.
 
 ### The three rules that keep it small
 
-Chief Delphi's "Should you have state in subsystems?" thread opens with a shooter whose state enum grew "a complex chain of logic within the subsystem that was hard to control". The hopper avoids that with three habits worth copying as rules.
+Chief Delphi's "Should you have state in subsystems?" thread opens with a shooter whose state enum
+grew "a complex chain of logic within the subsystem that was hard to control". The hopper avoids
+that with three habits worth copying as rules.
 
-1. **The wanted state is a request, not a plan.** `SHOOT` says what the caller wants. It does not say "spin up, wait for speed, then feed". Sequencing belongs one level up, in the superstructure or a command, never inside a subsystem's transition method.
-2. **The transition method is pure.** It reads fields and returns a value. No motor calls, no logging, no timers started. That is what makes it testable and what stops it from becoming a place where side effects hide.
-3. **One mechanism per machine.** The hopper does not know the shooter exists. When two mechanisms have to agree, that agreement is the superstructure's job ([The Superstructure](/frc/superstructure)), and putting it in one subsystem is the first step toward the tangle.
+1. **The wanted state is a request, not a plan.** `SHOOT` says what the caller wants. It does not
+   say "spin up, wait for speed, then feed". Sequencing belongs one level up, in the superstructure
+   or a command, never inside a subsystem's transition method.
+2. **The transition method is pure.** It reads fields and returns a value. No motor calls, no
+   logging, no timers started. That is what makes it testable and what stops it from becoming a
+   place where side effects hide.
+3. **One mechanism per machine.** The hopper does not know the shooter exists. When two mechanisms
+   have to agree, that agreement is the superstructure's job
+   ([The Superstructure](/frc/superstructure)), and putting it in one subsystem is the first step
+   toward the tangle.
 
 ### Cobra's three kinds of state
 
-Cobra's subsystems hold state in three different ways. Two are useful; one is the pattern above in all but name.
+Cobra's subsystems hold state in three different ways. Two are useful; one is the pattern above in
+all but name.
 
-**Commanded state: `Hood`.** `HoodState {DOWN, MID, UP}` is set by a command factory that also sends the goal:
+**Commanded state: `Hood`.** `HoodState {DOWN, MID, UP}` is set by a command factory that also sends
+the goal:
 
 ```java
 public Command setHoodState(HoodState state) {
@@ -127,15 +155,30 @@ public Command setHoodState(HoodState state) {
 }
 ```
 
-and `periodic()` logs `Hood/State`. What sets it is worth noticing: not a button, but `BobotState`'s field-zone triggers in `RobotContainer`, so the hood angle is a function of where the robot is. That is a state machine driven by pose, with the transition table written as four `Trigger` bindings. It works because there are three states and no guards. If a fourth state needed "only when the flywheel is stopped", the bindings would each need an `.and()`, and the hood would be a candidate for the hopper's shape.
+and `periodic()` logs `Hood/State`. What sets it is worth noticing: not a button, but `BobotState`'s
+field-zone triggers in `RobotContainer`, so the hood angle is a function of where the robot is. That
+is a state machine driven by pose, with the transition table written as four `Trigger` bindings. It
+works because there are three states and no guards. If a fourth state needed "only when the flywheel
+is stopped", the bindings would each need an `.and()`, and the hood would be a candidate for the
+hopper's shape.
 
-**Observed state: `Flywheel`.** `FlywheelState {IDLE, SPINNING}` is computed from the measured velocity every loop and logged as `FlywheelState`. Nobody sets it. It is a derived value, useful in a log and as a `Trigger` source, and it is not a state machine because nothing transitions on it. Keep the distinction: an observed state describes; a wanted state requests.
+**Observed state: `Flywheel`.** `FlywheelState {IDLE, SPINNING}` is computed from the measured
+velocity every loop and logged as `FlywheelState`. Nobody sets it. It is a derived value, useful in
+a log and as a `Trigger` source, and it is not a state machine because nothing transitions on it.
+Keep the distinction: an observed state describes; a wanted state requests.
 
-**The one that started and stopped: `Intake`.** `EndeffectorState {STARTING, DEPLOYED, LIFTED, SQUEEZE}` carries an angle per value, `setCurrentState()` exists, and `periodic()` contains a commented-out `switch (currentState)` that would have applied each state to the pivot. FRC 4451 began a subsystem state machine and finished the season on command factories instead. Both work; the commented switch is the shape this page describes, one `handleStateTransition()` short of the hopper.
+**The one that started and stopped: `Intake`.**
+`EndeffectorState {STARTING, DEPLOYED, LIFTED, SQUEEZE}` carries an angle per value,
+`setCurrentState()` exists, and `periodic()` contains a commented-out `switch (currentState)` that
+would have applied each state to the pivot. FRC 4451 began a subsystem state machine and finished
+the season on command factories instead. Both work; the commented switch is the shape this page
+describes, one `handleStateTransition()` short of the hopper.
 
 ### Writing one for a Cobra mechanism
 
-The ROBOTZ Garage library's `SingleRoller` mechanisms (`Flywheel`, `Pivot`) already own the IO, the goal and the telemetry. A subsystem state machine sits on top of them and replaces a set of command factories with two enums and three methods. For the intake end effector:
+The ROBOTZ Garage library's `SingleRoller` mechanisms (`Flywheel`, `Pivot`) already own the IO, the
+goal and the telemetry. A subsystem state machine sits on top of them and replaces a set of command
+factories with two enums and three methods. For the intake end effector:
 
 ```java
 public class Intake extends SubsystemBase {
@@ -183,11 +226,21 @@ public class Intake extends SubsystemBase {
 }
 ```
 
-`pieceDetected()` stands in for whatever the robot can sense (a beam break, a current spike on the rollers, a range sensor); Cobra's intake has no such guard today, and the condition belongs wherever the sensor is. `endeffectorStart`, `endeffectorDeploy`, `endeffectorLift` and `intakePercent` are the tunable numbers the real `Intake` already declares. What to copy is the shape: the request enum is what `RobotContainer` and autos speak, the system enum is what the log shows, the `Trigger` at the bottom is how the rest of the robot reacts to the state without reaching inside.
+`pieceDetected()` stands in for whatever the robot can sense (a beam break, a current spike on the
+rollers, a range sensor); Cobra's intake has no such guard today, and the condition belongs wherever
+the sensor is. `endeffectorStart`, `endeffectorDeploy`, `endeffectorLift` and `intakePercent` are
+the tunable numbers the real `Intake` already declares. What to copy is the shape: the request enum
+is what `RobotContainer` and autos speak, the system enum is what the log shows, the `Trigger` at
+the bottom is how the rest of the robot reacts to the state without reaching inside.
 
 <RulesBox title="Keep the command factories">
 
-A subsystem state machine does not mean deleting `runShooterToHub()` and its siblings. Cobra's shooter command factories are fine for a mechanism whose behaviour is "run at this setpoint until told otherwise". Convert a subsystem only when its behaviour depends on a sensor and a request together, or when the superstructure on the next page needs to drive it by state. A robot with some state-driven subsystems and some command-factory subsystems is normal; 2910's swerve takes wanted states and their autos still run as commands.
+A subsystem state machine does not mean deleting `runShooterToHub()` and its siblings. Cobra's
+shooter command factories are fine for a mechanism whose behaviour is "run at this setpoint until
+told otherwise". Convert a subsystem only when its behaviour depends on a sensor and a request
+together, or when the superstructure on the next page needs to drive it by state. A robot with some
+state-driven subsystems and some command-factory subsystems is normal; 2910's swerve takes wanted
+states and their autos still run as commands.
 
 </RulesBox>
 

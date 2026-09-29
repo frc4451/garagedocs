@@ -13,11 +13,21 @@ durationFixed: true
 
 ## Before You Start
 
-Work through the first test with a mentor. Start in simulation with the drivetrain and launcher working. Real-hardware tests also require a mentor-approved voltage range, test area, and robot support.
+Work through the first test with a mentor. Start in simulation with the drivetrain and launcher
+working. Real-hardware tests also require a mentor-approved voltage range, test area, and robot
+support.
 
-Complete the R07 and R08 simulation lessons first. Refresh [Java Methods](/java/fundamentals/methods), [Java Arrays](/java/fundamentals/arrays), [ArrayLists](/java/fundamentals/arraylists), [For Loops](/java/fundamentals/for-loops), [Functional Interfaces](/java/fundamentals/functional-interfaces), [Lambdas](/java/fundamentals/lambdas), [Method References](/java/fundamentals/method-references), and [R05: Commands and Triggers](/kit-bot/r05-commands-and-triggers). You will also use slope and substitution in Part 2.
+Complete the R07 and R08 simulation lessons first. Refresh
+[Java Methods](/java/fundamentals/methods), [Java Arrays](/java/fundamentals/arrays),
+[ArrayLists](/java/fundamentals/arraylists), [For Loops](/java/fundamentals/for-loops),
+[Functional Interfaces](/java/fundamentals/functional-interfaces),
+[Lambdas](/java/fundamentals/lambdas), [Method References](/java/fundamentals/method-references),
+and [R05: Commands and Triggers](/kit-bot/r05-commands-and-triggers). You will also use slope and
+substitution in Part 2.
 
-Characterization fits a relationship between voltage and motion. Begin with positive motion after the speed has settled. For example, if a mechanism needs a fitted 0.5 V offset and another 1.5 V for every rotation per second, a 2 rot/s request predicts `0.5 + 1.5 × 2 = 3.5 V`.
+Characterization fits a relationship between voltage and motion. Begin with positive motion after
+the speed has settled. For example, if a mechanism needs a fitted 0.5 V offset and another 1.5 V for
+every rotation per second, a 2 rot/s request predicts `0.5 + 1.5 × 2 = 3.5 V`.
 
 The drivetrain and launcher use this positive-direction, steady-state model:
 
@@ -25,20 +35,33 @@ The drivetrain and launcher use this positive-direction, steady-state model:
 voltage = kS + kV × velocity
 ```
 
-- `kS` is the fitted positive-direction voltage intercept. It represents a constant friction offset in this model; it is not an exact measurement of breakaway voltage.
+- `kS` is the fitted positive-direction voltage intercept. It represents a constant friction offset
+  in this model; it is not an exact measurement of breakaway voltage.
 - `kV` is the additional voltage needed for each unit of velocity.
 
-This Kit Bot exercise does not use the SysId application. You will collect the samples and write the calculation in Java so you can see where both gains come from.
+This Kit Bot exercise does not use the SysId application. You will collect the samples and write the
+calculation in Java so you can see where both gains come from.
 
-The broader motor model is `voltage = kS × sign(velocity) + kV × velocity + kA × acceleration`. `sign(velocity)` is `+1` for positive motion and `-1` for negative motion. This exercise keeps only positive samples and waits for acceleration to become small, so the arithmetic uses `voltage = kS + kV × velocity`.
+The broader motor model is `voltage = kS × sign(velocity) + kV × velocity + kA × acceleration`.
+`sign(velocity)` is `+1` for positive motion and `-1` for negative motion. This exercise keeps only
+positive samples and waits for acceleration to become small, so the arithmetic uses
+`voltage = kS + kV × velocity`.
 
 ## Why This Test Uses Fixed Steps
 
-The test requests a fixed voltage, waits 1.5 seconds, then records velocity. That wait is a starting assumption, not a measurement that the speed has settled. At a settled speed, acceleration is approximately zero. That removes the `kA × acceleration` term from the model and leaves the two values this exercise needs.
+The test requests a fixed voltage, waits 1.5 seconds, then records velocity. That wait is a starting
+assumption, not a measurement that the speed has settled. At a settled speed, acceleration is
+approximately zero. That removes the `kA × acceleration` term from the model and leaves the two
+values this exercise needs.
 
-Use this stepped test to practice the relationship between voltage and speed. With your mentor, repeat a test with a longer settle time if the measured speeds are still changing. Keep the voltage list the same so you can compare the results.
+Use this stepped test to practice the relationship between voltage and speed. With your mentor,
+repeat a test with a longer settle time if the measured speeds are still changing. Keep the voltage
+list the same so you can compare the results.
 
-The code records **requested voltage**. In simulation that matches the model input within its voltage limit. A real controller may apply less voltage because of battery sag or current limiting. Do not label these as measured hardware gains without checking the applied voltage and settled speed.
+The code records **requested voltage**. In simulation that matches the model input within its
+voltage limit. A real controller may apply less voltage because of battery sag or current limiting.
+Do not label these as measured hardware gains without checking the applied voltage and settled
+speed.
 
 ## Safety Before a Real Test
 
@@ -54,11 +77,16 @@ The code records **requested voltage**. In simulation that matches the model inp
 
 </RulesBox>
 
-The six voltage steps below are starter values for simulation. They are not automatically safe or useful for every real robot. Do not run this test on hardware during this lesson. A later mentor-led session after [R12: First Deploy](/kit-bot/r12-first-deploy) must choose the range, support, test area, and stop procedure.
+The six voltage steps below are starter values for simulation. They are not automatically safe or
+useful for every real robot. Do not run this test on hardware during this lesson. A later mentor-led
+session after [R12: First Deploy](/kit-bot/r12-first-deploy) must choose the range, support, test
+area, and stop procedure.
 
 ## Add the Shared Characterization Utility
 
-In VS Code Explorer, open `src/main/java/frc/robot`. Create a `util` folder if it does not exist, then create `SteadyStateCharacterization.java` inside it. This is a **complete file**. Imports belong below the `package` line and before the class declaration.
+In VS Code Explorer, open `src/main/java/frc/robot`. Create a `util` folder if it does not exist,
+then create `SteadyStateCharacterization.java` inside it. This is a **complete file**. Imports
+belong below the `package` line and before the class declaration.
 
 ```java
 package frc.robot.util;
@@ -174,20 +202,31 @@ public final class SteadyStateCharacterization {
 }
 ```
 
-Read the file in three parts: the voltage list, `run` (which builds the test), and `printResults` (which does the calculation). Part 2 works through the calculation on paper. You may use a calculator and the equations.
+Read the file in three parts: the voltage list, `run` (which builds the test), and `printResults`
+(which does the calculation). Part 2 works through the calculation on paper. You may use a
+calculator and the equations.
 
 The utility accepts two functions from a subsystem:
 
 - `outputVolts` applies a requested voltage.
 - `velocity` returns the current measured speed as a `double` in a named unit.
 
-`DoubleConsumer.accept(value)` sends a number to a function. `DoubleSupplier.getAsDouble()` asks a function for its current number. The subsystem supplies both functions; the test utility does not know how a motor is connected.
+`DoubleConsumer.accept(value)` sends a number to a function. `DoubleSupplier.getAsDouble()` asks a
+function for its current number. The subsystem supplies both functions; the test utility does not
+know how a motor is connected.
 
-The command requires the supplied subsystem. Its `finallyDo` action sends zero volts after normal completion or interruption.
+The command requires the supplied subsystem. Its `finallyDo` action sends zero volts after normal
+completion or interruption.
 
-The first steps may be skipped because the mechanism has not overcome friction. The regression uses only finite positive samples above the supplied minimum velocity. “Positive” is the test direction defined for this fit. It does not need to match the sign of a normal launch command. If the selected test direction reports negative velocity, stop and resolve the motor and sensor convention before collecting data.
+The first steps may be skipped because the mechanism has not overcome friction. The regression uses
+only finite positive samples above the supplied minimum velocity. “Positive” is the test direction
+defined for this fit. It does not need to match the sign of a normal launch command. If the selected
+test direction reports negative velocity, stop and resolve the motor and sensor convention before
+collecting data.
 
-Build this complete file before changing either subsystem. Read any compiler message from the first line: a package error usually means the file is in the wrong folder, while an unknown `List` or functional-interface name usually means an import was omitted.
+Build this complete file before changing either subsystem. Read any compiler message from the first
+line: a package error usually means the file is in the wrong folder, while an unknown `List` or
+functional-interface name usually means an import was omitted.
 
 ## Connect the Drivetrain
 
@@ -209,7 +248,11 @@ public Command characterizeFeedforward() {
 }
 ```
 
-Import `SteadyStateCharacterization` and statically import `MetersPerSecond`. Both sides receive the same voltage, and the method records their average. Before fitting, print or inspect the left and right speeds separately. If their signs differ or one side barely moves, investigate the IO directions and motor response before trusting the average. This is an observation check, not another acceptance threshold.
+Import `SteadyStateCharacterization` and statically import `MetersPerSecond`. Both sides receive the
+same voltage, and the method records their average. Before fitting, print or inspect the left and
+right speeds separately. If their signs differ or one side barely moves, investigate the IO
+directions and motor response before trusting the average. This is an observation check, not another
+acceptance threshold.
 
 ## Connect the Launcher
 
@@ -235,7 +278,10 @@ public Command characterizeFeedforward() {
 }
 ```
 
-Import `SteadyStateCharacterization` and statically import `RotationsPerSecond`. This test characterizes only the intake and launcher roller, so the feeder stays at zero. The two motors are independent and must not be combined into one sample. Intake runs in the opposite direction, but it does not need its own precise velocity target in this Kit Bot project.
+Import `SteadyStateCharacterization` and statically import `RotationsPerSecond`. This test
+characterizes only the intake and launcher roller, so the feeder stays at zero. The two motors are
+independent and must not be combined into one sample. Intake runs in the opposite direction, but it
+does not need its own precise velocity target in this Kit Bot project.
 
 ## Add Hold-to-Run Bindings
 
@@ -246,7 +292,9 @@ driver.y().whileTrue(drive.characterizeFeedforward());
 driver.x().whileTrue(launcher.characterizeFeedforward());
 ```
 
-Hold Y for the full drivetrain test or X for the full launcher test. Releasing the button interrupts the sequence and sends zero volts. Run one test at a time. Keep the sticks centered: when the drivetrain test ends, its default joystick command can resume.
+Hold Y for the full drivetrain test or X for the full launcher test. Releasing the button interrupts
+the sequence and sends zero volts. Run one test at a time. Keep the sticks centered: when the
+drivetrain test ends, its default joystick command can resume.
 
 ## Collect Simulation Samples
 
@@ -255,8 +303,11 @@ Hold Y for the full drivetrain test or X for the full launcher test. Releasing t
 3. Hold Y until the drivetrain result prints.
 4. Disable, then enable again.
 5. Hold X until the launcher result prints.
-6. Open the VS Code terminal panel and copy the six attempted step lines plus the result or insufficient-data message.
-7. In the Kit Bot repository, create `characterization-results/simulation-YYYY-MM-DD.txt`. Replace the date in the filename and header with the test date. Use this header before each copied result:
+6. Open the VS Code terminal panel and copy the six attempted step lines plus the result or
+   insufficient-data message.
+7. In the Kit Bot repository, create `characterization-results/simulation-YYYY-MM-DD.txt`. Replace
+   the date in the filename and header with the test date. Use this header before each copied
+   result:
 
 ```text
 environment: simulation
@@ -270,19 +321,26 @@ settle time: 1.5 s (assumed settled; not proven)
 code version: describe the saved project state, for example "after R09 Part 1"
 ```
 
-Simulation results describe the WPILib physics models. They are useful for checking the code and the math. They are not measurements of the real Kit Bot.
+Simulation results describe the WPILib physics models. They are useful for checking the code and the
+math. They are not measurements of the real Kit Bot.
 
 ## Troubleshooting
 
 - **The test stops early:** keep the assigned button held for the entire sequence.
-- **Every step is skipped:** confirm the IO applies the requested voltage and reports velocity in the expected direction.
-- **The mechanism keeps running after release:** confirm the command ends with `finallyDo(() -> outputVolts.accept(0.0))` and is bound with `whileTrue`.
-- **The two drivetrain sides disagree:** inspect left and right velocity separately before using their average.
-- **The result says the speeds are too similar:** increase the useful voltage range only after a mentor checks the mechanism and test setup.
+- **Every step is skipped:** confirm the IO applies the requested voltage and reports velocity in
+  the expected direction.
+- **The mechanism keeps running after release:** confirm the command ends with
+  `finallyDo(() -> outputVolts.accept(0.0))` and is bound with `whileTrue`.
+- **The two drivetrain sides disagree:** inspect left and right velocity separately before using
+  their average.
+- **The result says the speeds are too similar:** increase the useful voltage range only after a
+  mentor checks the mechanism and test setup.
 
 <RulesBox title="Done When">
 
-The drivetrain and launcher tests each print at least two moving samples, stop when their buttons are released, and report a `kS` and `kV` with the correct velocity unit. Save the console output for Part 2.
+The drivetrain and launcher tests each print at least two moving samples, stop when their buttons
+are released, and report a `kS` and `kV` with the correct velocity unit. Save the console output for
+Part 2.
 
 </RulesBox>
 

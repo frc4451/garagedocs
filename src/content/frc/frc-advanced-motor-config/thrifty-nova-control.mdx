@@ -1,0 +1,143 @@
+---
+title: "Thrifty Nova Control"
+lessonId: thrifty-nova-control
+section: frc
+group: frc-advanced-motor-config
+groupLabel: "Advanced Motor Control"
+groupOrder: 10
+order: 6
+difficulty: intermediate
+duration: 15 min
+description: "Create, configure, command, and inspect a Nova with the shared ThriftyLib documentation, while keeping Cobra's older API distinct."
+---
+
+## Choose the Matching API
+
+Read [Motor Configuration Basics](/frc/motor-configuration-basics) and complete the
+[Nova hardware setup](/hardware/thrifty-bot-hardware-and-config) first. You should know the attached
+motor, bus, CAN ID, feedback sensor, positive direction, and approved mechanism limits.
+
+**2026 and 2027 use the same ThriftyLib documentation source right now:** the
+[current hub](https://docs.thethriftybot.com/software/thriftylib/latest/overview). This lesson
+describes its `com.thrifty.nova.Nova` API. Cobra's pinned `2026.0.1` uses
+`com.thethriftybot.devices.ThriftyNova`. Match code to the installed dependency; sharing
+documentation does not make these classes interchangeable.
+
+## Create and Configure
+
+Construct one long-lived `Nova` for the device. Its constructor takes `busId`, `canId`, and an
+optional `Motor.MotorType`. Specify the motor type so the code records the physical motor. The
+constructor without a motor type selects NEO.
+
+Configuration helpers such as `NovaConfig.inverted(...)`, `brakeMode(...)`, `statorCurrent(...)`,
+and `supplyCurrent(...)` create options. Those options reach the device when passed to
+`motor.configure(...)`. Apply related settings together at startup and inspect the returned
+`ThriftyStatusCode` before allowing motion. If a factory reset is part of your setup, put it before
+the settings it would otherwise erase.
+
+The following is a partial startup snippet for an already-created current-API `Nova`. The current
+limits are illustrative, not a recommendation for your motor. Imports, device construction, fault
+reporting, and the command enable policy are omitted.
+
+```java
+var configurationStatus =
+    motor.configure(
+        NovaConfig.inverted(false),
+        NovaConfig.brakeMode(true),
+        NovaConfig.statorCurrent(30.0),
+        NovaConfig.supplyCurrent(20.0));
+```
+
+Use `configurationStatus.isOk()`, `isWarning()`, and `isError()` to distinguish success, a warning,
+and a failed operation. Record an unresolved result and keep the mechanism from starting until its
+required configuration is confirmed. The status view also exposes configuration mirrors for
+readback.
+
+Supply current comes from the battery side of the controller. Stator current flows through the motor
+windings. Select each limit for the mechanism and confirm it physically; neither value guarantees a
+motor cannot overheat. Brake mode resists rotation at neutral output and does not replace active
+position control.
+
+## Select the Request and Sensor
+
+Current control requests use `motor.control(...)` with a `MotorControl` helper. Keep the target's
+units visible in the variable name and in logs.
+
+| Helper | Target | Feedback |
+|---|---|---|
+| `percent(...)` | Duty cycle from -1 to 1 | Open loop |
+| `voltage(...)` | Volts | Open loop |
+| `position(...)` | Internal sensor rotations | Internal sensor |
+| `velocity(...)` | Internal sensor rotations per second | Internal sensor |
+| `positionQuad(...)` / `velocityQuad(...)` | Quadrature rotations / rotations per second | Quadrature encoder |
+| `positionAbs(...)` | Absolute encoder rotations | Absolute encoder |
+
+A duty-cycle request of `0.2` does not promise 20% of maximum speed. Speed depends on voltage and
+load. For velocity control, 3,000 RPM becomes 50 rotations per second. Apply the mechanism reduction
+separately when the sensor is on the motor shaft, and verify both sign and scale before enabling a
+position loop.
+
+Select the external encoder hardware through configuration, then choose the control mode that uses
+that sensor. An absolute encoder still needs the correct offset, direction, and relationship to the
+mechanism. Soft limits depend on that position reference and their enable setting.
+
+## Read the Result
+
+`motor.status()` provides a non-blocking view of the latest received telemetry. Reading it
+repeatedly does not make the underlying CAN frame newer. Choose frame periods for the signals the
+robot logic needs, and account for their update rate in completion and fault checks.
+
+| Status getter | Meaning |
+|---|---|
+| `getPositionInternal()` / `getVelocityInternal()` | Internal sensor rotations / rotations per second |
+| `getPositionQuad()` / `getVelocityQuad()` | Quadrature sensor rotations / rotations per second |
+| `getPositionAbs()` | Absolute sensor rotations |
+| `getVoltage()` | Controller supply voltage |
+| `getAppliedVoltage()` | Voltage applied to the motor |
+| `getCurrentStator()` / `getCurrentSupply()` | Measured motor-side / supply-side amperes |
+| `getStatorCurrent()` / `getSupplyCurrent()` | Configured current limits, not measured current |
+| `getClosedLoopError()` | Error in the active mode's units |
+
+Log the request, feedback, applied voltage, current, and operation status together. A CAN ID
+readback alone is not a connection-health test. A command that reports success also does not
+establish that the mechanism reached its target.
+
+## Add Motion Profiling Deliberately
+
+Watch the [motion profiling tutorial](https://www.youtube.com/watch?v=hez9lRcgDqg) alongside the
+written guide below.
+
+The hub's
+[motion-profile guide](https://docs.thethriftybot.com/software/thriftylib/latest/motion-profile-tuning)
+requires Nova firmware `2027.0.0-beta.3` or later. Check the selected library and firmware together
+before using the feature.
+
+Set the sensor-to-mechanism ratio, maximum velocity, maximum acceleration, and feedforward for the
+chosen mechanism. Motion-profile slots and PID slots are separate; select them explicitly when using
+feedback with a profile. Follow the vendor's setup guide and verify the target units in your
+installed release before adapting a rotational example to linear travel. A ratio error changes every
+setpoint and constraint.
+
+The documented Nova simulator ignores all PID gains. Use
+[Thrifty Nova Simulation](/frc/thrifty-nova-simulation) for its supported checks, then tune the
+physical mechanism in bounded steps with the mentor.
+
+<Sources items={[
+  {"source": "thrifty", "path": "software/thriftylib/latest/overview", "note": "Shared software source and current installation path."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/creating-a-device", "note": "Construction, motor profiles and addressing."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/configs", "note": "Deferred configuration, current limits, feedback and slots."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/control-types", "note": "Request helpers, sensor selection and target units."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/status-and-telemetry", "note": "Cached status, sensor getters, voltages and current readbacks."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/error-handling", "note": "Operation status results."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/motion-profile-tuning", "note": "Firmware prerequisite for onboard motion profiling."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/simulation", "note": "PID values are ignored in built-in simulation."},
+  {"url":"https://software.thethriftybot.com/javadoc/latest/com/thrifty/nova/Nova.html","label":"Nova Javadoc","note":"Actual package, constructors and configure/status return types."},
+  {"url":"https://software.thethriftybot.com/javadoc/latest/com/thrifty/nova/NovaConfig.html","label":"NovaConfig Javadoc","note":"Configuration inheritance and supported helper names."},
+  {"source":"cobra","path":"vendordeps/ThriftyLib-2026.json","note":"Historical dependency used by Cobra examples."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Thrifty Nova Simulation","id":"thrifty-nova-simulation"},
+  {"label":"Current Limiting","id":"current-limiting"},
+  {"label":"Motor Configuration Basics","id":"motor-configuration-basics"}
+]} />

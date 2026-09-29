@@ -11,9 +11,13 @@ duration: 20 min
 description: "How a swerve drivetrain applies synchronized module and gyro samples, accepts vision observations, resets pose, and publishes one field-relative estimate."
 ---
 
-This example connects the pieces from the Pose Estimation group inside a swerve drivetrain. It focuses on estimator ownership and data flow. Module control, PathPlanner, SysId, and generated Tuner X constants belong to the drivetrain and autonomous lessons.
+This example connects the pieces from the Pose Estimation group inside a swerve drivetrain. It
+focuses on estimator ownership and data flow. Module control, PathPlanner, SysId, and generated
+Tuner X constants belong to the drivetrain and autonomous lessons.
 
-FRC 4451's Cobra drivetrain uses the same structure at a larger scale: module and gyro IO provide synchronized samples, `Drive` owns the pose estimators, and vision subsystems publish observations through queues.
+FRC 4451's Cobra drivetrain uses the same structure at a larger scale: module and gyro IO provide
+synchronized samples, `Drive` owns the pose estimators, and vision subsystems publish observations
+through queues.
 
 ### Estimator state
 
@@ -54,11 +58,13 @@ public class Drive extends SubsystemBase {
 }
 ```
 
-The module array order must match the order passed to `SwerveDriveKinematics`. This example and Cobra use front-left, front-right, back-left, back-right.
+The module array order must match the order passed to `SwerveDriveKinematics`. This example and
+Cobra use front-left, front-right, back-left, back-right.
 
 ### Apply synchronized odometry samples
 
-A high-rate odometry thread can collect several samples during one normal robot loop. Process the samples oldest to newest:
+A high-rate odometry thread can collect several samples during one normal robot loop. Process the
+samples oldest to newest:
 
 ```java
 private void updateOdometry() {
@@ -112,7 +118,8 @@ private void updateOdometry() {
 }
 ```
 
-The gyro and module arrays at a given sample index must describe the same time. The gyro fallback keeps the estimator running, but its heading then depends entirely on wheel measurements.
+The gyro and module arrays at a given sample index must describe the same time. The gyro fallback
+keeps the estimator running, but its heading then depends entirely on wheel measurements.
 
 ### Apply accepted observations
 
@@ -133,7 +140,8 @@ private void updateVision() {
 }
 ```
 
-Each observation enters once with its original timestamp and uncertainty. Filtering belongs upstream in the vision subsystem.
+Each observation enters once with its original timestamp and uncertainty. Filtering belongs upstream
+in the vision subsystem.
 
 ### Publish one authoritative pose
 
@@ -153,9 +161,12 @@ public Pose2d getPose() {
 }
 ```
 
-Commands, autonomous routines, field-relative drive conversion, and mechanism calculations should read the same published pose. Maintaining unrelated pose objects for each feature creates disagreements that are difficult to diagnose.
+Commands, autonomous routines, field-relative drive conversion, and mechanism calculations should
+read the same published pose. Maintaining unrelated pose objects for each feature creates
+disagreements that are difficult to diagnose.
 
-A team may deliberately run multiple estimators to compare algorithms, as Cobra does. Name and log each one, and choose one authoritative pose for normal robot behavior.
+A team may deliberately run multiple estimators to compare algorithms, as Cobra does. Name and log
+each one, and choose one authoritative pose for normal robot behavior.
 
 ### Reset from a known pose
 
@@ -168,7 +179,8 @@ public void setPose(Pose2d fieldToRobot) {
 }
 ```
 
-Call this with the autonomous starting pose before the path begins. If another localization device needs seeding, send the corresponding device pose during the same reset flow.
+Call this with the autonomous starting pose before the path begins. If another localization device
+needs seeding, send the corresponding device pose during the same reset flow.
 
 ### Verify the integration
 
@@ -179,8 +191,10 @@ In simulation and hardware logs, check:
 3. Every accepted observation appears once.
 4. Observation timestamps precede or equal their delivery times.
 5. A known pose reset moves the estimate without requiring a gyro hardware reset.
-6. The fused pose corrects after a deliberate odometry error without jumping to every noisy observation.
-7. The pose used by field-relative driving and autonomous code matches the logged authoritative pose.
+6. The fused pose corrects after a deliberate odometry error without jumping to every noisy
+   observation.
+7. The pose used by field-relative driving and autonomous code matches the logged authoritative
+   pose.
 
 <RulesBox title="Common failures">
 

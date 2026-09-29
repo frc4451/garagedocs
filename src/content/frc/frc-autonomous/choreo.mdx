@@ -11,16 +11,29 @@ duration: 35 min
 description: "Choreo generates the fastest trajectory your drivetrain can physically follow. This lesson covers the app (robot configuration, waypoints, constraints, event markers, generation, the .traj files), ChoreoLib's AutoFactory / AutoRoutine / AutoTrajectory / AutoChooser API with the follower the Drive subsystem provides, Riptide's 2025 auto routines as the worked example, how the same routines look with the 2026 API, and how Choreo sits next to PathPlanner and BLine."
 ---
 
-[PathPlanner](/frc/pathplanner) draws a path and follows it at speeds you choose. **Choreo** asks a different question: given this drivetrain (its motors, mass, moment of inertia, wheel friction), what is the fastest motion through these waypoints that the robot can execute? It solves that as a numerical optimisation and hands back a trajectory with a pose, velocity and heading at every sample, already at the limits of what the hardware can do. Riptide ran its 2025 autonomous on it: forty-odd `.traj` files, reef-face-to-human-player-station legs stitched into routines by Java code. This lesson is the tool, the library, and that code.
+[PathPlanner](/frc/pathplanner) draws a path and follows it at speeds you choose. **Choreo** asks a
+different question: given this drivetrain (its motors, mass, moment of inertia, wheel friction),
+what is the fastest motion through these waypoints that the robot can execute? It solves that as a
+numerical optimisation and hands back a trajectory with a pose, velocity and heading at every
+sample, already at the limits of what the hardware can do. Riptide ran its 2025 autonomous on it:
+forty-odd `.traj` files, reef-face-to-human-player-station legs stitched into routines by Java code.
+This lesson is the tool, the library, and that code.
 
 ### What Choreo produces
 
 Two things, from one project file:
 
-- The **app** (`.chor` project) is where you draw. Download it from the [releases page](https://github.com/SleipnirGroup/Choreo/releases) (Windows, macOS and Linux) and open it on the robot project's folder so it can write into `src/main/deploy/choreo/`.
-- A **`.traj` file per trajectory**, in `deploy/choreo/`, deployed to the robot with the code. Each holds the samples (`t`, `x`, `y`, `heading`, `vx`, `vy`, `omega`, and per-module forces), the **event markers** with their times, and the **split points** that break one drawn path into legs.
+- The **app** (`.chor` project) is where you draw. Download it from the
+  [releases page](https://github.com/SleipnirGroup/Choreo/releases) (Windows, macOS and Linux) and
+  open it on the robot project's folder so it can write into `src/main/deploy/choreo/`.
+- A **`.traj` file per trajectory**, in `deploy/choreo/`, deployed to the robot with the code. Each
+  holds the samples (`t`, `x`, `y`, `heading`, `vx`, `vy`, `omega`, and per-module forces), the
+  **event markers** with their times, and the **split points** that break one drawn path into legs.
 
-Riptide's `deploy/choreo/` reads as the whole auto strategy: `StartBottom-FL4.traj`, `FL4-HPSRight.traj`, `HPSRight-CL4.traj`, `CL4-HPSRight-NoStop.traj`: one trajectory per leg, named by where it starts and ends, with a `-NoStop` variant that flows through the endpoint instead of stopping. That naming is worth copying; the routine code below reads exactly the same way.
+Riptide's `deploy/choreo/` reads as the whole auto strategy: `StartBottom-FL4.traj`,
+`FL4-HPSRight.traj`, `HPSRight-CL4.traj`, `CL4-HPSRight-NoStop.traj`: one trajectory per leg, named
+by where it starts and ends, with a `-NoStop` variant that flows through the endpoint instead of
+stopping. That naming is worth copying; the routine code below reads exactly the same way.
 
 ### The app
 
@@ -34,30 +47,56 @@ Riptide's `deploy/choreo/` reads as the whole auto strategy: `StartBottom-FL4.tr
 
 <StepsBox title="Building a trajectory">
 
-1. **Robot configuration** first ([document settings](https://choreo.autos/document-settings/robot-configuration/)): mass, moment of inertia, wheelbase and track width, wheel radius, gearing, motor type and the current limit. These numbers *are* the optimiser's model. A wrong MOI produces a trajectory the real robot cannot track, and no follower gain fixes it. Get them from CAD and from the drivetrain's constants; the same values feed [the swerve drive's sim](/frc/swerve-pose-estimation-example).
-2. **Waypoints** ([editing paths](https://choreo.autos/usage/editing-paths/)): a *pose waypoint* fixes position and heading; a *translation waypoint* fixes position and lets the optimiser choose heading; an *empty waypoint* only shapes the path around an obstacle and cannot be an endpoint. Click the field to add, drag to move, type exact values in the side panel.
-3. **Constraints**: a *stop point* zeroes velocity at a waypoint (the endpoints get one by default); *max velocity / acceleration / angular velocity* limit a segment; *keep in rectangle / circle / lane* and *keep out circle* fence the path; *point at* holds the heading toward a target through a segment.
-4. **Generate.** The optimiser runs for a few seconds and draws the result with a velocity colour map. If it fails, a constraint is unsatisfiable, usually two stop points too close together, or a keep-out the path must cross.
-5. **Event markers**: select the marker tool, click a waypoint, name it (`L4`, `intake`), and give it a time offset from that waypoint. Markers are what the code binds commands to.
-6. **Splits**: mark a waypoint as a split point and one drawn path becomes several trajectories in the code (`routine.trajectory("name", 0)`, `("name", 1)`), sharing continuity at the boundary.
+1. **Robot configuration** first
+   ([document settings](https://choreo.autos/document-settings/robot-configuration/)): mass, moment
+   of inertia, wheelbase and track width, wheel radius, gearing, motor type and the current limit.
+   These numbers *are* the optimiser's model. A wrong MOI produces a trajectory the real robot
+   cannot track, and no follower gain fixes it. Get them from CAD and from the drivetrain's
+   constants; the same values feed [the swerve drive's sim](/frc/swerve-pose-estimation-example).
+2. **Waypoints** ([editing paths](https://choreo.autos/usage/editing-paths/)): a *pose waypoint*
+   fixes position and heading; a *translation waypoint* fixes position and lets the optimiser choose
+   heading; an *empty waypoint* only shapes the path around an obstacle and cannot be an endpoint.
+   Click the field to add, drag to move, type exact values in the side panel.
+3. **Constraints**: a *stop point* zeroes velocity at a waypoint (the endpoints get one by default);
+   *max velocity / acceleration / angular velocity* limit a segment; *keep in rectangle / circle /
+   lane* and *keep out circle* fence the path; *point at* holds the heading toward a target through
+   a segment.
+4. **Generate.** The optimiser runs for a few seconds and draws the result with a velocity colour
+   map. If it fails, a constraint is unsatisfiable, usually two stop points too close together, or a
+   keep-out the path must cross.
+5. **Event markers**: select the marker tool, click a waypoint, name it (`L4`, `intake`), and give
+   it a time offset from that waypoint. Markers are what the code binds commands to.
+6. **Splits**: mark a waypoint as a split point and one drawn path becomes several trajectories in
+   the code (`routine.trajectory("name", 0)`, `("name", 1)`), sharing continuity at the boundary.
 
 </StepsBox>
 
-The [controls and shortcuts](https://choreo.autos/usage/controls-shortcuts/) page is worth the five minutes. Regenerate after any robot-configuration change; the `.traj` files are outputs, and the [saving](https://choreo.autos/usage/saving/) page explains what to commit (both the `.chor` and the `.traj` files: the robot needs the `.traj`, the next person needs the `.chor`).
+The [controls and shortcuts](https://choreo.autos/usage/controls-shortcuts/) page is worth the five
+minutes. Regenerate after any robot-configuration change; the `.traj` files are outputs, and the
+[saving](https://choreo.autos/usage/saving/) page explains what to commit (both the `.chor` and the
+`.traj` files: the robot needs the `.traj`, the next person needs the `.chor`).
 
 ### Installing ChoreoLib
 
-A vendordep. *Manage Vendor Libraries* → *Install new libraries (online)*, with the URL from the [installation page](https://choreo.autos/installation/). For the 2026 season:
+A vendordep. *Manage Vendor Libraries* → *Install new libraries (online)*, with the URL from the
+[installation page](https://choreo.autos/installation/). For the 2026 season:
 
 ```
 https://choreo.autos/lib/ChoreoLib2026.json
 ```
 
-The classes are in `choreo.*`. Riptide's vendordep was `ChoreoLib-2025.0.3`; the API below is the current one, and the two are close enough that the 2025 code reads without translation. The docs site now also documents a 2027 alpha (`ChoreoLib2027Alpha.json`) against the WPILib 2027 beta, whose examples use renamed WPILib types (`ChassisVelocities` for `ChassisSpeeds`); on WPILib 2026 use the names below.
+The classes are in `choreo.*`. Riptide's vendordep was `ChoreoLib-2025.0.3`; the API below is the
+current one, and the two are close enough that the 2025 code reads without translation. The docs
+site now also documents a 2027 alpha (`ChoreoLib2027Alpha.json`) against the WPILib 2027 beta, whose
+examples use renamed WPILib types (`ChassisVelocities` for `ChassisSpeeds`); on WPILib 2026 use the
+names below.
 
 ### The follower the drivetrain provides
 
-Choreo does not drive the robot. It hands your code one **sample** at a time (where the robot should be and how fast it should be moving right now), and your drivetrain turns that into wheel commands. The drivetrain owns the follower, and it is short. Riptide's [`Drive.followTrajectory`](https://github.com/frc4451/Riptide2025/blob/main/src/main/java/frc/robot/subsystems/drive/Drive.java):
+Choreo does not drive the robot. It hands your code one **sample** at a time (where the robot should
+be and how fast it should be moving right now), and your drivetrain turns that into wheel commands.
+The drivetrain owns the follower, and it is short. Riptide's
+[`Drive.followTrajectory`](https://github.com/frc4451/Riptide2025/blob/main/src/main/java/frc/robot/subsystems/drive/Drive.java):
 
 ```java
 import choreo.trajectory.SwerveSample;
@@ -84,13 +123,24 @@ public void followTrajectory(SwerveSample sample) {
 }
 ```
 
-Read it as **feedforward plus feedback**. `sample.vx`, `vy`, `omega` are the trajectory's own velocities: the feedforward, which does almost all the work when the robot model is right. The three PID terms correct the position error between where the sample says the robot should be and where the pose estimate says it is. Field-relative speeds because the sample is in field coordinates; `runVelocity` is the same method teleop uses. The three `recordOutput`s are how you tune the gains: `Sample/Pose` as a Ghost on the [2D Field](/tools/advantagescope-poses-on-the-field#show-a-2d-pose) beside the real pose, and `PoseError` on a line graph. If the error grows along the path, raise the gains; if it is large from the first sample, the robot configuration in the app is wrong.
+Read it as **feedforward plus feedback**. `sample.vx`, `vy`, `omega` are the trajectory's own
+velocities: the feedforward, which does almost all the work when the robot model is right. The three
+PID terms correct the position error between where the sample says the robot should be and where the
+pose estimate says it is. Field-relative speeds because the sample is in field coordinates;
+`runVelocity` is the same method teleop uses. The three `recordOutput`s are how you tune the gains:
+`Sample/Pose` as a Ghost on the [2D Field](/tools/advantagescope-poses-on-the-field#show-a-2d-pose)
+beside the real pose, and `PoseError` on a line graph. If the error grows along the path, raise the
+gains; if it is large from the first sample, the robot configuration in the app is wrong.
 
-A `Drive` that already has `getGlobalPose()`, `setPose(Pose2d)` and `runVelocity(ChassisSpeeds)`, which Cobra's does, needs only this method added. (Cobra's `Drive` today carries a PathPlanner `AutoBuilder` and a BLine follower; a Choreo follower sits beside them without conflict, and the `Autos` class decides which one a routine uses.)
+A `Drive` that already has `getGlobalPose()`, `setPose(Pose2d)` and `runVelocity(ChassisSpeeds)`,
+which Cobra's does, needs only this method added. (Cobra's `Drive` today carries a PathPlanner
+`AutoBuilder` and a BLine follower; a Choreo follower sits beside them without conflict, and the
+`Autos` class decides which one a routine uses.)
 
 ### AutoFactory, AutoRoutine, AutoTrajectory
 
-Three classes and the whole [auto factory](https://choreo.autos/choreolib/auto-factory/) API is in view:
+Three classes and the whole [auto factory](https://choreo.autos/choreolib/auto-factory/) API is in
+view:
 
 ```java
 import choreo.auto.AutoFactory;
@@ -104,7 +154,9 @@ autoFactory = new AutoFactory(
     this);                   // the drive subsystem, required by every trajectory command
 ```
 
-Trajectories are drawn for the **blue** alliance and mirrored automatically for red when that flag is true and the Driver Station reports red, the same convention as every pose at FRC 4451 ([AdvantageScope: Poses on the Field](/tools/advantagescope-poses-on-the-field#pose-and-coordinates)).
+Trajectories are drawn for the **blue** alliance and mirrored automatically for red when that flag
+is true and the Driver Station reports red, the same convention as every pose at FRC 4451
+([AdvantageScope: Poses on the Field](/tools/advantagescope-poses-on-the-field#pose-and-coordinates)).
 
 From the factory you get **routines**, and from a routine, **trajectories**:
 
@@ -129,13 +181,16 @@ An `AutoTrajectory` is both a command and a set of triggers:
   ]}
 />
 
-And the routine itself has `active()`, true while the routine is scheduled, which is where the sequence hangs.
+And the routine itself has `active()`, true while the routine is scheduled, which is where the
+sequence hangs.
 
 ### Two ways to write a routine
 
 The docs describe both and Riptide used both, in the same file.
 
-**Command composition:** one `Commands.sequence` per routine, readable top to bottom. Riptide's [`Autos.allRightL4`](https://github.com/frc4451/Riptide2025/blob/main/src/main/java/frc/robot/auto/Autos.java), lightly trimmed:
+**Command composition:** one `Commands.sequence` per routine, readable top to bottom. Riptide's
+[`Autos.allRightL4`](https://github.com/frc4451/Riptide2025/blob/main/src/main/java/frc/robot/auto/Autos.java),
+lightly trimmed:
 
 ```java
 public AutoRoutine allRightL4() {
@@ -176,9 +231,16 @@ private Command resetAndFollowTrajectory(AutoTrajectory trajectory) {
 }
 ```
 
-Three design decisions in there worth naming. The **trajectory ends near the target, not at it**. `positionToPoleAndScore` is a pose-to-pose alignment on the live estimate that closes the last few centimetres, so a Choreo path that is slightly off (or a robot that was pushed) still scores; the trajectory does the fast part, the aligner does the precise part. The **`ChoreoPaths` enum** names every `.traj` once, so a typo is a compile error instead of a missing-file exception at auto start. And `followTrajectory` **logs the path and stops the drivetrain** on completion, because `cmd()` alone leaves the last sample's velocity in effect.
+Three design decisions in there worth naming. The **trajectory ends near the target, not at it**.
+`positionToPoleAndScore` is a pose-to-pose alignment on the live estimate that closes the last few
+centimetres, so a Choreo path that is slightly off (or a robot that was pushed) still scores; the
+trajectory does the fast part, the aligner does the precise part. The **`ChoreoPaths` enum** names
+every `.traj` once, so a typo is a compile error instead of a missing-file exception at auto start.
+And `followTrajectory` **logs the path and stops the drivetrain** on completion, because `cmd()`
+alone leaves the last sample's velocity in effect.
 
-**Trigger-based:** bind commands to moments in the trajectory instead of sequencing them. The event-marker version of "raise to L4 while driving":
+**Trigger-based:** bind commands to moments in the trajectory instead of sequencing them. The
+event-marker version of "raise to L4 while driving":
 
 ```java
 // Once, next to the AutoFactory: a marker named "L4" in *any* trajectory raises the superstructure
@@ -191,7 +253,11 @@ startToF.atTime("intake").onTrue(superStructure.intake());        // marker plac
 startToF.done().onTrue(AlignRoutines.positionToPoleAndScore(/* … */));
 ```
 
-Riptide bound `L4` globally and otherwise sequenced. The trigger style is useful when the routine branches (if the intake has a piece by the time we reach the station, go score; otherwise wait), because `Trigger`s compose with `and`, `negate` and sensor-based triggers the same way teleop bindings do ([Triggers](/frc/subsystems)). For a linear auto, the sequence reads better. Use whichever the routine's shape wants.
+Riptide bound `L4` globally and otherwise sequenced. The trigger style is useful when the routine
+branches (if the intake has a piece by the time we reach the station, go score; otherwise wait),
+because `Trigger`s compose with `and`, `negate` and sensor-based triggers the same way teleop
+bindings do ([Triggers](/frc/subsystems)). For a linear auto, the sequence reads better. Use
+whichever the routine's shape wants.
 
 ### Choosing a routine
 
@@ -211,11 +277,21 @@ SmartDashboard.putData("Auto Chooser", autoChooser);
 return autoChooser.selectedCommand();
 ```
 
-The routine methods are `Supplier`s, so a routine is built when it is selected, not at boot, and the `.traj` files are loaded then. The `5 Meters` and `Curvy` entries in Riptide's chooser are the ones to keep in every season's project: a straight line and an S-curve, with nothing else in the routine, are how you tune the follower gains and check the robot configuration before any real auto exists.
+The routine methods are `Supplier`s, so a routine is built when it is selected, not at boot, and the
+`.traj` files are loaded then. The `5 Meters` and `Curvy` entries in Riptide's chooser are the ones
+to keep in every season's project: a straight line and an S-curve, with nothing else in the routine,
+are how you tune the follower gains and check the robot configuration before any real auto exists.
 
 ### Watching it
 
-Everything above logs, and [Simulating Autonomous](/frc/autonomous-simulation#the-three-tools-in-simulation) is the workflow: run the routine in the simulator, `Odometry/Choreo/Trajectory` as a Trajectory object and `Odometry/Choreo/Sample/Pose` as a Ghost on the 2D Field, `Odometry/Global` as the Robot. The ghost is where Choreo wants the robot this instant; the robot is where the estimate says it is; the gap is `PoseError`. In simulation the gap should be small. If it is not, the app's robot configuration and the sim's drivetrain constants disagree. On the real robot the gap is the follower gains and the drivetrain's real limits.
+Everything above logs, and
+[Simulating Autonomous](/frc/autonomous-simulation#the-three-tools-in-simulation) is the workflow:
+run the routine in the simulator, `Odometry/Choreo/Trajectory` as a Trajectory object and
+`Odometry/Choreo/Sample/Pose` as a Ghost on the 2D Field, `Odometry/Global` as the Robot. The ghost
+is where Choreo wants the robot this instant; the robot is where the estimate says it is; the gap is
+`PoseError`. In simulation the gap should be small. If it is not, the app's robot configuration and
+the sim's drivetrain constants disagree. On the real robot the gap is the follower gains and the
+drivetrain's real limits.
 
 ### Which tool, when
 
@@ -229,15 +305,23 @@ Everything above logs, and [Simulating Autonomous](/frc/autonomous-simulation#th
   ]}
 />
 
-They are not exclusive. Riptide's routines were Choreo legs joined by pose-to-pose alignments, the strategy BLine now formalises. A 2026 routine could be a Choreo trajectory to the vicinity, a BLine move to the exact scoring pose, and a PathPlanner pathfind back if something went wrong. The `Autos` class is where that choice lives, one leg at a time.
+They are not exclusive. Riptide's routines were Choreo legs joined by pose-to-pose alignments, the
+strategy BLine now formalises. A 2026 routine could be a Choreo trajectory to the vicinity, a BLine
+move to the exact scoring pose, and a PathPlanner pathfind back if something went wrong. The `Autos`
+class is where that choice lives, one leg at a time.
 
 <RulesBox title="Common mistakes">
 
-- **Guessing the robot configuration.** The optimiser believes it. A trajectory generated for a lighter robot is one the real robot cannot follow, and the follower will fight it the whole way.
-- **Not regenerating after changing the configuration.** The <code>.traj</code> files are stale until you do.
-- **Skipping <code>resetOdometry()</code>.** The first leg runs from wherever the estimator thought the robot was, often last match's final pose.
-- **Ending a routine with <code>cmd()</code>.** The last sample's velocity persists. Stop the drivetrain explicitly, as <code>followTrajectory</code> does.
-- **Expecting the trajectory to score.** It gets you close, fast. Precision is the alignment command's job.
+- **Guessing the robot configuration.** The optimiser believes it. A trajectory generated for a
+  lighter robot is one the real robot cannot follow, and the follower will fight it the whole way.
+- **Not regenerating after changing the configuration.** The <code>.traj</code> files are stale
+  until you do.
+- **Skipping <code>resetOdometry()</code>.** The first leg runs from wherever the estimator thought
+  the robot was, often last match's final pose.
+- **Ending a routine with <code>cmd()</code>.** The last sample's velocity persists. Stop the
+  drivetrain explicitly, as <code>followTrajectory</code> does.
+- **Expecting the trajectory to score.** It gets you close, fast. Precision is the alignment
+  command's job.
 - **Trajectory names as strings everywhere.** One enum; a typo becomes a compile error.
 - **Mirroring twice.** The factory mirrors for red. Do not also flip the poses in your own code.
 

@@ -15,9 +15,13 @@ description: Choosing the standard one-method interfaces Java provides, with a c
 
 ### Start with the Standard Shapes
 
-The first lesson in this module defined a `ReadingTest` interface so you could see how Java stores behavior. For general-purpose operations, first check `java.util.function`. The package provides standard interfaces for the shapes Java APIs use most often.
+The first lesson in this module defined a `ReadingTest` interface so you could see how Java stores
+behavior. For general-purpose operations, first check `java.util.function`. The package provides
+standard interfaces for the shapes Java APIs use most often.
 
-A **functional interface** has one abstract method. Its method signature determines the inputs, return type, and checked exceptions that a lambda or method reference must match. Default and static methods do not add abstract methods, so an interface can provide them and still be functional.
+A **functional interface** has one abstract method. Its method signature determines the inputs,
+return type, and checked exceptions that a lambda or method reference must match. Default and static
+methods do not add abstract methods, so an interface can provide them and still be functional.
 
 <ContentTable
   title="Common Functional Interfaces"
@@ -65,17 +69,20 @@ Expected output:
 [120, 200]
 ```
 
-Using a standard interface makes this method familiar to readers and compatible with other library APIs.
+Using a standard interface makes this method familiar to readers and compatible with other library
+APIs.
 
 ### `Supplier` Defers a Read
 
-`Supplier<T>` represents a call with no arguments that produces a `T`. It is useful when the caller needs to decide **when** to read or create a value.
+`Supplier<T>` represents a call with no arguments that produces a `T`. It is useful when the caller
+needs to decide **when** to read or create a value.
 
 ```java norun
 Supplier<Double> reading = () -> sensor.getDistance();
 ```
 
-Creating the supplier does not read the sensor. Each call to `reading.get()` runs the lambda and asks for the current value.
+Creating the supplier does not read the sensor. Each call to `reading.get()` runs the lambda and
+asks for the current value.
 
 Compare a snapshot with a supplier:
 
@@ -84,11 +91,14 @@ double snapshot = sensor.getDistance();
 Supplier<Double> liveReading = () -> sensor.getDistance();
 ```
 
-`snapshot` keeps the value read at that line. `liveReading` keeps behavior that can read again later. A supplier does not cache its result unless you add that behavior yourself.
+`snapshot` keeps the value read at that line. `liveReading` keeps behavior that can read again
+later. A supplier does not cache its result unless you add that behavior yourself.
 
 <RulesBox title="Why Timing Matters in Robot Code">
 
-Joystick positions, encoder counts, and sensor distances change while the robot runs. Code constructed during startup often needs a way to read the latest value during each later execution cycle.
+Joystick positions, encoder counts, and sensor distances change while the robot runs. Code
+constructed during startup often needs a way to read the latest value during each later execution
+cycle.
 
 ```java norun
 // Snapshot: reads once while constructing the command.
@@ -98,7 +108,9 @@ new DriveCommand(joystick.getY());
 new DriveCommand(() -> joystick.getY());
 ```
 
-The command's constructor determines which form it accepts. If it expects a supplier, pass the supplier itself. Calling `get()` before passing it would turn the deferred read back into a snapshot.
+The command's constructor determines which form it accepts. If it expects a supplier, pass the
+supplier itself. Calling `get()` before passing it would turn the deferred read back into a
+snapshot.
 
 </RulesBox>
 
@@ -109,7 +121,8 @@ DoubleSupplier reading = () -> sensor.getDistance();
 double now = reading.getAsDouble();
 ```
 
-Use the type required by the API. In performance-sensitive code, a primitive specialization can also avoid repeated boxing.
+Use the type required by the API. In performance-sensitive code, a primitive specialization can also
+avoid repeated boxing.
 
 <span id="lazy-and-expensive-work"></span>
 
@@ -131,7 +144,8 @@ public static void logLazy(boolean enabled, Supplier<String> message) {
 }
 ```
 
-Java evaluates method arguments before entering the method. The supplier moves the expensive call inside behavior that `logLazy` can choose whether to run.
+Java evaluates method arguments before entering the method. The supplier moves the expensive call
+inside behavior that `logLazy` can choose whether to run.
 
 `Optional` uses the same distinction:
 
@@ -140,13 +154,15 @@ String lazyDefault = maybeName.orElseGet(() -> computeDefault());
 String eagerDefault = maybeName.orElse(computeDefault());
 ```
 
-`orElseGet` invokes its supplier only when the `Optional` is empty. The argument to `orElse` is evaluated before the call, whether or not the value is needed.
+`orElseGet` invokes its supplier only when the `Optional` is empty. The argument to `orElse` is
+evaluated before the call, whether or not the value is needed.
 
 <span id="primitive-variants"></span>
 
 ### Primitive Specializations
 
-Generic type arguments cannot be primitive types. Java therefore provides specialized functional interfaces for common primitive inputs and outputs.
+Generic type arguments cannot be primitive types. Java therefore provides specialized functional
+interfaces for common primitive inputs and outputs.
 
 <ContentTable
   headers={["General-purpose form", "Primitive specialization"]}
@@ -160,13 +176,16 @@ Generic type arguments cannot be primitive types. Java therefore provides specia
   ]}
 />
 
-Choose the interface that communicates the operation and matches the API. Do not replace clear working code solely to remove boxing; measure performance-sensitive code before optimizing it.
+Choose the interface that communicates the operation and matches the API. Do not replace clear
+working code solely to remove boxing; measure performance-sensitive code before optimizing it.
 
-WPILib's `Trigger` can use a `BooleanSupplier`, which lets the trigger evaluate a changing condition when the scheduler polls it.
+WPILib's `Trigger` can use a `BooleanSupplier`, which lets the trigger evaluate a changing condition
+when the scheduler polls it.
 
 ### Composing Behavior
 
-Several standard functional interfaces provide default methods that create a new function from existing ones.
+Several standard functional interfaces provide default methods that create a new function from
+existing ones.
 
 ```java
 import java.util.function.Function;
@@ -195,23 +214,31 @@ true
 value: 10
 ```
 
-For functions, `first.andThen(second)` runs `first` before `second`. `first.compose(second)` runs `second` first and passes its result into `first`.
+For functions, `first.andThen(second)` runs `first` before `second`. `first.compose(second)` runs
+`second` first and passes its result into `first`.
 
 ### When a Custom Interface Helps
 
-The standard interfaces cover common, general-purpose shapes, but they are not the only valid functional interfaces. A custom interface can be clearer when it gives a domain operation a meaningful name, documents a specific contract, or declares a checked exception that a standard interface does not.
+The standard interfaces cover common, general-purpose shapes, but they are not the only valid
+functional interfaces. A custom interface can be clearer when it gives a domain operation a
+meaningful name, documents a specific contract, or declares a checked exception that a standard
+interface does not.
 
-Use `@FunctionalInterface` on an interface you intend to target with lambdas. The annotation is not required, but it asks the compiler to report an error if a later edit stops the interface from being functional.
+Use `@FunctionalInterface` on an interface you intend to target with lambdas. The annotation is not
+required, but it asks the compiler to report an error if a later edit stops the interface from being
+functional.
 
 <RulesBox title="Common Mistakes">
 
-- **Defining a generic callback** when a standard interface already expresses the same contract clearly.
+- **Defining a generic callback** when a standard interface already expresses the same contract
+  clearly.
 - **Passing a snapshot where deferred behavior is required.**
 - **Calling `get()` when you meant to store or pass the supplier.**
 - **Using `orElse` with an expensive default** when `orElseGet` should defer the work.
 - **Reversing `andThen` and `compose`.**
 - **Assuming a supplier caches.** Each `get()` can run its body again.
-- **Choosing a primitive specialization by guesswork.** Match the receiving API and optimize measured hotspots.
+- **Choosing a primitive specialization by guesswork.** Match the receiving API and optimize
+  measured hotspots.
 
 </RulesBox>
 
@@ -221,18 +248,24 @@ Use `@FunctionalInterface` on an interface you intend to target with lambdas. Th
 
 1. Rewrite your `ReadingTest` filter using `Predicate<Integer>`.
 2. Write a method that takes a `Consumer<String>` and calls it with three different names.
-3. Write `logLazy(boolean, Supplier<String>)` and demonstrate that the message is not built when the flag is `false`. Print from inside the supplier to prove it.
-4. Build a `Function<Integer, String>` by composing a doubling function with a formatting function, then verify the order.
-5. Write a `Supplier<Double>` that reads a mutable field. Change the field, call `get()` again, and confirm that the supplier reads the new value.
+3. Write `logLazy(boolean, Supplier<String>)` and demonstrate that the message is not built when the
+   flag is `false`. Print from inside the supplier to prove it.
+4. Build a `Function<Integer, String>` by composing a doubling function with a formatting function,
+   then verify the order.
+5. Write a `Supplier<Double>` that reads a mutable field. Change the field, call `get()` again, and
+   confirm that the supplier reads the new value.
 
 <details>
 <summary>Hints</summary>
 
 1. Replace the custom interface with `Predicate<Integer>` and call `test`.
 2. The parameter type is `Consumer<String>`; call `accept` three times.
-3. Put `System.out.println("building")` inside the supplier body. It should not print while the flag is `false`.
-4. Use `doubled.andThen(describe)`. Then try a pair of functions whose types also allow `compose` and compare the order.
-5. The supplier should read the field inside its lambda body rather than receive the field's current value.
+3. Put `System.out.println("building")` inside the supplier body. It should not print while the flag
+   is `false`.
+4. Use `doubled.andThen(describe)`. Then try a pair of functions whose types also allow `compose`
+   and compare the order.
+5. The supplier should read the field inside its lambda body rather than receive the field's current
+   value.
 
 </details>
 

@@ -12,33 +12,74 @@ description: "Stator and supply current, the 2026 Phoenix configuration fields, 
 ---
 
 
-Current limits bound electrical loading. They reduce particular risks; they do not guarantee that a motor will remain cool, that a mechanism cannot be damaged, or that the robot cannot brown out. Choose limits for the actual motor, wiring, load, duty cycle and power system with the mentor.
+Current limits bound electrical loading. They reduce particular risks; they do not guarantee that a
+motor will remain cool, that a mechanism cannot be damaged, or that the robot cannot brown out.
+Choose limits for the actual motor, wiring, load, duty cycle and power system with the mentor.
 
 <span id="types-of-limits"></span>
 
 ## Stator and Supply
 
-Stator current flows through the motor windings and relates to torque and heating. Supply current is drawn from the battery side of the controller. The two can differ substantially during low-speed operation. Log both when investigating a load or a jam.
+Stator current flows through the motor windings and relates to torque and heating. Supply current is
+drawn from the battery side of the controller. The two can differ substantially during low-speed
+operation. Log both when investigating a load or a jam.
 
-CTRE supplies separate stator and supply limits. There is no universal rule that the supply setting must be lower than the stator setting. Select each for its purpose and verify the response under the intended operating conditions. A jam detector also needs measured motion and a time rule; a current limit alone cannot establish that a game piece is stuck.
+CTRE supplies separate stator and supply limits. There is no universal rule that the supply setting
+must be lower than the stator setting. Select each for its purpose and verify the response under the
+intended operating conditions. A jam detector also needs measured motion and a time rule; a current
+limit alone cannot establish that a game piece is stuck.
 
 ## Phoenix 6 Configuration
 
-For the pinned 2026 Phoenix API, use `StatorCurrentLimit`, `StatorCurrentLimitEnable`, `SupplyCurrentLimit`, and `SupplyCurrentLimitEnable`. The time-dependent lower supply settings are `SupplyCurrentLowerLimit` and `SupplyCurrentLowerTime`. The old `SupplyCurrentThreshold` and `SupplyTimeThreshold` names do not belong in new 2026 examples.
+For the pinned 2026 Phoenix API, use `StatorCurrentLimit`, `StatorCurrentLimitEnable`,
+`SupplyCurrentLimit`, and `SupplyCurrentLimitEnable`. The time-dependent lower supply settings are
+`SupplyCurrentLowerLimit` and `SupplyCurrentLowerTime`. The old `SupplyCurrentThreshold` and
+`SupplyTimeThreshold` names do not belong in new 2026 examples.
 
-Set the chosen fields on the controller's configuration, apply it, and check the returned status. Record units in amperes and seconds beside the values. Read the lower-limit behavior in the pinned API before selecting its time and level. A successful compile does not demonstrate that configuration reached a physical device.
+Set the chosen fields on the controller's configuration, apply it, and check the returned status.
+Record units in amperes and seconds beside the values. Read the lower-limit behavior in the pinned
+API before selecting its time and level. A successful compile does not demonstrate that
+configuration reached a physical device.
 
-The earlier competition-value table has been removed because it disagreed with its own cited source and was not a verified fixture recommendation. For Badge 3, complete the [hardware setup sheet](/badges/badge-3-hardware) with the actual fixture values before enabling it.
+The earlier competition-value table has been removed because it disagreed with its own cited source
+and was not a verified fixture recommendation. For Badge 3, complete the
+[hardware setup sheet](/badges/badge-3-hardware) with the actual fixture values before enabling it.
 
 ## Vendor Names Are Not Interchangeable
 
-REV's smart and secondary current limits are vendor-specific mechanisms. Do not label them as CTRE stator and supply limits based on similar names. Badge 3 uses CTRE and one verified Nova adaptation; SPARK MAX instruction is outside this badge's requirements. Consult the selected vendor's documentation for the actual control and feedback arrangement.
+REV's smart and secondary current limits are vendor-specific mechanisms. Do not label them as CTRE
+stator and supply limits based on similar names. Badge 3 uses CTRE and one verified Nova adaptation;
+SPARK MAX instruction is outside this badge's requirements. Consult the selected vendor's
+documentation for the actual control and feedback arrangement.
+
+## Thrifty Nova Limits
+
+The shared 2026/2027 ThriftyLib source documents separate `NovaConfig.statorCurrent(...)` and
+`supplyCurrent(...)` options. Apply them through `configure(...)`, check its status, and compare the
+configuration mirrors with measured `getCurrentStator()` and `getCurrentSupply()` telemetry.
+[Thrifty Nova Control](/frc/thrifty-nova-control) explains the current API.
+
+If using Cobra's older `ThriftyNovaConfig` record, inspect the effective values before a bench test:
+its constructor raises both limits to at least 40 A. A lower number supplied by the caller does not
+survive unchanged. The
+[hardware lesson](/hardware/thrifty-bot-hardware-and-config#connect-configuration-to-code) records
+that source behavior.
+
+[Nova simulation](/frc/thrifty-nova-simulation) can exercise the documented configuration and output
+logic. It does not establish the physical current, temperature, or breaker response of the
+mechanism. Keep those checks in a bounded hardware test.
 
 ## Check the Result
 
-Log requested effort, applied voltage, motor speed, stator or torque current, supply current, battery voltage and active limits. Compare a repeatable bounded run before and after one approved limit change. State whether the response demonstrates limiting, a power constraint, or another unresolved cause. Do not create a physical jam to obtain the comparison.
+Log requested effort, applied voltage, motor speed, stator or torque current, supply current,
+battery voltage and active limits. Compare a repeatable bounded run before and after one approved
+limit change. State whether the response demonstrates limiting, a power constraint, or another
+unresolved cause. Do not create a physical jam to obtain the comparison.
 
 <Sources items={[
+  {"source":"cobra","path":"src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java","note":"The older Nova record imposes a 40 A minimum through Math.max."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/status-and-telemetry", "note": "Measured-current getters and configuration mirrors."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/configs", "note": "Nova supply and stator configuration options."},
   {
     "source": "mantik",
     "path": "src/content/frc/frc-advanced-motor-config/motor-current-limiting.mdx",

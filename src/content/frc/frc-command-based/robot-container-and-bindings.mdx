@@ -13,7 +13,8 @@ description: Creating subsystems, setting default commands, and composing trigge
 
 ### Connect subsystems, commands, and controls
 
-`RobotContainer` is the central hub of command-based programming. It creates subsystems, configures default commands, and binds controller inputs to commands.
+`RobotContainer` is the central hub of command-based programming. It creates subsystems, configures
+default commands, and binds controller inputs to commands.
 
 <RulesBox title="RobotContainer Responsibilities" subtitle="This class:">
 
@@ -24,7 +25,8 @@ description: Creating subsystems, setting default commands, and composing trigge
 
 </RulesBox>
 
-Everything here is configuration. No loop logic belongs in `RobotContainer`; behaviour lives in commands.
+Everything here is configuration. No loop logic belongs in `RobotContainer`; behaviour lives in
+commands.
 
 ### Basic RobotContainer
 
@@ -50,11 +52,14 @@ public class RobotContainer {
 }
 ```
 
-Bindings call the subsystem's own [command factories](/frc/commands#subsystem-command-factories). `intake.setIntakeCommand(0.6)` already requires the intake, so there is nothing to declare and nothing to forget.
+Bindings call the subsystem's own [command factories](/frc/commands#subsystem-command-factories).
+`intake.setIntakeCommand(0.6)` already requires the intake, so there is nothing to declare and
+nothing to forget.
 
 ### Button Bindings
 
-`CommandXboxController` (and `CommandPS4Controller` / `CommandPS5Controller` for other hardware) exposes each button as a `Trigger`:
+`CommandXboxController` (and `CommandPS4Controller` / `CommandPS5Controller` for other hardware)
+exposes each button as a `Trigger`:
 
 <ContentTable
   headers={["Trigger method", "Runs when"]}
@@ -83,7 +88,8 @@ controller.povUp().whileTrue(intake.intakeHomeCommand());
 
 ### Composing Triggers
 
-Triggers combine with `and`, `or`, and `negate`, which is how one button becomes a modifier for another:
+Triggers combine with `and`, `or`, and `negate`, which is how one button becomes a modifier for
+another:
 
 ```java
 // R2 intakes, but only when R1 and triangle are not held
@@ -91,7 +97,8 @@ controller.R2().and(controller.R1().negate()).and(controller.triangle().negate()
     .whileTrue(intake.deployAndIntakeCommand());
 ```
 
-R2 alone intakes; R2 with R1 held does something else entirely. No `if` statement in any periodic method.
+R2 alone intakes; R2 with R1 held does something else entirely. No `if` statement in any periodic
+method.
 
 You can also bind several commands to one trigger, each requiring different subsystems:
 
@@ -102,7 +109,8 @@ controller.R1().whileTrue(new SmartShootCommand(drive, shooter, transfer, convey
         () -> -controller.getLeftX()));
 ```
 
-A `Trigger` is not limited to buttons. Any `BooleanSupplier` works, so sensor conditions bind the same way:
+A `Trigger` is not limited to buttons. Any `BooleanSupplier` works, so sensor conditions bind the
+same way:
 
 ```java
 new Trigger(intake::hasGamePiece).onTrue(leds.flashGreenCommand());
@@ -110,7 +118,8 @@ new Trigger(intake::hasGamePiece).onTrue(leds.flashGreenCommand());
 
 ### Default Commands
 
-Default commands run when no other command requires the subsystem. Set them with `subsystem.setDefaultCommand(command)`.
+Default commands run when no other command requires the subsystem. Set them with
+`subsystem.setDefaultCommand(command)`.
 
 ```java
 // Stop when nothing else is running
@@ -128,17 +137,23 @@ drive.setDefaultCommand(
 
 <RulesBox title="Default commands are how mechanisms stop">
 
-Release the trigger, the command is unscheduled, and the scheduler immediately starts the default command, which commands zero.
+Release the trigger, the command is unscheduled, and the scheduler immediately starts the default
+command, which commands zero.
 
-Without one, the last value stays applied and the roller keeps spinning. Every mechanism that can be left running needs a default command.
+Without one, the last value stays applied and the roller keeps spinning. Every mechanism that can be
+left running needs a default command.
 
-Note the joystick axes are passed as **suppliers**, not values. A value read once at binding time would be frozen forever; the supplier is read fresh every loop. The negations are because joysticks report forward as negative.
+Note the joystick axes are passed as **suppliers**, not values. A value read once at binding time
+would be frozen forever; the supplier is read fresh every loop. The negations are because joysticks
+report forward as negative.
 
 </RulesBox>
 
 ### Constructing Subsystems
 
-Subsystems that use an [IO layer](/frc/io-layers#swapping-implementations) are constructed differently depending on the runtime mode, and `RobotContainer` is the only place that makes that choice:
+Subsystems that use an [IO layer](/frc/io-layers#swapping-implementations) are constructed
+differently depending on the runtime mode, and `RobotContainer` is the only place that makes that
+choice:
 
 ```java
 switch (Constants.currentMode) {
@@ -154,7 +169,8 @@ switch (Constants.currentMode) {
 }
 ```
 
-Everything else, meaning subsystems that talk to hardware directly, is constructed once, unconditionally.
+Everything else, meaning subsystems that talk to hardware directly, is constructed once,
+unconditionally.
 
 ### The Auto Chooser
 
@@ -176,17 +192,23 @@ public Command getAutonomousCommand() {
 }
 ```
 
-`LoggedDashboardChooser` is AdvantageKit's drop-in replacement for `SendableChooser`. It behaves identically on the dashboard but **records the selection into the log**, so a replay picks the same auto the robot ran. With a plain `SendableChooser`, that choice is invisible afterwards.
+`LoggedDashboardChooser` is AdvantageKit's drop-in replacement for `SendableChooser`. It behaves
+identically on the dashboard but **records the selection into the log**, so a replay picks the same
+auto the robot ran. With a plain `SendableChooser`, that choice is invisible afterwards.
 
-Adding characterization routines as chooser options is a convenient way to run them from the dashboard without a separate code path. See [Tunable Constants and Characterization](/frc/tunable-constants-and-characterization#measure-feedforward-do-not-guess-it).
+Adding characterization routines as chooser options is a convenient way to run them from the
+dashboard without a separate code path. See
+[Tunable Constants and Characterization](/frc/tunable-constants-and-characterization#measure-feedforward-do-not-guess-it).
 
 <RulesBox title="Common mistakes">
 
 - **Reading a joystick axis into a variable** instead of passing a supplier.
 - **Runtime logic in `RobotContainer`.** It configures; it does not decide.
 - **A missing default command,** so a mechanism never stops.
-- **Building the auto chooser before registering named commands.** PathPlanner resolves the names at build time.
-- **Two bindings whose commands require the same subsystem,** so pressing one silently cancels the other.
+- **Building the auto chooser before registering named commands.** PathPlanner resolves the names at
+  build time.
+- **Two bindings whose commands require the same subsystem,** so pressing one silently cancels the
+  other.
 
 </RulesBox>
 

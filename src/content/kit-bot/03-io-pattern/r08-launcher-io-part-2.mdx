@@ -12,9 +12,13 @@ durationFixed: true
 ---
 
 
-Complete [R08 Part 1: The IO Layer](/kit-bot/r08-launcher-io) first. You will also use the triggers and command composition from [R05: Commands and Triggers](/kit-bot/r05-commands-and-triggers) and the simulation/controller procedure from [R00: WPILib Setup](/kit-bot/r00-wpilib-setup).
+Complete [R08 Part 1: The IO Layer](/kit-bot/r08-launcher-io) first. You will also use the triggers
+and command composition from [R05: Commands and Triggers](/kit-bot/r05-commands-and-triggers) and
+the simulation/controller procedure from [R00: WPILib Setup](/kit-bot/r00-wpilib-setup).
 
-Part 1 gave the feeder and **launcher roller** separate outputs. This page uses “launcher roller” as the shorter name for the intake and launcher roller. Intake and eject run both motors immediately. Launch first spins up the launcher roller, then changes the feeder voltage.
+Part 1 gave the feeder and **launcher roller** separate outputs. This page uses “launcher roller” as
+the shorter name for the intake and launcher roller. Intake and eject run both motors immediately.
+Launch first spins up the launcher roller, then changes the feeder voltage.
 
 ## Step 1: Create the Subsystem
 
@@ -107,30 +111,39 @@ public class Launcher extends SubsystemBase {
 }
 ```
 
-The two target fields remain separate all the way to the IO layer. `periodic()` sends both commands every robot loop and then refreshes both sets of readings. Because the outputs are sent before the inputs refresh, each displayed reading describes the simulation after the request for that loop has been applied.
+The two target fields remain separate all the way to the IO layer. `periodic()` sends both commands
+every robot loop and then refreshes both sets of readings. Because the outputs are sent before the
+inputs refresh, each displayed reading describes the simulation after the request for that loop has
+been applied.
 
 The launch command has two phases:
 
 1. Spin the intake and launcher roller while applying only the feeder's small spin-up voltage.
 2. Keep the roller running and apply the feeder's full launch voltage.
 
-Releasing the button interrupts whichever phase is active. `finallyDo(this::stop)` then sets both targets to zero.
+Releasing the button interrupts whichever phase is active. `finallyDo(this::stop)` then sets both
+targets to zero.
 
-Build before editing `RobotContainer`. If the compiler points to `finallyDo`, confirm that the import is WPILib's `Command` and that both phases were created with this subsystem's `run(...)` method.
+Build before editing `RobotContainer`. If the compiler points to `finallyDo`, confirm that the
+import is WPILib's `Command` and that both phases were created with this subsystem's `run(...)`
+method.
 
 ## Step 2: Construct the Simulated Launcher
 
-Add this field inside `RobotContainer`, outside its methods. Import `frc.robot.subsystems.launcher.Launcher` and `frc.robot.subsystems.launcher.LauncherIOSim`:
+Add this field inside `RobotContainer`, outside its methods. Import
+`frc.robot.subsystems.launcher.Launcher` and `frc.robot.subsystems.launcher.LauncherIOSim`:
 
 ```java
 private final Launcher launcher = new Launcher(new LauncherIOSim());
 ```
 
-[R12](/kit-bot/r12-real-vs-sim) later replaces this hard-coded simulation choice with the real-versus-simulation check.
+[R12](/kit-bot/r12-real-vs-sim) later replaces this hard-coded simulation choice with the
+real-versus-simulation check.
 
 ## Step 3: Bind the Actions
 
-Keep the drive default command inside `configureBindings()` and add these bindings below it. Remove any old heartbeat A-button binding so A has only one job:
+Keep the drive default command inside `configureBindings()` and add these bindings below it. Remove
+any old heartbeat A-button binding so A has only one job:
 
 ```java
 driver.rightBumper().whileTrue(launcher.launchFuel());
@@ -142,7 +155,8 @@ driver.a().whileTrue(launcher.ejectFuel());
 - Hold the **right bumper** to launch fuel.
 - Hold **A** to eject fuel back through the intake.
 
-These commands belong to `Launcher` because it owns both motors. `RobotContainer` chooses buttons; it does not repeat feeder voltages, roller voltages, delays, or stop behavior.
+These commands belong to `Launcher` because it owns both motors. `RobotContainer` chooses buttons;
+it does not repeat feeder voltages, roller voltages, delays, or stop behavior.
 
 ## Step 4: Inspect Both Motors
 
@@ -163,14 +177,17 @@ driver
                     launcher.launcherCurrent().in(Amps))));
 ```
 
-Import `edu.wpi.first.wpilibj2.command.Commands` and statically import `RPM` and `Amps` from `edu.wpi.first.units.Units`. This print command does not require the launcher, so it can read values while a launcher command runs.
+Import `edu.wpi.first.wpilibj2.command.Commands` and statically import `RPM` and `Amps` from
+`edu.wpi.first.units.Units`. This print command does not require the launcher, so it can read values
+while a launcher command runs.
 
 ## Run the Simulation
 
 1. Build and start simulation.
 2. Put a controller or keyboard on Joystick 0.
 3. Enable teleop.
-4. Use the table below. For each row, hold the action control, press X at the listed time, then release the action control and press X again.
+4. Use the table below. For each row, hold the action control, press X at the listed time, then
+   release the action control and press X again.
 
 | Action control | When to press X | Expected simulation observation |
 |---|---|---|
@@ -180,13 +197,19 @@ Import `edu.wpi.first.wpilibj2.command.Commands` and statically import `RPM` and
 | A | While held | Both readings move away from zero with the eject requests |
 | Any action, then release | After release | Both requested voltages become zero and both RPM values move toward zero |
 
-Simulation RPM signs report model direction. They do not prove a direction of fuel travel. Compare each observation with the voltage constants instead of assuming that intake, launch, and eject must all use matching signs.
+Simulation RPM signs report model direction. They do not prove a direction of fuel travel. Compare
+each observation with the voltage constants instead of assuming that intake, launch, and eject must
+all use matching signs.
 
 ## Inspect the Fuel Path After First Deploy
 
-Do not run this hardware check during this lesson. Save it for a mentor-supervised session after [R12: First Deploy](/kit-bot/r12-first-deploy). Simulation shows motor readings, not fuel movement. When real fuel enters or exits in an unexpected direction, record a slow-motion side view. Follow one piece of fuel from first contact until it leaves the mechanism. Then check these items in order:
+Do not run this hardware check during this lesson. Save it for a mentor-supervised session after
+[R12: First Deploy](/kit-bot/r12-first-deploy). Simulation shows motor readings, not fuel movement.
+When real fuel enters or exits in an unexpected direction, record a slow-motion side view. Follow
+one piece of fuel from first contact until it leaves the mechanism. Then check these items in order:
 
-1. Compare the intake-guide orientations with the intake section of the official assembly guide on the [2026 KitBot hub](https://www.firstinspires.org/resources/library/frc/kitbot).
+1. Compare the intake-guide orientations with the intake section of the official assembly guide on
+   the [2026 KitBot hub](https://www.firstinspires.org/resources/library/frc/kitbot).
 2. Confirm the intake and launcher roller turns in the intended direction.
 3. Confirm the feeder carries fuel toward that roller during launch.
 4. Look for the exact point where fuel stalls, slips, or changes direction.
@@ -194,11 +217,14 @@ Do not run this hardware check during this lesson. Save it for a mentor-supervis
 
 <RulesBox title="Done When">
 
-Use the console readings to show all three controls, the feeder change during launch, and both speeds returning toward zero after release. A zero voltage request does not instantly stop a spinning roller. Explain why the two motors receive separate requests.
+Use the console readings to show all three controls, the feeder change during launch, and both
+speeds returning toward zero after release. A zero voltage request does not instantly stop a
+spinning roller. Explain why the two motors receive separate requests.
 
 </RulesBox>
 
-[Part 3](/kit-bot/r08-launcher-calibration) adds distance-based launcher settings while keeping the feeder sequence inside the subsystem.
+[Part 3](/kit-bot/r08-launcher-calibration) adds distance-based launcher settings while keeping the
+feeder sequence inside the subsystem.
 
 <Sources items={[
   {"url": "https://github.com/Mechanical-Advantage/AdvantageKit/blob/main/template_projects/sources/kitbot_2026/src/main/java/frc/robot/subsystems/superstructure/Superstructure.java", "label": "Mechanical Advantage 2026 Kit Bot Superstructure", "note": "The two-phase launch command and independently commanded feeder and intake-launcher outputs."},

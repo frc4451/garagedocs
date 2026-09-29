@@ -13,7 +13,8 @@ description: "Encapsulating hardware in a subsystem: configuration that cannot f
 
 ### Keep hardware logic in one place
 
-Subsystems encapsulate hardware (motors, sensors) and provide methods to control them. They extend `SubsystemBase` and should contain minimal logic: only how to control the hardware.
+Subsystems encapsulate hardware (motors, sensors) and provide methods to control them. They extend
+`SubsystemBase` and should contain minimal logic: only how to control the hardware.
 
 <RulesBox title="Subsystem Principles" subtitle="Best practices:">
 
@@ -29,13 +30,19 @@ Subsystems encapsulate hardware (motors, sensors) and provide methods to control
 
 <CodeTabs tabs={[{"label":"Talon FX","code":"package frc.robot.subsystems.intake;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.ctre.phoenix6.hardware.TalonFX;\nimport com.ctre.phoenix6.configs.TalonFXConfiguration;\nimport com.ctre.phoenix6.signals.NeutralModeValue;\nimport frc.robot.util.PhoenixUtil;\n\nimport static frc.robot.Constants.IntakeConstants.*;\n\npublic class Intake extends SubsystemBase {\n    TalonFX motor = new TalonFX(INTAKE_MOTOR_PORT);\n    TalonFXConfiguration config = new TalonFXConfiguration();\n\n    public Intake() {\n        config.MotorOutput.NeutralMode = NeutralModeValue.Coast;\n        config.CurrentLimits.StatorCurrentLimitEnable = true;\n        config.CurrentLimits.SupplyCurrentLimitEnable = true;\n        config.CurrentLimits.StatorCurrentLimit = 60;\n        config.CurrentLimits.SupplyCurrentLimit = 40;\n\n        PhoenixUtil.tryUntilOk(5, () -> motor.getConfigurator().apply(config));\n    }\n\n    public double setIntakeDutyCycle(double dc) {\n        motor.set(dc);\n        return dc;\n    }\n\n    public double getIntakeVelocity() {\n        return motor.getVelocity().getValueAsDouble();\n    }\n}","language":"java"},{"label":"SPARK MAX","code":"package frc.robot.subsystems.intake;\n\nimport edu.wpi.first.wpilibj2.command.SubsystemBase;\nimport com.revrobotics.spark.SparkMax;\nimport com.revrobotics.spark.SparkLowLevel.MotorType;\nimport com.revrobotics.spark.config.SparkMaxConfig;\nimport com.revrobotics.spark.config.SparkBaseConfig.IdleMode;\nimport com.revrobotics.spark.SparkBase.ResetMode;\nimport com.revrobotics.spark.SparkBase.PersistMode;\n\nimport static frc.robot.Constants.IntakeConstants.*;\n\npublic class Intake extends SubsystemBase {\n    SparkMax motor = new SparkMax(INTAKE_MOTOR_PORT, MotorType.kBrushless);\n\n    public Intake() {\n        SparkMaxConfig config = new SparkMaxConfig();\n        config.idleMode(IdleMode.kCoast);\n        config.smartCurrentLimit(40);\n        config.secondaryCurrentLimit(60);\n\n        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n    }\n\n    public double setIntakeDutyCycle(double dc) {\n        motor.set(dc);\n        return dc;\n    }\n\n    public double getIntakeVelocity() {\n        return motor.getEncoder().getVelocity();\n    }\n}","language":"java"}]} />
 
-The `Slot0` gains in that configuration (`kP`, `kS`, `kV`…) are the closed-loop and feedforward constants. What they mean and how they are found is [Control Theory](/frc/pid-control), two groups on. For now they are numbers the config carries; the subsystem's job is to apply them, not to understand them.
+The `Slot0` gains in that configuration (`kP`, `kS`, `kV`…) are the closed-loop and feedforward
+constants. What they mean and how they are found is [Control Theory](/frc/pid-control), two groups
+on. For now they are numbers the config carries; the subsystem's job is to apply them, not to
+understand them.
 
 ### Configuration Can Fail Silently
 
-On the CTRE side, `getConfigurator().apply(config)` returns a `StatusCode`, and on a busy CAN bus at startup, with twenty or more devices powering up at once, it does not always succeed.
+On the CTRE side, `getConfigurator().apply(config)` returns a `StatusCode`, and on a busy CAN bus at
+startup, with twenty or more devices powering up at once, it does not always succeed.
 
-A failed apply reports nothing. The motor keeps whatever configuration it already had, which might be last season's inversion or no current limit at all. You find out when a mechanism runs backwards or a breaker trips.
+A failed apply reports nothing. The motor keeps whatever configuration it already had, which might
+be last season's inversion or no current limit at all. You find out when a mechanism runs backwards
+or a breaker trips.
 
 Retry it:
 
@@ -43,11 +50,13 @@ Retry it:
 PhoenixUtil.tryUntilOk(5, () -> motor.getConfigurator().apply(config));
 ```
 
-Five attempts cost nothing and remove the failure mode. The helper itself is about ten lines; see [Motor Controller Configuration](/frc/motor-controller-configuration#applying-configuration-can-fail).
+Five attempts cost nothing and remove the failure mode. The helper itself is about ten lines; see
+[Motor Controller Configuration](/frc/motor-controller-configuration#applying-configuration-can-fail).
 
 ### Keep the Config as a Field
 
-Notice the `TalonFXConfiguration` above is a **field**, not a local variable. That lets you change one setting and re-apply it later without rebuilding the whole configuration:
+Notice the `TalonFXConfiguration` above is a **field**, not a local variable. That lets you change
+one setting and re-apply it later without rebuilding the whole configuration:
 
 ```java
 public void coast() {
@@ -58,7 +67,8 @@ public void coast() {
 
 Useful in the pit, where you want to push a mechanism by hand.
 
-It also makes configuring two mirrored motors short: set the shared values once, apply, flip the inversion, apply again:
+It also makes configuring two mirrored motors short: set the shared values once, apply, flip the
+inversion, apply again:
 
 ```java
 config.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
@@ -72,7 +82,8 @@ That one flipped line is the entire difference between the two sides.
 
 ### Setters That Return What They Set
 
-The setters above return their argument instead of being `void`. That is not decorative. It is what makes commanded values loggable with a single annotation:
+The setters above return their argument instead of being `void`. That is not decorative. It is what
+makes commanded values loggable with a single annotation:
 
 ```java
 @AutoLogOutput(key = "Intake/targetDutyCycle")
@@ -87,9 +98,13 @@ public double getIntakeVelocity() {
 }
 ```
 
-`@AutoLogOutput` records **the return value of the method**. A `void` setter has nothing to record, so the value you commanded never reaches the log, and tuning then means guessing at half the picture.
+`@AutoLogOutput` records **the return value of the method**. A `void` setter has nothing to record,
+so the value you commanded never reaches the log, and tuning then means guessing at half the
+picture.
 
-With both sides logged, the commanded value and the measured result can be dragged onto the same graph. See [AdvantageKit](/frc/advantagekit#autologoutput) for the annotation and [AdvantageScope](/frc/reading-a-match-log#where-the-record-comes-from) for reading the result.
+With both sides logged, the commanded value and the measured result can be dragged onto the same
+graph. See [AdvantageKit](/frc/advantagekit#autologoutput) for the annotation and
+[AdvantageScope](/frc/reading-a-match-log#where-the-record-comes-from) for reading the result.
 
 <RulesBox title="What to log on a new subsystem" subtitle="At minimum:">
 
@@ -97,13 +112,15 @@ With both sides logged, the commanded value and the measured result can be dragg
 - **Every measured value** a command depends on: position, velocity.
 - **A key path starting with the subsystem name**, so it groups correctly in the log viewer.
 
-If you would want it on a graph while tuning, log it now. Adding it after the match where you needed it is too late.
+If you would want it on a graph while tuning, log it now. Adding it after the match where you needed
+it is too late.
 
 </RulesBox>
 
 ### Command Factories
 
-A subsystem exposes its actions as methods returning `Command`. `SubsystemBase` provides `run()` and `runOnce()`, which build a command that already requires this subsystem:
+A subsystem exposes its actions as methods returning `Command`. `SubsystemBase` provides `run()` and
+`runOnce()`, which build a command that already requires this subsystem:
 
 ```java
 // Duty cycle: must be re-commanded every loop
@@ -117,13 +134,16 @@ public Command setIntakePosCommand(double pos) {
 }
 ```
 
-Because these are instance methods, the requirement is automatic; there is no `addRequirements()` to forget. And because they are methods, they take parameters, so one factory replaces several near-identical command classes.
+Because these are instance methods, the requirement is automatic; there is no `addRequirements()` to
+forget. And because they are methods, they take parameters, so one factory replaces several
+near-identical command classes.
 
 Full treatment in [Commands](/frc/commands#subsystem-command-factories).
 
 ### Default Commands
 
-Subsystems can have a default command that runs when no other command requires the subsystem. Use `setDefaultCommand()` in `RobotContainer` to set one.
+Subsystems can have a default command that runs when no other command requires the subsystem. Use
+`setDefaultCommand()` in `RobotContainer` to set one.
 
 ```java
 intake.setDefaultCommand(intake.setIntakeCommand(0));
@@ -131,19 +151,25 @@ intake.setDefaultCommand(intake.setIntakeCommand(0));
 
 <RulesBox title="Default commands are how mechanisms stop">
 
-Release the trigger and the intake command is unscheduled. The scheduler immediately restarts the default command, which commands zero.
+Release the trigger and the intake command is unscheduled. The scheduler immediately restarts the
+default command, which commands zero.
 
-Without a default command, the last value stays applied and the roller keeps spinning until something else claims the subsystem. Every mechanism that can be left running needs one. The drivetrain's default command is the joystick drive, for the same reason.
+Without a default command, the last value stays applied and the roller keeps spinning until
+something else claims the subsystem. Every mechanism that can be left running needs one. The
+drivetrain's default command is the joystick drive, for the same reason.
 
 </RulesBox>
 
 <RulesBox title="Common mistakes">
 
 - **Applying configuration without a retry**, so a failure is silent.
-- **Setting only one current limit.** Stator protects the motor; supply protects the battery. See [Current Limiting](/frc/current-limiting#types-of-limits).
+- **Setting only one current limit.** Stator protects the motor; supply protects the battery. See
+  [Current Limiting](/frc/current-limiting#types-of-limits).
 - **`void` setters**, so commanded values never reach the log.
 - **Logic in `periodic()`** that belongs in a command.
-- **Blocking loops in a subsystem.** A `while` loop waiting on a mechanism stalls the entire scheduler. Every other subsystem stops updating, including the sensor the loop is waiting on. Use `Commands.waitUntil` instead.
+- **Blocking loops in a subsystem.** A `while` loop waiting on a mechanism stalls the entire
+  scheduler. Every other subsystem stops updating, including the sensor the loop is waiting on. Use
+  `Commands.waitUntil` instead.
 - **No default command,** so a mechanism never stops.
 
 </RulesBox>

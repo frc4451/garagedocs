@@ -1,0 +1,193 @@
+---
+title: "Roller Binding Test"
+lessonId: roller-binding-test
+section: frc
+group: frc-simulation
+groupLabel: "Simulation"
+groupOrder: 7
+order: 5.5
+difficulty: intermediate
+duration: 25 min
+description: "Test a roller controller binding with a general physics model, a paused clock, and a clean teardown."
+---
+
+Start with this fixture before the Phoenix device test. It uses the component and IO names from
+[Rollers](/frc/roller-example#define-the-roller-io) and the student's Step 6 controller class. Save
+it under `src/test/java/org/student/mechanisms/roller/RollerBindingTest.java`, changing the package
+to the student's roller package. Import the controller from its actual utility package if different.
+
+This complete test class supplies a small general model and parent so the setup stays visible. After
+it passes, substitute the student's Step 7 parent and general IO, keeping the same binding and stop
+checks. It observes IO values directly; it does not start a separate AdvantageKit log receiver.
+Recording a test log is an additional technique shown in the vendor example below.
+
+```java
+package org.student.mechanisms.roller;
+
+import static edu.wpi.first.units.Units.Amps;
+import static edu.wpi.first.units.Units.RotationsPerSecond;
+import static edu.wpi.first.units.Units.Volts;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import edu.wpi.first.hal.HAL;
+import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.system.plant.DCMotor;
+import edu.wpi.first.math.system.plant.LinearSystemId;
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.RobotController;
+import edu.wpi.first.wpilibj.simulation.DCMotorSim;
+import edu.wpi.first.wpilibj.simulation.DriverStationSim;
+import edu.wpi.first.wpilibj.simulation.RoboRioSim;
+import edu.wpi.first.wpilibj.simulation.SimHooks;
+import edu.wpi.first.wpilibj.simulation.XboxControllerSim;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.util.BadgeCommandXboxController;
+import frc.robot.util.SimBattery;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+public class RollerBindingTest {
+  private final CommandScheduler scheduler = CommandScheduler.getInstance();
+  private GeneralIO io;
+  private Parent parent;
+  private XboxControllerSim controllerSim;
+
+  private static final class GeneralIO implements RollerIO {
+    private final DCMotorSim model =
+        new DCMotorSim(
+            LinearSystemId.createDCMotorSystem(DCMotor.getNEO(1), 0.01, 3.0), DCMotor.getNEO(1));
+    private double requestedVolts;
+    private double appliedVolts;
+
+    private GeneralIO() {
+      SimBattery.register(() -> Math.abs(model.getCurrentDrawAmps()));
+    }
+
+    @Override
+    public void updateInputs(RollerIOInputs inputs) {
+      double supply = RobotController.getBatteryVoltage();
+      appliedVolts =
+          DriverStation.isEnabled() ? MathUtil.clamp(requestedVolts, -supply, supply) : 0.0;
+      model.setInputVoltage(appliedVolts);
+      model.update(0.020);
+      inputs.velocity = RotationsPerSecond.of(model.getAngularVelocityRPM() / 60.0);
+      inputs.appliedVoltage = Volts.of(appliedVolts);
+      inputs.torqueCurrent = Amps.of(Math.abs(model.getCurrentDrawAmps()));
+    }
+
+    @Override
+    public void setVoltage(Voltage output) {
+      requestedVolts = output.in(Volts);
+    }
+
+    @Override
+    public void stop() {
+      requestedVolts = 0.0;
+    }
+  }
+
+  private static final class Parent extends SubsystemBase {
+    private final Roller roller;
+
+    private Parent(GeneralIO io) {
+      roller = new Roller(io, "Test/Roller");
+    }
+
+    @Override
+    public void periodic() {
+      if (DriverStation.isDisabled()) roller.stop();
+      roller.periodic();
+    }
+
+    private Command runRoller() {
+      return startEnd(() -> roller.runVoltage(Volts.of(4.0)), roller::stop);
+    }
+  }
+
+  @BeforeEach
+  public void setup() {
+    assertTrue(HAL.initialize(500, 0));
+    scheduler.cancelAll();
+    scheduler.getDefaultButtonLoop().clear();
+    DriverStationSim.resetData();
+    DriverStationSim.setDsAttached(true);
+    DriverStationSim.setEnabled(true);
+    DriverStationSim.notifyNewData();
+    SimHooks.pauseTiming();
+    SimBattery.clear();
+    RoboRioSim.setVInVoltage(12.0);
+    io = new GeneralIO();
+    parent = new Parent(io);
+    var controller = new BadgeCommandXboxController(0);
+    controllerSim = new XboxControllerSim(controller.getHID());
+    controllerSim.setAButton(false);
+    controllerSim.notifyNewData();
+    controller.a().whileTrue(parent.runRoller());
+  }
+
+  private void tick(int count) {
+    for (int i = 0; i < count; i++) {
+      SimHooks.stepTiming(0.020);
+      scheduler.run();
+      SimBattery.update();
+    }
+  }
+
+  @Test
+  public void releaseAndDisableStopEffort() {
+    controllerSim.setAButton(true);
+    controllerSim.notifyNewData();
+    tick(10);
+    assertTrue(io.appliedVolts > 1.0);
+    assertTrue(io.model.getAngularVelocityRPM() > 0.0);
+    controllerSim.setAButton(false);
+    controllerSim.notifyNewData();
+    tick(3);
+    assertEquals(0.0, io.appliedVolts, 1e-9);
+    controllerSim.setAButton(true);
+    controllerSim.notifyNewData();
+    tick(5);
+    assertTrue(io.appliedVolts > 1.0);
+    DriverStationSim.setEnabled(false);
+    DriverStationSim.notifyNewData();
+    tick(3);
+    assertEquals(0.0, io.appliedVolts, 1e-9);
+  }
+
+  @AfterEach
+  public void teardown() {
+    scheduler.cancelAll();
+    scheduler.getDefaultButtonLoop().clear();
+    if (parent != null) scheduler.unregisterSubsystem(parent);
+    SimBattery.clear();
+    RoboRioSim.setVInVoltage(12.0);
+    DriverStationSim.resetData();
+    DriverStationSim.notifyNewData();
+    SimHooks.resumeTiming();
+  }
+}
+```
+
+Each scheduler call invokes the parent once and advances the model by 20 ms. The explicit battery
+update stands in for `Robot.simulationPeriodic()`, which this test does not run. Three stop cycles
+allow the command, component and IO to pass the change through their normal order. The assertion
+checks applied effort; a roller may still coast after voltage becomes zero.
+
+Run this test alone, then the whole test task. The teardown removes its commands, binding, subsystem
+and battery load so a later test starts without them. The general model owns no vendor device or
+notifier. A Phoenix test does, and must close both after stopping its update thread. Keep that
+real-time test separate from this paused-clock fixture.
+
+
+<Sources items={[
+  {"source":"wpilib", "path":"docs/software/wpilib-tools/robot-simulation/unit-testing.html", "note":"HAL simulation and unit tests."},
+  {"source":"wpilib-javadoc", "path":"edu/wpi/first/wpilibj2/command/CommandScheduler.html", "note":"Scheduler execution, button loop and subsystem cleanup."},
+  {"source":"wpilib-javadoc", "path":"edu/wpi/first/wpilibj/simulation/SimHooks.html", "note":"Paused-clock timing."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[{"label":"Unit Tests in Simulation","id":"unit-tests-in-simulation"},{"label":"One Complete Mechanism","url":"/badges/badge-2-first-mechanism"}]} />

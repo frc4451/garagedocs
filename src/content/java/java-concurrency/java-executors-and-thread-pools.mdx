@@ -13,7 +13,8 @@ description: Submitting tasks to a managed pool instead of creating threads by h
 
 ### The problem with new Thread()
 
-Creating a thread is expensive: it allocates a stack and asks the operating system for a scheduling resource. Doing it per task wastes most of the time on setup:
+Creating a thread is expensive: it allocates a stack and asks the operating system for a scheduling
+resource. Doing it per task wastes most of the time on setup:
 
 ```java norun
 for (int i = 0; i < 1000; i++) {
@@ -21,9 +22,12 @@ for (int i = 0; i < 1000; i++) {
 }
 ```
 
-Beyond the cost, nothing limits how many exist at once. A thousand threads competing for a handful of processor cores mostly switch between each other rather than doing work, and memory use climbs sharply.
+Beyond the cost, nothing limits how many exist at once. A thousand threads competing for a handful
+of processor cores mostly switch between each other rather than doing work, and memory use climbs
+sharply.
 
-An **executor** separates *what to run* from *how it is run*. You submit tasks; a small pool of reusable threads works through them.
+An **executor** separates *what to run* from *how it is run*. You submit tasks; a small pool of
+reusable threads works through them.
 
 ```java norun
 import java.util.concurrent.*;
@@ -53,18 +57,22 @@ Four threads handle all thousand tasks, reusing themselves as each finishes.
   ]}
 />
 
-For work that keeps the processor busy, a fixed pool sized near the core count is a sensible starting point:
+For work that keeps the processor busy, a fixed pool sized near the core count is a sensible
+starting point:
 
 ```java
 int cores = Runtime.getRuntime().availableProcessors();
 ExecutorService pool = Executors.newFixedThreadPool(cores);
 ```
 
-For work that mostly *waits* (network calls, file reads), more threads than cores is fine, since most are idle.
+For work that mostly *waits* (network calls, file reads), more threads than cores is fine, since
+most are idle.
 
 <RulesBox title="Be careful with cached pools">
 
-`newCachedThreadPool()` creates a new thread whenever no idle one is available, with no upper limit. Submit tasks faster than they complete and it will happily create thousands, which is the problem you were trying to avoid.
+`newCachedThreadPool()` creates a new thread whenever no idle one is available, with no upper limit.
+Submit tasks faster than they complete and it will happily create thousands, which is the problem
+you were trying to avoid.
 
 Prefer a fixed pool unless you know the task rate is bounded.
 
@@ -72,7 +80,8 @@ Prefer a fixed pool unless you know the task rate is bounded.
 
 ### Getting results back
 
-`Runnable` returns nothing. `Callable<T>` returns a value, and `submit` hands you a `Future<T>` to collect it:
+`Runnable` returns nothing. `Callable<T>` returns a value, and `submit` hands you a `Future<T>` to
+collect it:
 
 ```java norun
 ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -99,7 +108,8 @@ try {
 }
 ```
 
-`ExecutionException` wraps whatever the task threw. Calling `getCause()` is how you see the real problem; the wrapper alone tells you almost nothing.
+`ExecutionException` wraps whatever the task threw. Calling `getCause()` is how you see the real
+problem; the wrapper alone tells you almost nothing.
 
 Use the timeout form to avoid waiting forever:
 
@@ -109,9 +119,11 @@ int result = future.get(2, TimeUnit.SECONDS);   // throws TimeoutException
 
 <RulesBox title="Exceptions in submitted tasks are swallowed">
 
-A task submitted with `submit()` that throws does **not** print a stack trace. The exception is stored in the `Future`, and if you never call `get()`, you never learn about it.
+A task submitted with `submit()` that throws does **not** print a stack trace. The exception is
+stored in the `Future`, and if you never call `get()`, you never learn about it.
 
-This makes silently-failing background work a common and confusing bug. Either call `get()`, or wrap the task body in a try/catch that logs.
+This makes silently-failing background work a common and confusing bug. Either call `get()`, or wrap
+the task body in a try/catch that logs.
 
 `execute()` behaves differently: an exception there does surface on the default handler.
 
@@ -135,7 +147,8 @@ for (Future<Integer> f : results) {
 }
 ```
 
-`invokeAny` returns as soon as *one* succeeds and cancels the rest, which is useful when several approaches could answer the same question.
+`invokeAny` returns as soon as *one* succeeds and cancels the rest, which is useful when several
+approaches could answer the same question.
 
 ### Scheduled work
 
@@ -149,9 +162,13 @@ scheduler.schedule(() -> System.out.println("later"), 5, TimeUnit.SECONDS);
 scheduler.scheduleAtFixedRate(this::pollSensor, 0, 100, TimeUnit.MILLISECONDS);
 ```
 
-`scheduleAtFixedRate` targets a fixed start-to-start interval; `scheduleWithFixedDelay` waits a fixed gap *after* each run finishes. If a task can overrun its period, the second is usually what you want.
+`scheduleAtFixedRate` targets a fixed start-to-start interval; `scheduleWithFixedDelay` waits a
+fixed gap *after* each run finishes. If a task can overrun its period, the second is usually what
+you want.
 
-If a repeating task throws, later executions are suppressed. Keep its ScheduledFuture so a caller can inspect completion and retrieve the failure. Catch and report an exception inside the task only when continuing is appropriate for that failure.
+If a repeating task throws, later executions are suppressed. Keep its ScheduledFuture so a caller
+can inspect completion and retrieve the failure. Catch and report an exception inside the task only
+when continuing is appropriate for that failure.
 
 ### Shutting down
 
@@ -180,7 +197,8 @@ try {
   ]}
 />
 
-`shutdownNow` only *interrupts*; a task ignoring interruption keeps going. Long-running loops should check `Thread.currentThread().isInterrupted()` and exit when set.
+`shutdownNow` only *interrupts*; a task ignoring interruption keeps going. Long-running loops should
+check `Thread.currentThread().isInterrupted()` and exit when set.
 
 ### CompletableFuture
 
@@ -194,13 +212,15 @@ CompletableFuture
     .exceptionally(error -> { error.printStackTrace(); return null; });
 ```
 
-Each stage runs after the previous one completes, without a thread sitting idle waiting. Worth knowing exists; a fixed pool with `Future` covers most needs.
+Each stage runs after the previous one completes, without a thread sitting idle waiting. Worth
+knowing exists; a fixed pool with `Future` covers most needs.
 
 <RulesBox title="Common mistakes">
 
 - **Never calling `shutdown()`**, so the program never exits.
 - **Ignoring the `Future`**, hiding exceptions entirely.
-- **`get()` immediately after `submit()`**, which makes the work sequential and adds executor overhead.
+- **`get()` immediately after `submit()`**, which makes the work sequential and adds executor
+  overhead.
 - **Not unwrapping `ExecutionException`**, losing the real cause.
 - **An unbounded cached pool** under sustained load.
 - **A repeating scheduled task that throws**, stopping silently.
@@ -212,7 +232,8 @@ Each stage runs after the previous one completes, without a thread sitting idle 
 
 <ExerciseBox title="Practice">
 
-1. Submit 20 tasks that each sleep briefly to a fixed pool of 4, printing which thread ran each. Note that only four names appear.
+1. Submit 20 tasks that each sleep briefly to a fixed pool of 4, printing which thread ran each.
+   Note that only four names appear.
 2. Submit a `Callable` returning a number and collect it with `get()`.
 3. Submit a task that throws, then confirm nothing is printed until you call `get()`.
 4. Use `invokeAll` to run three computations and sum the results.

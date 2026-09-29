@@ -11,21 +11,39 @@ duration: 20 min
 description: "The thirty-line base class that gives BobotState, the vision subsystems and the dashboard manager a periodic() without making them things a command can require: how it registers itself, exactly when it runs relative to the CommandScheduler and why that order is what makes vision work, what extends it in Cobra, and how to decide between SubsystemBase, VirtualSubsystem and neither."
 ---
 
-`SubsystemBase` does two unrelated things: it gives a class a `periodic()` that runs every loop, and it makes that class a **resource the scheduler arbitrates**: commands `require` it, and two commands that require the same subsystem cannot run together. For a motor that is exactly right. For "the robot's estimate of where it is" or "a camera that publishes what it sees" it is wrong: nothing should be able to own the pose, and a command that accidentally required the vision system would block every other command that did. Cobra's answer is a base class that provides the first thing without the second.
+`SubsystemBase` does two unrelated things: it gives a class a `periodic()` that runs every loop, and
+it makes that class a **resource the scheduler arbitrates**: commands `require` it, and two commands
+that require the same subsystem cannot run together. For a motor that is exactly right. For "the
+robot's estimate of where it is" or "a camera that publishes what it sees" it is wrong: nothing
+should be able to own the pose, and a command that accidentally required the vision system would
+block every other command that did. Cobra's answer is a base class that provides the first thing
+without the second.
 
 ### How the pattern entered FRC 4451's code
 
-FRC 4451 adopted `VirtualSubsystem` while programming *Ember* in 2024. The team wanted `VisionSubsystem` to receive a callback every robot loop, but vision was not a mechanical resource for commands to own. We pulled the self-registering pattern from Mechanical Advantage's [2024 `VirtualSubsystem`](https://github.com/Mechanical-Advantage/RobotCode2024Public/blob/main/src/main/java/org/littletonrobotics/frc2024/util/VirtualSubsystem.java) and adapted it for Ember.
+FRC 4451 adopted `VirtualSubsystem` while programming *Ember* in 2024. The team wanted
+`VisionSubsystem` to receive a callback every robot loop, but vision was not a mechanical resource
+for commands to own. We pulled the self-registering pattern from Mechanical Advantage's
+[2024 `VirtualSubsystem`](https://github.com/Mechanical-Advantage/RobotCode2024Public/blob/main/src/main/java/org/littletonrobotics/frc2024/util/VirtualSubsystem.java)
+and adapted it for Ember.
 
-"Separate callback" means a separate phase of the same 20 ms robot loop. It does **not** mean that vision ran on a second Java thread:
+"Separate callback" means a separate phase of the same 20 ms robot loop. It does **not** mean that
+vision ran on a second Java thread:
 
 1. Ember's `Robot.robotPeriodic()` called `VirtualSubsystem.runPeriodically()`.
-2. Ember's `VisionSubsystem.periodic()` polled the camera IO, logged new frames, and published AprilTag and game-piece results.
+2. Ember's `VisionSubsystem.periodic()` polled the camera IO, logged new frames, and published
+   AprilTag and game-piece results.
 3. `CommandScheduler.run()` then called the mechanical subsystems and commands.
 
-That order gave vision a clear place before the scheduler. It also kept vision outside WPILib's requirement system, so scheduling a command could not interrupt the camera callback. The camera software and PhotonVision pipeline could still perform work asynchronously; `VisionSubsystem.periodic()` was the predictable robot-loop callback that collected their latest results.
+That order gave vision a clear place before the scheduler. It also kept vision outside WPILib's
+requirement system, so scheduling a command could not interrupt the camera callback. The camera
+software and PhotonVision pipeline could still perform work asynchronously;
+`VisionSubsystem.periodic()` was the predictable robot-loop callback that collected their latest
+results.
 
-Ember added a simulation callback to Mechanical Advantage's small 2024 class. That allowed the same virtual subsystem to advance `VisionSystemSim` from `Robot.simulationPeriodic()`. Later robots kept the pattern and expanded its use to shared robot state and dashboard services.
+Ember added a simulation callback to Mechanical Advantage's small 2024 class. That allowed the same
+virtual subsystem to advance `VisionSystemSim` from `Robot.simulationPeriodic()`. Later robots kept
+the pattern and expanded its use to shared robot state and dashboard services.
 
 ### How Mechanical Advantage uses it now
 
@@ -37,14 +55,24 @@ Ember added a simulation callback to Mechanical Advantage's small 2024 class. Th
   sourceLabel="AdvantageKit: IO Interfaces"
 />
 
-Mechanical Advantage's [current 2026 `VirtualSubsystem`](https://github.com/Mechanical-Advantage/RobotCode2026Public/blob/main/src/main/java/org/littletonrobotics/frc2026/util/VirtualSubsystem.java) has two callbacks:
+Mechanical Advantage's
+[current 2026 `VirtualSubsystem`](https://github.com/Mechanical-Advantage/RobotCode2026Public/blob/main/src/main/java/org/littletonrobotics/frc2026/util/VirtualSubsystem.java)
+has two callbacks:
 
-- `periodic()` runs before `CommandScheduler.run()` and is intended for reading inputs and updating state.
+- `periodic()` runs before `CommandScheduler.run()` and is intended for reading inputs and updating
+  state.
 - `periodicAfterScheduler()` runs after the scheduler and is intended for applying outputs.
 
-Their [2026 `Robot.robotPeriodic()`](https://github.com/Mechanical-Advantage/RobotCode2026Public/blob/main/src/main/java/org/littletonrobotics/frc2026/Robot.java#L231-L244) calls the two static runners on opposite sides of the scheduler. Their current [vision implementation](https://github.com/Mechanical-Advantage/RobotCode2026Public/blob/main/src/main/java/org/littletonrobotics/frc2026/subsystems/vision/Vision.java) still extends `VirtualSubsystem`.
+Their
+[2026 `Robot.robotPeriodic()`](https://github.com/Mechanical-Advantage/RobotCode2026Public/blob/main/src/main/java/org/littletonrobotics/frc2026/Robot.java#L231-L244)
+calls the two static runners on opposite sides of the scheduler. Their current
+[vision implementation](https://github.com/Mechanical-Advantage/RobotCode2026Public/blob/main/src/main/java/org/littletonrobotics/frc2026/subsystems/vision/Vision.java)
+still extends `VirtualSubsystem`.
 
-Cobra keeps FRC 4451's earlier shape: one pre-scheduler `periodic()` callback and a separate simulation callback. The current Mechanical Advantage version is useful when a service needs an explicit read-before-commands and write-after-commands split. Copy the idea deliberately rather than replacing the team's class without checking every caller.
+Cobra keeps FRC 4451's earlier shape: one pre-scheduler `periodic()` callback and a separate
+simulation callback. The current Mechanical Advantage version is useful when a service needs an
+explicit read-before-commands and write-after-commands split. Copy the idea deliberately rather than
+replacing the team's class without checking every caller.
 
 ### The class
 
@@ -85,9 +113,14 @@ public abstract class VirtualSubsystem {
 
 Three ideas, each a line or two:
 
-- **Self-registration.** The constructor adds `this` to a static list. Extend the class, construct one instance, and it is in the loop, with no registration call to forget. (`SubsystemBase` does the same thing: its constructor registers with the `CommandScheduler`.)
-- **A static entry point.** `runPeriodically()` walks the list. Whoever calls it decides *when* in the loop the virtual subsystems run.
-- **A simulation hook.** `simulationPeriodic()` mirrors `Robot.simulationPeriodic()`; a virtual subsystem that owns a simulated world, such as the vision sim from [Vision Simulation](/frc/vision-simulation#the-three-pieces), updates it here.
+- **Self-registration.** The constructor adds `this` to a static list. Extend the class, construct
+  one instance, and it is in the loop, with no registration call to forget. (`SubsystemBase` does
+  the same thing: its constructor registers with the `CommandScheduler`.)
+- **A static entry point.** `runPeriodically()` walks the list. Whoever calls it decides *when* in
+  the loop the virtual subsystems run.
+- **A simulation hook.** `simulationPeriodic()` mirrors `Robot.simulationPeriodic()`; a virtual
+  subsystem that owns a simulated world, such as the vision sim from
+  [Vision Simulation](/frc/vision-simulation#the-three-pieces), updates it here.
 
 ### When it runs, and why that is the point
 
@@ -107,13 +140,26 @@ So within one 20 ms loop:
 
 <StepsBox title="One loop">
 
-1. **Virtual subsystems, in construction order.** `RobotContainer` constructs `BobotState` first, then the vision subsystems, then the dashboard manager. `BobotState` recomputes the VARCs, interpolators and zone from last loop's pose. `AprilTagVision` reads its cameras and offers pose observations into `BobotState`'s queues. `TeleopShiftManager` logs the shift clock.
-2. **The scheduler runs subsystem `periodic()`s.** `Drive` runs odometry, **drains** the observation queues (the observations from step 1) into its pose estimators, and writes the new pose back into `BobotState`. The mechanisms update their inputs.
-3. **The scheduler runs commands.** A scoring command reads `BobotState.getHubInterpolator().getCalculation()`, computed in step 1 from the previous loop's step-2 pose, and commands the shooter.
+1. **Virtual subsystems, in construction order.** `RobotContainer` constructs `BobotState` first,
+   then the vision subsystems, then the dashboard manager. `BobotState` recomputes the VARCs,
+   interpolators and zone from last loop's pose. `AprilTagVision` reads its cameras and offers pose
+   observations into `BobotState`'s queues. `TeleopShiftManager` logs the shift clock.
+2. **The scheduler runs subsystem `periodic()`s.** `Drive` runs odometry, **drains** the observation
+   queues (the observations from step 1) into its pose estimators, and writes the new pose back into
+   `BobotState`. The mechanisms update their inputs.
+3. **The scheduler runs commands.** A scoring command reads
+   `BobotState.getHubInterpolator().getCalculation()`, computed in step 1 from the previous loop's
+   step-2 pose, and commands the shooter.
 
 </StepsBox>
 
-Two consequences. Vision observations reach the pose estimator in the same loop they were made, because vision runs before drive. Had vision been a `SubsystemBase`, its `periodic` would run inside step 2 in whatever order the scheduler chose, and an observation might sit in the queue a loop longer. And everything `BobotState` derives is one loop behind the pose, which its own comments acknowledge as acceptable ([BobotState](/frc/bobot-state#the-flow-through-one-loop)). Twenty milliseconds of staleness in aim is acceptable; twenty milliseconds of staleness in a vision measurement's timestamp would be wrong, which is why observations carry their own capture time.
+Two consequences. Vision observations reach the pose estimator in the same loop they were made,
+because vision runs before drive. Had vision been a `SubsystemBase`, its `periodic` would run inside
+step 2 in whatever order the scheduler chose, and an observation might sit in the queue a loop
+longer. And everything `BobotState` derives is one loop behind the pose, which its own comments
+acknowledge as acceptable ([BobotState](/frc/bobot-state#the-flow-through-one-loop)). Twenty
+milliseconds of staleness in aim is acceptable; twenty milliseconds of staleness in a vision
+measurement's timestamp would be wrong, which is why observations carry their own capture time.
 
 ### What extends it in Cobra
 
@@ -127,7 +173,10 @@ Two consequences. Vision observations reach the pose estimator in the same loop 
   ]}
 />
 
-None of them has a motor. That is the tell: a class with a motor is a `SubsystemBase`, because a motor is a thing two commands must not fight over. A class with a camera, a clock, or a table of derived numbers has nothing to fight over, and giving it scheduler semantics only creates a way to deadlock it.
+None of them has a motor. That is the tell: a class with a motor is a `SubsystemBase`, because a
+motor is a thing two commands must not fight over. A class with a camera, a clock, or a table of
+derived numbers has nothing to fight over, and giving it scheduler semantics only creates a way to
+deadlock it.
 
 ### Choosing
 
@@ -162,18 +211,32 @@ public class BatteryMonitor extends VirtualSubsystem {
 }
 ```
 
-Construct it once (`new BatteryMonitor();` in `RobotContainer`) and it runs. It logs, it raises an `Alert` the dashboard shows, and no command can require it, which is right: no command should be able to own the battery voltage.
+Construct it once (`new BatteryMonitor();` in `RobotContainer`) and it runs. It logs, it raises an
+`Alert` the dashboard shows, and no command can require it, which is right: no command should be
+able to own the battery voltage.
 
-Test it in simulation by dragging `Battery/FilteredVolts` onto a graph and spinning up the shooter: the `BatterySim` from [TalonFX Simulation](/frc/talonfx-simulation#the-reference-implementation) sags the simulated supply, the filtered line dips, and the alert appears if it crosses the tunable.
+Test it in simulation by dragging `Battery/FilteredVolts` onto a graph and spinning up the shooter:
+the `BatterySim` from [TalonFX Simulation](/frc/talonfx-simulation#the-reference-implementation)
+sags the simulated supply, the filtered line dips, and the alert appears if it crosses the tunable.
 
 <RulesBox title="Common mistakes">
 
-- **Constructing one twice.** Each construction registers; two instances run twice per loop. Construct in one place.
-- **Requiring it.** It cannot be required, because it is not a <code>Subsystem</code>, but a <code>Trigger</code> built from it can gate a command, which is what you wanted.
-- **Depending on construction order.** The list runs in the order the constructors ran. If a virtual subsystem must run after another, make the dependency explicit (read last loop's value, as <code>BobotState</code> does) rather than relying on which line came first in <code>RobotContainer</code>.
-- **Throwing from <code>periodic()</code>.** One exception in <code>runPeriodically()</code> stops every virtual subsystem after it in the list, and then the scheduler. Guard anything that can fail.
-- **Doing hardware I/O in one.** A camera read is fine (it is already asynchronous); a blocking CAN call is not. Keep the loop under 20 ms; the <code>Threads.setCurrentThreadPriority</code> lines around the call are there because timing matters here.
-- **Forgetting <code>simulationPeriodic</code> is abstract.** You must implement it, even as <code>{}</code>. The compiler will remind you.
+- **Constructing one twice.** Each construction registers; two instances run twice per loop.
+  Construct in one place.
+- **Requiring it.** It cannot be required, because it is not a <code>Subsystem</code>, but a
+  <code>Trigger</code> built from it can gate a command, which is what you wanted.
+- **Depending on construction order.** The list runs in the order the constructors ran. If a virtual
+  subsystem must run after another, make the dependency explicit (read last loop's value, as
+  <code>BobotState</code> does) rather than relying on which line came first in
+  <code>RobotContainer</code>.
+- **Throwing from <code>periodic()</code>.** One exception in <code>runPeriodically()</code> stops
+  every virtual subsystem after it in the list, and then the scheduler. Guard anything that can
+  fail.
+- **Doing hardware I/O in one.** A camera read is fine (it is already asynchronous); a blocking CAN
+  call is not. Keep the loop under 20 ms; the <code>Threads.setCurrentThreadPriority</code> lines
+  around the call are there because timing matters here.
+- **Forgetting <code>simulationPeriodic</code> is abstract.** You must implement it, even as
+  <code>{}</code>. The compiler will remind you.
 
 </RulesBox>
 

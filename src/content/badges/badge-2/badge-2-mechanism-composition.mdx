@@ -10,9 +10,18 @@ difficulty: advanced
 description: "Compose an elevator, pivot, and roller with measured interlocks, then prove flywheel readiness in a focused feed exercise and use the student controller."
 ---
 
-In Step 9, the student composes the components from [Step 8: Mechanism Library](/badges/badge-2-mechanism-library) into an elevator-and-conveyor parent subsystem and a smaller flywheel-and-feed exercise in `Badge2Robot`. The parent subsystem owns its components, calls each component's `periodic()` once, assigns the log paths, creates the commands, carries the WPILib requirement, and coordinates the interlocks between components. Commands belong to the parent and call component methods; a component never creates a command.
+In Step 9, the student composes the components from
+[Step 8: Mechanism Library](/badges/badge-2-mechanism-library) into an elevator-and-conveyor parent
+subsystem and a smaller flywheel-and-feed exercise in `Badge2Bench`.
+[Step 11](/badges/badge-2-path-following#bring-the-mechanisms-into-badge2swerve) copies these
+parents into `Badge2Swerve` for the autonomous routines. The parent subsystem owns its components,
+calls each component's `periodic()` once, assigns the log paths, creates the commands, carries the
+WPILib requirement, and coordinates the interlocks between components. Commands belong to the parent
+and call component methods; a component never creates a command.
 
-The required elevator assembly follows Riptide's design intent. The flywheel exercise isolates measured readiness and possession. The pivoting intake below is an optional extension. These are simulation tasks; the required physical roller work was completed in Step 7.
+The required elevator assembly follows Riptide's design intent. The flywheel exercise isolates
+measured readiness and possession. The pivoting intake below is an optional extension. These are
+simulation tasks; the required physical roller work was completed in Step 7.
 
 ## References to Review
 
@@ -21,75 +30,187 @@ The required elevator assembly follows Riptide's design intent. The flywheel exe
 - [Commands](/frc/commands)
 - [Command Groups](/frc/command-groups)
 - [Unit Tests in Simulation](/frc/unit-tests-in-simulation)
-- [What a Mechanism Drawing Shows](/frc/what-a-mechanism-drawing-shows), [Mechanisms per Subsystem](/frc/mechanisms-per-subsystem), and [Measured Against Goal](/frc/measured-against-goal)
+- [What a Mechanism Drawing Shows](/frc/what-a-mechanism-drawing-shows),
+  [Mechanisms per Subsystem](/frc/mechanisms-per-subsystem), and
+  [Measured Against Goal](/frc/measured-against-goal)
 
-## Elevator and Conveyor
+## Cobra2026 Connection
 
-The first required assembly contains an elevator, a pivot and a conveyor roller, after Riptide 2025's `SuperStructure`, which owns an `Elevator`, a coral `Pivot` and a `Shooter` roller and pairs an elevator height with a pivot angle in each value of its `SuperStructureModes` enum. Riptide's code sets both goals together and reports `isAtMode` when both are near; it does not enforce a clearance rule between them. The three interlocks below are Badge 2 requirements added on top of that design.
+Read
+[`Intake.java`](https://github.com/frc4451/Cobra2026Private/blob/main/src/main/java/frc/robot/subsystems/intake/Intake.java)
+alongside
+[`SingleRoller.java`](https://github.com/frc4451/Cobra2026Private/blob/main/src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java).
+Find the parent's component fields, its calls to both components' `periodic()`, and the command
+factories. This is the ownership pattern used for the required elevator assembly and feed-readiness
+work: one parent coordinates plain components and owns the command requirement.
+
+Cobra's intake is a pivot-and-roller example, not the required elevator/conveyor clearance solution.
+Use its structure while implementing the lesson's measured-position interlocks and voltage requests.
+The optional pivoting-intake comparison later in this page explains the component and control-mode
+differences.
+
+## Elevator, Pivot, and Conveyor
+
+The first required assembly contains an elevator, a pivot and a conveyor roller. This will be
+a recreation of Riptide's `SuperStructure`, which owns an `Elevator`, a coral `Pivot` and 
+a `Shooter` roller that pairs an elevator height with a pivot angle in each value of 
+its `SuperStructureModes` enum. Riptide's code sets both goals together and reports `isAtMode` 
+when both are near; it does not enforce a clearance rule between them. The three interlocks 
+below are Badge 2 requirements added on top of that design.
 
 Required interlocks:
 
 - The pivot may leave its starting angle only when the elevator is above a named clearance height.
 - The elevator may move below the clearance height only when the pivot is at its starting angle.
 - The conveyor may run only at two approved elevator-and-pivot setpoint pairs.
-- The approved pairs are named records or enum values, as Riptide's modes are. Placeholder names such as `X`, `Y`, `A` and `B` do not appear in the code.
-- The conveyor checks measured elevator height and pivot angle against the approved pair tolerances; requesting an approved goal is not evidence of reaching it.
-- A rejected request stops safely and produces a useful log entry or an `Alert`, naming what was requested and which interlock refused it.
+- The approved pairs are named records or enum values, as Riptide's modes are. Placeholder names
+  such as `X`, `Y`, `A` and `B` do not appear in the code.
+- The conveyor checks measured elevator height and pivot angle against the approved pair tolerances;
+  requesting an approved goal is not evidence of reaching it.
+- A rejected request stops safely and produces a useful log entry or an `Alert`, naming what was
+  requested and which interlock refused it.
 
-"Stops safely" means the component keeps or returns to a defined goal and the conveyor is stopped; it does not mean the subsystem throws an exception or leaves a goal half-applied.
+"Stops safely" means the component keeps or returns to a defined goal and the conveyor is stopped;
+it does not mean the subsystem throws an exception or leaves a goal half-applied.
+
+The interlock tests (rows 8.5 and 8.6) construct each parent with the general WPILib simulation IO
+from Step 8. Those models advance one fixed step each time `scheduler.run()` calls the parent's
+`periodic()`, and `SimHooks.stepTiming` controls the command timing, so the test decides exactly how
+far everything moves. The CTRE device simulations run on their own notifier against Phoenix's
+real-time clock and cannot be stepped that way; keep them for the Step 7 and Step 8 device checks.
+
+## Work Through One Clearance Move
+
+For the first simulation, use named example values: `STOWED` is 0.10 m and 0 degrees; `SCORE_LOW` is
+0.60 m and 45 degrees. Clearance is 0.30 m, with a staging height of 0.35 m, a height tolerance of
+0.01 m and an angle tolerance of 2 degrees. Confirm these values fit the Step 8 simulation ranges.
+They are teaching values, not physical fixture settings.
+
+| Phase | Requested Behavior | Measured Condition Before Continuing |
+| --- | --- | --- |
+| Raise | Hold the pivot at its start; raise to the staging height; stop conveyor. | Elevator is above clearance and at staging height. |
+| Position | Hold elevator above clearance; move pivot and elevator to `SCORE_LOW`. | Both measurements match the approved pair within tolerance. |
+| Convey | Allow conveyor effort while the approved pair remains measured. | Stop conveyor immediately if either measurement leaves tolerance. |
+| Return Pivot | Stop conveyor; keep elevator at or above staging; request the starting angle. | Pivot is within the starting-angle tolerance. |
+| Lower | Keep pivot at its start; lower to `STOWED`. | Both measurements match `STOWED`. |
+
+A `Trigger` is a Boolean condition the scheduler can read repeatedly.
+[Riptide's `isAtMode()`](https://github.com/frc4451/Riptide2025/blob/main/src/main/java/frc/robot/subsystems/superstructure/SuperStructure.java)
+exposes measured readiness this way. Riptide pairs goals; the clearance rules above are the badge's
+addition.
+
+This partial snippet belongs in the student's parent subsystem. `elevatorAtStaging()` and
+`pivotAtStart()` read measured values with the tolerances above. `requestStaging()`,
+`requestScoreLow()` and `holdSafely()` are parent methods that apply the table's goals. Import
+WPILib's `Trigger`, `Command` and `Commands`.
+
+```java
+private final Trigger clearanceReady = new Trigger(this::elevatorAtStaging);
+private final Trigger pivotHome = new Trigger(this::pivotAtStart);
+
+public Command scoreLowCommand() {
+  return Commands.sequence(
+          runOnce(this::requestStaging),
+          Commands.waitUntil(clearanceReady),
+          runOnce(this::requestScoreLow),
+          Commands.waitUntil(this::atScoreLow))
+      .withTimeout(5.0)
+      .finallyDo(interrupted -> {
+        if (interrupted) holdSafely();
+      });
+}
+```
+
+The parent-created `runOnce` commands carry its requirement, so the sequence owns that parent. The
+trigger is a condition inside the sequence; it does not schedule a competing command. Normal
+completion retains the approved pair with the conveyor stopped, ready for a separate convey command.
+Interruption or timeout invokes the safe holding policy. Use `pivotHome` for the return sequence
+before lowering. The student implements that return and a second approved pair independently.
+
+The parent's periodic interlocks remain active throughout the move. A one-time wait is not enough if
+clearance is later lost. Refuse or suspend an unsafe goal before sending it to a component, stop the
+conveyor, and log the reason. Define `holdSafely()` using the current phase: hold the elevator above
+clearance while returning a displaced pivot to its start; do not blindly lower both goals together.
+Tests cover interruption in each phase and a measurement that leaves its allowed region. On disable,
+actuator effort stops; gravity may still move the model, so disabled motion is not evidence of
+active holding.
 
 ## Intake to Flywheel
 
-The required version uses one feed roller, one flywheel, and a scripted possession input in a small parent subsystem. A separate floor-intake mechanism is optional. The historical example explains the wider arrangement; the student proves the readiness boundary without rebuilding the whole intake path.
+The required version uses one feed roller, one flywheel, and a scripted possession input in a small
+parent subsystem. A separate floor-intake mechanism is optional. The historical example explains the
+wider arrangement; the student proves the readiness boundary without rebuilding the whole intake
+path.
 
-A floor-intake roller, a feed roller and a flywheel, after Ember 2024. Ember split these across `IntakeSubsystem`, `FeederSubsystem` and `ShooterSubsystem`; its intake and feeder each read a beam break, the feeder's `setVelocityBeambreakCommand` runs until the beam break is obstructed and so holds the game piece before the shooter, and the shooter exposes a `shooterNearTarget()` trigger that is true when both flywheel velocities are within 1 rotation per second of their targets. The focused Badge 2 version composes the feed roller and flywheel into one parent subsystem built from the student's `Roller` and `Flywheel` components.
+A floor-intake roller, a feed roller and a flywheel, after Ember 2024. Ember split these across
+`IntakeSubsystem`, `FeederSubsystem` and `ShooterSubsystem`; its intake and feeder each read a beam
+break, the feeder's `setVelocityBeambreakCommand` runs until the beam break is obstructed and so
+holds the game piece before the shooter, and the shooter exposes a `shooterNearTarget()` trigger
+that is true when both flywheel velocities are within 1 rotation per second of their targets. The
+focused Badge 2 version composes the feed roller and flywheel into one parent subsystem built from
+the student's `Roller` and `Flywheel` components.
 
 Required behavior:
 
-- A scripted IO input changes from no piece to a piece at the feed roller. An added floor-intake roller is an extension.
-- The feed roller holds the game piece before the flywheel. A beam break, as in Ember, or a simulated boolean input standing in for one, is the hold condition; the parent reads it through an IO input.
+- A scripted IO input changes from no piece to a piece at the feed roller. An added floor-intake
+  roller is an extension.
+- The feed roller holds the game piece before the flywheel. A beam break, as in Ember, or a
+  simulated boolean input standing in for one, is the hold condition; the parent reads it through an
+  IO input.
 - The flywheel receives a velocity goal.
-- The feed roller stays stopped until the possession input is valid and reports a piece, the flywheel reports `atGoal`, and a shoot command is active. A missing or invalid possession input refuses feeding.
-- Releasing or interrupting the command leaves every component in a defined safe state: rollers stopped, flywheel at its documented idle or stopped.
+- The feed roller stays stopped until the possession input is valid and reports a piece, the
+  flywheel reports `atGoal`, and a shoot command is active. A missing or invalid possession input
+  refuses feeding.
+- Releasing or interrupting the command leaves every component in a defined safe state: rollers
+  stopped, flywheel at its documented idle or stopped.
 
 ## Draw Measured Position Against the Goal
 
-Add a logged mechanism drawing for the elevator-and-pivot assembly. Follow [Mechanisms per Subsystem](/frc/mechanisms-per-subsystem) to build its canvas and roots, then [Measured Against Goal](/frc/measured-against-goal) for two distinguishable chains. One chain uses measured elevator height and pivot angle; the other uses their goals. Use names and different line widths as well as color. Convert the typed height and angle only at the drawing API boundary.
+Add a logged mechanism drawing for the elevator-and-pivot assembly. Follow
+[Mechanisms per Subsystem](/frc/mechanisms-per-subsystem) to build its canvas and roots, then
+[Measured Against Goal](/frc/measured-against-goal) for two distinguishable chains. One chain uses
+measured elevator height and pivot angle; the other uses their goals. Use names and different line
+widths as well as color. Convert the typed height and angle only at the drawing API boundary.
 
-Update the drawing from the parent subsystem after its components process their inputs. Record it with AdvantageKit so it can be inspected from a saved log. Keep ordinary plots of goal, profile setpoint, and measurement beside the drawing; the drawing shows geometry while the plots show timing and error.
+Update the drawing from the parent subsystem after its components process their inputs. Record it
+with AdvantageKit so it can be inspected from a saved log. Keep ordinary plots of goal, profile
+setpoint, and measurement beside the drawing; the drawing shows geometry while the plots show timing
+and error.
 
-Request a valid move with the saved baseline constraints. The goal changes before the measurement reaches it. Pause the log during that movement and explain the gap. Then request a refused transition and show that the measured mechanism stays within the interlock rules. Do not drive both drawing chains from the goal accessor; that would conceal a mechanism that never moved.
+Request a valid move with the saved baseline constraints. The goal changes before the measurement
+reaches it. Pause the log during that movement and explain the gap. Then request a refused
+transition and show that the measured mechanism stays within the interlock rules. Do not drive both
+drawing chains from the goal accessor; that would conceal a mechanism that never moved.
 
-## Extend the Controller Bindings
+## Bind the Composed Subsystems
 
-Reuse the `BadgeCommandXboxController` built in [Step 3: Project Setup](/badges/badge-2-project-architecture#build-a-robot-controller-class) and tested in [Step 6: Testing Fundamentals](/badges/badge-2-testing#test-the-controller-inputs). The processed axes and OOP demonstration are already complete. This step adds commands and driver feedback.
+The controller bindings and their tests were built in
+[Step 7: One Complete Mechanism](/badges/badge-2-first-mechanism#extend-the-controller-bindings) for
+the roller. Bind the same controller to commands from the elevator-assembly and feed parents, using
+the same test setup. Keep the interlocks in the parents: a controller request that breaks an
+interlock reaches the parent's command and is refused there. If the student completed the optional
+rumble extension, bind it to a simulated readiness transition, such as the flywheel reaching its
+goal.
 
-Add `leftX()` returning a `Trigger` whose callback reads whether the processed axis is nonzero. Build and bind it during container setup so the callback reads changing input during scheduler polling.
-
-Override the no-argument `leftTrigger()` to delegate to the inherited overload that takes the configured threshold. The student explains why overriding that signature and calling a different overload are separate Java operations.
-
-Timed rumble is an optional extension. For that extension, add `rumble(strength)` with `Commands.startEnd`: start sets both rumble outputs, and end clears them. Add `rumbleSeconds(strength, seconds)` by applying `withTimeout` to that command. Use a strength between zero and one and a positive duration. Keep one rumble command active at a time in the exercise; these factories do not claim a mechanism subsystem, so subsystem requirements alone will not prevent competing rumble commands.
-
-In `RobotContainer`, use an inherited button and one added trigger to schedule existing parent-subsystem commands. Demonstrate a processed axis setting a roller voltage through a command that requires its parent, with stop behavior on release or interruption. Keep interlocks in the parent. The controller class processes operator input and produces driver feedback; it does not construct mechanisms or reach into their IO. If the student completes the rumble extension, bind it to a simulated readiness transition or another documented feedback event.
-
-### Prove the Behavior
-
-Use `XboxControllerSim` with the controller's underlying HID and notify new input data before polling. Reuse the paused-clock scheduler setup from [Unit Tests in Simulation](/frc/unit-tests-in-simulation). Robot hardware and a physical gamepad are not required.
-
-- Keep the Step 6 axis and runtime-dispatch tests passing.
-- Check the added stick trigger at rest and during movement, the analog trigger below and above its configured threshold, and one inherited button binding.
-- For the optional rumble extension, schedule timed rumble, inspect both simulated rumble outputs while active, and verify zero after timeout. Repeat with early cancellation and with robot disable. Enable simulated teleop for the active-command checks and restore scheduler, Driver Station, and simulation state during teardown.
-- Operate the simulated subsystem through the student's controller class. Show the input, command request, and measured response, then release or interrupt the command and show the documented safe state.
-
-The README links the added bindings, tests, and simulation evidence. The student explains how the Step 3 input processing reaches a command and why the parent subsystem still owns its interlocks.
+The student explains how the Step 6 input processing reaches a composed command and why the parent
+subsystem still owns its interlocks.
 
 ## Pivoting Intake
 
 This is an optional extension after the required work. It adds no required sign-off row.
 
-A pivot and a roller, after Cobra 2026's `Intake`. That subsystem owns two library components, a `Pivot` named `endeffector` and a `Flywheel` named `rollers`, names its pivot positions in an `EndeffectorState` enum (`STARTING`, `DEPLOYED`, `LIFTED`, `SQUEEZE`), calls both components' `periodic()` from its own, and exposes one command factory per position plus factories that run the rollers. The [composition lesson](/frc/composing-mechanism-subsystems#build-a-pivoting-intake) has a version built on the same component types.
+A pivot and a roller, after Cobra 2026's `Intake`. That subsystem owns two library components, a
+`Pivot` named `endeffector` and a `Flywheel` named `rollers`, names its pivot positions in an
+`EndeffectorState` enum (`STARTING`, `DEPLOYED`, `LIFTED`, `SQUEEZE`), calls both components'
+`periodic()` from its own, and exposes one command factory per position plus factories that run the
+rollers. The [composition lesson](/frc/composing-mechanism-subsystems#build-a-pivoting-intake) has a
+version built on the same component types.
 
-Two differences from Cobra to keep in mind. Cobra's roller is typed `Flywheel` because that class adds velocity control on top of the roller behavior; the Badge 2 version uses the student's `Roller`, since the intake roller has no velocity goal. Cobra runs its rollers on percent output and torque current, while Badge 2 uses voltage throughout for the reasons in [Step 8: Mechanism Library](/badges/badge-2-mechanism-library#voltage-control).
+Two differences from Cobra to keep in mind. Cobra's roller is typed `Flywheel` because that class
+adds velocity control on top of the roller behavior; the Badge 2 version uses the student's
+`Roller`, since the intake roller has no velocity goal. Cobra runs its rollers on percent output and
+torque current, while Badge 2 uses voltage throughout for the reasons in
+[Step 8: Mechanism Library](/badges/badge-2-mechanism-library#voltage-control).
 
 For this extension, the behavior is:
 
@@ -100,35 +221,40 @@ For this extension, the behavior is:
 - Completion based on the measured pivot angle through `atGoal`, not on a timer.
 - One requirement, the parent `Intake`, on every command.
 
-## Rows
-
-| # | Work | Lesson | Done when |
-|---|---|---|---|
-| 8.1 | Parent owns components | [Composing Mechanism Subsystems](/frc/composing-mechanism-subsystems#why-the-components-are-plain-objects) | Each required parent constructs its components, calls each `periodic()` once, and assigns log paths under its own name |
-| 8.3 | Elevator assembly runs | [Subsystems](/frc/subsystems), [Command Groups](/frc/command-groups) | In simulation, each approved pair is reachable, the conveyor runs at each, and a request outside the rules is refused with a logged reason |
-| 8.4 | Feed and readiness exercise | [Command Groups](/frc/command-groups#waiting-without-blocking) | In simulation, the possession input reports a piece, the flywheel spins up, and the feed roller runs only with possession, measured readiness, and the shoot command |
-| 8.5 | Interlocks tested | [Unit Tests in Simulation](/frc/unit-tests-in-simulation#a-command-against-a-paused-clock) | One test per stated interlock, run with the command scheduler against a paused clock, all passing |
-| 8.6 | Unsafe transition rejected | [Unit Tests in Simulation](/frc/unit-tests-in-simulation#a-mechanism-in-the-loop) | At least one test requests an unsafe transition (pivot leaving its start angle with the elevator low; conveyor at an unapproved pair; feed before `atGoal`) and asserts the request was refused and the safe state held |
-| 8.7 | Requirements match ownership | [Commands](/frc/commands) | Every mechanism command carries exactly one requirement, its parent subsystem; the student explains why two commands from one parent cannot run at once |
-| 8.8 | Measured and goal drawing | [Measured Against Goal](/frc/measured-against-goal) | A logged elevator-and-pivot drawing uses separate measurement and goal sources, identifies both chains, and agrees with the numeric plots during a valid move and a refused transition |
-| 8.9 | Controller bindings and feedback | [Extend the Controller Bindings](#extend-the-controller-bindings) | The Step 3 controller gains a stick trigger and a configured analog-trigger threshold; timed rumble is optional; inherited and added controls schedule parent-subsystem commands |
-| 8.10 | Controller evidence | [Prove the Behavior](#prove-the-behavior) | Required input checks pass without hardware; any optional rumble checks also pass; inherited and added bindings operate a simulated parent subsystem; release, interruption, and disable have verified outcomes |
-
-Former row 8.2, the separate pivoting intake, is optional. Rumble is also optional; controller bindings and their release, interruption, and disable checks remain required.
-
 ## Badge Check
 
 <StepsBox title="Composition Badge Check">
 
-1. From a clean clone, the student runs the tests. Every interlock test and the unsafe-transition test pass.
-2. The student simulates `Badge2Robot` and demonstrates each subsystem from controller bindings, with AdvantageScope showing component goals and measured values under the parent's log path.
-3. The mentor chooses one interlock and asks the student to violate it from the controller. The request is refused, the mechanisms hold, and the log or alert names the refused request.
-4. The mentor interrupts a running command in the elevator assembly or feed exercise. Every component enters its documented safe state.
-5. The student opens the saved mechanism drawing, pauses during movement, and explains its goal/measurement gap beside the numeric plots.
-6. The student demonstrates the controller exercise and passing checks, then traces a processed input through its binding into the owning subsystem.
-7. The student explains why the components are plain objects and why every command requires the parent subsystem, in their own words.
+1. From a clean clone, the student runs the tests. Every interlock test and the unsafe-transition
+   test pass.
+2. The student simulates `Badge2Bench` and demonstrates each subsystem from controller bindings,
+   with AdvantageScope showing component goals and measured values under the parent's log path.
+3. The mentor chooses one interlock and asks the student to violate it from the controller. The
+   request is refused, the mechanisms hold, and the log or alert names the refused request.
+4. The mentor interrupts a running command in the elevator assembly or feed exercise. Every
+   component enters its documented safe state.
+5. The student opens the saved mechanism drawing, pauses during movement, and explains its
+   goal/measurement gap beside the numeric plots.
+6. The student operates a composed subsystem from the Step 7 controller bindings, then traces a
+   processed input through its binding into the owning parent.
+7. The student explains why the components are plain objects and why every command requires the
+   parent subsystem, in their own words.
 
 </StepsBox>
+
+## Rows
+
+Use these row identifiers when recording evidence in the repository README.
+
+| Row | Requirement | Evidence for Sign-Off |
+| --- | --- | --- |
+| 8.1 | [Parent owns components](/frc/composing-mechanism-subsystems#why-the-components-are-plain-objects) | Each required parent constructs its components, calls each `periodic()` once, and gives each component a log path under the parent's name. |
+| 8.3 | [Elevator assembly](/frc/subsystems) and [its commands](/frc/command-groups) | Simulation reaches every approved height-and-angle pair and runs the conveyor at each. Requests outside the rules are refused with a logged reason. |
+| 8.4 | [Feed and readiness](/frc/command-groups#waiting-without-blocking) | Simulation reports possession and spins up the flywheel. Feeding requires possession, measured readiness, and the shoot command together. |
+| 8.5 | [Interlock tests](/frc/unit-tests-in-simulation#a-command-against-a-paused-clock) | One test per stated interlock passes with the command scheduler and a paused clock. |
+| 8.6 | [Unsafe-transition test](/frc/unit-tests-in-simulation#a-command-against-a-paused-clock) | At least one unsafe request is refused and the safe state is held. Test a pivot move with the elevator low, conveyor operation at an unapproved pair, or feeding before `atGoal`. |
+| 8.7 | [Command ownership](/frc/commands) | Every mechanism command requires exactly its parent subsystem. The student explains why two commands from that parent cannot run at once. |
+| 8.8 | [Measured and goal drawing](/frc/measured-against-goal) | The logged elevator-and-pivot drawing has separate, identified measurement and goal chains. It agrees with numeric plots during a valid move and a refused transition. |
 
 <Sources items={[
   {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/GarageCommandXboxController.java", "note": "The source design for the smaller student-written controller: inherited controls, deadband overrides, signed squaring, triggers, and rumble factories."},
@@ -151,10 +277,3 @@ Former row 8.2, the separate pivoting intake, is optional. Rumble is also option
   {"source": "ember", "path": "src/main/java/frc/robot/subsystems/shooter/ShooterSubsystem.java", "note": "<code>shooterNearTarget()</code>: both flywheels within 1 rotation per second of target."},
   {"source": "ember", "path": "src/main/java/frc/robot/reusable_io/beambreak/BeambreakIO.java", "note": "The beam break behind an IO interface, with a sim override for testing."}
 ]} />
-
-<LinkGrid links={[
-  {"label":"Step 10: Pose, Frames, and Odometry","id":"badge-2-math"},
-  {"label":"Step 8: Mechanism Library","id":"badge-2-mechanism-library"},
-  {"label":"Composing Mechanism Subsystems","url":"/frc/composing-mechanism-subsystems"},
-  {"label":"Unit Tests in Simulation","url":"/frc/unit-tests-in-simulation"}
-]} title="Next" section="badges" />

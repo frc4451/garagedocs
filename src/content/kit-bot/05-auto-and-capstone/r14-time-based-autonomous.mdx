@@ -11,19 +11,27 @@ description: Build a short time-based autonomous routine and select it with a da
 ---
 
 
-During autonomous, the command scheduler runs a routine selected before the robot is enabled. This lesson composes commands you already tested into a sequence that drives, stops, and then runs the launcher.
+During autonomous, the command scheduler runs a routine selected before the robot is enabled. This
+lesson composes commands you already tested into a sequence that drives, stops, and then runs the
+launcher.
 
 ## Before You Start
 
-Complete R11 through R13 in simulation. Confirm that teleop drive and every driver trigger use R11's `teleopEnabled` gate, `Drive.driveAt(...)` stops the drivetrain when its command ends, `Launcher.launchFuel()` stops both launcher motors when its command ends, and simulation prints `IO: sim`.
+Complete R11 through R13 in simulation. Confirm that teleop drive and every driver trigger use R11's
+`teleopEnabled` gate, `Drive.driveAt(...)` stops the drivetrain when its command ends,
+`Launcher.launchFuel()` stops both launcher motors when its command ends, and simulation prints
+`IO: sim`.
 
-Open the Kit Bot project folder in WPILib VS Code. Keep the Explorer, terminal, and Sim GUI visible. You will open Glass after the code builds.
+Open the Kit Bot project folder in WPILib VS Code. Keep the Explorer, terminal, and Sim GUI visible.
+You will open Glass after the code builds.
 
-The routine uses time instead of a measured distance. On a physical robot, battery voltage, carpet, and wheel slip can change the distance traveled during the same amount of time.
+The routine uses time instead of a measured distance. On a physical robot, battery voltage, carpet,
+and wheel slip can change the distance traveled during the same amount of time.
 
 ## Create the Routines
 
-In the VS Code Explorer, open `src/main/java/frc/robot/commands`. Create `AutoRoutines.java` in that folder. Enter this **complete file**, then save it.
+In the VS Code Explorer, open `src/main/java/frc/robot/commands`. Create `AutoRoutines.java` in that
+folder. Enter this **complete file**, then save it.
 
 ```java
 package frc.robot.commands;
@@ -52,15 +60,20 @@ public final class AutoRoutines {
 }
 ```
 
-These methods build and return commands. Creating the file does not move the robot. The chooser will hold the commands, and the scheduler will run the selected one after autonomous starts.
+These methods build and return commands. Creating the file does not move the robot. The chooser will
+hold the commands, and the scheduler will run the selected one after autonomous starts.
 
-`withTimeout` interrupts its command when the stated time expires. Interruption runs that command's end action, which is why the stop behavior from R07 and R08 matters. `andThen` starts the launcher only after the drive command ends.
+`withTimeout` interrupts its command when the stated time expires. Interruption runs that command's
+end action, which is why the stop behavior from R07 and R08 matters. `andThen` starts the launcher
+only after the drive command ends.
 
-Build with **WPILib: Build Robot Code**. A successful build returns `BUILD SUCCESSFUL`. If it reports an unknown method, compare the method names with the current `Drive` and `Launcher` files.
+Build with **WPILib: Build Robot Code**. A successful build returns `BUILD SUCCESSFUL`. If it
+reports an unknown method, compare the method names with the current `Drive` and `Launcher` files.
 
 ## Create the Chooser
 
-Open `src/main/java/frc/robot/RobotContainer.java`. Keep the current subsystem construction and every driver binding.
+Open `src/main/java/frc/robot/RobotContainer.java`. Keep the current subsystem construction and
+every driver binding.
 
 Add these imports with the other imports. `Command` may already be present; keep only one copy.
 
@@ -80,7 +93,8 @@ Add this field inside `RobotContainer`, above the constructor:
 private final SendableChooser<Command> autoChooser = new SendableChooser<>();
 ```
 
-In the constructor, add this block after `drive` and `launcher` are created and before `configureBindings()` runs:
+In the constructor, add this block after `drive` and `launcher` are created and before
+`configureBindings()` runs:
 
 ```java
 autoChooser.setDefaultOption("Do nothing", Commands.none());
@@ -90,9 +104,11 @@ autoChooser.addOption("Drive then shoot", AutoRoutines.driveThenShoot(drive, lau
 SmartDashboard.putData("Auto Chooser", autoChooser);
 ```
 
-`SmartDashboard.putData` publishes the chooser through NetworkTables. Glass shows it under the `SmartDashboard` table.
+`SmartDashboard.putData` publishes the chooser through NetworkTables. Glass shows it under the
+`SmartDashboard` table.
 
-Replace the existing `getAutonomousCommand()` method with this **replacement method**. Do not remove `configureBindings()` or any driver bindings.
+Replace the existing `getAutonomousCommand()` method with this **replacement method**. Do not remove
+`configureBindings()` or any driver bindings.
 
 ```java
 public Command getAutonomousCommand() {
@@ -104,9 +120,12 @@ Save `RobotContainer.java` and build again.
 
 ## Check the Robot Lifecycle
 
-Open `src/main/java/frc/robot/Robot.java`. Keep the existing `CommandScheduler` import from R02. Confirm that `robotPeriodic()` still calls `CommandScheduler.getInstance().run()`. The scheduler runs commands, polls triggers, and handles requirements once each robot loop.
+Open `src/main/java/frc/robot/Robot.java`. Keep the existing `CommandScheduler` import from R02.
+Confirm that `robotPeriodic()` still calls `CommandScheduler.getInstance().run()`. The scheduler
+runs commands, polls triggers, and handles requirements once each robot loop.
 
-Compare your file with this **replacement block** for the autonomous field and two mode methods. Keep the other lifecycle methods.
+Compare your file with this **replacement block** for the autonomous field and two mode methods.
+Keep the other lifecycle methods.
 
 ```java
 private Command m_autonomousCommand;
@@ -129,26 +148,37 @@ public void teleopInit() {
 }
 ```
 
-`autonomousInit()` schedules the selected command. `teleopInit()` cancels a routine that is still running and clears the stored reference. These calls use the `CommandScheduler` API from R02 and WPILib 2026.2.1.
+`autonomousInit()` schedules the selected command. `teleopInit()` cancels a routine that is still
+running and clears the stored reference. These calls use the `CommandScheduler` API from R02 and
+WPILib 2026.2.1.
 
 ## Find the Chooser in Glass
 
 1. Save every open file and start robot simulation from WPILib VS Code.
 2. Wait for `IO: sim` and the Sim GUI to appear.
 3. Open the Command Palette, run **WPILib: Start Tool**, and choose **Glass**.
-4. In Glass, open **NetworkTables** → **NetworkTables Settings**. Enter `localhost` in **Team/IP** and apply the setting. The title bar should show that Glass is connected.
+4. In Glass, open **NetworkTables** → **NetworkTables Settings**. Enter `localhost` in **Team/IP**
+   and apply the setting. The title bar should show that Glass is connected.
 5. Open **NetworkTables**, expand **SmartDashboard**, and choose **Auto Chooser**.
 6. Confirm that the widget lists **Do nothing**, **Drive forward**, and **Drive then shoot**.
 
-If **Auto Chooser** is missing, confirm the Glass title bar shows a connection to `localhost`, simulation is running, and the `SmartDashboard.putData(...)` line is in the `RobotContainer` constructor. Restart simulation after correcting the code.
+If **Auto Chooser** is missing, confirm the Glass title bar shows a connection to `localhost`,
+simulation is running, and the `SmartDashboard.putData(...)` line is in the `RobotContainer`
+constructor. Restart simulation after correcting the code.
 
 ## Run Each Option
 
-Choose an option only while the simulated robot is disabled. The chooser is read when autonomous starts. Changing the widget during a running routine does not replace the command already scheduled.
+Choose an option only while the simulated robot is disabled. The chooser is read when autonomous
+starts. Changing the widget during a running routine does not replace the command already scheduled.
 
-For this check, temporarily restore the two request-printing statements from [R11: Run the Mode Check](/kit-bot/r11-teleop-drive#run-the-mode-check) in `Drive.periodic()` and `Launcher.periodic()`. Save and restart simulation. Keep that console output beside AdvantageScope so you can distinguish a zero request from a mechanism that is still slowing. Remove the temporary prints when the checks are finished.
+For this check, temporarily restore the two request-printing statements from
+[R11: Run the Mode Check](/kit-bot/r11-teleop-drive#run-the-mode-check) in `Drive.periodic()` and
+`Launcher.periodic()`. Save and restart simulation. Keep that console output beside AdvantageScope
+so you can distinguish a zero request from a mechanism that is still slowing. Remove the temporary
+prints when the checks are finished.
 
-For each option, disable the robot in the Sim GUI, select the option in Glass, select **Autonomous**, enable, observe the requests, and disable before choosing the next option.
+For each option, disable the robot in the Sim GUI, select the option in Glass, select
+**Autonomous**, enable, observe the requests, and disable before choosing the next option.
 
 | Option | Observable Result |
 |---|---|
@@ -156,26 +186,41 @@ For each option, disable the robot in the Sim GUI, select the option in Glass, s
 | **Drive forward** | R11's console check shows both target voltages return to zero after 1.5 seconds. The `Drive/Pose` position graph settles after simulated motion slows. |
 | **Drive then shoot** | The drive target voltages return to zero before the launcher starts. The launcher telemetry returns to zero after 2.0 seconds. |
 
-While **Do nothing** remains enabled in autonomous, move both sticks and press or hold each driver control from R11. No driver command should create a drive or launcher request. This optional check confirms the complete teleop gate; the Badge 1 requirement still asks you to demonstrate the drive-stick portion.
+While **Do nothing** remains enabled in autonomous, move both sticks and press or hold each driver
+control from R11. No driver command should create a drive or launcher request. This optional check
+confirms the complete teleop gate; the Badge 1 requirement still asks you to demonstrate the
+drive-stick portion.
 
-Finally, start **Drive then shoot** and switch to teleop before the sequence finishes. `teleopInit()` should cancel the autonomous command, its current mechanism should stop, and teleop controls should respond again.
+Finally, start **Drive then shoot** and switch to teleop before the sequence finishes.
+`teleopInit()` should cancel the autonomous command, its current mechanism should stop, and teleop
+controls should respond again.
 
 ## Troubleshooting
 
-- **The wrong routine runs:** disable, make a new selection, and enable autonomous again. Confirm `getAutonomousCommand()` returns `autoChooser.getSelected()`.
-- **A request never stops:** confirm the routine uses `withTimeout` and the underlying subsystem command has an end or `finallyDo` action that sends zero output.
-- **A button affects autonomous:** return to R11 and confirm every driver trigger is combined with `teleopEnabled`, including bumpers, A, the D-pad, characterization buttons, and the stop demonstration.
-- **Teleop does not take control:** confirm `teleopInit()` passes the stored command to `CommandScheduler.getInstance().cancel(...)` and clears the field.
+- **The wrong routine runs:** disable, make a new selection, and enable autonomous again. Confirm
+  `getAutonomousCommand()` returns `autoChooser.getSelected()`.
+- **A request never stops:** confirm the routine uses `withTimeout` and the underlying subsystem
+  command has an end or `finallyDo` action that sends zero output.
+- **A button affects autonomous:** return to R11 and confirm every driver trigger is combined with
+  `teleopEnabled`, including bumpers, A, the D-pad, characterization buttons, and the stop
+  demonstration.
+- **Teleop does not take control:** confirm `teleopInit()` passes the stored command to
+  `CommandScheduler.getInstance().cancel(...)` and clears the field.
 
 <RulesBox title="On the Real Robot">
 
-Run autonomous on hardware only after [R12 Part 2: First Deploy](/kit-bot/r12-first-deploy) and the teleop direction checks pass. Use an open practice area with a marked boundary and a mentor stationed at Disable. Choose the lowest safe starting request and duration with that mentor. Start on blocks, then repeat on the floor only after the robot stops correctly.
+Run autonomous on hardware only after [R12 Part 2: First Deploy](/kit-bot/r12-first-deploy) and the
+teleop direction checks pass. Use an open practice area with a marked boundary and a mentor
+stationed at Disable. Choose the lowest safe starting request and duration with that mentor. Start
+on blocks, then repeat on the floor only after the robot stops correctly.
 
 </RulesBox>
 
 <RulesBox title="Done When">
 
-Glass shows all three options. Each produces its named result in simulation. Driver controls stay inactive during autonomous, the R11 console and launcher telemetry show zero targets when timed commands end, and switching to teleop cancels an unfinished routine.
+Glass shows all three options. Each produces its named result in simulation. Driver controls stay
+inactive during autonomous, the R11 console and launcher telemetry show zero targets when timed
+commands end, and switching to teleop cancels an unfinished routine.
 
 </RulesBox>
 

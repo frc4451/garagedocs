@@ -12,13 +12,29 @@ durationFixed: true
 description: "The part of by-hand tuning every mechanism shares, reconstructed from CTRE's Phoenix 6 application note: why each gain is output-per-unit-of-something, how the control request and the gear ratio set the units, back-calculating a safe starting kP, the five-step skeleton every recipe follows, and how to run it on FRC 4451's code with tunables, the setpoint inputs and AdvantageScope."
 ---
 
-Characterization tools will measure a mechanism's gains for you ([Tunable Constants and Characterization](/frc/tunable-constants-and-characterization#measure-feedforward-do-not-guess-it)), and for a drivetrain they are the right first move. But most mechanisms (a shooter wheel, a hood, a pivot, an elevator) are tuned faster by hand, with a graph open and a procedure to follow. This group is that procedure. It is reconstructed from CTRE's Phoenix 6 application note *Manually Tuning PID with TorqueCurrentFOC* (written by Cory of CTRE; [live copy](https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/manual-pid-tuning.html), [archived draft](https://web.archive.org/web/20260713045815/https://phoenixpro-documentation--161.org.readthedocs.build/en/161/docs/application-notes/manual-pid-tuning.html)), which FRC 4451's mentors consider the most useful tuning guide they have found. The original has interactive simulators beside each section; here, the [PID Tuning Practice](/frc/pid-tuning-practice-setup) sessions play that role.
+Characterization tools will measure a mechanism's gains for you
+([Tunable Constants and Characterization](/frc/tunable-constants-and-characterization#measure-feedforward-do-not-guess-it)),
+and for a drivetrain they are the right first move. But most mechanisms (a shooter wheel, a hood, a
+pivot, an elevator) are tuned faster by hand, with a graph open and a procedure to follow. This
+group is that procedure. It is reconstructed from CTRE's Phoenix 6 application note *Manually Tuning
+PID with TorqueCurrentFOC* (written by Cory of CTRE;
+[live copy](https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/manual-pid-tuning.html),
+[archived draft](https://web.archive.org/web/20260713045815/https://phoenixpro-documentation--161.org.readthedocs.build/en/161/docs/application-notes/manual-pid-tuning.html)),
+which FRC 4451's mentors consider the most useful tuning guide they have found. The original has
+interactive simulators beside each section; here, the
+[PID Tuning Practice](/frc/pid-tuning-practice-setup) sessions play that role.
 
-Read [PID Control](/frc/pid-control) and [Feedforward](/frc/feedforward) first; these pages assume you know what each gain is and teach how to find it. This page is the part every mechanism shares: what the gains mean, the skeleton every recipe follows, and the tools you run it with. The four pages after it are the recipes: [flywheel](/frc/manual-tuning-flywheel), [turret](/frc/manual-tuning-turret), [arm and elevator](/frc/manual-tuning-arm-and-elevator), [profiled](/frc/manual-tuning-profiled).
+Read [PID Control](/frc/pid-control) and [Feedforward](/frc/feedforward) first; these pages assume
+you know what each gain is and teach how to find it. This page is the part every mechanism shares:
+what the gains mean, the skeleton every recipe follows, and the tools you run it with. The four
+pages after it are the recipes: [flywheel](/frc/manual-tuning-flywheel),
+[turret](/frc/manual-tuning-turret), [arm and elevator](/frc/manual-tuning-arm-and-elevator),
+[profiled](/frc/manual-tuning-profiled).
 
 ### Every gain is canonical
 
-The reason a procedure can exist at all is that every gain has a definite meaning: **output per unit of something**. Once you know the something, you can reason about the number instead of guessing.
+The reason a procedure can exist at all is that every gain has a definite meaning: **output per unit
+of something**. Once you know the something, you can reason about the number instead of guessing.
 
 <ContentTable
   headers={["Gain", "Is", "Meaning"]}
@@ -35,22 +51,44 @@ The reason a procedure can exist at all is that every gain has a definite meanin
 
 Two things decide what "output" and "error" mean:
 
-- **The control request decides the output unit.** Duty-cycle requests: a fraction of supply voltage. Voltage requests: volts. `TorqueCurrentFOC` requests: stator amps. The same `kP = 10` is ten volts per rotation under `PositionVoltage` and ten amps per rotation under `PositionTorqueCurrentFOC` ([Control Requests](/frc/control-requests)).
-- **Everything is in mechanism units.** Phoenix applies `SensorToMechanismRatio` (and `RotorToSensorRatio`) before the loop, so error and velocity are mechanism rotations, not motor rotations. With a 100:1 reduction, `kP = 1` is one volt at one rotation of error at the mechanism, which is one volt at a hundred rotations of error at the motor. The reduction effectively multiplies the gains.
+- **The control request decides the output unit.** Duty-cycle requests: a fraction of supply
+  voltage. Voltage requests: volts. `TorqueCurrentFOC` requests: stator amps. The same `kP = 10` is
+  ten volts per rotation under `PositionVoltage` and ten amps per rotation under
+  `PositionTorqueCurrentFOC` ([Control Requests](/frc/control-requests)).
+- **Everything is in mechanism units.** Phoenix applies `SensorToMechanismRatio` (and
+  `RotorToSensorRatio`) before the loop, so error and velocity are mechanism rotations, not motor
+  rotations. With a 100:1 reduction, `kP = 1` is one volt at one rotation of error at the mechanism,
+  which is one volt at a hundred rotations of error at the motor. The reduction effectively
+  multiplies the gains.
 
-**Back-calculating a starting point.** Because the gains are canonical you can work out a sane first value before touching anything. Suppose an arm is 0.1 rotations from where you want it, and you know from pushing it around that one volt is enough to move it gently. Then you want one volt at 0.1 rotations of error: `kP = output ÷ error = 1 ÷ 0.1 = 10`. That is a starting `kP` that will produce a slow, safe move, the response you would have commanded by hand. The same arithmetic works for every other gain. Never start a mechanism at a number copied from another robot; start it at a number you derived from *this* one.
+**Back-calculating a starting point.** Because the gains are canonical you can work out a sane first
+value before touching anything. Suppose an arm is 0.1 rotations from where you want it, and you know
+from pushing it around that one volt is enough to move it gently. Then you want one volt at 0.1
+rotations of error: `kP = output ÷ error = 1 ÷ 0.1 = 10`. That is a starting `kP` that will produce
+a slow, safe move, the response you would have commanded by hand. The same arithmetic works for
+every other gain. Never start a mechanism at a number copied from another robot; start it at a
+number you derived from *this* one.
 
 ### The shape of every procedure
 
 All four recipes in this group share a skeleton, and it is worth seeing before the details:
 
-1. **Zero everything.** Each gain is found in isolation; a gain left on from earlier hides the effect of the one you are tuning.
-2. **Feedforward first**, in the order the physics allows you to see it: gravity, then friction, then velocity, then acceleration.
+1. **Zero everything.** Each gain is found in isolation; a gain left on from earlier hides the
+   effect of the one you are tuning.
+2. **Feedforward first**, in the order the physics allows you to see it: gravity, then friction,
+   then velocity, then acceleration.
 3. **Then `kP`**, as high as it will go before the mechanism overshoots or oscillates.
-4. **Then `kD`**, to remove the overshoot `kP` introduced, and back to `kP`, alternating, until the pair hits the limit set by the system's latency.
-5. **Verify across the setpoints you will actually use.** Gains found at one setpoint are not automatically right at another.
+4. **Then `kD`**, to remove the overshoot `kP` introduced, and back to `kP`, alternating, until the
+   pair hits the limit set by the system's latency.
+5. **Verify across the setpoints you will actually use.** Gains found at one setpoint are not
+   automatically right at another.
 
-Everything is done with the setpoint and the measurement on one graph ([commanded versus measured](/frc/simulation-in-advantagescope#the-line-graph-commanded-versus-measured)) and the gains as [tunables](/frc/tunable-constants-and-characterization) so a change takes effect without a deploy. On a real Phoenix device the closed-loop error is a status signal (`getClosedLoopError`); FRC 4451's IO exposes the setpoint as `PositionSetpoint`/`VelocitySetpoint` inputs, so "did it arrive" is a number, not an impression.
+Everything is done with the setpoint and the measurement on one graph
+([commanded versus measured](/frc/simulation-in-advantagescope#the-line-graph-commanded-versus-measured))
+and the gains as [tunables](/frc/tunable-constants-and-characterization) so a change takes effect
+without a deploy. On a real Phoenix device the closed-loop error is a status signal
+(`getClosedLoopError`); FRC 4451's IO exposes the setpoint as `PositionSetpoint`/`VelocitySetpoint`
+inputs, so "did it arrive" is a number, not an impression.
 
 ### Running this on FRC 4451's code
 
@@ -62,18 +100,35 @@ Everything is done with the setpoint and the measurement on one graph ([commande
   sourceLabel="AdvantageScope navigation documentation"
 />
 
-- **Gains are tunables.** Every `SingleRoller` publishes `<name>/FeedBack/kP…kD` and `<name>/FeedForward/kS…kA` as `LoggedTunableNumber`s and re-applies the slot when one changes ([Tunable Constants](/frc/tunable-constants-and-characterization#reacting-to-a-change)). Set `tuningMode = true`, open the tunables in AdvantageScope, and the whole procedure is edits in a table while the graph updates.
-- **The graph is `Position`/`Velocity` against `PositionSetpoint`/`VelocitySetpoint`,** with `TorqueCurrentAmps` or `AppliedVoltage` on the second axis: the same three lines as the note's red, purple and green.
-- **Do it in simulation first** with the `…IOSimTalonFX` classes ([TalonFX Simulation](/frc/talonfx-simulation)): the real Phoenix loop runs, so the procedure and the gain magnitudes carry over, and only the physics constants need correcting on the robot.
-- **Voltage-mode mechanisms** follow the same steps with volts as the output; expect much smaller `kP`, and `kD` to matter less because back-EMF damps the motor for you. The [PID Tuning Practice](/frc/pid-tuning-practice-setup) sessions run these recipes in voltage mode against simulated mechanisms, and are where to practise the elevator bracket before touching hardware.
-- **Write the numbers down where they live**, the `Slot0Configs` in the mechanism's `…Constants` record, and commit them with a message that says which mechanism, which mode, and what setpoints they were verified at.
+- **Gains are tunables.** Every `SingleRoller` publishes `<name>/FeedBack/kP…kD` and
+  `<name>/FeedForward/kS…kA` as `LoggedTunableNumber`s and re-applies the slot when one changes
+  ([Tunable Constants](/frc/tunable-constants-and-characterization#reacting-to-a-change)). Set
+  `tuningMode = true`, open the tunables in AdvantageScope, and the whole procedure is edits in a
+  table while the graph updates.
+- **The graph is `Position`/`Velocity` against `PositionSetpoint`/`VelocitySetpoint`,** with
+  `TorqueCurrentAmps` or `AppliedVoltage` on the second axis: the same three lines as the note's
+  red, purple and green.
+- **Do it in simulation first** with the `…IOSimTalonFX` classes
+  ([TalonFX Simulation](/frc/talonfx-simulation)): the real Phoenix loop runs, so the procedure and
+  the gain magnitudes carry over, and only the physics constants need correcting on the robot.
+- **Voltage-mode mechanisms** follow the same steps with volts as the output; expect much smaller
+  `kP`, and `kD` to matter less because back-EMF damps the motor for you. The
+  [PID Tuning Practice](/frc/pid-tuning-practice-setup) sessions run these recipes in voltage mode
+  against simulated mechanisms, and are where to practise the elevator bracket before touching
+  hardware.
+- **Write the numbers down where they live**, the `Slot0Configs` in the mechanism's `…Constants`
+  record, and commit them with a message that says which mechanism, which mode, and what setpoints
+  they were verified at.
 
 <RulesBox title="Common mistakes shared by every procedure">
 
-- **Tuning with a gain left over from last time.** Zero everything. Each step's result is only valid if the other gains are not helping.
-- **A large <code>kP</code> during the feedforward steps.** It masks a wrong <code>kS</code>/<code>kV</code>; keep it at the minimum that makes the loop respond.
+- **Tuning with a gain left over from last time.** Zero everything. Each step's result is only valid
+  if the other gains are not helping.
+- **A large <code>kP</code> during the feedforward steps.** It masks a wrong
+  <code>kS</code>/<code>kV</code>; keep it at the minimum that makes the loop respond.
 - **Stopping at the first setpoint that works.** Verify near, far and both directions.
-- **Copying the note's numbers.** They belong to its simulated mechanisms. Yours will be different by orders of magnitude and that is expected.
+- **Copying the note's numbers.** They belong to its simulated mechanisms. Yours will be different
+  by orders of magnitude and that is expected.
 
 </RulesBox>
 

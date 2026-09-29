@@ -11,15 +11,24 @@ description: "Top-level and per-subsystem constants as public static final, and 
 ---
 
 
-A constant gives a name to a setting used by your program. Create settings for the drivetrain and driver controller in this lesson.
+A constant gives a name to a setting used by your program. Create settings for the drivetrain and
+driver controller in this lesson.
 
-The Java pattern is from [Static and Final](/java/fundamentals/static-and-final#putting-them-together-constants): `public static final` constants accessed by class-qualified name (`DriveConstants.LEFT_LEADER_CAN_ID`, not a magic `40` scattered through your code).
+The Java pattern is from
+[Static and Final](/java/fundamentals/static-and-final#putting-them-together-constants):
+`public static final` constants accessed by class-qualified name
+(`DriveConstants.LEFT_LEADER_CAN_ID`, not a magic `40` scattered through your code).
 
 ---
 
 ## Before You Start
 
-Complete R02. Review [Variables: Keep a Value Fixed](/java/fundamentals/variables#keep-a-value-fixed), [Static and Final](/java/fundamentals/static-and-final#putting-them-together-constants), [Packages and Project Layout](/java/fundamentals/packages-and-project-layout#what-the-layout-looks-like), and [Create and Find a File](/tools/vscode-tour#create-save-and-find-a-file). Keep this project simulation-only.
+Complete R02. Review
+[Variables: Keep a Value Fixed](/java/fundamentals/variables#keep-a-value-fixed),
+[Static and Final](/java/fundamentals/static-and-final#putting-them-together-constants),
+[Packages and Project Layout](/java/fundamentals/packages-and-project-layout#what-the-layout-looks-like),
+and [Create and Find a File](/tools/vscode-tour#create-save-and-find-a-file). Keep this project
+simulation-only.
 
 ## Two Levels of Settings
 
@@ -35,17 +44,24 @@ src/main/java/frc/robot/
         └── LauncherConstants.java          ← launcher only
 ```
 
-**`Constants.java`** at the top level holds things multiple subsystems agree on: controller port numbers, alliance defaults, the loop period if you change it. It is small.
+**`Constants.java`** at the top level holds things multiple subsystems agree on: controller port
+numbers, alliance defaults, the loop period if you change it. It is small.
 
-**`XxxConstants.java`** lives in the same package as its subsystem and holds CAN IDs, PID gains, geometry, current limits, and any tuning numbers specific to that mechanism. It is where the bulk of your tuning lives.
+**`XxxConstants.java`** lives in the same package as its subsystem and holds CAN IDs, PID gains,
+geometry, current limits, and any tuning numbers specific to that mechanism. It is where the bulk of
+your tuning lives.
 
-When several parts of the program use a setting, such as a driver-controller port, put it in the top-level `Constants`. Put drivetrain-only settings in `DriveConstants`. This keeps each mechanism's configuration near the code that reads it.
+When several parts of the program use a setting, such as a driver-controller port, put it in the
+top-level `Constants`. Put drivetrain-only settings in `DriveConstants`. This keeps each mechanism's
+configuration near the code that reads it.
 
 ---
 
 ## Create `DriveConstants`
 
-Create `src/main/java/frc/robot/subsystems/drive/DriveConstants.java` with this complete file. These values are simulation starting points. A mentor checks them against the physical robot before deployment.
+Create `src/main/java/frc/robot/subsystems/drive/DriveConstants.java` with this complete file. These
+values are simulation starting points. A mentor checks them against the physical robot before
+deployment.
 
 ```java
 package frc.robot.subsystems.drive;
@@ -87,17 +103,34 @@ public final class DriveConstants {
 
 Five things to notice:
 
-1. **`public final class` with a private constructor.** Nobody should ever do `new DriveConstants()`. The constants are accessed through the class name: `DriveConstants.SMART_CURRENT_LIMIT_AMPS`.
-2. **`public static final` on every field.** `public` because everyone reads them. `static` because they belong to the class, not an instance. `final` so they can't be reassigned at runtime.
-3. **`ALL_CAPS_WITH_UNDERSCORES`**: the standard convention for class constants, the same as in [Variables](/java/fundamentals/variables#key-concepts). Java's narrower “constant variable” definition applies only to qualifying primitive and `String` values, not to `Distance` objects.
-4. **`WHEEL_DIAMETER` and `TRACK_WIDTH` are `Distance`, not `double`.** The old shape (`double WHEEL_DIAMETER_METERS = 0.1524; // 6 inches`) forces you to hand-convert 6 inches to meters and leave a comment as the only proof you did it right. `Inches.of(6)` says exactly what was measured, in the unit it was measured in, and the type system carries the conversion for you from here on. See "WPILib's Units library" below.
-5. **Not every number is a unit.** `GEAR_RATIO`, `MAX_DRIVE_PERCENT`, and `TELEOP_DEADBAND` are dimensionless ratios (turns per turn, a fraction of full output), not physical quantities. They stay plain `double`. The gear ratio shows both stages instead of hiding them inside `10.71`: each stage divides the number of teeth on the driven gear by the number on the driver gear. `(50 / 14) × (48 / 16)` is about `10.71`, so the motor turns about 10.71 times for one wheel turn. The rule of thumb for the rest of this curriculum: if it has a physical dimension (a length, a voltage, a speed, a current), give it a real `Unit` type; if it's a ratio or a percentage of something else, a plain `double` is the honest type.
+1. **`public final class` with a private constructor.** Nobody should ever do
+   `new DriveConstants()`. The constants are accessed through the class name:
+   `DriveConstants.SMART_CURRENT_LIMIT_AMPS`.
+2. **`public static final` on every field.** `public` because everyone reads them. `static` because
+   they belong to the class, not an instance. `final` so they can't be reassigned at runtime.
+3. **`ALL_CAPS_WITH_UNDERSCORES`**: the standard convention for class constants, the same as in
+   [Variables](/java/fundamentals/variables#key-concepts). Java's narrower “constant variable”
+   definition applies only to qualifying primitive and `String` values, not to `Distance` objects.
+4. **`WHEEL_DIAMETER` and `TRACK_WIDTH` are `Distance`, not `double`.** The old shape
+   (`double WHEEL_DIAMETER_METERS = 0.1524; // 6 inches`) forces you to hand-convert 6 inches to
+   meters and leave a comment as the only proof you did it right. `Inches.of(6)` says exactly what
+   was measured, in the unit it was measured in, and the type system carries the conversion for you
+   from here on. See "WPILib's Units library" below.
+5. **Not every number is a unit.** `GEAR_RATIO`, `MAX_DRIVE_PERCENT`, and `TELEOP_DEADBAND` are
+   dimensionless ratios (turns per turn, a fraction of full output), not physical quantities. They
+   stay plain `double`. The gear ratio shows both stages instead of hiding them inside `10.71`: each
+   stage divides the number of teeth on the driven gear by the number on the driver gear.
+   `(50 / 14) × (48 / 16)` is about `10.71`, so the motor turns about 10.71 times for one wheel
+   turn. The rule of thumb for the rest of this curriculum: if it has a physical dimension (a
+   length, a voltage, a speed, a current), give it a real `Unit` type; if it's a ratio or a
+   percentage of something else, a plain `double` is the honest type.
 
 ---
 
 ## WPILib Units
 
-Physical measurements need a number and a unit. A bare `double` does not tell Java whether `6.0` means inches, meters, volts, or amps. WPILib's Units library keeps that information with the value.
+Physical measurements need a number and a unit. A bare `double` does not tell Java whether `6.0`
+means inches, meters, volts, or amps. WPILib's Units library keeps that information with the value.
 
 ```java
 import edu.wpi.first.units.measure.Distance;
@@ -113,14 +146,16 @@ Read the two important operations aloud:
 - `Inches.of(6)` creates a distance measured as six inches.
 - `wheelDiameter.in(Meters)` asks for the same distance expressed in meters.
 
-Use a typed measure for physical quantities such as distance, voltage, velocity, and current. Keep dimensionless ratios as `double`. A gear ratio and a joystick fraction have no physical unit.
+Use a typed measure for physical quantities such as distance, voltage, velocity, and current. Keep
+dimensionless ratios as `double`. A gear ratio and a joystick fraction have no physical unit.
 
 The type name and unit name come from different imports:
 
 - Types such as `Distance` and `Voltage` are in `edu.wpi.first.units.measure`.
 - Unit constants such as `Meters` and `Volts` are in `edu.wpi.first.units.Units`.
 
-R07 and R08 show these values crossing into REVLib and simulation APIs. Convert to a bare number with `.in(...)` only where an API requires one.
+R07 and R08 show these values crossing into REVLib and simulation APIs. Convert to a bare number
+with `.in(...)` only where an API requires one.
 
 ## Top-Level `Constants.java`
 
@@ -140,35 +175,53 @@ public final class Constants {
 }
 ```
 
-Nested `static` classes group related constants without scattering files. `OperatorConstants.DRIVER_CONTROLLER_PORT` reads naturally at the call site.
+Nested `static` classes group related constants without scattering files.
+`OperatorConstants.DRIVER_CONTROLLER_PORT` reads naturally at the call site.
 
-A single `Constants` file works for a small project. As mechanisms are added, per-subsystem files make each setting easier to find and let students edit different mechanisms without repeatedly touching one shared file.
+A single `Constants` file works for a small project. As mechanisms are added, per-subsystem files
+make each setting easier to find and let students edit different mechanisms without repeatedly
+touching one shared file.
 
 ---
 
 ## Keep Runtime State Elsewhere
 
-- **Anything that varies at runtime.** A flag like "are we connected to the field?" is not a constant, it's a state. Belongs on a class, not in `Constants`.
-- **Anything per-instance.** "The left motor's port" is constant; "the current angle of the arm" is not.
-- **Runtime data or generated configuration.** Fixed lookup tables and multi-line configuration can be constants when their owner uses them as fixed settings. Values loaded or calculated while the program runs belong with the class that owns that process.
+- **Anything that varies at runtime.** A flag like "are we connected to the field?" is not a
+  constant, it's a state. Belongs on a class, not in `Constants`.
+- **Anything per-instance.** "The left motor's port" is constant; "the current angle of the arm" is
+  not.
+- **Runtime data or generated configuration.** Fixed lookup tables and multi-line configuration can
+  be constants when their owner uses them as fixed settings. Values loaded or calculated while the
+  program runs belong with the class that owns that process.
 
-The rule of thumb: a constant describes a value fixed by the robot design or chosen before the program starts. A sensor reading, driver input, or other value that changes while the robot runs belongs on the class that owns it.
+The rule of thumb: a constant describes a value fixed by the robot design or chosen before the
+program starts. A sensor reading, driver input, or other value that changes while the robot runs
+belongs on the class that owns it.
 
 ---
 
 ## Practice
 
-Inside your project, create the folder `src/main/java/frc/robot/subsystems/drive/`. Add `DriveConstants.java` with the contents above. Edit `Constants.java` to match the top-level snippet above.
+Inside your project, create the folder `src/main/java/frc/robot/subsystems/drive/`. Add
+`DriveConstants.java` with the contents above. Edit `Constants.java` to match the top-level snippet
+above.
 
-The generated `RobotContainer.java` still refers to `OperatorConstants.kDriverControllerPort`. Change that use to `OperatorConstants.DRIVER_CONTROLLER_PORT` before building. `DriveConstants` is first used in R07; creating it now establishes the package and names that lesson will use.
+The generated `RobotContainer.java` still refers to `OperatorConstants.kDriverControllerPort`.
+Change that use to `OperatorConstants.DRIVER_CONTROLLER_PORT` before building. `DriveConstants` is
+first used in R07; creating it now establishes the package and names that lesson will use.
 
-Open `RobotContainer.java`, add `import frc.robot.subsystems.drive.DriveConstants;`, and type `DriveConstants.` on a temporary line inside the constructor. IntelliSense should list the drive constants. Delete the temporary line and import, save, then run `WPILib: Build Robot Code` and confirm `BUILD SUCCESSFUL`.
+Open `RobotContainer.java`, add `import frc.robot.subsystems.drive.DriveConstants;`, and type
+`DriveConstants.` on a temporary line inside the constructor. IntelliSense should list the drive
+constants. Delete the temporary line and import, save, then run `WPILib: Build Robot Code` and
+confirm `BUILD SUCCESSFUL`.
 
 ---
 
 <RulesBox title="Done When">
 
-The project builds with `DriveConstants` and `OperatorConstants` in place. Typing `DriveConstants.` in another Java file offers the constants through IntelliSense. Nothing changes in simulation yet; the build and the file organization are the checks.
+The project builds with `DriveConstants` and `OperatorConstants` in place. Typing `DriveConstants.`
+in another Java file offers the constants through IntelliSense. Nothing changes in simulation yet;
+the build and the file organization are the checks.
 
 </RulesBox>
 

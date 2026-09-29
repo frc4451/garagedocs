@@ -14,22 +14,39 @@ description: "The third mode: feeding a recorded match log back through your cur
 
 ### The question replay answers
 
-Simulation answers what the robot would do. Replay answers what it did, and whether a fix would have changed it.
+Simulation answers what the robot would do. Replay answers what it did, and whether a fix would have
+changed it.
 
-In `REPLAY` mode there is no physics model and the robot does not react. Every **input** the code recorded during a real run (every encoder reading, every camera result, every joystick value, every loop) is fed back in, in order, at the original timestamps, and your *current* code processes them. Whatever it computes from those inputs is written to a second log. Since the inputs are identical to the match, any difference between the two logs is the difference your code change made.
+In `REPLAY` mode there is no physics model and the robot does not react. Every **input** the code
+recorded during a real run (every encoder reading, every camera result, every joystick value, every
+loop) is fed back in, in order, at the original timestamps, and your *current* code processes them.
+Whatever it computes from those inputs is written to a second log. Since the inputs are identical to
+the match, any difference between the two logs is the difference your code change made.
 
-This is what the IO layer's inputs class was really for. `updateInputs` fills a struct that AdvantageKit records on the robot and replays on the laptop; the subsystem reads the struct either way. [IO Layers](/frc/io-layers#what-autolog-generates) shows the mechanism; this lesson is what you do with it.
+This is what the IO layer's inputs class was really for. `updateInputs` fills a struct that
+AdvantageKit records on the robot and replays on the laptop; the subsystem reads the struct either
+way. [IO Layers](/frc/io-layers#what-autolog-generates) shows the mechanism; this lesson is what you
+do with it.
 
 ### Replaying a match
 
 <StepsBox title="From a match log to an answer">
 
-1. **Get the log.** On the robot AdvantageKit writes to the USB stick at `/U/logs`; without a stick there is no log. Copy the match's `.wpilog` to your laptop.
+1. **Get the log.** On the robot AdvantageKit writes to the USB stick at `/U/logs`; without a stick
+   there is no log. Copy the match's `.wpilog` to your laptop.
 2. **Set the mode.** In `Constants.java`, `simMode = Mode.REPLAY`.
-3. **Run it.** `WPILib: Simulate Robot Code`. No extensions are needed, because the log is driving the robot. `LogFileUtil.findReplayLog()` asks for the file (it also checks the `AKIT_LOG_PATH` environment variable and the most recently opened log in AdvantageScope, which is usually the one you want).
-4. **Wait a few seconds.** `setUseTiming(false)` in the replay branch removes the 20 ms wait between loops, so a two-and-a-half-minute match replays in about ten seconds.
-5. **Open both logs in AdvantageScope.** The replay wrote `<original>_sim.wpilog` next to the source. Open the original, then File → *Merge* the replay; every key from the replay appears with a suffix so the two can be graphed on one axis.
-6. **Compare outputs.** Inputs are identical by construction. Outputs (commanded voltages, setpoints, state, poses) are where the original and the replay diverge, and the first divergence is your answer.
+3. **Run it.** `WPILib: Simulate Robot Code`. No extensions are needed, because the log is driving
+   the robot. `LogFileUtil.findReplayLog()` asks for the file (it also checks the `AKIT_LOG_PATH`
+   environment variable and the most recently opened log in AdvantageScope, which is usually the one
+   you want).
+4. **Wait a few seconds.** `setUseTiming(false)` in the replay branch removes the 20 ms wait between
+   loops, so a two-and-a-half-minute match replays in about ten seconds.
+5. **Open both logs in AdvantageScope.** The replay wrote `<original>_sim.wpilog` next to the
+   source. Open the original, then File → *Merge* the replay; every key from the replay appears with
+   a suffix so the two can be graphed on one axis.
+6. **Compare outputs.** Inputs are identical by construction. Outputs (commanded voltages,
+   setpoints, state, poses) are where the original and the replay diverge, and the first divergence
+   is your answer.
 
 </StepsBox>
 
@@ -44,17 +61,29 @@ case REPLAY:
   break;
 ```
 
-and `RobotContainer` constructs every subsystem with an empty IO, `new SingleRollerIO() {}`, because in replay, `updateInputs` does nothing; the inputs come from the log.
+and `RobotContainer` constructs every subsystem with an empty IO, `new SingleRollerIO() {}`, because
+in replay, `updateInputs` does nothing; the inputs come from the log.
 
 ### Three things replay is for
 
-**Reproducing the once-per-event bug.** The shooter did something odd in match 43 and nobody saw why. Replay match 43 with a breakpoint in the shooter's `periodic` set to fire at the timestamp on the video; step through your own code with the exact inputs the robot had. No robot, field, battery or luck required. [VS Code: Debugging](/tools/vscode-debugging#use-conditional-breakpoints-and-logpoints) covers conditional breakpoints; `Timer.getTimestamp() > 87.2` is the condition you want.
+**Reproducing the once-per-event bug.** The shooter did something odd in match 43 and nobody saw
+why. Replay match 43 with a breakpoint in the shooter's `periodic` set to fire at the timestamp on
+the video; step through your own code with the exact inputs the robot had. No robot, field, battery
+or luck required.
+[VS Code: Debugging](/tools/vscode-debugging#use-conditional-breakpoints-and-logpoints) covers
+conditional breakpoints; `Timer.getTimestamp() > 87.2` is the condition you want.
 
-**Adding logging you did not have.** Because the inputs were recorded, you can add `Logger.recordOutput` lines to a subsystem now and replay. The new outputs are computed from the real inputs as if they had been logged during the match. A value you forgot to record is not lost if it was derived from inputs.
+**Adding logging you did not have.** Because the inputs were recorded, you can add
+`Logger.recordOutput` lines to a subsystem now and replay. The new outputs are computed from the
+real inputs as if they had been logged during the match. A value you forgot to record is not lost if
+it was derived from inputs.
 
-**Testing a fix against real data.** Change the code, replay the same log, compare. If the commanded voltage now does what you intended at 87.2 s, the fix works on the exact situation that failed, before the robot sees it again.
+**Testing a fix against real data.** Change the code, replay the same log, compare. If the commanded
+voltage now does what you intended at 87.2 s, the fix works on the exact situation that failed,
+before the robot sees it again.
 
-AdvantageKit also ships **`ReplayWatch`**, a Gradle task that re-runs the replay every time a source file is saved, so the edit-replay-look loop is a save and a glance.
+AdvantageKit also ships **`ReplayWatch`**, a Gradle task that re-runs the replay every time a source
+file is saved, so the edit-replay-look loop is a save and a glance.
 
 ### The rules that make replay exact
 
@@ -71,21 +100,33 @@ Replay is deterministic only if the code is. Two things break it:
   ]}
 />
 
-The first row is the important one, and it is the reason FRC 4451's subsystems read *only* from their inputs class. A subsystem that cheats once is a subsystem that cannot be replayed, and you find out at the event.
+The first row is the important one, and it is the reason FRC 4451's subsystems read *only* from
+their inputs class. A subsystem that cheats once is a subsystem that cannot be replayed, and you
+find out at the event.
 
 ### What replay cannot do
 
-- **It cannot show what a different command would have made the robot do.** The robot does not react, because the inputs are fixed. If your fix changes the voltage, replay shows the new voltage; it does not show the mechanism moving differently, because the recorded encoder keeps saying what it said. For "what would have happened", that is [simulation](/frc/physics-in-the-io-layer).
-- **It cannot recover inputs that were not logged.** A camera whose results went straight into the estimator without passing through an inputs struct left nothing to replay.
-- **It cannot replay a log from different code structure.** Rename an inputs field and the replay reads nothing for it. Keep field names stable within a season.
+- **It cannot show what a different command would have made the robot do.** The robot does not
+  react, because the inputs are fixed. If your fix changes the voltage, replay shows the new
+  voltage; it does not show the mechanism moving differently, because the recorded encoder keeps
+  saying what it said. For "what would have happened", that is
+  [simulation](/frc/physics-in-the-io-layer).
+- **It cannot recover inputs that were not logged.** A camera whose results went straight into the
+  estimator without passing through an inputs struct left nothing to replay.
+- **It cannot replay a log from different code structure.** Rename an inputs field and the replay
+  reads nothing for it. Keep field names stable within a season.
 
 <RulesBox title="Common mistakes">
 
-- **Forgetting to set <code>simMode</code> back to <code>SIM</code>.** The next person to simulate gets a file picker and no physics.
+- **Forgetting to set <code>simMode</code> back to <code>SIM</code>.** The next person to simulate
+  gets a file picker and no physics.
 - **Comparing inputs.** They are identical by definition; look at outputs.
-- **Reading the <code>_sim</code> log alone.** Merge it with the original; the divergence is only visible side by side.
-- **Expecting the mechanism to move.** It cannot. Replay is your code against a recording, not a second match.
-- **Editing the log's code and the subsystem's field names at the same time.** Rename after the event, not during.
+- **Reading the <code>_sim</code> log alone.** Merge it with the original; the divergence is only
+  visible side by side.
+- **Expecting the mechanism to move.** It cannot. Replay is your code against a recording, not a
+  second match.
+- **Editing the log's code and the subsystem's field names at the same time.** Rename after the
+  event, not during.
 
 </RulesBox>
 

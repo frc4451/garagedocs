@@ -11,9 +11,14 @@ duration: 15 min
 description: "How PhotonVision and PhotonLib turn AprilTag detections into timestamped robot-pose observations."
 ---
 
-PhotonVision runs image processing on a coprocessor, such as an Orange Pi or a supported camera appliance. It detects targets and publishes results over NetworkTables. PhotonLib is the robot-code library that reads those results and calculates robot poses.
+PhotonVision runs image processing on a coprocessor, such as an Orange Pi or a supported camera
+appliance. It detects targets and publishes results over NetworkTables. PhotonLib is the robot-code
+library that reads those results and calculates robot poses.
 
-This curriculum uses the PhotonPoseEstimator API in FRC 4451's 2026 Cobra project: construct the estimator from a field layout and robot-to-camera transform, then choose an estimation method for each pipeline result. Check the vendordep and current PhotonVision documentation before copying the API into another season.
+This curriculum uses the PhotonPoseEstimator API in FRC 4451's 2026 Cobra project: construct the
+estimator from a field layout and robot-to-camera transform, then choose an estimation method for
+each pipeline result. Check the vendordep and current PhotonVision documentation before copying the
+API into another season.
 
 ### Configure the coprocessor
 
@@ -33,7 +38,8 @@ This curriculum uses the PhotonPoseEstimator API in FRC 4451's 2026 Cobra projec
 6. Load the same field layout on the coprocessor and roboRIO.
 7. Measure the transform from the robot origin to the camera.
 
-For the 2026 field, PhotonVision documents separate welded and AndyMark layouts. Using the wrong layout creates a systematic pose error even when tag detection works.
+For the 2026 field, PhotonVision documents separate welded and AndyMark layouts. Using the wrong
+layout creates a systematic pose error even when tag detection works.
 
 ### Read every new result
 
@@ -52,9 +58,12 @@ for (PhotonPipelineResult result : camera.getAllUnreadResults()) {
 }
 ```
 
-`getAllUnreadResults()` returns results that have arrived since the previous call. Processing the collection keeps each observation and its timestamp. Call `hasTargets()` before using `getBestTarget()` because a result may contain no target.
+`getAllUnreadResults()` returns results that have arrived since the previous call. Processing the
+collection keeps each observation and its timestamp. Call `hasTargets()` before using
+`getBestTarget()` because a result may contain no target.
 
-Yaw is enough for a command that turns until a target is centered. Field localization needs the tag layout and camera transform.
+Yaw is enough for a command that turns until a target is centered. Field localization needs the tag
+layout and camera transform.
 
 ### Calculate a robot pose
 
@@ -85,9 +94,12 @@ for (PhotonPipelineResult result : camera.getAllUnreadResults()) {
 }
 ```
 
-Coprocessor multi-tag estimation combines the visible tag corners into one solution. It is generally the preferred result when the camera calibration, tag layout, and detections are valid. The lowest-ambiguity method provides a single-tag fallback.
+Coprocessor multi-tag estimation combines the visible tag corners into one solution. It is generally
+the preferred result when the camera calibration, tag layout, and detections are valid. The
+lowest-ambiguity method provides a single-tag fallback.
 
-Ambiguity and distance are inputs to a filter, not guarantees. A cutoff such as 0.2 is a starting value that must be tested with the team's camera, resolution, exposure, and field conditions.
+Ambiguity and distance are inputs to a filter, not guarantees. A cutoff such as 0.2 is a starting
+value that must be tested with the team's camera, resolution, exposure, and field conditions.
 
 ### Pass observations to the estimator
 
@@ -100,7 +112,9 @@ poseEstimator.addVisionMeasurement(
     visionStdDevs);
 ```
 
-WPILib applies a delayed measurement at its timestamp and updates the current estimate from that corrected history. Using the loop's current time instead of the observation timestamp places the correction at the wrong point in the robot's motion.
+WPILib applies a delayed measurement at its timestamp and updates the current estimate from that
+corrected history. Using the loop's current time instead of the observation timestamp places the
+correction at the wrong point in the robot's motion.
 
 The next two lessons separate the remaining responsibilities:
 
@@ -109,14 +123,18 @@ The next two lessons separate the remaining responsibilities:
 
 ### Simulation
 
-PhotonLib's simulator models camera placement, field targets, visibility, configured latency, and configured measurement noise. It checks the integration before the camera is installed. It does not reproduce lighting, motion blur, a flexible mount, or a miscalibrated real lens.
+PhotonLib's simulator models camera placement, field targets, visibility, configured latency, and
+configured measurement noise. It checks the integration before the camera is installed. It does not
+reproduce lighting, motion blur, a flexible mount, or a miscalibrated real lens.
 
 <RulesBox title="Check these failures">
 
 - No results: verify camera name, network connection, pipeline, and target visibility.
-- Tags detected but no multi-tag result: verify that multi-tag is enabled and both systems use the same field layout.
+- Tags detected but no multi-tag result: verify that multi-tag is enabled and both systems use the
+  same field layout.
 - Consistent pose offset: measure `robotToCamera` again and check its axis signs.
-- Pose jumps from one tag: log ambiguity, distance, tag ID, and rejected observations before changing estimator trust.
+- Pose jumps from one tag: log ambiguity, distance, tag ID, and rejected observations before
+  changing estimator trust.
 - Old examples fail to compile: compare their PhotonLib version with the project's vendordep.
 
 </RulesBox>

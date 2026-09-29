@@ -11,9 +11,13 @@ duration: 35 min
 description: "The design exercise that closes the group: what each of Cobra's four subsystems puts on a canvas, finishing the intake configs the repository already carries, adding the hood from nothing, the canvas decision between them, and what to check before calling it done."
 ---
 
-Cobra carries a half-finished mechanism visualization. The library classes exist, one subsystem's constants are fully configured, and nothing constructs a canvas. This exercise finishes it, which is the closest thing in the curriculum to the work an Automation Team member does on the competition robot in January.
+Cobra carries a half-finished mechanism visualization. The library classes exist, one subsystem's
+constants are fully configured, and nothing constructs a canvas. This exercise finishes it, which is
+the closest thing in the curriculum to the work an Automation Team member does on the competition
+robot in January.
 
-Read the repository before writing anything. The file paths in the sources block are the ones this page was written against, and they are on `main`.
+Read the repository before writing anything. The file paths in the sources block are the ones this
+page was written against, and they are on `main`.
 
 ### What is already there
 
@@ -30,11 +34,14 @@ Read the repository before writing anything. The file paths in the sources block
   ]}
 />
 
-A search for `Mechanism` across the robot package returns gear-ratio constants and one comment. That is the gap.
+A search for `Mechanism` across the robot package returns gear-ratio constants and one comment. That
+is the gap.
 
 ### What Cobra draws
 
-Four subsystems, and [what each component shows](/frc/what-a-mechanism-drawing-shows#what-every-component-draws) decides what goes on each canvas:
+Four subsystems, and
+[what each component shows](/frc/what-a-mechanism-drawing-shows#what-every-component-draws) decides
+what goes on each canvas:
 
 <ContentTable
   headers={["Subsystem", "Components", "On the canvas"]}
@@ -46,13 +53,18 @@ Four subsystems, and [what each component shows](/frc/what-a-mechanism-drawing-s
   ]}
 />
 
-Two of those are position mechanisms with a goal to miss, and the overlay from [Measured Against Goal](/frc/measured-against-goal) is aimed at them. The spinners carry no overlay, because there is no position to be wrong about. They are on the canvas so the picture is complete: a deployed intake with a stopped roller is a bug you see rather than one you go looking for.
+Two of those are position mechanisms with a goal to miss, and the overlay from
+[Measured Against Goal](/frc/measured-against-goal) is aimed at them. The spinners carry no overlay,
+because there is no position to be wrong about. They are on the canvas so the picture is complete: a
+deployed intake with a stopped roller is a bug you see rather than one you go looking for.
 
-The graphs stay either way. `Flywheel.periodic()` and `Pivot.periodic()` already log current and velocity, and a current trace still gives the number a drawing only gestures at.
+The graphs stay either way. `Flywheel.periodic()` and `Pivot.periodic()` already log current and
+velocity, and a current trace still gives the number a drawing only gestures at.
 
 ### Step 1: finish the intake
 
-The constants are written. The subsystem needs a canvas, three ligaments from the configs, and one update.
+The constants are written. The subsystem needs a canvas, three ligaments from the configs, and one
+update.
 
 ```java
 // Intake.java
@@ -98,9 +110,13 @@ public void periodic() {
 }
 ```
 
-The three `update` calls read three different accessors. Feeding two of them from the same one is the mistake that produces a drawing which always agrees with itself.
+The three `update` calls read three different accessors. Feeding two of them from the same one is
+the mistake that produces a drawing which always agrees with itself.
 
-One change to the constants goes with this. All three configs are `width(10)` in `kGreen`, `kLawnGreen` and `kLightGreen`, so the three ligaments are the same thickness in three shades of one hue and the overlay is unreadable. Widen the goal, narrow the measurement, and keep the hue difference as a secondary cue rather than the only one:
+One change to the constants goes with this. All three configs are `width(10)` in `kGreen`,
+`kLawnGreen` and `kLightGreen`, so the three ligaments are the same thickness in three shades of one
+hue and the overlay is unreadable. Widen the goal, narrow the measurement, and keep the hue
+difference as a secondary cue rather than the only one:
 
 ```java
 // IntakeConstants.java, widths changed
@@ -111,35 +127,56 @@ One change to the constants goes with this. All three configs are `width(10)` in
 
 ### Step 2: add the hood
 
-`HoodConstants` has no mechanism configs, so this one is built from nothing. The geometry comes from the `pivotConfig` already in the file: `armLength(Feet.of(1))`, `initialAngle(Degrees.of(28))`, `minAngle(Degrees.of(28))`, `maxAngle(Degrees.of(50))`.
+`HoodConstants` has no mechanism configs, so this one is built from nothing. The geometry comes from
+the `pivotConfig` already in the file: `armLength(Feet.of(1))`, `initialAngle(Degrees.of(28))`,
+`minAngle(Degrees.of(28))`, `maxAngle(Degrees.of(50))`.
 
-Two things about that range change the design. The hood travels 22 degrees, so a canvas sized like the intake's leaves a sweep barely wider than the line weight. And the arm never reaches below 28 degrees, so a bottom-centre root wastes most of the picture.
+Two things about that range change the design. The hood travels 22 degrees, so a canvas sized like
+the intake's leaves a sweep barely wider than the line weight. And the arm never reaches below 28
+degrees, so a bottom-centre root wastes most of the picture.
 
 <StepsBox title="Adding the hood drawing">
 
-1. Add a `RootMechanismConfig` to `HoodConstants`. Size the canvas around the arc the hood sweeps rather than around the robot, and place the root so the 28 to 50 degree fan fills the frame.
-2. Add three `PivotMechanismConfig` entries named `Measured`, `Setpoint` and `Goal`, with `initialAngle(pivotConfig.initialAngle())` and `length` converted from `pivotConfig.armLength()` so the drawing and the physics model cannot drift apart.
+1. Add a `RootMechanismConfig` to `HoodConstants`. Size the canvas around the arc the hood sweeps
+   rather than around the robot, and place the root so the 28 to 50 degree fan fills the frame.
+2. Add three `PivotMechanismConfig` entries named `Measured`, `Setpoint` and `Goal`, with
+   `initialAngle(pivotConfig.initialAngle())` and `length` converted from `pivotConfig.armLength()`
+   so the drawing and the physics model cannot drift apart.
 3. Give them line weights of 3, 6 and 10 and a colour family that is not the intake's green.
 4. Build the canvas and the three ligaments in the `Hood` constructor, following step 1.
-5. Update all three from `hood.getPosition()`, `hood.getPositionSetpoint()` and `hood.getGoalPosition()` at the end of `periodic()`, after `hood.periodic()`, then record the canvas.
+5. Update all three from `hood.getPosition()`, `hood.getPositionSetpoint()` and
+   `hood.getGoalPosition()` at the end of `periodic()`, after `hood.periodic()`, then record the
+   canvas.
 
 </StepsBox>
 
-`Hood.periodic()` already logs `name + "/State"`. Keep that. The state name and the drawing answer different questions, and the pair is more useful than either alone: `MID` next to an arm that has not moved says the command ran and the mechanism did not.
+`Hood.periodic()` already logs `name + "/State"`. Keep that. The state name and the drawing answer
+different questions, and the pair is more useful than either alone: `MID` next to an arm that has
+not moved says the command ran and the mechanism did not.
 
 ### Step 3: decide whether they share a canvas
 
 Two position mechanisms, two subsystems. One canvas each, or one canvas holding both?
 
-The test from [Mechanisms per Subsystem](/frc/mechanisms-per-subsystem#when-a-subsystem-is-the-wrong-owner) is whether one mechanism's safe range depends on where the other one is. Answer it from the CAD and the robot, not from this page: check whether the intake end effector at any angle between -2 and 90 degrees can reach the space the hood sweeps between 28 and 50 degrees.
+The test from
+[Mechanisms per Subsystem](/frc/mechanisms-per-subsystem#when-a-subsystem-is-the-wrong-owner) is
+whether one mechanism's safe range depends on where the other one is. Answer it from the CAD and the
+robot, not from this page: check whether the intake end effector at any angle between -2 and 90
+degrees can reach the space the hood sweeps between 28 and 50 degrees.
 
-If they cannot touch, two canvases is right, and each subsystem stays self-contained. If they can, the canvas belongs to whatever coordinates them, and the two ligament chains go on one root at their real relative positions so the picture answers the collision question. On a state-driven robot that owner is the superstructure from [A Superstructure for Cobra](/frc/superstructure-for-cobra).
+If they cannot touch, two canvases is right, and each subsystem stays self-contained. If they can,
+the canvas belongs to whatever coordinates them, and the two ligament chains go on one root at their
+real relative positions so the picture answers the collision question. On a state-driven robot that
+owner is the superstructure from [A Superstructure for Cobra](/frc/superstructure-for-cobra).
 
-Write the answer and the reason into a comment next to the root config. The next person to add a mechanism needs to know which rule was applied.
+Write the answer and the reason into a comment next to the root config. The next person to add a
+mechanism needs to know which rule was applied.
 
 ### Step 4: the 3D view, if the model exists
 
-`generate3dMechanism()` needs a forward-facing canvas and a robot model whose components pivot about their own origins. Cobra's intake canvas is a side view, so the intake qualifies once a model with an articulated end effector exists in AdvantageScope's assets.
+`generate3dMechanism()` needs a forward-facing canvas and a robot model whose components pivot about
+their own origins. Cobra's intake canvas is a side view, so the intake qualifies once a model with
+an articulated end effector exists in AdvantageScope's assets.
 
 Log the components robot-relative, named as arrows:
 
@@ -149,27 +186,41 @@ Logger.recordOutput(
     mechanism.generate3dMechanism().toArray(new Pose3d[0]));
 ```
 
-This step needs a model, and the model is its own job: a `config.json` plus a `model.glb` per component, laid out as [Mechanisms in 3D](/frc/mechanisms-in-3d#the-model-the-poses-attach-to) describes. Until one exists, a component array has nothing to attach to, and the 2D drawing is the part that pays for itself.
+This step needs a model, and the model is its own job: a `config.json` plus a `model.glb` per
+component, laid out as [Mechanisms in 3D](/frc/mechanisms-in-3d#the-model-the-poses-attach-to)
+describes. Until one exists, a component array has nothing to attach to, and the 2D drawing is the
+part that pays for itself.
 
 ### What to check before calling it done
 
 <StepsBox title="Verification">
 
-1. Run the simulator. Drag `Intake/Mechanism2d` onto a Mechanism tab and confirm three distinguishable arms.
-2. Command the intake to deploy. The goal arm should jump, the setpoint arm should sweep, and the measured arm should follow the setpoint. All three ending up on top of each other at rest is the passing result.
-3. Command the hood through `DOWN`, `MID` and `UP`. Confirm the drawn arm moves and stays inside the 28 to 50 degree fan.
-4. Check the drawn angle against `Intake/Endeffector/CurrentAngleDegrees` on a graph at a few positions. They are the same number, and a disagreement means the config's `initialAngle` or `length` is wrong.
-5. On hardware, compare the drawn arm to the real arm at the deployed and stowed positions. This is the check that makes the drawing trustworthy, and it is worth the five minutes once.
-6. Confirm the loop time did not move. Three ligaments per subsystem is small, and confirming it is cheap.
+1. Run the simulator. Drag `Intake/Mechanism2d` onto a Mechanism tab and confirm three
+   distinguishable arms.
+2. Command the intake to deploy. The goal arm should jump, the setpoint arm should sweep, and the
+   measured arm should follow the setpoint. All three ending up on top of each other at rest is the
+   passing result.
+3. Command the hood through `DOWN`, `MID` and `UP`. Confirm the drawn arm moves and stays inside the
+   28 to 50 degree fan.
+4. Check the drawn angle against `Intake/Endeffector/CurrentAngleDegrees` on a graph at a few
+   positions. They are the same number, and a disagreement means the config's `initialAngle` or
+   `length` is wrong.
+5. On hardware, compare the drawn arm to the real arm at the deployed and stowed positions. This is
+   the check that makes the drawing trustworthy, and it is worth the five minutes once.
+6. Confirm the loop time did not move. Three ligaments per subsystem is small, and confirming it is
+   cheap.
 
 </StepsBox>
 
 <RulesBox title="What to leave alone">
 
 - The `Flywheel` and `SingleRoller` logging. It already covers the rollers and the shooter.
-- `PivotMechanism` and `ElevatorMechanism`. They are complete and nothing in this exercise needs them changed.
-- The commented-out state machine in `Intake.periodic()`. It belongs to a different decision, covered in [State-Driven Robot Code](/frc/why-state-machines).
-- The existing `IsNearGoal` and `State` outputs. The drawing adds to them rather than replacing them.
+- `PivotMechanism` and `ElevatorMechanism`. They are complete and nothing in this exercise needs
+  them changed.
+- The commented-out state machine in `Intake.periodic()`. It belongs to a different decision,
+  covered in [State-Driven Robot Code](/frc/why-state-machines).
+- The existing `IsNearGoal` and `State` outputs. The drawing adds to them rather than replacing
+  them.
 
 </RulesBox>
 

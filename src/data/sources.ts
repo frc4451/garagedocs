@@ -155,7 +155,7 @@ export const sourceRegistry = {
   thrifty: {
     name: 'Thrifty Bot docs',
     base: 'https://docs.thethriftybot.com/',
-    version: 'ThriftyLib 2026.0.1',
+    version: 'shared 2026/2027 source, checked 2026-09-28',
   },
   advantagekit: {
     name: 'AdvantageKit docs',

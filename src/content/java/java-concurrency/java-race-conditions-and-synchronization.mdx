@@ -39,7 +39,8 @@ a.join();  b.join();
 System.out.println(counter.get());     // expected 200000; usually less
 ```
 
-The result may be below 200,000, or it may be exactly 200,000. Run it several times. A correct result on one run does not prove that the updates are coordinated.
+The result may be below 200,000, or it may be exactly 200,000. Run it several times. A correct
+result on one run does not prove that the updates are coordinated.
 
 ### Why
 
@@ -60,7 +61,8 @@ thread B computes 6, writes -> 6
 
 Two increments happened; the count rose by one. The update from A was overwritten.
 
-This is a **race condition**: the result depends on the timing of threads, and that timing is not under your control.
+This is a **race condition**: the result depends on the timing of threads, and that timing is not
+under your control.
 
 <RulesBox title="Almost nothing is atomic">
 
@@ -69,15 +71,18 @@ An operation is atomic if it cannot be observed half-done. Very little is:
 - `count++` and `count += 1`: **not atomic**
 - `x = y + 1`: **not atomic**
 - Reading or writing a single `int` or reference: atomic
-- Reading or writing a `long` or `double`: **not guaranteed** on all platforms, unless declared `volatile`
+- Reading or writing a `long` or `double`: **not guaranteed** on all platforms, unless declared
+  `volatile`
 
-Assume any operation touching shared mutable data needs protection unless you can point to a specific rule saying otherwise.
+Assume any operation touching shared mutable data needs protection unless you can point to a
+specific rule saying otherwise.
 
 </RulesBox>
 
 ### synchronized
 
-A synchronized instance method acquires its object’s lock before entering. Other synchronized methods or blocks using that same lock wait until it is released.
+A synchronized instance method acquires its object’s lock before entering. Other synchronized
+methods or blocks using that same lock wait until it is released.
 
 ```java
 public class Counter {
@@ -93,9 +98,12 @@ public class Counter {
 
 Now the total is 200,000 every time.
 
-Every Java object has an intrinsic lock. A `synchronized` instance method acquires that object's lock on entry and releases it on exit, including when an exception is thrown.
+Every Java object has an intrinsic lock. A `synchronized` instance method acquires that object's
+lock on entry and releases it on exit, including when an exception is thrown.
 
-Both increment and get use the same object lock here. Locking only the writer leaves the reader without that visibility guarantee. A single int read is atomic, but it can still see a stale value without coordination.
+Both increment and get use the same object lock here. Locking only the writer leaves the reader
+without that visibility guarantee. A single int read is atomic, but it can still see a stale value
+without coordination.
 
 You can also lock a smaller region:
 
@@ -114,13 +122,16 @@ public class Tracker {
 }
 ```
 
-Holding a lock for less time lets more work proceed in parallel. Using a dedicated private lock object, rather than `this`, also prevents outside code from locking on your object and interfering.
+Holding a lock for less time lets more work proceed in parallel. Using a dedicated private lock
+object, rather than `this`, also prevents outside code from locking on your object and interfering.
 
 ### volatile
 
 `volatile` solves a different problem: **visibility**, not atomicity.
 
-Without it, one thread's write may never become visible to another. The compiler and processor are allowed to cache values in registers, so this loop can run forever even after `running` becomes false:
+Without it, one thread's write may never become visible to another. The compiler and processor are
+allowed to cache values in registers, so this loop can run forever even after `running` becomes
+false:
 
 ```java norun
 public class Worker {
@@ -136,7 +147,8 @@ public class Worker {
 }
 ```
 
-Declaring the flag volatile makes writes visible to subsequent reads of that flag according to Java’s memory model:
+Declaring the flag volatile makes writes visible to subsequent reads of that flag according to
+Java’s memory model:
 
 ```java
 private volatile boolean running = true;
@@ -152,9 +164,11 @@ public void increment() {
 }
 ```
 
-A volatile read and write provide visibility and ordering guarantees. They do not combine the read, addition, and write in `count++` into one atomic operation.
+A volatile read and write provide visibility and ordering guarantees. They do not combine the read,
+addition, and write in `count++` into one atomic operation.
 
-Use `volatile` for a single flag written by one thread and read by others. For anything read-then-modified, you need `synchronized` or an atomic type.
+Use `volatile` for a single flag written by one thread and read by others. For anything
+read-then-modified, you need `synchronized` or an atomic type.
 
 </RulesBox>
 
@@ -173,7 +187,8 @@ public class Counter {
 }
 ```
 
-`incrementAndGet` performs the whole read-modify-write as one indivisible step, using a processor instruction rather than a lock.
+`incrementAndGet` performs the whole read-modify-write as one indivisible step, using a processor
+instruction rather than a lock.
 
 <ContentTable
   title="Choosing a tool"
@@ -189,7 +204,8 @@ public class Counter {
 
 ### Deadlock
 
-Locks introduce a failure of their own. Two threads each holding a lock the other wants will both wait forever:
+Locks introduce a failure of their own. Two threads each holding a lock the other wants will both
+wait forever:
 
 ```java
 // thread A
@@ -207,7 +223,8 @@ Neither can proceed. The program does not crash; it stops.
 
 <RulesBox title="Avoiding deadlock">
 
-- **Always acquire multiple locks in the same order** everywhere in the program. That alone prevents most deadlocks.
+- **Always acquire multiple locks in the same order** everywhere in the program. That alone prevents
+  most deadlocks.
 - **Hold one lock at a time** when you can.
 - **Do not call unknown code while holding a lock.** It might try to acquire another.
 - **Keep locked regions short.**
@@ -220,10 +237,13 @@ Locks are a way to make shared mutable state safe. The alternative is to not sha
 
 <RulesBox title="Designs that avoid the problem">
 
-- **Immutable objects.** A `final` field set in the constructor and never changed is safe to share with any number of threads, with no locking.
+- **Immutable objects.** A `final` field set in the constructor and never changed is safe to share
+  with any number of threads, with no locking.
 - **Confinement.** Give each thread its own data and combine results at the end.
-- **Message passing.** Use a `BlockingQueue` so threads hand work to each other instead of sharing variables.
-- **Do it on one thread.** If the work fits in the main loop, that removes the entire category of bug.
+- **Message passing.** Use a `BlockingQueue` so threads hand work to each other instead of sharing
+  variables.
+- **Do it on one thread.** If the work fits in the main loop, that removes the entire category of
+  bug.
 
 Every one of these is easier to reason about than a correctly-locked shared object.
 
@@ -231,9 +251,12 @@ Every one of these is easier to reason about than a correctly-locked shared obje
 
 ### Why these bugs are so unpleasant
 
-A race condition may appear in one run in ten thousand, vanish under a debugger, and behave differently on another machine. Tests passing does not mean the code is correct, only that the bad interleaving did not occur this time.
+A race condition may appear in one run in ten thousand, vanish under a debugger, and behave
+differently on another machine. Tests passing does not mean the code is correct, only that the bad
+interleaving did not occur this time.
 
-That is why the design-level advice above matters more than the locking mechanics. Code with nothing shared cannot race.
+That is why the design-level advice above matters more than the locking mechanics. Code with nothing
+shared cannot race.
 
 <RulesBox title="Common mistakes">
 
@@ -251,11 +274,14 @@ That is why the design-level advice above matters more than the locking mechanic
 
 <ExerciseBox title="Practice">
 
-1. Write the broken counter and run it ten times with two threads doing 100,000 increments each. Record the results.
+1. Write the broken counter and run it ten times with two threads doing 100,000 increments each.
+   Record the results.
 2. Fix it with `synchronized` and confirm you get 200,000 every time.
 3. Fix it instead with `AtomicInteger` and confirm the same.
-4. Write a loop controlled by a non-volatile `boolean` flag set by another thread. If it does not hang, explain why that does not prove the code correct.
-5. Rewrite exercise 1 so each thread counts into its own local variable and the totals are added at the end. Note that no synchronisation is needed.
+4. Write a loop controlled by a non-volatile `boolean` flag set by another thread. If it does not
+   hang, explain why that does not prove the code correct.
+5. Rewrite exercise 1 so each thread counts into its own local variable and the totals are added at
+   the end. Note that no synchronisation is needed.
 
 <details>
 <summary>Hints</summary>

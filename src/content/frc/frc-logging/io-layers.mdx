@@ -27,19 +27,26 @@ A normal subsystem calls the motor directly:
 double position = pivot.getPosition().getValueAsDouble();
 ```
 
-That line only works when a real TalonFX is on the CAN bus. In simulation there is no motor. When replaying a match log there is a file, not a motor. And nothing about the read is recorded, so nothing can be reproduced afterwards.
+That line only works when a real TalonFX is on the CAN bus. In simulation there is no motor. When
+replaying a match log there is a file, not a motor. And nothing about the read is recorded, so
+nothing can be reproduced afterwards.
 
-The **IO layer** puts one interface between the subsystem and the hardware. The subsystem talks to the interface; the interface is implemented differently depending on where the code is running.
+The **IO layer** puts one interface between the subsystem and the hardware. The subsystem talks to
+the interface; the interface is implemented differently depending on where the code is running.
 
 <RulesBox title="Three pieces, every time">
 
 - **`XxxIO`**: an interface holding an inputs class and a few methods.
-- **`XxxIOSomething`**: one implementation per hardware or environment: `ModuleIOTalonFX`, `ModuleIOSim`, `VisionIOPhoton`.
+- **`XxxIOSomething`**: one implementation per hardware or environment: `ModuleIOTalonFX`,
+  `ModuleIOSim`, `VisionIOPhoton`.
 - **`Xxx`**: the subsystem, which holds an `XxxIO` and never names a motor class.
 
 </RulesBox>
 
-This pattern comes from Team 6328's AdvantageKit template and is the standard way to structure a subsystem you intend to simulate or replay, which at FRC 4451 is every subsystem. The [Simulation](/frc/simulation-first) group that follows this one is where the `…IOSim` half gets written.
+This pattern comes from Team 6328's AdvantageKit template and is the standard way to structure a
+subsystem you intend to simulate or replay, which at FRC 4451 is every subsystem. The
+[Simulation](/frc/simulation-first) group that follows this one is where the `…IOSim` half gets
+written.
 
 ### The Interface
 
@@ -81,17 +88,23 @@ public interface ModuleIO {
 
 Three things to notice.
 
-**Every method is `default` and empty.** That is deliberate. It means `new ModuleIO() {}` compiles and gives you a working do-nothing implementation, which is what log replay needs.
+**Every method is `default` and empty.** That is deliberate. It means `new ModuleIO() {}` compiles
+and gives you a working do-nothing implementation, which is what log replay needs.
 
-**The inputs class is plain public fields with defaults.** No getters, no logic. Primitives, arrays, and WPILib geometry types only.
+**The inputs class is plain public fields with defaults.** No getters, no logic. Primitives, arrays,
+and WPILib geometry types only.
 
-**Units are in the field names.** `drivePositionRad`, `driveVelocityRadPerSec`, `driveStatorCurrentAmps`. Nobody has to guess, and nobody has to open the implementation to check.
+**Units are in the field names.** `drivePositionRad`, `driveVelocityRadPerSec`,
+`driveStatorCurrentAmps`. Nobody has to guess, and nobody has to open the implementation to check.
 
 ### What @AutoLog Generates
 
-`@AutoLog` on the inputs class makes the build generate a companion class called `ModuleIOInputsAutoLogged`. It extends your inputs class and adds the code to write every field to a log and read every field back out.
+`@AutoLog` on the inputs class makes the build generate a companion class called
+`ModuleIOInputsAutoLogged`. It extends your inputs class and adds the code to write every field to a
+log and read every field back out.
 
-You never write that class and you do not commit it; it appears in `build/` when you compile. You use it directly:
+You never write that class and you do not commit it; it appears in `build/` when you compile. You
+use it directly:
 
 ```java
 private final ModuleIO io;
@@ -122,11 +135,14 @@ public void periodic() {
 }
 ```
 
-`updateInputs` fills the struct from wherever the data comes from. `processInputs` logs it, **or, in replay, overwrites it from the log**. Everything after those two lines is ordinary code that reads `inputs.something` and cannot tell the difference.
+`updateInputs` fills the struct from wherever the data comes from. `processInputs` logs it, **or, in
+replay, overwrites it from the log**. Everything after those two lines is ordinary code that reads
+`inputs.something` and cannot tell the difference.
 
 <RulesBox title="The rule that makes replay work">
 
-After `Logger.processInputs(...)`, the subsystem must only read from `inputs`. Never call the motor again for a value.
+After `Logger.processInputs(...)`, the subsystem must only read from `inputs`. Never call the motor
+again for a value.
 
 ```java
 // correct
@@ -136,11 +152,13 @@ double velocity = inputs.driveVelocityRadPerSec;
 double velocity = driveTalon.getVelocity().getValueAsDouble();
 ```
 
-One direct read is enough to make a replay quietly wrong, which is worse than a replay that obviously fails.
+One direct read is enough to make a replay quietly wrong, which is worse than a replay that
+obviously fails.
 
 </RulesBox>
 
-The `Alert` calls show a second thing the pattern gives you: `driveConnected` is an input, so a disconnected motor is visible in the log *and* on the dashboard, and it replays.
+The `Alert` calls show a second thing the pattern gives you: `driveConnected` is an input, so a
+disconnected motor is visible in the log *and* on the dashboard, and it replays.
 
 ### Naming the Log Path
 
@@ -148,7 +166,9 @@ The `Alert` calls show a second thing the pattern gives you: `driveConnected` is
 Logger.processInputs("Drive/Module" + Integer.toString(index), inputs);
 ```
 
-The first argument becomes the prefix for every field in the struct: `Drive/Module0/drivePositionRad`, `Drive/Module1/turnConnected`, and so on. Four modules each get their own subtree because the index is in the path.
+The first argument becomes the prefix for every field in the struct:
+`Drive/Module0/drivePositionRad`, `Drive/Module1/turnConnected`, and so on. Four modules each get
+their own subtree because the index is in the path.
 
 ### Swapping Implementations
 
@@ -185,13 +205,20 @@ switch (Constants.currentMode) {
 }
 ```
 
-`Drive` is constructed identically in all three branches. It has no mode flag and no `if (isSimulation())`; everything mode-specific is in which object gets passed in. See [Simulation First](/frc/simulation-first#the-three-modes) for what each mode does, and [Physics in the IO Layer](/frc/physics-in-the-io-layer#the-sim-io-pattern) for what goes inside a `…IOSim`.
+`Drive` is constructed identically in all three branches. It has no mode flag and no
+`if (isSimulation())`; everything mode-specific is in which object gets passed in. See
+[Simulation First](/frc/simulation-first#the-three-modes) for what each mode does, and
+[Physics in the IO Layer](/frc/physics-in-the-io-layer#the-sim-io-pattern) for what goes inside a
+`…IOSim`.
 
-`new ModuleIO() {}` looks like a mistake and is the most important line here. It creates an anonymous implementation that overrides nothing, so `updateInputs` leaves the struct untouched, and `Logger.processInputs` then fills it from the log file a line later.
+`new ModuleIO() {}` looks like a mistake and is the most important line here. It creates an
+anonymous implementation that overrides nothing, so `updateInputs` leaves the struct untouched, and
+`Logger.processInputs` then fills it from the log file a line later.
 
 ### When To Use It, and When Not
 
-The IO layer costs an interface, an implementation per environment, and an inputs class. That buys simulation, replay, and easy hardware swaps.
+The IO layer costs an interface, an implementation per environment, and an inputs class. That buys
+simulation, replay, and easy hardware swaps.
 
 <ContentTable
   headers={["Subsystem", "IO layer?", "Why"]}
@@ -203,14 +230,20 @@ The IO layer costs an interface, an implementation per environment, and an input
   ]}
 />
 
-For a conveyor that runs one motor at one duty cycle, the abstraction usually costs more than it returns. Use `@AutoLogOutput` on that subsystem's getters and setters instead (see [Subsystems](/frc/subsystems#setters-that-return-what-they-set)) and accept that its outputs are logged but its inputs are not replayed.
+For a conveyor that runs one motor at one duty cycle, the abstraction usually costs more than it
+returns. Use `@AutoLogOutput` on that subsystem's getters and setters instead (see
+[Subsystems](/frc/subsystems#setters-that-return-what-they-set)) and accept that its outputs are
+logged but its inputs are not replayed.
 
 <RulesBox title="Common mistakes">
 
-- **Methods that are not `default`.** Then `new ModuleIO() {}` will not compile and replay has no empty implementation.
-- **Logic in the IO implementation.** It reads and writes hardware; decisions belong in the subsystem.
+- **Methods that are not `default`.** Then `new ModuleIO() {}` will not compile and replay has no
+  empty implementation.
+- **Logic in the IO implementation.** It reads and writes hardware; decisions belong in the
+  subsystem.
 - **Getters on the inputs class.** `@AutoLog` works on plain fields.
-- **Forgetting `Logger.processInputs`.** `updateInputs` alone fills the struct but logs nothing, so replay has no data to feed back.
+- **Forgetting `Logger.processInputs`.** `updateInputs` alone fills the struct but logs nothing, so
+  replay has no data to feed back.
 - **Units left out of field names**, which is how a value in rotations gets used as radians.
 
 </RulesBox>

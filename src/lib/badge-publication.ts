@@ -1,5 +1,5 @@
 // Remove a badge from this set when its curriculum is ready to publish.
-const unpublishedBadges = new Set(['badge-2', 'badge-3']);
+const unpublishedBadges = new Set(['badge-3']);
 
 export function isBadgeWorkInProgress(
   section: string,

@@ -11,17 +11,28 @@ description: "Deadband, scaling, and the stick curve from A08 applied to a real 
 ---
 
 
-The Drive subsystem from R07 takes `speed` and `rotation` values in `[-1, 1]`. Xbox sticks report values in the same range, but raw readings can make the robot creep at rest and respond too sharply near the center.
+The Drive subsystem from R07 takes `speed` and `rotation` values in `[-1, 1]`. Xbox sticks report
+values in the same range, but raw readings can make the robot creep at rest and respond too sharply
+near the center.
 
-You will add a helper that reduces small requests near the center while keeping full stick travel available.
+You will add a helper that reduces small requests near the center while keeping full stick travel
+available.
 
 ## Before You Start
 
-Continue in the same WPILib robot project used through [Characterization](/kit-bot/r09-characterization-part-2). The simulated drive from [Make It Drive](/kit-bot/r07-drive-io-part-2) should already respond to the controller assigned to Joystick 0. Keep the existing launcher and characterization controls.
+Continue in the same WPILib robot project used through
+[Characterization](/kit-bot/r09-characterization-part-2). The simulated drive from
+[Make It Drive](/kit-bot/r07-drive-io-part-2) should already respond to the controller assigned to
+Joystick 0. Keep the existing launcher and characterization controls.
 
-Review [Deadband and Sign](/java/fundamentals/math#deadband-and-sign) and [Keep a Curve’s Direction](/java/fundamentals/math#keep-a-curves-direction) before the helper below. They explain `Math.abs`, `Math.signum`, and powers. [A08: Stick Curve Calculator](/java/assignments/a08-stick-curve-calculator) is optional extra practice with the same unscaled deadband; its method names differ from this robot helper.
+Review [Deadband and Sign](/java/fundamentals/math#deadband-and-sign) and
+[Keep a Curve’s Direction](/java/fundamentals/math#keep-a-curves-direction) before the helper below.
+They explain `Math.abs`, `Math.signum`, and powers.
+[A08: Stick Curve Calculator](/java/assignments/a08-stick-curve-calculator) is optional extra
+practice with the same unscaled deadband; its method names differ from this robot helper.
 
-Use simulation for this lesson. Physical driving waits until [First Deploy](/kit-bot/r12-first-deploy) and the mentor’s hardware checks.
+Use simulation for this lesson. Physical driving waits until
+[First Deploy](/kit-bot/r12-first-deploy) and the mentor’s hardware checks.
 
 ## Read the Axes
 
@@ -45,23 +56,32 @@ Use simulation for this lesson. Physical driving waits until [First Deploy](/kit
 
 Raw controller values need interpretation:
 
-1. **A centered stick can report a small nonzero value.** Check your own controller in the Sim GUI. That reading can request motion when the driver expects the robot to stay still.
-2. **Small movements can produce larger requests than the driver wants.** A curve reduces the request near the center, which can help with careful positioning.
-3. **Forward stick travel is negative Y.** Push the stick *forward* (up on the controller) and `getLeftY()` returns a *negative* number. Negating this reading makes forward positive.
+1. **A centered stick can report a small nonzero value.** Check your own controller in the Sim GUI.
+   That reading can request motion when the driver expects the robot to stay still.
+2. **Small movements can produce larger requests than the driver wants.** A curve reduces the
+   request near the center, which can help with careful positioning.
+3. **Forward stick travel is negative Y.** Push the stick *forward* (up on the controller) and
+   `getLeftY()` returns a *negative* number. Negating this reading makes forward positive.
 
 Process a stick reading in this order:
 
 - **Negate Y** at the read site.
 - **Deadband** small absolute values to zero.
-- **Apply a curve**: square the input while preserving sign so small motions stay small but full deflection still gives full drive.
+- **Apply a curve**: square the input while preserving sign so small motions stay small but full
+  deflection still gives full drive.
 
 The helper below performs the deadband and curve steps.
 
 ## Create the Helper
 
-In WPILib VS Code, expand `src/main/java/frc/robot/subsystems/drive` in Explorer. Create `StickCurve.java` there, paste this complete file, and save it. [Create and Find a File](/tools/vscode-tour#create-save-and-find-a-file) shows the editor actions. Keep the package line matched to the folder.
+In WPILib VS Code, expand `src/main/java/frc/robot/subsystems/drive` in Explorer. Create
+`StickCurve.java` there, paste this complete file, and save it.
+[Create and Find a File](/tools/vscode-tour#create-save-and-find-a-file) shows the editor actions.
+Keep the package line matched to the folder.
 
-This helper expects a finite input between `-1.0` and `1.0`, a deadband from `0.0` up to but excluding `1.0`, and a maximum output from `0.0` through `1.0`. The project uses `0.05` and `1.0` for the last two arguments.
+This helper expects a finite input between `-1.0` and `1.0`, a deadband from `0.0` up to but
+excluding `1.0`, and a maximum output from `0.0` through `1.0`. The project uses `0.05` and `1.0`
+for the last two arguments.
 
 ```java
 package frc.robot.subsystems.drive;
@@ -86,9 +106,12 @@ public final class StickCurve {
 }
 ```
 
-The helper checks the raw input against the deadband, squares its size, restores its sign, and clamps the result. The deadband check goes first: squaring a small input makes it smaller and could otherwise put it below the threshold.
+The helper checks the raw input against the deadband, squares its size, restores its sign, and
+clamps the result. The deadband check goes first: squaring a small input makes it smaller and could
+otherwise put it below the threshold.
 
-For `-0.30`, the magnitude is `0.30`. Squaring gives <Equation tex="0.30 \times 0.30 = 0.09" />; restoring the negative sign gives `-0.09`. Clamping leaves that value inside the permitted range.
+For `-0.30`, the magnitude is `0.30`. Squaring gives <Equation tex="0.30 \times 0.30 = 0.09" />;
+restoring the negative sign gives `-0.09`. Clamping leaves that value inside the permitted range.
 
 | Raw Input | Result With Deadband 0.05 and Maximum 1.0 | Reason |
 | ---: | ---: | --- |
@@ -98,9 +121,14 @@ For `-0.30`, the magnitude is `0.30`. Squaring gives <Equation tex="0.30 \times 
 | -0.30 | -0.09 | Restore the negative direction |
 | 1.0 | 1.0 | Full input remains full output |
 
-This is an **unscaled deadband**: values outside the deadband pass through unchanged before squaring. WPILib’s [built-in deadband helper](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/MathUtil.html#applyDeadband(double,double)) also rescales the remaining range. Substituting it changes the numbers in this table.
+This is an **unscaled deadband**: values outside the deadband pass through unchanged before
+squaring. WPILib’s
+[built-in deadband helper](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/math/MathUtil.html#applyDeadband(double,double))
+also rescales the remaining range. Substituting it changes the numbers in this table.
 
-These inputs and outputs are dimensionless fractions, so they use `double`. The result describes a request; it does not measure velocity. Keep exponent `2` for this project so the checks use the same calculation.
+These inputs and outputs are dimensionless fractions, so they use `double`. The result describes a
+request; it does not measure velocity. Keep exponent `2` for this project so the checks use the same
+calculation.
 
 ## Place the Calculation
 
@@ -112,11 +140,15 @@ Keep controller-specific math in the command that reads the controller:
 | Inside the default command | Use this location to translate driver input into a request. |
 | Inside `arcadeDrive` itself | `arcadeDrive(speed, rotation)` takes normalized values between -1 and 1. Joystick conditioning happens *before* you call it. |
 
-The default command is the right home. The `Drive` subsystem stays unaware of where its commands come from, which makes the same code work for joystick driving, autonomous time-based moves, and any future command you write.
+The default command is the right home. The `Drive` subsystem stays unaware of where its commands
+come from, which makes the same code work for joystick driving, autonomous time-based moves, and any
+future command you write.
 
 ## Update the Drive Command
 
-Replace only the `drive.setDefaultCommand(...)` call inside `RobotContainer.configureBindings()` with this partial snippet. Keep every launcher, D-pad, and characterization binding. Import `DriveConstants` and `StickCurve` from `frc.robot.subsystems.drive`.
+Replace only the `drive.setDefaultCommand(...)` call inside `RobotContainer.configureBindings()`
+with this partial snippet. Keep every launcher, D-pad, and characterization binding. Import
+`DriveConstants` and `StickCurve` from `frc.robot.subsystems.drive`.
 
 ```java
 drive.setDefaultCommand(
@@ -147,34 +179,62 @@ drive.setDefaultCommand(
 What changed from the R07 version:
 
 - Stick reads are conditioned through `StickCurve.shape` before reaching `arcadeDrive`.
-- Deadband comes from `DriveConstants.TELEOP_DEADBAND`. Adjusting the feel is a constants edit, not a code edit.
-- `shape` is called with a max output of `1.0`, not `DriveConstants.MAX_DRIVE_PERCENT`. `arcadeDrive`'s own doc comment (R07) says it takes `speed` and `rotation` in the full `[-1, 1]` range, then applies `MAX_DRIVE_PERCENT` itself when it converts that to volts. Capping to `MAX_DRIVE_PERCENT` a second time here, before the value ever reaches `arcadeDrive`, would compound the two caps and leave full stick deflection well under 10.2 V.
-- `drive::stop` clears the stored request when the default command is interrupted, including on disable.
-- The lambda still ends in `drive.arcadeDrive(...)`: the subsystem's API is unchanged. The IO files do not need to change.
+- Deadband comes from `DriveConstants.TELEOP_DEADBAND`. Adjusting the feel is a constants edit, not
+  a code edit.
+- `shape` is called with a max output of `1.0`, not `DriveConstants.MAX_DRIVE_PERCENT`.
+  `arcadeDrive`'s own doc comment (R07) says it takes `speed` and `rotation` in the full `[-1, 1]`
+  range, then applies `MAX_DRIVE_PERCENT` itself when it converts that to volts. Capping to
+  `MAX_DRIVE_PERCENT` a second time here, before the value ever reaches `arcadeDrive`, would
+  compound the two caps and leave full stick deflection well under 10.2 V.
+- `drive::stop` clears the stored request when the default command is interrupted, including on
+  disable.
+- The lambda still ends in `drive.arcadeDrive(...)`: the subsystem's API is unchanged. The IO files
+  do not need to change.
 
 ## Check the Result
 
-1. Save `StickCurve.java` and `RobotContainer.java`. In the Command Palette, run **WPILib: Build Robot Code**. If the build fails, read the first compiler error and check the file’s package and imports.
-2. Start **WPILib: Simulate Robot Code**, using the [R00 simulation steps](/kit-bot/r00-wpilib-setup). Assign the same controller or keyboard mapping to Joystick 0. Confirm that the axis indicators change before enabling teleop.
-3. With the right stick centered, move the left stick forward and backward. With the left stick centered, move the right stick right and left. Preserve the direction checks from R07.
-4. Compare small stick movements with full travel. A raw magnitude below `0.05` requests zero. A magnitude of `0.30` becomes `0.09`; full magnitude stays `1.0`. Measured simulated velocity takes time to respond, so use the numerical table to check the calculation separately.
+1. Save `StickCurve.java` and `RobotContainer.java`. In the Command Palette, run **WPILib: Build
+   Robot Code**. If the build fails, read the first compiler error and check the file’s package and
+   imports.
+2. Start **WPILib: Simulate Robot Code**, using the
+   [R00 simulation steps](/kit-bot/r00-wpilib-setup). Assign the same controller or keyboard mapping
+   to Joystick 0. Confirm that the axis indicators change before enabling teleop.
+3. With the right stick centered, move the left stick forward and backward. With the left stick
+   centered, move the right stick right and left. Preserve the direction checks from R07.
+4. Compare small stick movements with full travel. A raw magnitude below `0.05` requests zero. A
+   magnitude of `0.30` becomes `0.09`; full magnitude stays `1.0`. Measured simulated velocity takes
+   time to respond, so use the numerical table to check the calculation separately.
 5. Release the controls and disable simulation. Save your observations before closing it.
 
-For an optional numerical check, temporarily place `System.out.println(StickCurve.shape(0.30, 0.05, 1.0));` in the `RobotContainer` constructor. Restart simulation and find `0.09` in the VS Code terminal. Try the other table inputs, then remove the temporary line and build again. This prints once at startup and does not require a moving robot.
+For an optional numerical check, temporarily place
+`System.out.println(StickCurve.shape(0.30, 0.05, 1.0));` in the `RobotContainer` constructor.
+Restart simulation and find `0.09` in the VS Code terminal. Try the other table inputs, then remove
+the temporary line and build again. This prints once at startup and does not require a moving robot.
 
-If centered input requests motion, inspect the raw axis value and confirm this command calls `shape`. If direction is reversed, check the Y negation and R07’s mixing before changing hardware settings. If full input requests less voltage than expected, check whether the output cap was applied twice.
+If centered input requests motion, inspect the raw axis value and confirm this command calls
+`shape`. If direction is reversed, check the Y negation and R07’s mixing before changing hardware
+settings. If full input requests less voltage than expected, check whether the output cap was
+applied twice.
 
 ## Tune One Setting
 
-The deadband `0.05` is a curriculum starting value. Inspect the controller’s centered readings before changing it. A larger deadband ignores more travel near the center; a smaller one accepts more of that travel.
+The deadband `0.05` is a curriculum starting value. Inspect the controller’s centered readings
+before changing it. A larger deadband ignores more travel near the center; a smaller one accepts
+more of that travel.
 
-`MAX_DRIVE_PERCENT = 0.85` limits each requested voltage to <Equation tex="12\times0.85=10.2\;\mathrm{V}" /> inside `Drive.arcadeDrive`. Battery voltage and controller limits can make actual applied voltage different. Keep that cap in one place. Changing the curve changes the request for intermediate stick positions, not the cap or a measured top speed.
+`MAX_DRIVE_PERCENT = 0.85` limits each requested voltage to
+<Equation tex="12\times0.85=10.2\;\mathrm{V}" /> inside `Drive.arcadeDrive`. Battery voltage and
+controller limits can make actual applied voltage different. Keep that cap in one place. Changing
+the curve changes the request for intermediate stick positions, not the cap or a measured top speed.
 
-Later, with a mentor and an approved driving area, compare one change at a time using the same driver and route. Keep the exponent at `2` for this lesson’s checks.
+Later, with a mentor and an approved driving area, compare one change at a time using the same
+driver and route. Keep the exponent at `2` for this lesson’s checks.
 
 <RulesBox title="Done When">
 
-With one stick axis at a time, input below 0.05 requests zero, input 0.30 becomes 0.09, and input 1.0 becomes 1.0. Forward and right-turn directions still match R07. Explain how these smaller requests help the driver make careful adjustments.
+With one stick axis at a time, input below 0.05 requests zero, input 0.30 becomes 0.09, and input
+1.0 becomes 1.0. Forward and right-turn directions still match R07. Explain how these smaller
+requests help the driver make careful adjustments.
 
 </RulesBox>
 

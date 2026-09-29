@@ -13,11 +13,18 @@ description: "Use Java's Math methods to limit values, ignore small inputs, pres
 
 ## Use Java's Math Tools
 
-This lesson adds calculations that robot programs use for ranges and controller input. You will call methods from Java's `Math` class, write a clamp, apply a deadband, and keep the direction of a curved input.
+This lesson adds calculations that robot programs use for ranges and controller input. You will call
+methods from Java's `Math` class, write a clamp, apply a deadband, and keep the direction of a
+curved input.
 
-Complete [Calculations](/java/fundamentals/calculations), [Conditionals](/java/fundamentals/conditionals), and [Methods](/java/fundamentals/methods) first. The main path through **Keep a Curve's Direction** prepares you for [A08: Stick Curve Calculator](/java/assignments/a08-stick-curve-calculator). Later sections marked **Optional for now** explain overflow, bits, and floating-point edge cases.
+Complete [Calculations](/java/fundamentals/calculations),
+[Conditionals](/java/fundamentals/conditionals), and [Methods](/java/fundamentals/methods) first.
+The main path through **Keep a Curve's Direction** prepares you for
+[A08: Stick Curve Calculator](/java/assignments/a08-stick-curve-calculator). Later sections marked
+**Optional for now** explain overflow, bits, and floating-point edge cases.
 
-The `Math` class provides static methods, so you call them with the class name. You do not create a `Math` object. A value's **absolute value** is its distance from zero.
+The `Math` class provides static methods, so you call them with the class name. You do not create a
+`Math` object. A value's **absolute value** is its distance from zero.
 
 ```java
 public class Main {
@@ -29,7 +36,8 @@ public class Main {
 }
 ```
 
-Replace the contents of `Main.java` with this complete program and run it with [Java Setup](/java/fundamentals/setup). The comments show the expected output.
+Replace the contents of `Main.java` with this complete program and run it with
+[Java Setup](/java/fundamentals/setup). The comments show the expected output.
 
 <ContentTable
   title="First Math Methods"
@@ -43,7 +51,9 @@ Replace the contents of `Main.java` with this complete program and run it with [
 
 ## Clamp a Value
 
-A **clamp** keeps a value inside a chosen range. For example, a program can keep a requested controller output between `-1.0` and `1.0`. This says what the code requests; it does not predict a motor's measured speed.
+A **clamp** keeps a value inside a chosen range. For example, a program can keep a requested
+controller output between `-1.0` and `1.0`. This says what the code requests; it does not predict a
+motor's measured speed.
 
 Java 25 has `Math.clamp`, but the browser runner uses Java 17. This helper works in both places:
 
@@ -61,13 +71,18 @@ public class Main {
 }
 ```
 
-Read the return expression from the inside out. `Math.min(max, value)` limits the upper end. `Math.max(min, ...)` then limits the lower end. This beginner helper assumes finite inputs and `min <= max`; `NaN` and infinite values need an explicit policy.
+Read the return expression from the inside out. `Math.min(max, value)` limits the upper end.
+`Math.max(min, ...)` then limits the lower end. This beginner helper assumes finite inputs and
+`min <= max`; `NaN` and infinite values need an explicit policy.
 
 ## Deadband and Sign
 
-A **deadband** treats small input magnitudes as zero. A controller reading near its center can vary slightly, so code can ignore readings below a chosen threshold. These examples assume finite inputs and a nonnegative threshold.
+A **deadband** treats small input magnitudes as zero. A controller reading near its center can vary
+slightly, so code can ignore readings below a chosen threshold. These examples assume finite inputs
+and a nonnegative threshold.
 
-The playground and A08 use this contract: return `0.0` when the magnitude is below the threshold, and return the original input when its magnitude is at or above the threshold.
+The playground and A08 use this contract: return `0.0` when the magnitude is below the threshold,
+and return the original input when its magnitude is at or above the threshold.
 
 ```java
 public class Main {
@@ -86,9 +101,12 @@ public class Main {
 }
 ```
 
-The strict `<` comparison matters: an input whose magnitude equals the threshold is kept. Follow this contract in A08.
+The strict `<` comparison matters: an input whose magnitude equals the threshold is kept. Follow
+this contract in A08.
 
-Some robot libraries use a **rescaled deadband**. It maps the deadband edge to zero, then stretches the remaining range so full input still produces full output. `Math.signum` returns `-1.0`, `0.0`, or `1.0` for an ordinary finite value, which lets the method preserve direction:
+Some robot libraries use a **rescaled deadband**. It maps the deadband edge to zero, then stretches
+the remaining range so full input still produces full output. `Math.signum` returns `-1.0`, `0.0`,
+or `1.0` for an ordinary finite value, which lets the method preserve direction:
 
 ```java norun
 public static double rescaledDeadband(double input, double threshold) {
@@ -101,11 +119,19 @@ public static double rescaledDeadband(double input, double threshold) {
 }
 ```
 
-This partial method belongs inside `Main`, outside the `main` method. It is an optional variation with a different result: `rescaledDeadband(0.54, 0.08)` returns `0.5`, while `rescaledDeadband(-1.0, 0.08)` returns `-1.0`. It assumes inputs from `-1.0` through `1.0` and a threshold from `0.0` up to, but not including, `1.0`. Do not substitute it for A08's simpler deadband.
+This partial method belongs inside `Main`, outside the `main` method. It is an optional variation
+with a different result: `rescaledDeadband(0.54, 0.08)` returns `0.5`, while
+`rescaledDeadband(-1.0, 0.08)` returns `-1.0`. It assumes inputs from `-1.0` through `1.0` and a
+threshold from `0.0` up to, but not including, `1.0`. Do not substitute it for A08's simpler
+deadband.
 
 ## Keep a Curve's Direction
 
-A **power** uses a base and an exponent. For whole-number exponents, `2` to the power `3` means <Equation tex="2 \times 2 \times 2" />. A power can change how an input grows. For values between `-1.0` and `1.0`, squaring the magnitude makes small inputs smaller while leaving full magnitude at `1.0`. Squaring a negative number removes its sign, so multiply by `Math.signum` to restore the original direction.
+A **power** uses a base and an exponent. For whole-number exponents, `2` to the power `3` means
+<Equation tex="2 \times 2 \times 2" />. A power can change how an input grows. For values between
+`-1.0` and `1.0`, squaring the magnitude makes small inputs smaller while leaving full magnitude at
+`1.0`. Squaring a negative number removes its sign, so multiply by `Math.signum` to restore the
+original direction.
 
 ```java
 public class Main {
@@ -121,13 +147,20 @@ public class Main {
 }
 ```
 
-`value * value` clearly expresses a square. `Math.pow(base, exponent)` calculates a power and returns a `double`. When the exponent is a variable, A08 uses `Math.signum(value) * Math.pow(Math.abs(value), exponent)`.
+`value * value` clearly expresses a square. `Math.pow(base, exponent)` calculates a power and
+returns a `double`. When the exponent is a variable, A08 uses
+`Math.signum(value) * Math.pow(Math.abs(value), exponent)`.
 
 ## Powers, Roots, and Distance
 
-The **square root** of a nonnegative number is the nonnegative value that produces the original number when multiplied by itself. For example, `Math.sqrt(144)` is `12.0` because <Equation tex="12 \times 12 = 144" />.
+The **square root** of a nonnegative number is the nonnegative value that produces the original
+number when multiplied by itself. For example, `Math.sqrt(144)` is `12.0` because
+<Equation tex="12 \times 12 = 144" />.
 
-`Math.hypot(dx, dy)` calculates the length of a right triangle's **hypotenuse**, the side opposite its square corner. If `dx` and `dy` are perpendicular distances, the result is the straight-line distance. It also avoids intermediate overflow or underflow that can occur in `Math.sqrt(dx * dx + dy * dy)`.
+`Math.hypot(dx, dy)` calculates the length of a right triangle's **hypotenuse**, the side opposite
+its square corner. If `dx` and `dy` are perpendicular distances, the result is the straight-line
+distance. It also avoids intermediate overflow or underflow that can occur in
+`Math.sqrt(dx * dx + dy * dy)`.
 
 ```java
 public class Main {
@@ -141,11 +174,17 @@ public class Main {
 }
 ```
 
-`NaN` means “not a number.” It is a `double` value used when a floating-point calculation has no numeric result, such as the real-number square root of `-1.0`.
+`NaN` means “not a number.” It is a `double` value used when a floating-point calculation has no
+numeric result, such as the real-number square root of `-1.0`.
 
 ## Round a Value
 
-Rounding methods differ in direction and return type. A `long` is a whole-number type with a larger range than `int`. `Math.round(double)` returns the nearest `long`; a value exactly halfway between two whole numbers rounds to the larger one. For example, `2.5` rounds to `3`, and `-2.5` rounds to `-2`. For the values below, a cast to `int` discards the fractional part and moves toward zero. `Math.floor` rounds down and `Math.ceil` rounds up; both return a `double` with a whole-number value.
+Rounding methods differ in direction and return type. A `long` is a whole-number type with a larger
+range than `int`. `Math.round(double)` returns the nearest `long`; a value exactly halfway between
+two whole numbers rounds to the larger one. For example, `2.5` rounds to `3`, and `-2.5` rounds to
+`-2`. For the values below, a cast to `int` discards the fractional part and moves toward zero.
+`Math.floor` rounds down and `Math.ceil` rounds up; both return a `double` with a whole-number
+value.
 
 ```java
 public class Main {
@@ -175,11 +214,13 @@ public class Main {
 }
 ```
 
-This pattern suits a small display example. It does not make binary floating-point values exact, and very large values can exceed the useful range of the intermediate calculation.
+This pattern suits a small display example. It does not make binary floating-point values exact, and
+very large values can exceed the useful range of the intermediate calculation.
 
 ## Find a Remainder
 
-The `%` operator gives the remainder after division. It can test divisibility or wrap a nonnegative value around a fixed range.
+The `%` operator gives the remainder after division. It can test divisibility or wrap a nonnegative
+value around a fixed range.
 
 ```java
 public class Main {
@@ -191,7 +232,9 @@ public class Main {
 }
 ```
 
-Java's remainder has the sign of the left operand, so `-30 % 360` is `-30`. Here, the **modulus** is the positive divisor that sets the size of the repeating range. For `int` values and a positive modulus, `Math.floorMod` gives a result from `0` through one less than the modulus:
+Java's remainder has the sign of the left operand, so `-30 % 360` is `-30`. Here, the **modulus** is
+the positive divisor that sets the size of the repeating range. For `int` values and a positive
+modulus, `Math.floorMod` gives a result from `0` through one less than the modulus:
 
 ```java
 public class Main {
@@ -203,11 +246,16 @@ public class Main {
 }
 ```
 
-You may also see `((value % modulus) + modulus) % modulus`. With `int`, the addition can overflow for extreme values. `Math.floorMod(value, modulus)` states the purpose and avoids that intermediate addition.
+You may also see `((value % modulus) + modulus) % modulus`. With `int`, the addition can overflow
+for extreme values. `Math.floorMod(value, modulus)` states the purpose and avoids that intermediate
+addition.
 
 ## Integer Ranges and Overflow
 
-**Optional for now.** Read this section before a lesson asks you to count values that can grow for a long time. An `int` stores whole numbers from `-2,147,483,648` through `2,147,483,647`. Integer arithmetic wraps when its mathematical result falls outside the type's range; it does not throw by default.
+**Optional for now.** Read this section before a lesson asks you to count values that can grow for a
+long time. An `int` stores whole numbers from `-2,147,483,648` through `2,147,483,647`. Integer
+arithmetic wraps when its mathematical result falls outside the type's range; it does not throw by
+default.
 
 ```java
 public class Main {
@@ -230,9 +278,13 @@ public class Main {
   ]}
 />
 
-Milliseconds exceed `Integer.MAX_VALUE` after about 24.9 days. At a hypothetical `2,048` counts per revolution and `5,000` revolutions per minute, a signed `int` count would wrap after about 210 minutes, or 3 hours 30 minutes, if every count accumulated without reset. Those numbers describe the arithmetic example, not a particular encoder or controller.
+Milliseconds exceed `Integer.MAX_VALUE` after about 24.9 days. At a hypothetical `2,048` counts per
+revolution and `5,000` revolutions per minute, a signed `int` count would wrap after about 210
+minutes, or 3 hours 30 minutes, if every count accumulated without reset. Those numbers describe the
+arithmetic example, not a particular encoder or controller.
 
-The type of each operand controls multiplication. Assigning the result to `long` afterward cannot repair an `int` result that already wrapped.
+The type of each operand controls multiplication. Assigning the result to `long` afterward cannot
+repair an `int` result that already wrapped.
 
 ```java
 public class Main {
@@ -249,13 +301,21 @@ public class Main {
 }
 ```
 
-`Math.addExact` and `Math.multiplyExact` throw `ArithmeticException` when an `int` or `long` result overflows. One more edge case matters: `Math.abs(Integer.MIN_VALUE)` is still negative because its positive magnitude does not fit in an `int`. The same rule applies to `Math.abs(Long.MIN_VALUE)`.
+`Math.addExact` and `Math.multiplyExact` throw `ArithmeticException` when an `int` or `long` result
+overflows. One more edge case matters: `Math.abs(Integer.MIN_VALUE)` is still negative because its
+positive magnitude does not fit in an `int`. The same rule applies to `Math.abs(Long.MIN_VALUE)`.
 
 ## Read Bit Flags
 
-**Optional for now.** Read this section when an API gives you a **status word**, an integer whose individual binary digits represent separate flags. Binary uses only `0` and `1`. The `0b` prefix marks a binary literal, so `0b1011` means binary digits `1011`. Java numbers the rightmost bit as bit `0`, the next as bit `1`, and so on.
+**Optional for now.** Read this section when an API gives you a **status word**, an integer whose
+individual binary digits represent separate flags. Binary uses only `0` and `1`. The `0b` prefix
+marks a binary literal, so `0b1011` means binary digits `1011`. Java numbers the rightmost bit as
+bit `0`, the next as bit `1`, and so on.
 
-The literal `0b1011` has bits `3`, `1`, and `0` set. Shifting `1` left three places makes `1 << 3`, whose value is `8`, a mask for bit `3`. The `0x` prefix marks hexadecimal, a base-16 notation whose digits continue with `A` through `F`. `F` represents `15`, so `0xFF` represents `255`. Each hexadecimal digit stands for four bits.
+The literal `0b1011` has bits `3`, `1`, and `0` set. Shifting `1` left three places makes `1 << 3`,
+whose value is `8`, a mask for bit `3`. The `0x` prefix marks hexadecimal, a base-16 notation whose
+digits continue with `A` through `F`. `F` represents `15`, so `0xFF` represents `255`. Each
+hexadecimal digit stands for four bits.
 
 <ContentTable
   title="Bitwise Operators"
@@ -291,11 +351,16 @@ public class Main {
 }
 ```
 
-Java's `byte` is signed, from `-128` through `127`. `0xF0` represents `240`, which is outside that range. Casting its low eight bits to `byte` produces `-16` because two's-complement wraps the eight-bit value by `256`: `240 - 256 = -16`. When documentation defines those bits as an unsigned number from `0` through `255`, `raw & 0xFF` recovers the nonnegative `int`. Check the device or protocol documentation before deciding what a byte represents.
+Java's `byte` is signed, from `-128` through `127`. `0xF0` represents `240`, which is outside that
+range. Casting its low eight bits to `byte` produces `-16` because two's-complement wraps the
+eight-bit value by `256`: `240 - 256 = -16`. When documentation defines those bits as an unsigned
+number from `0` through `255`, `raw & 0xFF` recovers the nonnegative `int`. Check the device or
+protocol documentation before deciding what a byte represents.
 
 ## Compare Floating-Point Values
 
-**Optional for now.** Many decimal fractions cannot be represented exactly as binary floating-point values. The calculation `0.1 + 0.2` demonstrates the difference:
+**Optional for now.** Many decimal fractions cannot be represented exactly as binary floating-point
+values. The calculation `0.1 + 0.2` demonstrates the difference:
 
 ```java
 public class Main {
@@ -308,9 +373,14 @@ public class Main {
 }
 ```
 
-The notation `1e-9` means `0.000000001`. The `==` operator is correct when you need exact equality, such as checking a value against a sentinel that the program assigned directly. For a calculated measurement, compare the absolute difference with a tolerance chosen for that value's units and required precision. `Math.abs(currentMeters - targetMeters) < toleranceMeters` checks whether two positions are close enough for the task.
+The notation `1e-9` means `0.000000001`. The `==` operator is correct when you need exact equality,
+such as checking a value against a sentinel that the program assigned directly. For a calculated
+measurement, compare the absolute difference with a tolerance chosen for that value's units and
+required precision. `Math.abs(currentMeters - targetMeters) < toleranceMeters` checks whether two
+positions are close enough for the task.
 
-Special values need separate handling in safety-critical calculations. `Double.isNaN(value)` detects `NaN`, and `Double.isFinite(value)` rejects both infinity and `NaN`.
+Special values need separate handling in safety-critical calculations. `Double.isNaN(value)` detects
+`NaN`, and `Double.isFinite(value)` rejects both infinity and `NaN`.
 
 <RulesBox title="Common Checks">
 
@@ -318,37 +388,50 @@ Special values need separate handling in safety-critical calculations. `Double.i
 - Use `value * value` for a square when it makes the expression clearer.
 - Use `Math.floorMod` with a positive modulus when an `int` value can be negative.
 - Choose a tolerance in the value's units when calculated `double` values only need to be close.
-- Check for `NaN` when an invalid floating-point input could reach a square root or later calculation.
-- Cast an operand to `long` before integer multiplication when the mathematical result may exceed the `int` range.
+- Check for `NaN` when an invalid floating-point input could reach a square root or later
+  calculation.
+- Cast an operand to `long` before integer multiplication when the mathematical result may exceed
+  the `int` range.
 - Interpret packed bytes according to the API or device documentation that produced them.
 
 </RulesBox>
 
 ## Check Your Work
 
-The playground checks the same unscaled deadband used by A08. Implement `clamp` and `deadband`, then compare its output with the expected lines.
+The playground checks the same unscaled deadband used by A08. Implement `clamp` and `deadband`, then
+compare its output with the expected lines.
 
 <JavaPlayground id="java-math" />
 
 <ExerciseBox title="Practice">
 
-1. Write `clamp` for `int` values and test one value below, inside, and above the range `1` through `62`.
-2. Given perpendicular distances `dx = 3.0` and `dy = 4.0` metres, print the straight-line distance with `Math.hypot`.
-3. Write a method that rounds a finite `double` to one decimal place. Test `4.25`, `4.24`, and `-4.25`, then explain the results using `Math.round`'s documented rule.
+1. Write `clamp` for `int` values and test one value below, inside, and above the range `1` through
+   `62`.
+2. Given perpendicular distances `dx = 3.0` and `dy = 4.0` metres, print the straight-line distance
+   with `Math.hypot`.
+3. Write a method that rounds a finite `double` to one decimal place. Test `4.25`, `4.24`, and
+   `-4.25`, then explain the results using `Math.round`'s documented rule.
 4. Wrap `-450` into the range `0` through `359` with `Math.floorMod`.
-5. Apply A08's unscaled deadband with a threshold of `0.1`, then a sign-preserving square, to `0.05`, `0.3`, `-0.7`, and `1.0`.
-6. **Optional:** Calculate how many days of milliseconds fit in an `int`. Then calculate the approximate number of years for a `long` at the same rate.
-7. **Optional:** Given `int status = 0b1011`, print whether bits `0`, `2`, and `3` are set. Clear bit `3`, then print the result with `Integer.toBinaryString`.
+5. Apply A08's unscaled deadband with a threshold of `0.1`, then a sign-preserving square, to
+   `0.05`, `0.3`, `-0.7`, and `1.0`.
+6. **Optional:** Calculate how many days of milliseconds fit in an `int`. Then calculate the
+   approximate number of years for a `long` at the same rate.
+7. **Optional:** Given `int status = 0b1011`, print whether bits `0`, `2`, and `3` are set. Clear
+   bit `3`, then print the result with `Integer.toBinaryString`.
 
 <details>
 <summary>Hints</summary>
 
-1. `Math.max` and `Math.min` have `int` overloads with the same nested shape as the `double` version.
+1. `Math.max` and `Math.min` have `int` overloads with the same nested shape as the `double`
+   version.
 2. A `3`-by-`4` right triangle has a hypotenuse of `5`.
-3. Multiply by `10.0`, call `Math.round`, then divide by `10.0`. Ties round toward positive infinity, so the results are `4.3`, `4.2`, and `-4.2`.
+3. Multiply by `10.0`, call `Math.round`, then divide by `10.0`. Ties round toward positive
+   infinity, so the results are `4.3`, `4.2`, and `-4.2`.
 4. `Math.floorMod(-450, 360)` returns `270`.
-5. Deadband first, then curve the result. A value below the threshold becomes `0.0`; A08 keeps values at or above the threshold unchanged before the curve.
-6. `Integer.MAX_VALUE / 1000.0 / 60 / 60 / 24` is about `24.86` days. The corresponding `long` duration is about `292` million years.
+5. Deadband first, then curve the result. A value below the threshold becomes `0.0`; A08 keeps
+   values at or above the threshold unchanged before the curve.
+6. `Integer.MAX_VALUE / 1000.0 / 60 / 60 / 24` is about `24.86` days. The corresponding `long`
+   duration is about `292` million years.
 7. Bit `2` is clear. After clearing bit `3`, the binary result is `11`.
 
 </details>

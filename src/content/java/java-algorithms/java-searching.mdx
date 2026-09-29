@@ -26,13 +26,16 @@ public static int indexOf(int[] values, int target) {
 }
 ```
 
-Returning `-1` for "not found" is the Java convention; `String.indexOf` and `List.indexOf` both do it. Whatever you choose, make it impossible to confuse with a valid answer.
+Returning `-1` for "not found" is the Java convention; `String.indexOf` and `List.indexOf` both do
+it. Whatever you choose, make it impossible to confuse with a valid answer.
 
-Linear search works on any data in any order, and it checks up to every element. For a few thousand items that is instant. It is the right default until you have a reason to do better.
+Linear search works on any data in any order, and it checks up to every element. For a few thousand
+items that is instant. It is the right default until you have a reason to do better.
 
 ### Binary search
 
-If the data is **sorted**, you can do much better. Look at the middle. If it is too big, the answer is in the left half; if too small, the right half. Each comparison discards half of what remains.
+If the data is **sorted**, you can do much better. Look at the middle. If it is too big, the answer
+is in the left half; if too small, the right half. Each comparison discards half of what remains.
 
 ```java
 public static int binarySearch(int[] values, int target) {
@@ -58,17 +61,22 @@ A sorted array of a million elements takes about 20 comparisons instead of a mil
 
 <RulesBox title="Four details that are easy to get wrong">
 
-**`low + (high - low) / 2`, not `(low + high) / 2`.** For very large indices the sum can overflow `int` and go negative. The subtraction form cannot.
+**`low + (high - low) / 2`, not `(low + high) / 2`.** For very large indices the sum can overflow
+`int` and go negative. The subtraction form cannot.
 
-**`while (low <= high)`, not `<`.** With `<`, a range that has narrowed to a single element is never examined, so the target is missed whenever it sits in that last position.
+**`while (low <= high)`, not `<`.** With `<`, a range that has narrowed to a single element is never
+examined, so the target is missed whenever it sits in that last position.
 
-**`mid + 1` and `mid - 1`, not `mid`.** Assigning `low = mid` when `mid` was already ruled out means the range stops shrinking and the loop never ends.
+**`mid + 1` and `mid - 1`, not `mid`.** Assigning `low = mid` when `mid` was already ruled out means
+the range stops shrinking and the loop never ends.
 
-**The array must be sorted.** Binary search on unsorted data returns wrong answers silently: no exception, only an incorrect result.
+**The array must be sorted.** Binary search on unsorted data returns wrong answers silently: no
+exception, only an incorrect result.
 
 </RulesBox>
 
-Those four together are why binary search is famously fiddly. Write it once carefully and test it on: an empty array, one element, the first element, the last element, and a value that is absent.
+Those four together are why binary search is famously fiddly. Write it once carefully and test it
+on: an empty array, one element, the first element, the last element, and a value that is absent.
 
 ### Use the library
 
@@ -82,11 +90,14 @@ List<String> names = List.of("alice", "bob", "carol");
 int i = Collections.binarySearch(names, "bob");     // 1
 ```
 
-Both require sorted input. When the value is absent they return a negative number encoding where it *would* go, which is occasionally useful and often surprising, so check for `< 0` rather than `== -1`.
+Both require sorted input. When the value is absent they return a negative number encoding where it
+*would* go, which is occasionally useful and often surprising, so check for `< 0` rather than
+`== -1`.
 
 ### Finding a boundary
 
-A more useful binary-search pattern finds where a condition changes. Suppose a list is sorted and you want the first element at or above a threshold:
+A more useful binary-search pattern finds where a condition changes. Suppose a list is sorted and
+you want the first element at or above a threshold:
 
 ```java
 // first index where values[index] >= target, or values.length if none
@@ -107,7 +118,9 @@ public static int lowerBound(int[] values, int target) {
 }
 ```
 
-The three differences from the exact-match version are deliberate and interlocking. This variant never "finds" anything; it narrows until `low` and `high` meet at the boundary. Changing one of the three without the others breaks it.
+The three differences from the exact-match version are deliberate and interlocking. This variant
+never "finds" anything; it narrows until `low` and `high` meet at the boundary. Changing one of the
+three without the others breaks it.
 
 `TreeSet` gives you the same thing with no code:
 
@@ -119,7 +132,9 @@ System.out.println(set.floor(15));     // 10: largest <= 15
 
 ### Binary search on an answer
 
-The array is optional. Binary search works on any question with a yes/no answer that flips exactly once as a number grows. Whether a voltage is enough to hold the elevator is no, no, no, yes, yes, yes as the voltage rises. Search the number instead of an index.
+The array is optional. Binary search works on any question with a yes/no answer that flips exactly
+once as a number grows. Whether a voltage is enough to hold the elevator is no, no, no, yes, yes,
+yes as the voltage rises. Search the number instead of an index.
 
 ```java
 public class Main {
@@ -144,9 +159,13 @@ public class Main {
 }
 ```
 
-That is the same shape as `lowerBound` with the "array" replaced by a function, and it is literally how you tune a feedforward gain on a real mechanism: bracket it, halve the bracket, repeat. Twelve volts to a hundredth of a volt takes eleven tries. Sweeping in steps of 0.01 would take twelve hundred.
+That is the same shape as `lowerBound` with the "array" replaced by a function, and it is literally
+how you tune a feedforward gain on a real mechanism: bracket it, halve the bracket, repeat. Twelve
+volts to a hundredth of a volt takes eleven tries. Sweeping in steps of 0.01 would take twelve
+hundred.
 
-The one requirement is that the answer is **monotonic**: once it flips, it stays flipped. If a mechanism could hold at 2 V, fail at 3 V, and hold again at 4 V, no binary search can find the edge.
+The one requirement is that the answer is **monotonic**: once it flips, it stays flipped. If a
+mechanism could hold at 2 V, fail at 3 V, and hold again at 4 V, no binary search can find the edge.
 
 ### Hash-based lookup
 
@@ -171,9 +190,12 @@ System.out.println(seen.contains(20));   // true, effectively instant
 
 <RulesBox title="Sorting to enable binary search is usually not worth it once">
 
-Sorting costs more than a single linear scan. Sorting so you can binary search *once* is slower than a direct scan.
+Sorting costs more than a single linear scan. Sorting so you can binary search *once* is slower than
+a direct scan.
 
-It pays off when you search many times against the same data. Sort once, then every subsequent lookup is cheap. If you are doing many lookups and do not need order, a `HashSet` is simpler and faster still.
+It pays off when you search many times against the same data. Sort once, then every subsequent
+lookup is cheap. If you are doing many lookups and do not need order, a `HashSet` is simpler and
+faster still.
 
 </RulesBox>
 
@@ -184,7 +206,8 @@ It pays off when you search many times against the same data. Sort once, then ev
 - **`while (low < high)`** in the exact-match version, missing the final element.
 - **`low = mid`** instead of `mid + 1`, causing an infinite loop.
 - **Treating `Arrays.binarySearch`'s negative return as `-1`.** It encodes an insertion point.
-- **Using `List.contains` in a loop.** That is a linear scan each time, turning one pass into a quadratic one.
+- **Using `List.contains` in a loop.** That is a linear scan each time, turning one pass into a
+  quadratic one.
 
 </RulesBox>
 
@@ -193,19 +216,24 @@ It pays off when you search many times against the same data. Sort once, then ev
 <ExerciseBox title="Practice">
 
 1. Write a linear search returning the index of a target, or `-1`.
-2. Write binary search from scratch. Test it on an empty array, a single element, the first and last positions, and an absent value.
-3. Write a method returning how many times a value appears in a sorted array, in better than linear time.
+2. Write binary search from scratch. Test it on an empty array, a single element, the first and last
+   positions, and an absent value.
+3. Write a method returning how many times a value appears in a sorted array, in better than linear
+   time.
 4. Given a sorted array, find the first index whose value is at or above a target.
-5. Given an unsorted array and 1,000 queries asking whether a value is present, choose a structure and justify it.
+5. Given an unsorted array and 1,000 queries asking whether a value is present, choose a structure
+   and justify it.
 
 <details>
 <summary>Hints</summary>
 
 1. A single loop with an index.
 2. The edge cases are the point of the exercise, not the main path.
-3. Two boundary searches: the first index at or above the value, and the first index strictly above it. The difference is the count.
+3. Two boundary searches: the first index at or above the value, and the first index strictly above
+   it. The difference is the count.
 4. The `lowerBound` method above. Note it returns `values.length` when nothing qualifies.
-5. Build a `HashSet` once, then answer each query instantly. Sorting plus binary search also works but is slower and more code.
+5. Build a `HashSet` once, then answer each query instantly. Sorting plus binary search also works
+   but is slower and more code.
 
 </details>
 

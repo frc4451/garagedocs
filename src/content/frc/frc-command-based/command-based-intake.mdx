@@ -13,15 +13,20 @@ description: "The same intake rebuilt as a subsystem: motor in the constructor, 
 
 ### Template Project
 
-Start with the **Command Robot** template project. In VS Code, create a new WPILib project and select "Command Robot" from the template list. This template provides `Robot.java`, `RobotContainer.java`, and an example subsystem structure.
+Start with the **Command Robot** template project. In VS Code, create a new WPILib project and
+select "Command Robot" from the template list. This template provides `Robot.java`,
+`RobotContainer.java`, and an example subsystem structure.
 
 ### Convert the intake to command-based
 
-We will rebuild the intake using the command-based framework. This separates hardware control (Subsystem), actions (Commands), and button bindings (RobotContainer) for better organization and safety.
+We will rebuild the intake using the command-based framework. This separates hardware control
+(Subsystem), actions (Commands), and button bindings (RobotContainer) for better organization and
+safety.
 
 ### Step 1: Create the Subsystem Class
 
-Start by creating a new class called `Intake` that extends `SubsystemBase`. This class will encapsulate all hardware-related code for the intake motor.
+Start by creating a new class called `Intake` that extends `SubsystemBase`. This class will
+encapsulate all hardware-related code for the intake motor.
 
 ### Step 1a: Subsystem Structure
 
@@ -29,29 +34,34 @@ Start by creating a new class called `Intake` that extends `SubsystemBase`. This
 
 ### Step 1b: Declare Motor Field
 
-Add a field for the intake motor. The motor is on CAN ID 5. For Talon FX, we also create a control request object that we'll reuse.
+Add a field for the intake motor. The motor is on CAN ID 5. For Talon FX, we also create a control
+request object that we'll reuse.
 
 <CodeTabs tabs={[{"label":"Talon FX","code":"public class Intake extends SubsystemBase {\n    // Intake motor on CAN ID 5\n    private final TalonFX m_motor = new TalonFX(5);\n    private final DutyCycleOut m_out = new DutyCycleOut(0);\n}","language":"java"},{"label":"SPARK MAX","code":"public class Intake extends SubsystemBase {\n    // Intake motor on CAN ID 5, brushless type\n    private final SparkMax m_motor = new SparkMax(5, MotorType.kBrushless);\n}","language":"java"}]} />
 
 ### Step 1c: Configure Motor in Constructor
 
-In the constructor, configure the motor with appropriate settings. We use Coast mode (allows free spinning when stopped) and enable current limiting to protect the motor.
+In the constructor, configure the motor with appropriate settings. We use Coast mode (allows free
+spinning when stopped) and enable current limiting to protect the motor.
 
 <CodeTabs tabs={[{"label":"Talon FX","code":"public Intake() {\n    // Configure motor for intake use\n    TalonFXConfiguration config = new TalonFXConfiguration();\n    // Coast mode allows free spinning when stopped\n    config.MotorOutput.NeutralMode = NeutralModeValue.Coast;\n    // Enable current limiting to protect motor\n    config.CurrentLimits.StatorCurrentLimitEnable = true;\n    config.CurrentLimits.StatorCurrentLimit = 30.0;\n    m_motor.getConfigurator().apply(config);\n}","language":"java"},{"label":"SPARK MAX","code":"public Intake() {\n    // Configure motor for intake use\n    SparkMaxConfig config = new SparkMaxConfig();\n    // Coast mode allows free spinning when stopped\n    config.idleMode(IdleMode.kCoast);\n    // Enable current limiting to protect motor\n    config.smartCurrentLimit(30);\n    m_motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);\n}","language":"java"}]} />
 
 ### Step 1d: Add Public Methods
 
-Add public methods that commands can use to control the intake. These methods hide the hardware details from the rest of the code.
+Add public methods that commands can use to control the intake. These methods hide the hardware
+details from the rest of the code.
 
 <CodeTabs tabs={[{"label":"Talon FX","code":"/**\n * Run the intake at the specified speed\n * @param speed Motor speed (-1.0 to 1.0, positive = collect)\n */\npublic void run(double speed) {\n    m_motor.setControl(m_out.withOutput(speed));\n}\n\n/**\n * Stop the intake motor\n */\npublic void stop() {\n    m_motor.setControl(m_out.withOutput(0.0));\n}","language":"java"},{"label":"SPARK MAX","code":"/**\n * Run the intake at the specified speed\n * @param speed Motor speed (-1.0 to 1.0, positive = collect)\n */\npublic void run(double speed) {\n    m_motor.set(speed);\n}\n\n/**\n * Stop the intake motor\n */\npublic void stop() {\n    m_motor.set(0.0);\n}","language":"java"}]} />
 
 ### Step 2: Set Up RobotContainer
 
-Create or update the `RobotContainer` class. This class creates subsystems and binds buttons to commands. It's the central place where we wire everything together.
+Create or update the `RobotContainer` class. This class creates subsystems and binds buttons to
+commands. It's the central place where we wire everything together.
 
 ### Step 2a: RobotContainer Structure
 
-The Command Robot template provides a `RobotContainer` class. Update it to include your intake subsystem:
+The Command Robot template provides a `RobotContainer` class. Update it to include your intake
+subsystem:
 
 ```java
 package frc.robot;
@@ -68,7 +78,8 @@ public class RobotContainer {
 
 ### Step 2b: Create Subsystem and Controller
 
-Declare the intake subsystem and controller as fields. These are created once and reused throughout the robot's operation.
+Declare the intake subsystem and controller as fields. These are created once and reused throughout
+the robot's operation.
 
 Add subsystem and controller fields:
 
@@ -83,7 +94,9 @@ public class RobotContainer {
 
 ### Step 2c: Configure Button Bindings
 
-In the constructor, set up a default command that stops the intake when no other command is running. Then bind buttons: Button A runs the intake forward while held, and Button B runs it reverse while held.
+In the constructor, set up a default command that stops the intake when no other command is running.
+Then bind buttons: Button A runs the intake forward while held, and Button B runs it reverse while
+held.
 
 Add constructor with button bindings:
 
@@ -102,7 +115,8 @@ public RobotContainer() {
 
 ### Understanding Default Commands
 
-The default command runs whenever the subsystem is not being used by another command. This ensures the motor stops automatically when no button is pressed, providing a safety mechanism.
+The default command runs whenever the subsystem is not being used by another command. This ensures
+the motor stops automatically when no button is pressed, providing a safety mechanism.
 
 ### Full Code - Intake Subsystem
 
@@ -110,7 +124,8 @@ The default command runs whenever the subsystem is not being used by another com
 
 ### Full Code - RobotContainer
 
-The Command Robot template provides RobotContainer with configureBindings(). Update it with your intake subsystem and button bindings:
+The Command Robot template provides RobotContainer with configureBindings(). Update it with your
+intake subsystem and button bindings:
 
 ```java
 package frc.robot;

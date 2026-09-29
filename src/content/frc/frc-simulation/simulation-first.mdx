@@ -13,34 +13,57 @@ description: "FRC 4451's rule that every robot behaviour is developed and proven
 
 ### The rule
 
-**FRC 4451 develops in simulation first.** A new subsystem, a tuned constant, an autonomous routine, or a vision change runs on a laptop, is watched in AdvantageScope, and is shown to work there before anyone deploys it to a roboRIO. This applies whether or not the robot is busy; it is how FRC 4451 writes robot code.
+**FRC 4451 develops in simulation first.** A new subsystem, a tuned constant, an autonomous routine,
+or a vision change runs on a laptop, is watched in AdvantageScope, and is shown to work there before
+anyone deploys it to a roboRIO. This applies whether or not the robot is busy; it is how FRC 4451
+writes robot code.
 
 The reasons are practical:
 
-- **The robot is the scarcest thing FRC 4451 has.** One chassis, forty hands. Simulation gives every programmer a robot of their own, at the same time, at home.
-- **Hardware hides bugs.** A motor that stalls, a limit that is off by a sign, or a command that never ends looks like unexplained behaviour on a real mechanism and can cost an afternoon. In simulation the same bug is a line on a graph you can point at.
-- **Broken code costs less on a laptop.** An elevator commanded to twice its travel is a number going past a limit in a plot, not a carriage hitting a hard stop.
-- **It is what the architecture is for.** The [IO layer](/frc/io-layers#the-problem-it-solves) exists so that the same subsystem code runs against real hardware, a physics model, or a recorded log. If we never used the second one, the structure would be ceremony.
+- **The robot is the scarcest thing FRC 4451 has.** One chassis, forty hands. Simulation gives every
+  programmer a robot of their own, at the same time, at home.
+- **Hardware hides bugs.** A motor that stalls, a limit that is off by a sign, or a command that
+  never ends looks like unexplained behaviour on a real mechanism and can cost an afternoon. In
+  simulation the same bug is a line on a graph you can point at.
+- **Broken code costs less on a laptop.** An elevator commanded to twice its travel is a number
+  going past a limit in a plot, not a carriage hitting a hard stop.
+- **It is what the architecture is for.** The [IO layer](/frc/io-layers#the-problem-it-solves)
+  exists so that the same subsystem code runs against real hardware, a physics model, or a recorded
+  log. If we never used the second one, the structure would be ceremony.
 
 ### What simulation tells you, and what it cannot
 
-Simulation runs your *actual* robot program on your laptop. Every command, every subsystem, every binding, every unit of logic executes exactly as it would on the roboRIO; the only thing swapped out is the hardware, which is replaced by a **physics model** that answers "if this much voltage went to this motor, where would the mechanism be 20 ms later?"
+Simulation runs your *actual* robot program on your laptop. Every command, every subsystem, every
+binding, every unit of logic executes exactly as it would on the roboRIO; the only thing swapped out
+is the hardware, which is replaced by a **physics model** that answers "if this much voltage went to
+this motor, where would the mechanism be 20 ms later?"
 
-That makes it authoritative for logic and approximate for physics.
+That lets you test the program's logic under the scenarios and sensor behavior the model supplies.
+The result is evidence for those cases; its physical accuracy depends on the model.
 
 <ContentTable
   headers={["Simulation proves", "Simulation cannot prove"]}
   rows={[
     ["The command sequence is right: this runs, then that, and it ends", "The real mechanism has the inertia you told the model"],
     ["Bindings do what the driver expects", "The gearbox has no backlash and the belt does not skip"],
-    ["Setpoints, limits and units are consistent (metres vs rotations, degrees vs radians)", "The exact PID gains. They will be close, then need a real tuning pass"],
+    ["Setpoints, limits and units are consistent (metres vs rotations, degrees vs radians)", "The physical PID tune. Some device simulators, including the documented Nova simulator, ignore PID gains entirely"],
     ["The autonomous path is geometrically correct and the events fire in order", "Wheel scrub, carpet, battery sag under a real load"],
     ["Vision maths: tags seen from here produce a pose there", "The camera's real latency, exposure and calibration"],
     ["Nothing crashes, nothing loops forever, nothing throws", "Anything electrical: CAN faults, brownouts, a loose encoder"]
   ]}
 />
 
-The left column is most of the bugs a team writes. The right column is what the first ten minutes on the real robot are for. Because the logic is already proven, those ten minutes are spent on the physics rather than on discovering that a button was mapped backwards.
+Treat the left column as checks to run and record, not guarantees about untested cases. Plan
+physical checks for the right column with the mentor; the time needed depends on the mechanism and
+the differences you observe.
+
+### Know the Device Model
+
+[Thrifty Nova Simulation](/frc/thrifty-nova-simulation) checks the current vendor model's
+configuration, direction, output clamps, limits, and telemetry. It requires an update for each
+device at 50 Hz and ignores all PID gains. A separate WPILib physics model can test a robot-side
+controller, but neither result establishes the Nova's final onboard tune. Record the simulator and
+library version beside each result.
 
 ### The three modes
 
@@ -60,7 +83,9 @@ public static enum Mode {
 }
 ```
 
-`RobotBase.isReal()` is true only on a roboRIO, so on the robot `currentMode` is always `REAL` whatever `simMode` says. On a laptop it is whatever `simMode` is, so switching between physics simulation and log replay means editing that one line.
+`RobotBase.isReal()` is true only on a roboRIO, so on the robot `currentMode` is always `REAL`
+whatever `simMode` says. On a laptop it is whatever `simMode` is, so switching between physics
+simulation and log replay means editing that one line.
 
 <ContentTable
   headers={["Mode", "Runs on", "Hardware is", "Robot responds?", "You use it to"]}
@@ -71,31 +96,51 @@ public static enum Mode {
   ]}
 />
 
-`RobotContainer` reads `currentMode` exactly once, to decide which IO implementation each subsystem gets; [IO Layers](/frc/io-layers#swapping-implementations) shows the `switch`. Nothing else in the codebase depends on the mode. A subsystem cannot tell whether its motor is real, so the code you prove in simulation is the same code that deploys.
+`RobotContainer` reads `currentMode` exactly once, to decide which IO implementation each subsystem
+gets; [IO Layers](/frc/io-layers#swapping-implementations) shows the `switch`. Nothing else in the
+codebase depends on the mode. A subsystem cannot tell whether its motor is real, so the code you
+prove in simulation is the same code that deploys.
 
 ### The loop
 
-Every piece of work on the robot runs the same loop, and the rest of this section is one lesson per step:
+Every piece of work on the robot runs the same loop, and the rest of this section is one lesson per
+step:
 
 <StepsBox title="Write → simulate → watch → deploy">
 
 1. **Write** the change on a branch: a subsystem, a command, a constant.
-2. **Simulate** it: `WPILib: Simulate Robot Code`, enable the robot, drive it with the keyboard or a controller. [Running the Simulator](/frc/running-the-simulator).
-3. **Watch** it in AdvantageScope connected live to the simulator: commanded versus measured on a line graph, the robot on the field, the mechanism moving. [Simulation in AdvantageScope](/frc/simulation-in-advantagescope).
-4. **Fix and repeat** until the graphs say what you meant. This is where the afternoon goes, and it is the cheap place for it to go.
-5. **Deploy.** When the real robot differs from the model, the difference is usually a physics constant to correct rather than a logic bug to find. [Simulating Autonomous](/frc/autonomous-simulation#the-hand-off-to-the-real-robot) ends with the checklist for that hand-off.
+2. **Simulate** it: `WPILib: Simulate Robot Code`, enable the robot, drive it with the keyboard or a
+   controller. [Running the Simulator](/frc/running-the-simulator).
+3. **Watch** it in AdvantageScope connected live to the simulator: commanded versus measured on a
+   line graph, the robot on the field, the mechanism moving.
+   [Simulation in AdvantageScope](/frc/simulation-in-advantagescope).
+4. **Fix and repeat** until the graphs say what you meant. This is where the afternoon goes, and it
+   is the cheap place for it to go.
+5. **Deploy.** When the real robot differs from the model, the difference is usually a physics
+   constant to correct rather than a logic bug to find.
+   [Simulating Autonomous](/frc/autonomous-simulation#the-hand-off-to-the-real-robot) ends with the
+   checklist for that hand-off.
 
 </StepsBox>
 
-[Physics in the IO Layer](/frc/physics-in-the-io-layer) is how the physics models get written, so that step 2 has something to simulate; [Vision Simulation](/frc/vision-simulation) and [Simulating Autonomous](/frc/autonomous-simulation), later in the section, extend the same idea to cameras and paths once those exist. [Log Replay](/frc/log-replay) is the third mode: what to do when a match already happened and you need to know why.
+[Physics in the IO Layer](/frc/physics-in-the-io-layer) is how the physics models get written, so
+that step 2 has something to simulate; [Vision Simulation](/frc/vision-simulation) and
+[Simulating Autonomous](/frc/autonomous-simulation), later in the section, extend the same idea to
+cameras and paths once those exist. [Log Replay](/frc/log-replay) is the third mode: what to do when
+a match already happened and you need to know why.
 
 <RulesBox title="What 'proven in simulation' means on a pull request">
 
-A pull request that changes robot behaviour says, in its description, what was simulated and what was seen: "Ran the intake sequence in sim; `Intake/Position` reaches the setpoint in 0.4 s with no overshoot; screenshot attached." A reviewer who cannot see that asks for it. The <a href="/tools/github-actions">build check</a> proves it compiles; simulation proves it works; the robot proves the physics. All three, in that order.
+A pull request that changes robot behaviour says, in its description, what was simulated and what
+was seen: "Ran the intake sequence in sim; `Intake/Position` reaches the setpoint in 0.4 s with no
+overshoot; screenshot attached." A reviewer who cannot see that asks for it. The
+<a href="/tools/github-actions">build check</a> proves it compiles; simulation checks the selected
+behavior; hardware checks compare that result with the physical mechanism. All three, in that order.
 
 </RulesBox>
 
 <Sources items={[
+  {"source": "thrifty", "path": "software/thriftylib/latest/simulation", "note": "Explicit coverage boundary for Nova simulation and PID tuning."},
   {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/introduction.html", "note": "What desktop simulation runs and what it cannot reproduce."},
   {"source": "advantagekit", "path": "getting-started/what-is-advantagekit/", "note": "The three modes (real, sim, replay) and why inputs go through IO."},
   {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "<code>Mode.REAL</code>, <code>SIM</code>, <code>REPLAY</code>."},

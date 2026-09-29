@@ -11,11 +11,16 @@ duration: 20 min
 description: "Build and simulate a horizontal linear-rail component driven by a belt, chain, rack and pinion, or lead screw."
 ---
 
-A linear rail moves a carriage in and out like a dresser drawer. It may extend an intake, move a camera, shift a game-piece guide, or position another mechanism.
+A linear rail moves a carriage in and out like a dresser drawer. It may extend an intake, move a
+camera, shift a game-piece guide, or position another mechanism.
 
-Its public goal is a `Distance`, like an elevator. The useful distinction is physical: a horizontal rail does not lift its carriage against gravity along the direction of travel. It also may use a belt, chain, rack and pinion, or lead screw instead of a winding drum.
+Its public goal is a `Distance`, like an elevator. The useful distinction is physical: a horizontal
+rail does not lift its carriage against gravity along the direction of travel. It also may use a
+belt, chain, rack and pinion, or lead screw instead of a winding drum.
 
-Use the same `Elevator` component when the only difference is the mounting angle and its configuration already makes gravity optional. Use a separate `LinearRail` component when the drive conversion, naming, or safety behavior would otherwise make `Elevator` misleading.
+Use the same `Elevator` component when the only difference is the mounting angle and its
+configuration already makes gravity optional. Use a separate `LinearRail` component when the drive
+conversion, naming, or safety behavior would otherwise make `Elevator` misleading.
 
 ### Convert rotation for a belt or pulley
 
@@ -48,7 +53,8 @@ distance per pinion rotation = π × pitch diameter
 carriage distance = pinion rotations × π × pitch diameter
 ```
 
-Use the gear's pitch diameter. The outside diameter includes tooth height and gives the wrong travel conversion.
+Use the gear's pitch diameter. The outside diameter includes tooth height and gives the wrong travel
+conversion.
 
 ### Convert rotation for a lead screw
 
@@ -59,7 +65,8 @@ screw rotations = motor rotations / gear reduction
 carriage distance = screw rotations × screw lead
 ```
 
-Lead and thread pitch are equal for a single-start screw. A multi-start screw advances by more than one thread pitch per rotation, so use its published lead.
+Lead and thread pitch are equal for a single-start screw. A multi-start screw advances by more than
+one thread pitch per rotation, so use its published lead.
 
 ### Relate torque to linear force
 
@@ -75,7 +82,8 @@ For a lead screw with lead `L` and estimated efficiency `η`:
 linear force ≈ 2 × π × efficiency × output torque / lead
 ```
 
-Friction, belt tension, rail alignment, and carriage loading affect the result. A drawer slide that binds under side load needs a mechanical fix before stronger closed-loop gains.
+Friction, belt tension, rail alignment, and carriage loading affect the result. A drawer slide that
+binds under side load needs a mechanical fix before stronger closed-loop gains.
 
 ### Define the component contract
 
@@ -139,11 +147,13 @@ public final class LinearRail {
 }
 ```
 
-The IO implementation owns the conversion for its drive type. The component should not need to know whether a motor turns a pulley or a lead screw.
+The IO implementation owns the conversion for its drive type. The component should not need to know
+whether a motor turns a pulley or a lead screw.
 
 ### Simulate a horizontal rail
 
-WPILib does not need a separate drawer-slide class. `ElevatorSim` already models a motor-driven, limited linear carriage and allows gravity to be disabled.
+WPILib does not need a separate drawer-slide class. `ElevatorSim` already models a motor-driven,
+limited linear carriage and allows gravity to be disabled.
 
 ```java
 private final ElevatorSim railSim = new ElevatorSim(
@@ -157,7 +167,8 @@ private final ElevatorSim railSim = new ElevatorSim(
     Units.inchesToMeters(0.0));
 ```
 
-This constructor directly matches a pulley-driven rail. For a chain or rack, choose the equivalent radius that produces the same travel per drive rotation:
+This constructor directly matches a pulley-driven rail. For a chain or rack, choose the equivalent
+radius that produces the same travel per drive rotation:
 
 ```text
 equivalent radius = distance per drive rotation / (2 × π)
@@ -165,17 +176,23 @@ equivalent radius = distance per drive rotation / (2 × π)
 
 For a lead screw, `distance per drive rotation` is the screw lead.
 
-The model does not include stiction, backlash, belt stretch, or a carriage binding on its rail. Add only the test behavior you need, and keep those limits clear when comparing simulation with hardware.
+The model does not include stiction, backlash, belt stretch, or a carriage binding on its rail. Add
+only the test behavior you need, and keep those limits clear when comparing simulation with
+hardware.
 
 ### Test the simulated behavior
 
 Start with three checks:
 
-1. Command 6 inches and verify the reported position approaches 6 inches without crossing either travel limit.
+1. Command 6 inches and verify the reported position approaches 6 inches without crossing either
+   travel limit.
 2. Interrupt the command and verify the parent subsystem applies its intended stop or hold behavior.
-3. Command beyond maximum extension and verify the component clamps the goal before the IO receives it.
+3. Command beyond maximum extension and verify the component clamps the goal before the IO receives
+   it.
 
-Then graph goal, measured distance, velocity, applied voltage, and current. A reversed measurement will move away from the goal. A wrong gear ratio or drive radius will change the apparent speed and distance.
+Then graph goal, measured distance, velocity, applied voltage, and current. A reversed measurement
+will move away from the goal. A wrong gear ratio or drive radius will change the apparent speed and
+distance.
 
 <RulesBox title="Check your work">
 

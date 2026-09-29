@@ -11,11 +11,16 @@ duration: 25 min
 description: "The non-geometric half of the toolbox: WPILib's MathUtil (clamp, deadband, modulus, isNear, interpolate) and SlewRateLimiter, the typed Units library and the convert-at-the-edge rule, InterpolatingDoubleTreeMap and the typed tree map, Cobra's ShootingInterpolator read line by line (units at the edge, a map per alliance, optional time of flight), and the small unit and range helpers: percentWithSoftStops, PhoenixUtil, CTREUtils, TuningUtils."
 ---
 
-The [geometry half](/frc/math-toolbox-geometry) of the toolbox is about **frames**. This half is about the other two failure modes, **units** (a radian where a degree was expected, a volt where an amp was) and **ranges** (an angle that wrapped, a setpoint past the hard stop, a stick that lurches), and about the one piece of numerical machinery a shooting robot cannot do without: the interpolation table.
+The [geometry half](/frc/math-toolbox-geometry) of the toolbox is about **frames**. This half is
+about the other two failure modes, **units** (a radian where a degree was expected, a volt where an
+amp was) and **ranges** (an angle that wrapped, a setpoint past the hard stop, a stick that
+lurches), and about the one piece of numerical machinery a shooting robot cannot do without: the
+interpolation table.
 
 ### MathUtil: the small functions you should never rewrite
 
-`edu.wpi.first.math.MathUtil` is a bag of static functions. Every one of them is something a team has written by hand, wrongly, at least once.
+`edu.wpi.first.math.MathUtil` is a bag of static functions. Every one of them is something a team
+has written by hand, wrongly, at least once.
 
 <ContentTable
   headers={["Function", "Does", "The bug it prevents", "Cobra uses it in"]}
@@ -30,17 +35,34 @@ The [geometry half](/frc/math-toolbox-geometry) of the toolbox is about **frames
   ]}
 />
 
-`applyDeadband` deserves the extra sentence. The naive version returns 0 below the threshold and the raw value above it, so at 0.1 the output jumps from 0 to 0.1, a discontinuity the driver feels as a lurch. WPILib's version maps <Equation tex="[\text{deadband},1]" /> onto <Equation tex="[0,1]" />, so the first motion out of the deadband is tiny. The Kit Bot's [`StickCurve`](/kit-bot/r10-joysticks-and-stick-math) does this by hand so you would see the maths once; Cobra calls `MathUtil`.
+`applyDeadband` deserves the extra sentence. The naive version returns 0 below the threshold and the
+raw value above it, so at 0.1 the output jumps from 0 to 0.1, a discontinuity the driver feels as a
+lurch. WPILib's version maps <Equation tex="[\text{deadband},1]" /> onto <Equation tex="[0,1]" />,
+so the first motion out of the deadband is tiny. The Kit Bot's
+[`StickCurve`](/kit-bot/r10-joysticks-and-stick-math) does this by hand so you would see the maths
+once; Cobra calls `MathUtil`.
 
 ### The Units library
 
-`Distance`, `Angle`, `AngularVelocity`, `Current`, `Voltage`, `Time` (the typed measures from `edu.wpi.first.units`) are all over the ROBOTZ Garage library: `Inches.of(56)`, `RotationsPerSecond.of(80)`, `height.in(Meters)`. The point is that a `Distance` cannot be handed to a method that wants an `Angle`, and `.in(Inches)` says at the call site which unit you are getting. The Kit Bot introduced them in [R03](/kit-bot/r03-constants#wpilib-units); in Cobra they are the rule at every public boundary, and a `double` is allowed only where a library forces one (Phoenix configs, `MathUtil`).
+`Distance`, `Angle`, `AngularVelocity`, `Current`, `Voltage`, `Time` (the typed measures from
+`edu.wpi.first.units`) are all over the ROBOTZ Garage library: `Inches.of(56)`,
+`RotationsPerSecond.of(80)`, `height.in(Meters)`. The point is that a `Distance` cannot be handed to
+a method that wants an `Angle`, and `.in(Inches)` says at the call site which unit you are getting.
+The Kit Bot introduced them in [R03](/kit-bot/r03-constants#wpilib-units); in Cobra they are the
+rule at every public boundary, and a `double` is allowed only where a library forces one (Phoenix
+configs, `MathUtil`).
 
-Two habits: convert at the *edge* (`config.magnetOffset().in(Rotations) * ratio`, then hand Phoenix the double), and compare with the typed methods (`distance.lt(Feet.of(7.4))`, `velocity.isNear(target, tolerance)`) instead of unwrapping both sides.
+Two habits: convert at the *edge* (`config.magnetOffset().in(Rotations) * ratio`, then hand Phoenix
+the double), and compare with the typed methods (`distance.lt(Feet.of(7.4))`,
+`velocity.isNear(target, tolerance)`) instead of unwrapping both sides.
 
 ### Interpolation tables
 
-`InterpolatingDoubleTreeMap` is a sorted map that, asked for a key between two entries, returns the linear interpolation of their values, and, asked for a key past either end, returns the end value rather than extrapolating. It is the whole mechanism behind "at 3.2 m the flywheel should run 71 rps": put in the pairs you measured, ask for any distance. You built the same table by hand in [Kit Bot R08 Part 3](/kit-bot/r08-launcher-calibration#add-the-table); this is the library version.
+`InterpolatingDoubleTreeMap` is a sorted map that, asked for a key between two entries, returns the
+linear interpolation of their values, and, asked for a key past either end, returns the end value
+rather than extrapolating. It is the whole mechanism behind "at 3.2 m the flywheel should run 71
+rps": put in the pairs you measured, ask for any distance. You built the same table by hand in
+[Kit Bot R08 Part 3](/kit-bot/r08-launcher-calibration#add-the-table); this is the library version.
 
 ```java
 InterpolatingDoubleTreeMap distanceToVelocity = new InterpolatingDoubleTreeMap();
@@ -52,11 +74,16 @@ distanceToVelocity.get(4.1);           // ≈ 40.9, between the first two entrie
 distanceToVelocity.get(9.0);           // 45.0, clamped to the last entry, never extrapolated
 ```
 
-The typed `InterpolatingTreeMap<K, V>` does the same for anything with an inverse-interpolator and an interpolator (`Pose2d`, `Rotation2d`, your own record), which is how a "pose at time *t*" buffer works. `MathUtil.interpolate(a, b, t)` is the one-line blend underneath both.
+The typed `InterpolatingTreeMap<K, V>` does the same for anything with an inverse-interpolator and
+an interpolator (`Pose2d`, `Rotation2d`, your own record), which is how a "pose at time *t*" buffer
+works. `MathUtil.interpolate(a, b, t)` is the one-line blend underneath both.
 
 ### Cobra's own: the ShootingInterpolator
 
-A shot needs more than one number per distance: a hood angle, a flywheel velocity (two, if the sides differ), and a time of flight for leading a moving target. `org.robotzgarage.frc2026.math.interpolation.ShootingInterpolator` is five `InterpolatingDoubleTreeMap`s behind one record in and one record out:
+A shot needs more than one number per distance: a hood angle, a flywheel velocity (two, if the sides
+differ), and a time of flight for leading a moving target.
+`org.robotzgarage.frc2026.math.interpolation.ShootingInterpolator` is five
+`InterpolatingDoubleTreeMap`s behind one record in and one record out:
 
 ```java
 // One measured point: a Lombok @Builder record with a compact constructor that defaults
@@ -78,11 +105,25 @@ calc.angle();  calc.primaryVelocity();  calc.secondaryVelocity();  calc.timeOfFl
 
 Three details in the class are worth reading for:
 
-- **Units in, doubles inside, units out.** `addEntry` converts every measure to metres, degrees, rps and seconds *once*, at the edge, and the maps hold plain doubles; `calculateInterpolation` wraps the doubles back into `Angle`, `AngularVelocity`, `Time`. Nothing in between can mix a foot with a metre.
-- **One angle map per alliance, with a fudge factor.** The blue and red maps hold the same pitches shifted by a per-alliance, close-or-far correction, because the two hubs are not quite the same and a competition venue is not quite the practice field. The correction is applied when the entry is added, so the lookup is still one `get`, and the pitch is clamped to the hood's `maximumAngle` there too.
-- **Time of flight is optional.** `getTOF` returns an `OptionalDouble` that is empty until an entry with a time of flight has been added, so the aiming code that leads a moving target degrades to "aim straight at it" instead of throwing.
+- **Units in, doubles inside, units out.** `addEntry` converts every measure to metres, degrees, rps
+  and seconds *once*, at the edge, and the maps hold plain doubles; `calculateInterpolation` wraps
+  the doubles back into `Angle`, `AngularVelocity`, `Time`. Nothing in between can mix a foot with a
+  metre.
+- **One angle map per alliance, with a fudge factor.** The blue and red maps hold the same pitches
+  shifted by a per-alliance, close-or-far correction, because the two hubs are not quite the same
+  and a competition venue is not quite the practice field. The correction is applied when the entry
+  is added, so the lookup is still one `get`, and the pitch is clamped to the hood's `maximumAngle`
+  there too.
+- **Time of flight is optional.** `getTOF` returns an `OptionalDouble` that is empty until an entry
+  with a time of flight has been added, so the aiming code that leads a moving target degrades to
+  "aim straight at it" instead of throwing.
 
-The `TargetInterpolator` subclasses (`HubInterpolator`, `DropoffInterpolator`) own one table each and read it every loop for the current distance; [BobotState](/frc/bobot-state#interpolators-distance-in-shooter-setpoints-out) is where the result lands. The numbers in the tables are the output of a shooting-calibration session on the practice field, one entry per distance, and the single most valuable thing to re-measure when the venue changes.
+The `TargetInterpolator` subclasses (`HubInterpolator`, `DropoffInterpolator`) own one table each
+and read it every loop for the current distance;
+[BobotState](/frc/bobot-state#interpolators-distance-in-shooter-setpoints-out) is where the result
+lands. The numbers in the tables are the output of a shooting-calibration session on the practice
+field, one entry per distance, and the single most valuable thing to re-measure when the venue
+changes.
 
 ### Cobra's own: the small utilities
 
@@ -98,14 +139,27 @@ The `TargetInterpolator` subclasses (`HubInterpolator`, `DropoffInterpolator`) o
 
 ### Why the principles are here at all
 
-Read back over both halves of the toolbox and every helper is one of the three failure modes with a wall around it. **Units:** the Units library, `CTREUtils`, `TuningUtils`, the edge conversions in `ShootingInterpolator`. **Frames:** the geometry classes, `PoseUtils`, `AllianceFlipUtil`, `AllianceFlip<T>` ([the other page](/frc/math-toolbox-geometry)). **Ranges:** `clamp`, `applyDeadband`, `inputModulus`, `isNear`, `percentWithSoftStops`, `isPoseInsideField`. None of them is clever. Each is a place where FRC 4451, or WPILib, or Team 6328 whose `AllianceFlipUtil` this is, got it wrong once and decided not to get it wrong again. The way to benefit from that is to call the helper, even when the inline arithmetic looks like it would be two characters shorter.
+Read back over both halves of the toolbox and every helper is one of the three failure modes with a
+wall around it. **Units:** the Units library, `CTREUtils`, `TuningUtils`, the edge conversions in
+`ShootingInterpolator`. **Frames:** the geometry classes, `PoseUtils`, `AllianceFlipUtil`,
+`AllianceFlip<T>` ([the other page](/frc/math-toolbox-geometry)). **Ranges:** `clamp`,
+`applyDeadband`, `inputModulus`, `isNear`, `percentWithSoftStops`, `isPoseInsideField`. None of them
+is clever. Each is a place where FRC 4451, or WPILib, or Team 6328 whose `AllianceFlipUtil` this is,
+got it wrong once and decided not to get it wrong again. The way to benefit from that is to call the
+helper, even when the inline arithmetic looks like it would be two characters shorter.
 
 <ExerciseBox title="Practice">
 
-1. In simulation, log `MathUtil.applyDeadband(x, 0.1)` and the naive `abs(x) < 0.1 ? 0 : x` for a slow stick sweep and graph both. The step in the second line is the lurch a driver feels.
-2. Build a two-entry `InterpolatingDoubleTreeMap` and query it at a key below the first entry, between the entries, and above the last. Write down all three results before running it.
-3. Read `ShootingInterpolator.addEntry` and list every unit conversion it performs. Then find the one place a caller could still pass the wrong unit, and say why the type system does not catch it.
-4. `GarageUtils.percentWithSoftStops` zeroes a manual command in one direction only. Write the four-line truth table (above/below each limit × positive/negative command) and check the implementation against it.
+1. In simulation, log `MathUtil.applyDeadband(x, 0.1)` and the naive `abs(x) < 0.1 ? 0 : x` for a
+   slow stick sweep and graph both. The step in the second line is the lurch a driver feels.
+2. Build a two-entry `InterpolatingDoubleTreeMap` and query it at a key below the first entry,
+   between the entries, and above the last. Write down all three results before running it.
+3. Read `ShootingInterpolator.addEntry` and list every unit conversion it performs. Then find the
+   one place a caller could still pass the wrong unit, and say why the type system does not catch
+   it.
+4. `GarageUtils.percentWithSoftStops` zeroes a manual command in one direction only. Write the
+   four-line truth table (above/below each limit × positive/negative command) and check the
+   implementation against it.
 
 </ExerciseBox>
 

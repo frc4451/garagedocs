@@ -11,7 +11,9 @@ duration: 35 min
 description: "Testing drivetrain measurements, camera calibration and mounting, observation filters, and pose-estimator uncertainty."
 ---
 
-Calibrate pose estimation one source at a time. If wheel distance, module angles, gyro direction, camera intrinsics, and camera placement all change during the same test, the log cannot identify which change fixed or caused an error.
+Calibrate pose estimation one source at a time. If wheel distance, module angles, gyro direction,
+camera intrinsics, and camera placement all change during the same test, the log cannot identify
+which change fixed or caused an error.
 
 For every test, record:
 
@@ -29,7 +31,8 @@ Lift the drivetrain so the wheels can move safely. Check the signs before measur
 
 1. Push or command the robot forward. Robot-relative +X velocity should be positive.
 2. Move a swerve module toward the robot's left. Its Robot-relative +Y component should be positive.
-3. Rotate the robot counterclockwise when viewed from above. Heading should increase under WPILib's convention.
+3. Rotate the robot counterclockwise when viewed from above. Heading should increase under WPILib's
+   convention.
 4. Display each module angle and verify its zero direction.
 5. Confirm that the module array order matches `SwerveDriveKinematics`.
 
@@ -37,7 +40,8 @@ Fix sign, axis, and ordering errors before tuning dimensions.
 
 ### 2. Measure effective wheel travel
 
-A nominal wheel diameter is a starting value. Compression, tread wear, gearing, and sensor conversion affect the distance reported under load.
+A nominal wheel diameter is a starting value. Compression, tread wear, gearing, and sensor
+conversion affect the distance reported under load.
 
 1. Mark a straight test line on a consistent surface.
 2. Record the initial encoder or module positions.
@@ -53,11 +57,15 @@ corrected conversion =
     current conversion × actual distance / reported distance
 ```
 
-Apply the result in the sensor conversion used by the IO layer. Repeat until the error is acceptably small and consistent. If the error changes sharply with acceleration, investigate slip before changing the scale again.
+Apply the result in the sensor conversion used by the IO layer. Repeat until the error is acceptably
+small and consistent. If the error changes sharply with acceleration, investigate slip before
+changing the scale again.
 
 ### 3. Check rotation and module geometry
 
-For differential drive, effective track width affects calculated rotation. For swerve, module locations, wheel scale, steering offsets, and scrub all affect the motion inferred from module positions.
+For differential drive, effective track width affects calculated rotation. For swerve, module
+locations, wheel scale, steering offsets, and scrub all affect the motion inferred from module
+positions.
 
 Run repeated rotations through a measured angle:
 
@@ -67,11 +75,13 @@ Run repeated rotations through a measured angle:
 4. Compare gyro heading, wheel-derived heading, and physical heading.
 5. Repeat in the other direction.
 
-A constant scale error suggests a geometry or conversion problem. A direction-dependent error suggests scrub, backlash, or an offset problem. A sudden error during acceleration suggests slip.
+A constant scale error suggests a geometry or conversion problem. A direction-dependent error
+suggests scrub, backlash, or an offset problem. A sudden error during acceleration suggests slip.
 
 ### 4. Calibrate camera intrinsics
 
-PhotonVision camera calibration estimates the lens parameters used to convert image points into rays.
+PhotonVision camera calibration estimates the lens parameters used to convert image points into
+rays.
 
 - Calibrate at the exact resolution used by the pipeline.
 - Fill the image with the calibration board at varied positions and angles.
@@ -79,7 +89,8 @@ PhotonVision camera calibration estimates the lens parameters used to convert im
 - Review the calibration error reported by the tool.
 - Recalibrate after changing the lens, focus, resolution, or camera.
 
-Intrinsics and mounting transform solve different problems. Camera calibration does not determine where the camera sits on the robot.
+Intrinsics and mounting transform solve different problems. Camera calibration does not determine
+where the camera sits on the robot.
 
 ### 5. Measure robotToCamera
 
@@ -92,9 +103,12 @@ Measure from the same robot origin used by odometry:
 - Pitch about +Y
 - Yaw about +Z
 
-Record how the measurement was taken and the physical reference point used on the camera. A consistent pose offset across the field often indicates an incorrect translation or rotation in this transform.
+Record how the measurement was taken and the physical reference point used on the camera. A
+consistent pose offset across the field often indicates an incorrect translation or rotation in this
+transform.
 
-Use simulation to catch large sign and orientation errors. Confirm the final transform on hardware because simulation cannot reproduce a flexible mount or lens error.
+Use simulation to catch large sign and orientation errors. Confirm the final transform on hardware
+because simulation cannot reproduce a flexible mount or lens error.
 
 ### 6. Test raw vision observations
 
@@ -131,11 +145,13 @@ Choose limits from the distribution in the logs:
 - Check how many useful observations the limit also removes.
 - Record the tested camera settings and field conditions.
 
-A single ambiguity or distance number is not universal. Exposure, resolution, lens, tag placement, and motion change the result.
+A single ambiguity or distance number is not universal. Exposure, resolution, lens, tag placement,
+and motion change the result.
 
 ### 8. Tune uncertainty
 
-Start with conservative vision influence. Run a repeatable path with wheel slip, turns, and tag transitions.
+Start with conservative vision influence. Run a repeatable path with wheel slip, turns, and tag
+transitions.
 
 Compare:
 
@@ -145,9 +161,12 @@ Compare:
 - Fused estimate
 - A surveyed endpoint or other independent reference
 
-If good observations correct too slowly, reduce their standard deviations in small steps. If accepted noise moves the fused pose too much, increase them. If isolated bad observations cause jumps, improve rejection before increasing every standard deviation.
+If good observations correct too slowly, reduce their standard deviations in small steps. If
+accepted noise moves the fused pose too much, increase them. If isolated bad observations cause
+jumps, improve rejection before increasing every standard deviation.
 
-Tune single-tag and multi-tag observations separately. If uncertainty increases with distance, verify the chosen curve against the logged errors.
+Tune single-tag and multi-tag observations separately. If uncertainty increases with distance,
+verify the chosen curve against the logged errors.
 
 ### 9. Validate the complete system
 
@@ -163,7 +182,8 @@ A final test should include:
 - The actual field-layout variant
 - Every installed camera or visual-inertial source
 
-Save the log and the configuration that produced it. Record what passed, what failed, and what remains uncertain.
+Save the log and the configuration that produced it. Record what passed, what failed, and what
+remains uncertain.
 
 <RulesBox title="Stop and diagnose">
 
@@ -171,9 +191,12 @@ Save the log and the configuration that produced it. Record what passed, what fa
 - **Rotation error grows each turn:** check gyro convention, module geometry, and steering offsets.
 - **Every camera pose has the same offset:** check `robotToCamera` and field layout.
 - **Only distant single-tag poses jump:** inspect ambiguity, distance, and rejection limits.
-- **Static tests pass but moving tests fail:** inspect timestamps, latency, blur, and sample synchronization.
-- **The fused estimate ignores good observations:** inspect the standard deviations actually passed to `addVisionMeasurement`.
-- **The fused estimate follows every noisy observation:** increase measurement uncertainty after confirming the observations should be accepted.
+- **Static tests pass but moving tests fail:** inspect timestamps, latency, blur, and sample
+  synchronization.
+- **The fused estimate ignores good observations:** inspect the standard deviations actually passed
+  to `addVisionMeasurement`.
+- **The fused estimate follows every noisy observation:** increase measurement uncertainty after
+  confirming the observations should be accepted.
 
 </RulesBox>
 

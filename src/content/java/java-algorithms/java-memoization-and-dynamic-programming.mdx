@@ -22,7 +22,8 @@ public static int fib(int n) {
 }
 ```
 
-Trace fib(5): fib(3) is computed twice, fib(2) three times, and fib(1) five times. Larger inputs repeat more work; fib(40) makes hundreds of millions of calls.
+Trace fib(5): fib(3) is computed twice, fib(2) three times, and fib(1) five times. Larger inputs
+repeat more work; fib(40) makes hundreds of millions of calls.
 
 Nothing is wrong with the logic. The problem is that it has no memory.
 
@@ -45,11 +46,14 @@ memo = new long[50];
 System.out.println(fib(45));
 ```
 
-With a cache, each distinct Fibonacci value is calculated once. The work grows linearly with n, with additional calls returning cached values.
+With a cache, each distinct Fibonacci value is calculated once. The work grows linearly with n, with
+additional calls returning cached values.
 
 <RulesBox title="Choose a sentinel that cannot be a real answer">
 
-Using `0` to mean "not computed" works for Fibonacci only because no result is 0 beyond `fib(0)`, which the base case handles first. In general that is unsafe: a genuine answer of 0 would be recomputed every time, silently destroying the benefit.
+Using `0` to mean "not computed" works for Fibonacci only because no result is 0 beyond `fib(0)`,
+which the base case handles first. In general that is unsafe: a genuine answer of 0 would be
+recomputed every time, silently destroying the benefit.
 
 Prefer an impossible value:
 
@@ -64,17 +68,22 @@ Or use a `HashMap`, where `containsKey` answers the question directly and no sen
 
 </RulesBox>
 
-Note the `long`. Fibonacci exceeds `int` around `fib(47)`, and overflow gives a wrong answer with no error.
+Note the `long`. Fibonacci exceeds `int` around `fib(47)`, and overflow gives a wrong answer with no
+error.
 
 ### When memoization applies
 
 <RulesBox title="When caching helps">
 
-**Repeated inputs:** several calls request the same subproblem. Reusing its result can avoid repeated work.
+**Repeated inputs:** several calls request the same subproblem. Reusing its result can avoid
+repeated work.
 
-**Reusable results:** the stored result remains valid for those inputs. If a result also depends on changing state, include that state in the key or clear the cache when it changes.
+**Reusable results:** the stored result remains valid for those inputs. If a result also depends on
+changing state, include that state in the key or clear the cache when it changes.
 
-Dynamic programming combines related subproblem results. Optimization problems often require optimal substructure; counting problems such as Fibonacci use a recurrence without choosing an optimal solution.
+Dynamic programming combines related subproblem results. Optimization problems often require optimal
+substructure; counting problems such as Fibonacci use a recurrence without choosing an optimal
+solution.
 
 </RulesBox>
 
@@ -113,7 +122,9 @@ Same results, same amount of work, no recursion, so no stack-depth limit.
   ]}
 />
 
-Write the recursion first, add memoisation to make it fast, and convert to a table only if you need the extra speed or hit a stack limit. Going straight to a table is harder because you must work out the correct fill order up front.
+Write the recursion first, add memoisation to make it fast, and convert to a table only if you need
+the extra speed or hit a stack limit. Going straight to a table is harder because you must work out
+the correct fill order up front.
 
 ### Reducing memory
 
@@ -133,13 +144,15 @@ public static long fibTwoVars(int n) {
 }
 ```
 
-The table is gone entirely. This only works because each value depends on exactly the two before it; check that dependency before discarding rows.
+The table is gone entirely. This only works because each value depends on exactly the two before it;
+check that dependency before discarding rows.
 
 ### A less artificial example
 
 *How many ways can you climb `n` stairs taking 1, 2, or 3 steps at a time?*
 
-The recurrence follows from the last step taken: it was 1, 2, or 3 steps, so the total is the sum of the ways to reach each of those positions.
+The recurrence follows from the last step taken: it was 1, 2, or 3 steps, so the total is the sum of
+the ways to reach each of those positions.
 
 ```java
 public static long countWays(int n) {
@@ -155,11 +168,13 @@ public static long countWays(int n) {
 }
 ```
 
-Setting `ways[0] = 1` is the part that looks odd and matters most. There is exactly one way to be at the bottom (do nothing), and every later value depends on that being 1 rather than 0.
+Setting `ways[0] = 1` is the part that looks odd and matters most. There is exactly one way to be at
+the bottom (do nothing), and every later value depends on that being 1 rather than 0.
 
 ### Grid paths
 
-*How many routes from the top-left to the bottom-right of a grid, moving only right or down, avoiding blocked cells?*
+*How many routes from the top-left to the bottom-right of a grid, moving only right or down,
+avoiding blocked cells?*
 
 ```java
 public static long countPaths(char[][] grid) {
@@ -183,7 +198,9 @@ public static long countPaths(char[][] grid) {
 }
 ```
 
-Row-by-row, left-to-right fill order works because every cell depends only on the one above and the one to its left, both already computed. Getting the fill order wrong reads uninitialised zeros and quietly gives wrong answers.
+Row-by-row, left-to-right fill order works because every cell depends only on the one above and the
+one to its left, both already computed. Getting the fill order wrong reads uninitialised zeros and
+quietly gives wrong answers.
 
 ### Finding the recurrence
 
@@ -191,13 +208,16 @@ The code is rarely the hard part. Working out the recurrence is.
 
 <RulesBox title="A method that works">
 
-1. **Define the state precisely.** What does `dp[i]` mean, in a sentence? "The number of ways to reach step `i`." Vagueness here guarantees confusion later.
-2. **Write the recurrence.** How does this state follow from smaller ones? Think about the *last* decision made.
+1. **Define the state precisely.** What does `dp[i]` mean, in a sentence? "The number of ways to
+   reach step `i`." Vagueness here guarantees confusion later.
+2. **Write the recurrence.** How does this state follow from smaller ones? Think about the *last*
+   decision made.
 3. **Identify the base cases.** The smallest states, answered directly.
 4. **Determine the fill order.** Everything a state depends on must already be computed.
 5. **Check a small case by hand** before trusting the code.
 
-Step 5 catches most errors. If `dp[3]` disagrees with what you counted on paper, check both the recurrence and its implementation.
+Step 5 catches most errors. If `dp[3]` disagrees with what you counted on paper, check both the
+recurrence and its implementation.
 
 </RulesBox>
 
@@ -207,7 +227,8 @@ Step 5 catches most errors. If `dp[3]` disagrees with what you counted on paper,
 - **Wrong base case.** `ways[0] = 0` instead of `1` makes every answer zero.
 - **Wrong fill order**, reading entries not yet computed.
 - **Off-by-one in the table size.** For values up to `n`, you need `n + 1` slots.
-- **`int` overflow.** Counting problems grow fast; use `long` where it fits, and check its range too.
+- **`int` overflow.** Counting problems grow fast; use `long` where it fits, and check its range
+  too.
 - **Memoising something without overlapping sub-problems**, adding overhead for nothing.
 - **Forgetting to reset the cache** between independent test cases.
 
@@ -221,7 +242,8 @@ Step 5 catches most errors. If `dp[3]` disagrees with what you counted on paper,
 2. Rewrite it as a table, then reduce it to two variables.
 3. Count the ways to climb `n` stairs with steps of 1, 2, or 3.
 4. Count the paths across a grid with blocked cells.
-5. Given coin values and a target, find the fewest coins that sum to it, or report that it is impossible.
+5. Given coin values and a target, find the fewest coins that sum to it, or report that it is
+   impossible.
 
 <details>
 <summary>Hints</summary>
@@ -229,8 +251,11 @@ Step 5 catches most errors. If `dp[3]` disagrees with what you counted on paper,
 1. The difference is large enough to notice without a stopwatch.
 2. Check `fibTwoVars` against the table version for several inputs.
 3. Watch the base cases: `ways[0] = 1`.
-4. Blocked cells contribute 0. Handle the first row and column, where one of the two sources does not exist.
-5. `dp[amount]` is the fewest coins making that amount. Start every entry at a value meaning "impossible" and only improve it if a smaller amount was itself reachable. Greedy fails here for many coin sets, which is why it needs DP.
+4. Blocked cells contribute 0. Handle the first row and column, where one of the two sources does
+   not exist.
+5. `dp[amount]` is the fewest coins making that amount. Start every entry at a value meaning
+   "impossible" and only improve it if a smaller amount was itself reachable. Greedy fails here for
+   many coin sets, which is why it needs DP.
 
 </details>
 

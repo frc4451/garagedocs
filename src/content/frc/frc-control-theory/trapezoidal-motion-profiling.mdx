@@ -11,17 +11,27 @@ duration: 10 min
 description: "Move a simulated pivot through bounded software setpoints, distinguish a profile from feedback control, then move profile generation into CTRE Motion Magic."
 ---
 
-Move a simulated pivot from one angle to another without asking it to reach the final angle in one loop. A **motion profile** supplies intermediate position and velocity setpoints. The controller then tries to make the measured mechanism follow them.
+Move a simulated pivot from one angle to another without asking it to reach the final angle in one
+loop. A **motion profile** supplies intermediate position and velocity setpoints. The controller
+then tries to make the measured mechanism follow them.
 
-Use the existing simulated pivot and IO boundary in `Badge2Robot`. Read [Physics in the IO Layer](/frc/physics-in-the-io-layer), [PID Control](/frc/pid-control), and [Feedforward](/frc/feedforward) first. This exercise begins with a software profile and ends with the same goal sent to Motion Magic. Hardware tuning is separate work.
+Use the existing simulated pivot and IO boundary in `Badge2Bench`. Read
+[Physics in the IO Layer](/frc/physics-in-the-io-layer), [PID Control](/frc/pid-control), and
+[Feedforward](/frc/feedforward) first. This exercise begins with a software profile and ends with
+the same goal sent to Motion Magic. Hardware tuning is separate work.
 
 ### Template Project
 
-Keep the WPILib 2026 project and dependencies already recorded for the badge. Add the helper below to that project; no additional template or SPARK MAX controller is needed. The helper generates setpoints only. The existing pivot simulation provides the physics and voltage-producing feedback loop.
+Keep the WPILib 2026 project and dependencies already recorded for the badge. Add the helper below
+to that project; no additional template or SPARK MAX controller is needed. The helper generates
+setpoints only. The existing pivot simulation provides the physics and voltage-producing feedback
+loop.
 
 ### Limit Velocity and Acceleration
 
-A trapezoidal profile accelerates, may cruise at a velocity limit, then decelerates to the goal. A short move can finish without reaching the velocity limit, producing a triangular velocity graph. The limits constrain the planned motion; they do not guarantee that a motor can follow it.
+A trapezoidal profile accelerates, may cruise at a velocity limit, then decelerates to the goal. A
+short move can finish without reaching the velocity limit, producing a triangular velocity graph.
+The limits constrain the planned motion; they do not guarantee that a motor can follow it.
 
 Keep three values separate in the log:
 
@@ -29,17 +39,56 @@ Keep three values separate in the log:
 - **Setpoint:** the angle and velocity the profile requests for this loop.
 - **Measurement:** the angle and velocity reported through the IO inputs.
 
-If the setpoint reaches the goal while the mechanism remains behind, the profile has finished but the mechanism has not. Completion needs measured-state evidence.
+If the setpoint reaches the goal while the mechanism remains behind, the profile has finished but
+the mechanism has not. Completion needs measured-state evidence.
 
 ### Step 1: Understand Configuration Parameters
 
-Choose position units before choosing constraints. This example uses radians inside `TrapezoidProfile`, so its velocity is radians per second and its acceleration is radians per second squared. The public methods take WPILib `Angle` and `AngularVelocity` measurements.
+Choose position units before choosing constraints. This example uses radians inside
+`TrapezoidProfile`, so its velocity is radians per second and its acceleration is radians per second
+squared. The public methods take WPILib `Angle` and `AngularVelocity` measurements.
 
-The illustrative limits below describe a simulation exercise: travel from 0 to 90 degrees, maximum velocity 45 degrees per second, and maximum acceleration 90 degrees per second squared. Use the actual simulated mechanism's range and a reachable motion demand when connecting it. These are not hardware settings.
+The illustrative limits below describe a simulation exercise: travel from 0 to 90 degrees, maximum
+velocity 45 degrees per second, and maximum acceleration 90 degrees per second squared. Use the
+actual simulated mechanism's range and a reachable motion demand when connecting it. These are not
+hardware settings.
+
+### Validate Numeric Requests
+
+Clamping limits a finite goal to the allowed travel. It does not reject `NaN`, which means "not a
+number," or either infinity. Put this complete helper in `src/main/java/frc/robot/util/Numbers.java`
+and call it before assigning a new request:
+
+```java
+package frc.robot.util;
+
+public final class Numbers {
+  private Numbers() {}
+
+  public static void requireFinite(String name, double... values) {
+    for (double value : values) {
+      if (!Double.isFinite(value)) {
+        throw new IllegalArgumentException(name + " must be finite");
+      }
+    }
+  }
+}
+```
+
+`double...` lets a call check one or several numbers. `Double.isFinite` rejects both `NaN` and
+infinity, so it is more useful here than checking only `Double.isNaN`. Convert typed values to the
+method's chosen unit, validate them, then assign. Rejection leaves the previous valid goal
+unchanged. Finite out-of-range goals still follow the component's clamp policy.
+
+The pure helper throws an argument exception. A parent handling a runtime request validates before
+changing any component, reports a refused request, and retains its defined safe goals. It must not
+let an invalid request escape into a periodic control calculation. Test `NaN`, both infinities,
+exact limits, just-outside finite values, and preservation of the previous goal.
 
 ### Step 2: Configure Motion Profile Constraints
 
-Save this complete helper as `PivotProfile.java` in the stated package. It builds profile states; it does not drive a motor or initialize a physics model.
+Save this complete helper as `PivotProfile.java` in the stated package. It builds profile states; it
+does not drive a motor or initialize a physics model.
 
 ```java
 package frc.robot.examples;
@@ -51,6 +100,7 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
+import frc.robot.util.Numbers;
 
 public final class PivotProfile {
   private final TrapezoidProfile profile =
@@ -60,6 +110,8 @@ public final class PivotProfile {
   private TrapezoidProfile.State goal = new TrapezoidProfile.State();
 
   public void reset(Angle measuredAngle, AngularVelocity measuredVelocity) {
+    Numbers.requireFinite(
+        "measured state", measuredAngle.in(Radians), measuredVelocity.in(RadiansPerSecond));
     setpoint =
         new TrapezoidProfile.State(
             measuredAngle.in(Radians), measuredVelocity.in(RadiansPerSecond));
@@ -67,7 +119,9 @@ public final class PivotProfile {
   }
 
   public void setGoal(Angle requestedAngle) {
-    double boundedRadians = MathUtil.clamp(requestedAngle.in(Radians), 0.0, Math.PI / 2.0);
+    double radians = requestedAngle.in(Radians);
+    Numbers.requireFinite("requested angle", radians);
+    double boundedRadians = MathUtil.clamp(radians, 0.0, Math.PI / 2.0);
     goal = new TrapezoidProfile.State(boundedRadians, 0.0);
   }
 
@@ -92,41 +146,79 @@ public final class PivotProfile {
 }
 ```
 
-Initialize or reset the profile from the measured angle and velocity before starting a move, then set its goal. On each enabled simulation loop, advance from the **previous setpoint**, not from a newly substituted measurement. The feedback controller uses the measurement to correct tracking error; the profile maintains the planned motion.
+Initialize or reset the profile from the measured angle and velocity before starting a move, then
+set its goal. On each enabled simulation loop, advance from the **previous setpoint**, not from a
+newly substituted measurement. The feedback controller uses the measurement to correct tracking
+error; the profile maintains the planned motion.
 
-For a fixed 20 ms exercise loop, pass `0.020` once each cycle. If the loop uses measured elapsed time, use that interval consistently in the profile, control calculation, and physics update. Do not advance one model from two different callbacks.
+For a fixed 20 ms exercise loop, pass `0.020` once each cycle. If the loop uses measured elapsed
+time, use that interval consistently in the profile, control calculation, and physics update. Do not
+advance one model from two different callbacks.
 
 ### Step 3: Follow the Setpoint
 
-In the general pivot simulation IO, use one `PIDController` to compare measured angle with `getPositionSetpoint()`, in radians. Add an appropriate `ArmFeedforward` evaluated with the profile's angle and velocity, then limit the resulting voltage to the simulated supply before applying it to `SingleJointedArmSim`. If the selected feedforward includes acceleration, derive that from consecutive velocity setpoints and the same loop interval.
+In the general pivot simulation IO, use one `PIDController` to compare measured angle with
+`getPositionSetpoint()`, in radians. Add an appropriate `ArmFeedforward` evaluated with the
+profile's angle and velocity, then limit the resulting voltage to the simulated supply before
+applying it to `SingleJointedArmSim`. If the selected feedforward includes acceleration, derive that
+from consecutive velocity setpoints and the same loop interval.
 
-Advance the arm model once and fill the normal typed IO inputs from its measurements. The parent component's goal, limits, and logging interface stay unchanged. While disabled, apply zero motor voltage and reset the profile from measured state before the next enabled move; gravity can still move an unpowered model.
+Advance the arm model once and fill the normal typed IO inputs from its measurements. The parent
+component's goal, limits, and logging interface stay unchanged. While disabled, apply zero motor
+voltage and reset the profile from measured state before the next enabled move; gravity can still
+move an unpowered model.
 
-Use the [guided simulation baseline procedure](/badges/badge-2-mechanism-library#establish-a-simulation-baseline) with the mentor before judging tracking. A motion profile alone supplies no voltage, and a default controller with zero gains does not make the arm follow it.
+Use the
+[guided simulation baseline procedure](/badges/badge-2-mechanism-library#establish-a-simulation-baseline)
+with the mentor before judging tracking. A motion profile alone supplies no voltage, and a default
+controller with zero gains does not make the arm follow it.
 
-`ProfiledPIDController` is a second implementation option: it combines a trapezoidal setpoint generator with PID and exposes its setpoint for feedforward. It replaces the separate profile and PID pair. Do not place both profile generators in the same path. For the first exercise, keep the explicit helper so the state update is visible.
+`ProfiledPIDController` is a second implementation option: it combines a trapezoidal setpoint
+generator with PID and exposes its setpoint for feedforward. It replaces the separate profile and
+PID pair. Do not place both profile generators in the same path. For the first exercise, keep the
+explicit helper so the state update is visible.
 
 ### Read the Earlier Robot
 
-Ember2024's `PivotSubsystem` stores separate `setpoint` and `goal` states, advances the profile in `runTrapezoidProfile()`, and converts its degree-based position setpoint to radians for the IO. It also logs measured, setpoint, and goal values separately. Trace that flow, then explain the radian convention and typed boundary in the new helper.
+Ember2024's `PivotSubsystem` stores separate `setpoint` and `goal` states, advances the profile in
+`runTrapezoidProfile()`, and converts its degree-based position setpoint to radians for the IO. It
+also logs measured, setpoint, and goal values separately. Trace that flow, then explain the radian
+convention and typed boundary in the new helper.
 
-Ember's `PivotIOSim` contains placeholder physical values and disables gravity. Use it to study the boundary, not as a validated arm model or a set of gains to copy. The student's model and baseline must describe the selected simulation.
+Ember's `PivotIOSim` contains placeholder physical values and disables gravity. Use it to study the
+boundary, not as a validated arm model or a set of gains to copy. The student's model and baseline
+must describe the selected simulation.
 
 ### Move the Profile onto the Controller
 
-After the software version works, select the pivot's vendor simulation IO. Configure its feedback ratio and voltage-output gains, then set Motion Magic cruise velocity and acceleration in the controller's configured rotation units. For the illustrative constraints above, 45 degrees per second is 0.125 rotations per second, and 90 degrees per second squared is 0.25 rotations per second squared. Start with zero jerk for the trapezoidal comparison.
+After the software version works, select the pivot's vendor simulation IO. Configure its feedback
+ratio and voltage-output gains, then set Motion Magic cruise velocity and acceleration in the
+controller's configured rotation units. For the illustrative constraints above, 45 degrees per
+second is 0.125 rotations per second, and 90 degrees per second squared is 0.25 rotations per second
+squared. Start with zero jerk for the trapezoidal comparison.
 
-Send the final angle using `MotionMagicVoltage`. The controller generates intermediate setpoints; the Java `PivotProfile` helper is no longer in this control path. Keep the same physical model, angle goals, and logs so the student can compare where the work happens.
+Send the final angle using `MotionMagicVoltage`. The controller generates intermediate setpoints;
+the Java `PivotProfile` helper is no longer in this control path. Keep the same physical model,
+angle goals, and logs so the student can compare where the work happens.
 
-Check gain units before transferring settings. A software position gain in volts per radian does not have the same numeric value as a controller gain in volts per rotation. Likewise, entering an angle in rotations is separate from configuring motor-to-mechanism gearing. Follow [Control Requests](/frc/control-requests) and [TalonFX Simulation](/frc/talonfx-simulation) for the request and feedback path.
+Check gain units before transferring settings. A software position gain in volts per radian does not
+have the same numeric value as a controller gain in volts per rotation. Likewise, entering an angle
+in rotations is separate from configuring motor-to-mechanism gearing. Follow
+[Control Requests](/frc/control-requests) and [TalonFX Simulation](/frc/talonfx-simulation) for the
+request and feedback path.
 
 ### Check the Result
 
-1. Run a long move and a short move. Identify cruise motion where it occurs and explain why the short profile need not reach its maximum speed.
-2. Plot goal, setpoint, and measurement. Check the profile's velocity and acceleration against the configured constraints separately from measured tracking error.
-3. Request a goal beyond the allowed range. Show the bounded goal and confirm that the simulation stays inside its configured travel.
-4. Disable during movement, then re-enable from the measured state. Confirm zero applied voltage while disabled and explain the restart behavior.
-5. Repeat the valid moves using Motion Magic on the same pivot component. Identify the profile owner in each version and explain any difference in tracking.
+1. Run a long move and a short move. Identify cruise motion where it occurs and explain why the
+   short profile need not reach its maximum speed.
+2. Plot goal, setpoint, and measurement. Check the profile's velocity and acceleration against the
+   configured constraints separately from measured tracking error.
+3. Request a goal beyond the allowed range. Show the bounded goal and confirm that the simulation
+   stays inside its configured travel.
+4. Disable during movement, then re-enable from the measured state. Confirm zero applied voltage
+   while disabled and explain the restart behavior.
+5. Repeat the valid moves using Motion Magic on the same pivot component. Identify the profile owner
+   in each version and explain any difference in tracking.
 
 <Sources items={[
   {"source": "mantik", "path": "src/content/frc/frc-control-theory/trapezoidal-motion-profiling.mdx", "note": "Original topic and outline; the Badge 2 software-to-vendor exercise is written for GarageDocs."},

@@ -12,11 +12,22 @@ durationFixed: true
 description: "The feedback loop every mechanism runs: error, output and units; what P, I and D each do with a worked elevator example; where the loop runs (RIO at 50 Hz versus the motor controller at 1 kHz) and how the same gains appear in WPILib's PIDController and in a Phoenix Slot0; the tuning process FRC 4451 uses; what PID cannot do and where feedforward, profiles and state-space pick up."
 ---
 
-Every mechanism on the robot that is told to be somewhere (an elevator at a height, a flywheel at a speed, a swerve module at an angle) is running a **feedback loop**: measure where it is, compare with where it should be, push in proportion to the difference, repeat fifty times a second. **PID** is the most common way to turn that difference into a push. It is worth understanding once, properly, because the same three numbers appear in WPILib, in Phoenix, in REVLib, in the tuning-practice sessions and in every mechanism example that follows.
+Every mechanism on the robot that is told to be somewhere (an elevator at a height, a flywheel at a
+speed, a swerve module at an angle) is running a **feedback loop**: measure where it is, compare
+with where it should be, push in proportion to the difference, repeat fifty times a second. **PID**
+is the most common way to turn that difference into a push. It is worth understanding once,
+properly, because the same three numbers appear in WPILib, in Phoenix, in REVLib, in the
+tuning-practice sessions and in every mechanism example that follows.
 
-Kit Bot deliberately stopped short of this: [Kit Bot R09 Parts 1 and 2](/kit-bot/r09-characterization) introduced SysId testing, checked the fitted model, and recorded feedforward gains with their units. This lesson is the part it left out.
+Kit Bot deliberately stopped short of this:
+[Kit Bot R09 Parts 1 and 2](/kit-bot/r09-characterization) introduced SysId testing, checked the
+fitted model, and recorded feedforward gains with their units. This lesson is the part it left out.
 
-For the mathematics behind I and D, start with [Functions and Rates of Change](/java/fundamentals/functions-and-rates-of-change), then read [Derivatives](/java/fundamentals/derivatives#the-d-term-in-pid) and [Integrals](/java/fundamentals/integrals#the-i-term-in-pid). Those lessons explain rates, signed accumulation, and sampled approximations before applying them to a controller.
+For the mathematics behind I and D, start with
+[Functions and Rates of Change](/java/fundamentals/functions-and-rates-of-change), then read
+[Derivatives](/java/fundamentals/derivatives#the-d-term-in-pid) and
+[Integrals](/java/fundamentals/integrals#the-i-term-in-pid). Those lessons explain rates, signed
+accumulation, and sampled approximations before applying them to a controller.
 
 ### The loop
 
@@ -36,13 +47,21 @@ setpoint ──►( − )──► error ──► [ controller ] ──► outp
 
 Three words that every later page uses precisely:
 
-- **Setpoint:** where the mechanism should be right now. With a motion profile this changes every loop; without one it is the goal.
-- **Error:** `setpoint − measurement`, in the mechanism's units (inches, rotations, rotations per second).
-- **Output:** what the controller sends to the motor: a voltage, a duty cycle (−1 to 1), or a torque current in amps. The units of the output decide the units of the gains, which is why a `kP` from one robot means nothing on another.
+- **Setpoint:** where the mechanism should be right now. With a motion profile this changes every
+  loop; without one it is the goal.
+- **Error:** `setpoint − measurement`, in the mechanism's units (inches, rotations, rotations per
+  second).
+- **Output:** what the controller sends to the motor: a voltage, a duty cycle (−1 to 1), or a torque
+  current in amps. The units of the output decide the units of the gains, which is why a `kP` from
+  one robot means nothing on another.
 
 ### The three terms
 
-The controller's output is a sum of three contributions, each computed from the error in a different way. In the formulas, <Equation tex="e" /> means error and <Equation tex="t" /> means time; <Equation tex="\Delta t" /> is the time between samples. The subscripted gains correspond to the code names `kP`, `kI`, and `kD`. The integral row shows a sampled sum; the derivative row shows the continuous rate of change that the controller estimates from samples.
+The controller's output is a sum of three contributions, each computed from the error in a different
+way. In the formulas, <Equation tex="e" /> means error and <Equation tex="t" /> means time;
+<Equation tex="\Delta t" /> is the time between samples. The subscripted gains correspond to the
+code names `kP`, `kI`, and `kD`. The integral row shows a sampled sum; the derivative row shows the
+continuous rate of change that the controller estimates from samples.
 
 <ContentTable
   headers={["Term", "Computes", "Answers", "Too little", "Too much"]}
@@ -57,9 +76,13 @@ The continuous expression behind the sampled calculation is:
 
 <Equation display tex="u(t)=k_Pe(t)+k_I\int_0^t e(\tau)\,\mathrm{d}\tau+k_D\frac{\mathrm{d}e}{\mathrm{d}t}" />
 
-Here <Equation tex="u(t)" /> is controller output, and time zero is the chosen start of accumulation with no stored integral error. For position error measured in inches and voltage output, P uses volts per inch, I uses volts per inch-second, and D uses volt-seconds per inch. The gains have different units because their inputs are different quantities.
+Here <Equation tex="u(t)" /> is controller output, and time zero is the chosen start of accumulation
+with no stored integral error. For position error measured in inches and voltage output, P uses
+volts per inch, I uses volts per inch-second, and D uses volt-seconds per inch. The gains have
+different units because their inputs are different quantities.
 
-A worked example makes the P contribution concrete. An elevator in **inches**, output in **volts**, `kP = 0.5 V/in`, `kD = 0`, `kI = 0`:
+A worked example makes the P contribution concrete. An elevator in **inches**, output in **volts**,
+`kP = 0.5 V/in`, `kD = 0`, `kI = 0`:
 
 <ContentTable
   headers={["Error", "P output", "What happens"]}
@@ -71,15 +94,27 @@ A worked example makes the P contribution concrete. An elevator in **inches**, o
   ]}
 />
 
-That last row is the whole reason the next lesson exists. The integral term would eventually accumulate enough to lift it, but slowly and with overshoot; the right answer is a **gravity feedforward** that supplies the holding voltage without any error at all, leaving P to handle only the transient ([Feedforward](/frc/feedforward)). At FRC 4451 `kI` is rarely used. A mechanism that seems to need it is usually missing a feedforward term.
+That last row is the whole reason the next lesson exists. The integral term would eventually
+accumulate enough to lift it, but slowly and with overshoot; the right answer is a **gravity
+feedforward** that supplies the holding voltage without any error at all, leaving P to handle only
+the transient ([Feedforward](/frc/feedforward)). At FRC 4451 `kI` is rarely used. A mechanism that
+seems to need it is usually missing a feedforward term.
 
-For a fixed setpoint approached from below, positive error shrinks, so <Equation tex="\frac{\mathrm{d}e}{\mathrm{d}t}" /> is negative. A positive `kD` then subtracts from the positive P contribution and can reduce overshoot. Approaching from above reverses those signs. With a moving setpoint, D responds to the requested rate minus the measured rate. A jagged output can reflect amplified measurement noise; inspect the signal and timing before changing the gain.
+For a fixed setpoint approached from below, positive error shrinks, so
+<Equation tex="\frac{\mathrm{d}e}{\mathrm{d}t}" /> is negative. A positive `kD` then subtracts from
+the positive P contribution and can reduce overshoot. Approaching from above reverses those signs.
+With a moving setpoint, D responds to the requested rate minus the measured rate. A jagged output
+can reflect amplified measurement noise; inspect the signal and timing before changing the gain.
 
-The integral remembers signed error. Reaching zero error stops new accumulation but does not erase the stored contribution. It can supply holding output at zero current error. The same memory can produce windup when output is limited, so check feedforward and use appropriate accumulation limits when enabling I.
+The integral remembers signed error. Reaching zero error stops new accumulation but does not erase
+the stored contribution. It can supply holding output at zero current error. The same memory can
+produce windup when output is limited, so check feedforward and use appropriate accumulation limits
+when enabling I.
 
 ### Where the loop runs
 
-The loop can execute in your code on the roboRIO, or on the motor controller itself. Both are PID; they differ in rate, in visibility, and in how you write them.
+The loop can execute in your code on the roboRIO, or on the motor controller itself. Both are PID;
+they differ in rate, in visibility, and in how you write them.
 
 <ContentTable
   headers={["", "On the RIO: WPILib <code>PIDController</code>", "On the controller: Phoenix Slot0 / REV closed loop"]}
@@ -108,7 +143,10 @@ public void periodic() {
 }
 ```
 
-`calculate(measurement, setpoint)` returns the output in whatever units your gains are in; nothing is applied until you apply it. Useful extras: `setTolerance` and `atSetpoint()` for a readiness `Trigger`; `enableContinuousInput(-Math.PI, Math.PI)` for anything that wraps, like a heading or a turret; `setIntegratorRange` to stop wind-up if you do use `kI`.
+`calculate(measurement, setpoint)` returns the output in whatever units your gains are in; nothing
+is applied until you apply it. Useful extras: `setTolerance` and `atSetpoint()` for a readiness
+`Trigger`; `enableContinuousInput(-Math.PI, Math.PI)` for anything that wraps, like a heading or a
+turret; `setIntegratorRange` to stop wind-up if you do use `kI`.
 
 </CodeTab>
 <CodeTab label="On the controller (Phoenix 6)">
@@ -125,7 +163,13 @@ new Slot0Configs().withKP(4.0).withKI(0.0).withKD(0.1);
 talon.setControl(new PositionVoltage(goalRotations));
 ```
 
-The gains live in a **slot** on the device and the control request says which slot and which output unit to use. For `PositionVoltage`, P uses volts per rotation, I uses volts per rotation-second, and D uses volt-seconds per rotation. `PositionTorqueCurrentFOC` replaces volts with amps in those units ([Control Requests](/frc/control-requests) is the full catalogue). In the ROBOTZ Garage library the slot is a `Slot0Configs` inside a `MotorConfigs` record and the request is chosen by the IO, so you never write these lines in a subsystem ([Motor Controller Configuration](/frc/motor-controller-configuration)).
+The gains live in a **slot** on the device and the control request says which slot and which output
+unit to use. For `PositionVoltage`, P uses volts per rotation, I uses volts per rotation-second, and
+D uses volt-seconds per rotation. `PositionTorqueCurrentFOC` replaces volts with amps in those units
+([Control Requests](/frc/control-requests) is the full catalogue). In the ROBOTZ Garage library the
+slot is a `Slot0Configs` inside a `MotorConfigs` record and the request is chosen by the IO, so you
+never write these lines in a subsystem
+([Motor Controller Configuration](/frc/motor-controller-configuration)).
 
 </CodeTab>
 <CodeTab label="On the controller (REVLib)">
@@ -141,7 +185,8 @@ motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistPara
 motor.getClosedLoopController().setReference(goalRotations, ControlType.kPosition);
 ```
 
-Same idea, different names. Note the output unit: SPARK closed loops produce a **duty cycle** unless configured otherwise, so a `kP` here is roughly a twelfth of the equivalent voltage-mode gain.
+Same idea, different names. Note the output unit: SPARK closed loops produce a **duty cycle** unless
+configured otherwise, so a `kP` here is roughly a twelfth of the equivalent voltage-mode gain.
 
 </CodeTab>
 </CodeTabs>
@@ -156,34 +201,69 @@ Same idea, different names. Note the output unit: SPARK closed loops produce a *
   sourceLabel="WPILib: Introduction to PID"
 />
 
-Tune **feedforward first**, then PID. Every PID gain found before the feedforward is in place is compensating for a missing physical term and will be wrong afterwards. The full measurement procedure is in [Feedforward](/frc/feedforward#measuring-instead-of-guessing); with that done, the feedback part is short. Log the setpoint and the measurement on one graph ([commanded versus measured](/frc/simulation-in-advantagescope#the-line-graph-commanded-versus-measured)) and:
+Tune **feedforward first**, then PID. Every PID gain found before the feedforward is in place is
+compensating for a missing physical term and will be wrong afterwards. The full measurement
+procedure is in [Feedforward](/frc/feedforward#measuring-instead-of-guessing); with that done, the
+feedback part is short. Log the setpoint and the measurement on one graph
+([commanded versus measured](/frc/simulation-in-advantagescope#the-line-graph-commanded-versus-measured))
+and:
 
 <StepsBox title="Tuning the feedback gains">
 
-1. **Start with `kP` small and `kI = kD = 0`.** Command a step. Double `kP` until the response overshoots, then back off to between the last two values. On a mechanism whose feedforward is right this converges in a handful of tries.
-2. **If it oscillates at the setpoint**, add a little `kD` and re-check the step. P and D have different units, so a fixed numerical ratio between their gains is not a general tuning rule. Watch for reduced oscillation and increased output noise as you adjust D.
-3. **If a steady offset remains**, do not reach for `kI`. Check `kS` and `kG` first. `kI` is the last resort, with `setIntegratorRange` so it cannot wind up.
-4. **Use tunables.** Redeploying to change one number is the slowest possible loop; [Tunable Constants](/frc/tunable-constants-and-characterization) lets you edit gains from AdvantageScope while the mechanism runs, in simulation or on the robot.
-5. **Then add the profile.** A step is the harshest test; the mechanism will actually be driven by a [motion profile](/frc/trapezoidal-motion-profiling), and the gains that survive the step will be comfortable under it.
+1. **Start with `kP` small and `kI = kD = 0`.** Command a step. Double `kP` until the response
+   overshoots, then back off to between the last two values. On a mechanism whose feedforward is
+   right this converges in a handful of tries.
+2. **If it oscillates at the setpoint**, add a little `kD` and re-check the step. P and D have
+   different units, so a fixed numerical ratio between their gains is not a general tuning rule.
+   Watch for reduced oscillation and increased output noise as you adjust D.
+3. **If a steady offset remains**, do not reach for `kI`. Check `kS` and `kG` first. `kI` is the
+   last resort, with `setIntegratorRange` so it cannot wind up.
+4. **Use tunables.** Redeploying to change one number is the slowest possible loop;
+   [Tunable Constants](/frc/tunable-constants-and-characterization) lets you edit gains from
+   AdvantageScope while the mechanism runs, in simulation or on the robot.
+5. **Then add the profile.** A step is the harshest test; the mechanism will actually be driven by a
+   [motion profile](/frc/trapezoidal-motion-profiling), and the gains that survive the step will be
+   comfortable under it.
 
 </StepsBox>
 
-(The step-doubling method is Team 3255's; their [write-up](https://www.chiefdelphi.com/t/frc-3255-supernurds-2025-build-thread/477499/116) is worth reading.) The full by-hand recipe FRC 4451 follows, per mechanism and with the reasons for each step, is the [Manual Tuning](/frc/manual-tuning-introduction) group that follows this one: one page of shared ground, then a recipe per mechanism.
+(The step-doubling method is Team 3255's; their
+[write-up](https://www.chiefdelphi.com/t/frc-3255-supernurds-2025-build-thread/477499/116) is worth
+reading.) The full by-hand recipe FRC 4451 follows, per mechanism and with the reasons for each
+step, is the [Manual Tuning](/frc/manual-tuning-introduction) group that follows this one: one page
+of shared ground, then a recipe per mechanism.
 
 ### What PID cannot do
 
-- **Predict the holding output from a physical model.** P alone needs error to produce output. An accumulated I contribution can hold at zero current error, but it depends on error history. Gravity feedforward `kG` supplies a model-based holding term directly ([Feedforward](/frc/feedforward)).
-- **Reach a far setpoint smoothly.** A step saturates the output and PID has no plan for the journey; a [motion profile](/frc/trapezoidal-motion-profiling) supplies one, and [Why Motion Magic](/frc/why-motion-magic) shows the difference on a graph.
-- **Control two coupled things at once**, such as a two-joint arm, or a swerve chassis where every module affects every other. For those, WPILib's [state-space controllers](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/state-space/index.html) model the system as matrices (`ẋ = Ax + Bu`) and an **LQR** picks gains that trade error against effort. It is real and it is in the library; it is also not something FRC 4451's mechanisms have needed. PID with feedforward and a profile covers the elevator, the shooter, the hood, the intake and the drivetrain. Know that the next tool exists; do not reach for it until a mechanism proves it needs it.
+- **Predict the holding output from a physical model.** P alone needs error to produce output. An
+  accumulated I contribution can hold at zero current error, but it depends on error history.
+  Gravity feedforward `kG` supplies a model-based holding term directly
+  ([Feedforward](/frc/feedforward)).
+- **Reach a far setpoint smoothly.** A step saturates the output and PID has no plan for the
+  journey; a [motion profile](/frc/trapezoidal-motion-profiling) supplies one, and
+  [Why Motion Magic](/frc/why-motion-magic) shows the difference on a graph.
+- **Control two coupled things at once**, such as a two-joint arm, or a swerve chassis where every
+  module affects every other. For those, WPILib's
+  [state-space controllers](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/state-space/index.html)
+  model the system as matrices (`ẋ = Ax + Bu`) and an **LQR** picks gains that trade error against
+  effort. It is real and it is in the library; it is also not something FRC 4451's mechanisms have
+  needed. PID with feedforward and a profile covers the elevator, the shooter, the hood, the intake
+  and the drivetrain. Know that the next tool exists; do not reach for it until a mechanism proves
+  it needs it.
 
 <RulesBox title="Common mistakes">
 
-- **Copying a <code>kP</code> from another robot.** Different units, different mechanism, meaningless.
+- **Copying a <code>kP</code> from another robot.** Different units, different mechanism,
+  meaningless.
 - **Tuning PID before feedforward.** You will tune twice.
-- **<code>kI</code> to fix sag.** That is <code>kG</code>'s job. The integral winds up during every long move and overshoots at the end.
-- **A heading loop without continuous input.** The robot spins the long way round from 179° to −179°.
-- **Tuning on a step and calling it done.** Check the response under the profile you will actually use.
-- **Reading only the measurement.** Without the setpoint on the same axis, a graph cannot say whether the number is right.
+- **<code>kI</code> to fix sag.** That is <code>kG</code>'s job. The integral winds up during every
+  long move and overshoots at the end.
+- **A heading loop without continuous input.** The robot spins the long way round from 179° to
+  −179°.
+- **Tuning on a step and calling it done.** Check the response under the profile you will actually
+  use.
+- **Reading only the measurement.** Without the setpoint on the same axis, a graph cannot say
+  whether the number is right.
 
 </RulesBox>
 

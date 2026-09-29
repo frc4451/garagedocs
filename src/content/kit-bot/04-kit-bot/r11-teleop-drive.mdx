@@ -10,11 +10,15 @@ duration: 10 min
 description: "Create a teleop drive command and keep every driver control inside teleop."
 ---
 
-[R07 DriveIO, Part 2](/kit-bot/r07-drive-io-part-2) made the drivetrain move. [R10 Joysticks and Stick Math](/kit-bot/r10-joysticks-and-stick-math) shaped the controller input. This lesson connects those pieces and prevents driver controls from running in autonomous.
+[R07 DriveIO, Part 2](/kit-bot/r07-drive-io-part-2) made the drivetrain move.
+[R10 Joysticks and Stick Math](/kit-bot/r10-joysticks-and-stick-math) shaped the controller input.
+This lesson connects those pieces and prevents driver controls from running in autonomous.
 
 ## Before You Start
 
-Complete R07 through R10. Keep `RobotContainer.java` open beside this page. If finding or editing a Java file is unfamiliar, review [VS Code: Tour](/tools/vscode-tour#create-save-and-find-a-file) and [VS Code: Editing Java](/tools/vscode-editing-java).
+Complete R07 through R10. Keep `RobotContainer.java` open beside this page. If finding or editing a
+Java file is unfamiliar, review [VS Code: Tour](/tools/vscode-tour#create-save-and-find-a-file) and
+[VS Code: Editing Java](/tools/vscode-editing-java).
 
 You will make two changes:
 
@@ -23,7 +27,9 @@ You will make two changes:
 
 ## Create TeleopDrive
 
-In the VS Code Explorer, open `src/main/java/frc/robot/commands`. If the folder is missing, create it inside `frc/robot`: R04 deleted the template's example commands, and Git does not keep empty folders. Create `TeleopDrive.java`, paste this **complete file**, and save it.
+In the VS Code Explorer, open `src/main/java/frc/robot/commands`. If the folder is missing, create
+it inside `frc/robot`: R04 deleted the template's example commands, and Git does not keep empty
+folders. Create `TeleopDrive.java`, paste this **complete file**, and save it.
 
 ```java
 package frc.robot.commands;
@@ -76,11 +82,16 @@ public class TeleopDrive extends Command {
 }
 ```
 
-The two `DoubleSupplier` objects provide fresh stick readings each time `execute()` runs. A plain `double` would keep one old reading. `addRequirements(drive)` tells the scheduler that this command controls the drivetrain.
+The two `DoubleSupplier` objects provide fresh stick readings each time `execute()` runs. A plain
+`double` would keep one old reading. `addRequirements(drive)` tells the scheduler that this command
+controls the drivetrain.
 
-`shape` receives `1.0` for its maximum. `Drive.arcadeDrive` already multiplies the result by `MAX_DRIVE_PERCENT`. Applying the cap in both places would multiply it twice. For example, `0.85 × 0.85 = 0.7225`, so full stick would request only 72.25% before the voltage calculation.
+`shape` receives `1.0` for its maximum. `Drive.arcadeDrive` already multiplies the result by
+`MAX_DRIVE_PERCENT`. Applying the cap in both places would multiply it twice. For example,
+`0.85 × 0.85 = 0.7225`, so full stick would request only 72.25% before the voltage calculation.
 
-The `isTeleopEnabled()` check is a second boundary around drivetrain output. If the scheduler starts the default command outside teleop, `execute()` stops the drivetrain instead of reading the sticks.
+The `isTeleopEnabled()` check is a second boundary around drivetrain output. If the scheduler starts
+the default command outside teleop, `execute()` stops the drivetrain instead of reading the sticks.
 
 ## Add the Teleop Gate
 
@@ -92,7 +103,8 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.commands.TeleopDrive;
 ```
 
-Replace `configureBindings()` with this method. Keep the launcher, distance, and characterization commands from the earlier lessons. The B-button stop demonstration is new on this page.
+Replace `configureBindings()` with this method. Keep the launcher, distance, and characterization
+commands from the earlier lessons. The B-button stop demonstration is new on this page.
 
 ```java
 private void configureBindings() {
@@ -118,9 +130,14 @@ If `Meters` is not already imported, keep this static import from R08:
 import static edu.wpi.first.units.Units.Meters;
 ```
 
-`teleopEnabled.and(...)` makes a combined trigger. It becomes true only while the robot is teleop-enabled and the named control is active. When the robot leaves teleop, a combined hold trigger becomes false. `whileTrue` then cancels its command, so the command's stop action runs even if the driver still holds the button.
+`teleopEnabled.and(...)` makes a combined trigger. It becomes true only while the robot is
+teleop-enabled and the named control is active. When the robot leaves teleop, a combined hold
+trigger becomes false. `whileTrue` then cancels its command, so the command's stop action runs even
+if the driver still holds the button.
 
-The B binding stops the drivetrain once. The default command can run again on the next scheduler cycle. B is neither a latched stop nor an emergency stop. Use Driver Station **Disable** to stop normal robot operation.
+The B binding stops the drivetrain once. The default command can run again on the next scheduler
+cycle. B is neither a latched stop nor an emergency stop. Use Driver Station **Disable** to stop
+normal robot operation.
 
 ## Check the Stick Directions
 
@@ -131,7 +148,8 @@ The course uses these input signs:
 | Left stick forward | `-driver.getLeftY()` | Both sides move forward |
 | Right stick right | `driver.getRightX()` | Left side moves forward and the right side moves backward |
 
-These are robot-relative directions. The robot's location and direction on the field do not change the calculation.
+These are robot-relative directions. The robot's location and direction on the field do not change
+the calculation.
 
 ## Run the Mode Check
 
@@ -151,23 +169,39 @@ System.out.printf(
     targetFeederVoltage.in(Volts), targetIntakeLauncherVoltage.in(Volts));
 ```
 
-Both files already use the static `Volts` import. These prints show the stored requests that the subsystems send to their IO objects. They provide the observable check before R13 adds measured launcher telemetry. Stored requests and measured applied voltage are different quantities, even when the simulation reports the same number.
+Both files already use the static `Volts` import. These prints show the stored requests that the
+subsystems send to their IO objects. They provide the observable check before R13 adds measured
+launcher telemetry. Stored requests and measured applied voltage are different quantities, even when
+the simulation reports the same number.
 
 1. Save all four edited files.
-2. Open the Command Palette and run **WPILib: Build Robot Code**. Continue after the terminal reports `BUILD SUCCESSFUL`.
-3. Run **WPILib: Simulate Robot Code**. Assign the controller and select **Teleoperated**, then **Enabled**.
-4. Drive forward, reverse, and right. Release the sticks after each motion and confirm both printed drivetrain requests return to `0.00 V`.
-5. Hold each launcher control one at a time. Release it and confirm both printed launcher requests return to `0.00 V`.
-6. Hold a bumper, X, or Y. While holding it, change the robot state to **Disabled**. Confirm the matching printed requests return to `0.00 V` even while the button remains held.
-7. Select **Autonomous**, then **Enabled**. Move both sticks and press every driver control. Confirm all four printed requests remain at `0.00 V`.
-8. Release the buttons and center the sticks, then return to **Teleoperated** and **Enabled**. Confirm the controls work again. A button held while teleop is re-enabled can immediately activate its combined trigger.
+2. Open the Command Palette and run **WPILib: Build Robot Code**. Continue after the terminal
+   reports `BUILD SUCCESSFUL`.
+3. Run **WPILib: Simulate Robot Code**. Assign the controller and select **Teleoperated**, then
+   **Enabled**.
+4. Drive forward, reverse, and right. Release the sticks after each motion and confirm both printed
+   drivetrain requests return to `0.00 V`.
+5. Hold each launcher control one at a time. Release it and confirm both printed launcher requests
+   return to `0.00 V`.
+6. Hold a bumper, X, or Y. While holding it, change the robot state to **Disabled**. Confirm the
+   matching printed requests return to `0.00 V` even while the button remains held.
+7. Select **Autonomous**, then **Enabled**. Move both sticks and press every driver control. Confirm
+   all four printed requests remain at `0.00 V`.
+8. Release the buttons and center the sticks, then return to **Teleoperated** and **Enabled**.
+   Confirm the controls work again. A button held while teleop is re-enabled can immediately
+   activate its combined trigger.
 9. Stop simulation and remove both temporary print statements.
 
-The simulator may show velocity decreasing over several ticks after a request reaches zero. Check the requested voltage or output first. A zero request shows that the command stopped; the physics model determines how quickly the mechanism slows.
+The simulator may show velocity decreasing over several ticks after a request reaches zero. Check
+the requested voltage or output first. A zero request shows that the command stopped; the physics
+model determines how quickly the mechanism slows.
 
 <RulesBox title="Done When">
 
-The sticks drive only in teleop. Every launcher, distance, characterization, and B binding includes the same `teleopEnabled` condition. Leaving teleop cancels a held command and returns its output request to zero. Driver controls create no requests in autonomous and work again after teleop is enabled.
+The sticks drive only in teleop. Every launcher, distance, characterization, and B binding includes
+the same `teleopEnabled` condition. Leaving teleop cancels a held command and returns its output
+request to zero. Driver controls create no requests in autonomous and work again after teleop is
+enabled.
 
 </RulesBox>
 

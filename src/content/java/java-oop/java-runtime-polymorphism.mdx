@@ -13,23 +13,39 @@ description: How Java decides which version of a method to run while the program
 
 ## Choosing a Method at Runtime
 
-This lesson builds on [Objects and References](/java/fundamentals/objects-and-references), [Inheritance](/java/fundamentals/inheritance), [Abstract Classes and Methods](/java/fundamentals/abstract-classes), [Interfaces](/java/fundamentals/interfaces), arrays, and for-each loops. You will store different subsystem objects under one shared type and see Java call the appropriate overridden method for each object.
+This lesson builds on [Objects and References](/java/fundamentals/objects-and-references),
+[Inheritance](/java/fundamentals/inheritance),
+[Abstract Classes and Methods](/java/fundamentals/abstract-classes),
+[Interfaces](/java/fundamentals/interfaces), arrays, and for-each loops. You will store different
+subsystem objects under one shared type and see Java call the appropriate overridden method for each
+object.
 
-Every complete example is a console model. It prints requested actions and does not use WPILib or control robot hardware. Select **Run** beneath a complete program in the browser. To run one locally, replace the contents of `Main.java`, save the file, and follow [Compile And Run](/java/fundamentals/setup#compile-and-run).
+Every complete example is a console model. It prints requested actions and does not use WPILib or
+control robot hardware. Select **Run** beneath a complete program in the browser. To run one
+locally, replace the contents of `Main.java`, save the file, and follow
+[Compile And Run](/java/fundamentals/setup#compile-and-run).
 
-The examples place model classes inside `Main` so the browser can run one source file. `public static` lets `main` construct each nested class without first constructing a `Main` object. It does not make the model's fields or instance methods static.
+The examples place model classes inside `Main` so the browser can run one source file.
+`public static` lets `main` construct each nested class without first constructing a `Main` object.
+It does not make the model's fields or instance methods static.
 
 ### Two Kinds of Type
 
-This partial declaration could appear inside `main` after the `Subsystem` and `Drivetrain` classes have been declared:
+This partial declaration could appear inside `main` after the `Subsystem` and `Drivetrain` classes
+have been declared:
 
 ```java norun
 Subsystem selected = new Drivetrain();
 ```
 
-The variable `selected` has the **declared type** `Subsystem`. The `new` expression creates a `Drivetrain` object, and the reference stored in `selected` identifies that object. The object's class at runtime is `Drivetrain`.
+The variable `selected` has the **declared type** `Subsystem`. The `new` expression creates a
+`Drivetrain` object, and the reference stored in `selected` identifies that object. The object's
+class at runtime is `Drivetrain`.
 
-The declared type controls which members the compiler permits through `selected`. For an overridden instance method, the runtime class of the object controls which implementation runs. A reference value does not have a separate runtime type of its own, so it is more precise to compare the variable's declared type with the object's runtime class.
+The declared type controls which members the compiler permits through `selected`. For an overridden
+instance method, the runtime class of the object controls which implementation runs. A reference
+value does not have a separate runtime type of its own, so it is more precise to compare the
+variable's declared type with the object's runtime class.
 
 ### A Worked Example
 
@@ -76,19 +92,27 @@ updating drive motors
 checking intake sensor
 ```
 
-The array holds both objects because each object is a `Subsystem`. During the first loop iteration, `subsystem` refers to a `Drivetrain`, so Java runs `Drivetrain.periodic()`. During the second iteration, it refers to an `Intake`, so Java runs `Intake.periodic()`.
+The array holds both objects because each object is a `Subsystem`. During the first loop iteration,
+`subsystem` refers to a `Drivetrain`, so Java runs `Drivetrain.periodic()`. During the second
+iteration, it refers to an `Intake`, so Java runs `Intake.periodic()`.
 
-This runtime choice is **dynamic method dispatch**, the Java behavior behind runtime polymorphism. The loop does not need an `if` statement for each subclass. Code that works through the `Subsystem` type can also accept a future subclass whose `periodic()` implementation has not been written yet.
+This runtime choice is **dynamic method dispatch**, the Java behavior behind runtime polymorphism.
+The loop does not need an `if` statement for each subclass. Code that works through the `Subsystem`
+type can also accept a future subclass whose `periodic()` implementation has not been written yet.
 
 <RulesBox title="What Runtime Polymorphism Covers">
 
-This lesson focuses on runtime subtype polymorphism through overridden instance methods. Overloading is also called polymorphism in broader terminology, but the compiler selects an overloaded signature before the program runs. [Overloading](/java/fundamentals/overloading#method-overloading) explains that selection rule.
+This lesson focuses on runtime subtype polymorphism through overridden instance methods. Overloading
+is also called polymorphism in broader terminology, but the compiler selects an overloaded signature
+before the program runs. [Overloading](/java/fundamentals/overloading#method-overloading) explains
+that selection rule.
 
 </RulesBox>
 
 ### Write `@Override` Every Time
 
-Place `@Override` above each method that is intended to override an inherited method. This partial class declaration could replace `Intake` inside the preceding `Main` program:
+Place `@Override` above each method that is intended to override an inherited method. This partial
+class declaration could replace `Intake` inside the preceding `Main` program:
 
 ```java norun
 public static class Intake extends Subsystem {
@@ -99,11 +123,18 @@ public static class Intake extends Subsystem {
 }
 ```
 
-The annotation asks the compiler to confirm the overriding relationship. If the superclass provides a concrete `periodic()` method and the subclass misspells the name, the misspelled method can compile as an unrelated method. Calls through a `Subsystem` variable would continue to use the inherited `periodic()` implementation.
+The annotation asks the compiler to confirm the overriding relationship. If the superclass provides
+a concrete `periodic()` method and the subclass misspells the name, the misspelled method can
+compile as an unrelated method. Calls through a `Subsystem` variable would continue to use the
+inherited `periodic()` implementation.
 
-An abstract superclass changes that result. If `Subsystem.periodic()` is abstract, a concrete subclass that declares only `periodick()` still has not implemented `periodic()`. The compiler rejects the subclass. `@Override` also points directly at the misspelled declaration, which usually makes the mistake easier to find.
+An abstract superclass changes that result. If `Subsystem.periodic()` is abstract, a concrete
+subclass that declares only `periodick()` still has not implemented `periodic()`. The compiler
+rejects the subclass. `@Override` also points directly at the misspelled declaration, which usually
+makes the mistake easier to find.
 
-This intentionally invalid program shows both checks. It is marked `norun` because its compiler errors are the point of the example:
+This intentionally invalid program shows both checks. It is marked `norun` because its compiler
+errors are the point of the example:
 
 ```java norun
 public class Main {
@@ -120,11 +151,13 @@ public class Main {
 }
 ```
 
-The compiler reports that `periodick()` does not override a method. It also reports that the concrete `Intake` class has not implemented the abstract `periodic()` method.
+The compiler reports that `periodick()` does not override a method. It also reports that the
+concrete `Intake` class has not implemented the abstract `periodic()` method.
 
 ### Interfaces versus Abstract Classes
 
-An interface and an abstract class can both serve as the declared type of a variable. The design choice depends on what the shared type needs to express.
+An interface and an abstract class can both serve as the declared type of a variable. The design
+choice depends on what the shared type needs to express.
 
 <ContentTable
   headers={["Question", "Interface", "Abstract Class"]}
@@ -137,9 +170,13 @@ An interface and an abstract class can both serve as the declared type of a vari
   ]}
 />
 
-The [Interfaces](/java/fundamentals/interfaces#interface-or-abstract-class) lesson develops this choice in more detail. Runtime dispatch works with either kind of shared type when a call reaches an overridden instance method.
+The [Interfaces](/java/fundamentals/interfaces#interface-or-abstract-class) lesson develops this
+choice in more detail. Runtime dispatch works with either kind of shared type when a call reaches an
+overridden instance method.
 
-An interface field's variable cannot be reassigned after initialization. If that field holds a reference to a mutable object, the object's contents can still change. [Static and Final](/java/fundamentals/static-and-final) explains that distinction.
+An interface field's variable cannot be reassigned after initialization. If that field holds a
+reference to a mutable object, the object's contents can still change.
+[Static and Final](/java/fundamentals/static-and-final) explains that distinction.
 
 The following complete program uses an interface as the array element type:
 
@@ -180,11 +217,14 @@ drive motors stopped
 intake motor stopped
 ```
 
-Each class supplies the `stop()` behavior promised by `Stoppable`. The loop depends on that promise rather than either concrete class.
+Each class supplies the `stop()` behavior promised by `Stoppable`. The loop depends on that promise
+rather than either concrete class.
 
 ### What Is Not Polymorphic
 
-Runtime dispatch applies to overridden instance methods. A field access uses the declared type of the expression, even when a subclass declares a field with the same name. This behavior is called **field hiding**.
+Runtime dispatch applies to overridden instance methods. A field access uses the declared type of
+the expression, even when a subclass declares a field with the same name. This behavior is called
+**field hiding**.
 
 Run this complete program:
 
@@ -222,9 +262,15 @@ parent
 child
 ```
 
-The expression `item.name` uses the field declared by `Parent` because `item` is declared as `Parent`. The call `item.getName()` runs `Child.getName()` because `getName()` is an overridden instance method. Keep fields private and provide methods when callers need behavior that subclasses can specialize.
+The expression `item.name` uses the field declared by `Parent` because `item` is declared as
+`Parent`. The call `item.getName()` runs `Child.getName()` because `getName()` is an overridden
+instance method. Keep fields private and provide methods when callers need behavior that subclasses
+can specialize.
 
-Static methods are hidden rather than overridden. A call written with a class name, such as `Parent.report()`, identifies the class method directly. Java also permits some static calls through an expression, but the compiler still selects the method from the expression's declared type. Use the class name so that choice stays visible.
+Static methods are hidden rather than overridden. A call written with a class name, such as
+`Parent.report()`, identifies the class method directly. Java also permits some static calls through
+an expression, but the compiler still selects the method from the expression's declared type. Use
+the class name so that choice stays visible.
 
 ### Overloading Is a Different Thing
 
@@ -240,11 +286,14 @@ Overriding and overloading answer different questions.
   ]}
 />
 
-Subtype polymorphism through overriding is the focus of this lesson. Overloading is also a form of polymorphism in broader Java terminology, but it is not runtime dispatch.
+Subtype polymorphism through overriding is the focus of this lesson. Overloading is also a form of
+polymorphism in broader Java terminology, but it is not runtime dispatch.
 
 ### Checking the Actual Type
 
-Use `instanceof` when a decision truly depends on whether an object supports a type. Java 17 supports a **type pattern**, which combines the test and the local variable. Run this complete program:
+Use `instanceof` when a decision truly depends on whether an object supports a type. Java 17
+supports a **type pattern**, which combines the test and the local variable. Run this complete
+program:
 
 ```java
 public class Main {
@@ -283,13 +332,19 @@ The output is:
 intake motor stopped
 ```
 
-The expression first tests whether the value in `subsystem` refers to an object that can be treated as `Stoppable`. When the test is `true`, Java assigns the same reference to the pattern variable `stoppable`. That variable is available where the compiler can prove the match succeeded, including the body of this `if` statement.
+The expression first tests whether the value in `subsystem` refers to an object that can be treated
+as `Stoppable`. When the test is `true`, Java assigns the same reference to the pattern variable
+`stoppable`. That variable is available where the compiler can prove the match succeeded, including
+the body of this `if` statement.
 
-If `subsystem` contains `null`, the `instanceof` expression evaluates to `false`. The body does not run, and `stoppable` is not assigned. The test itself does not throw a `NullPointerException`.
+If `subsystem` contains `null`, the `instanceof` expression evaluates to `false`. The body does not
+run, and `stoppable` is not assigned. The test itself does not throw a `NullPointerException`.
 
 <RulesBox title="Use Type Checks for a Specific Reason">
 
-To try this partial snippet, replace `subsystem.periodic();` inside the loop in [A Worked Example](#a-worked-example). It repeats a call that already belongs in the shared `Subsystem` type:
+To try this partial snippet, replace `subsystem.periodic();` inside the loop in
+[A Worked Example](#a-worked-example). It repeats a call that already belongs in the shared
+`Subsystem` type:
 
 ```java norun
 if (subsystem instanceof Drivetrain drivetrain) {
@@ -299,19 +354,29 @@ if (subsystem instanceof Drivetrain drivetrain) {
 }
 ```
 
-A growing chain like this requires another branch for every new subclass. The earlier loop already has the replacement: call `subsystem.periodic()` once and let runtime dispatch select the implementation. A capability check such as `instanceof Stoppable` can be appropriate when only some objects promise that capability.
+A growing chain like this requires another branch for every new subclass. The earlier loop already
+has the replacement: call `subsystem.periodic()` once and let runtime dispatch select the
+implementation. A capability check such as `instanceof Stoppable` can be appropriate when only some
+objects promise that capability.
 
 </RulesBox>
 
 <RulesBox title="Common Mistakes">
 
-- **Calling a subclass-only method through a base-type variable.** The declared type controls which members the compiler permits. Use a shared method, or perform a justified type check.
-- **Misspelling an intended override.** Write `@Override` so the compiler identifies the incorrect declaration.
-- **Expecting fields to dispatch like methods.** Fields are hidden, and the declared type selects them.
-- **Expecting static methods to dispatch on an object.** Call a static method through its declaring class name.
-- **Building a long `instanceof` chain.** Add a shared instance method when every subtype needs the operation.
-- **Calling an overridable method from a constructor.** A subclass override can run before the subclass's fields have finished initialization.
-- **Confusing overriding with overloading.** Runtime dispatch selects an overriding implementation; the compiler selects an overload signature.
+- **Calling a subclass-only method through a base-type variable.** The declared type controls which
+  members the compiler permits. Use a shared method, or perform a justified type check.
+- **Misspelling an intended override.** Write `@Override` so the compiler identifies the incorrect
+  declaration.
+- **Expecting fields to dispatch like methods.** Fields are hidden, and the declared type selects
+  them.
+- **Expecting static methods to dispatch on an object.** Call a static method through its declaring
+  class name.
+- **Building a long `instanceof` chain.** Add a shared instance method when every subtype needs the
+  operation.
+- **Calling an overridable method from a constructor.** A subclass override can run before the
+  subclass's fields have finished initialization.
+- **Confusing overriding with overloading.** Runtime dispatch selects an overriding implementation;
+  the compiler selects an overload signature.
 
 </RulesBox>
 
@@ -319,18 +384,26 @@ A growing chain like this requires another branch for every new subclass. The ea
 
 <ExerciseBox title="Practice">
 
-1. Write an abstract `Shape` class with an abstract `area()` method, plus `Circle` and `Rectangle` subclasses. Put several objects in a `Shape[]` array and print every area in one loop.
-2. Add a `describe()` method to `Shape` with a concrete body, and override it in only one subclass. Confirm which implementation runs for each object.
-3. Write a `Stoppable` interface and implement it in two unrelated classes. Put instances of those classes, a non-stoppable object, and `null` in an `Object[]` array. `Object` is the common superclass, so this array can hold the otherwise unrelated objects. Use an `instanceof` type pattern to stop only the objects that implement `Stoppable`.
-4. Demonstrate field hiding: declare a `name` field in a parent class and a child class, then show that the declared type selects the field.
-5. Take a method containing a three-branch `instanceof` chain and rewrite it using an overridden instance method so the chain disappears.
+1. Write an abstract `Shape` class with an abstract `area()` method, plus `Circle` and `Rectangle`
+   subclasses. Put several objects in a `Shape[]` array and print every area in one loop.
+2. Add a `describe()` method to `Shape` with a concrete body, and override it in only one subclass.
+   Confirm which implementation runs for each object.
+3. Write a `Stoppable` interface and implement it in two unrelated classes. Put instances of those
+   classes, a non-stoppable object, and `null` in an `Object[]` array. `Object` is the common
+   superclass, so this array can hold the otherwise unrelated objects. Use an `instanceof` type
+   pattern to stop only the objects that implement `Stoppable`.
+4. Demonstrate field hiding: declare a `name` field in a parent class and a child class, then show
+   that the declared type selects the field.
+5. Take a method containing a three-branch `instanceof` chain and rewrite it using an overridden
+   instance method so the chain disappears.
 
 <details>
 <summary>Hints</summary>
 
 1. Declare the array as `Shape[]`. The loop variable can then call `area()` on every element.
 2. Let one subclass inherit `Shape.describe()` and declare `@Override` in the other.
-3. Loop over the `Object[]`. The type pattern both checks each value and gives you a `Stoppable` variable inside the `if` body. The non-stoppable object and `null` do not enter that body.
+3. Loop over the `Object[]`. The type pattern both checks each value and gives you a `Stoppable`
+   variable inside the `if` body. The non-stoppable object and `null` do not enter that body.
 4. Assign a child object to a parent-type variable and read `name` through that variable.
 5. Move the work from each branch into the corresponding class, then call the shared method once.
 

@@ -11,9 +11,14 @@ duration: 10 min
 description: "Use YAMG to establish a mechanism's hardware configuration, then decide whether the robot needs a reusable component with an IO boundary."
 ---
 
-YAMG and a component library solve different parts of the same job. [YAMG](https://yamg.yassrobotics.com/) generates a complete subsystem for one elevator, arm, or pivot. A component library provides smaller mechanism objects that a subsystem can combine.
+YAMG and a component library solve different parts of the same job.
+[YAMG](https://yamg.yassrobotics.com/) generates a complete subsystem for one elevator, arm, or
+pivot. A component library provides smaller mechanism objects that a subsystem can combine.
 
-Use YAMG when you need to establish the hardware facts first: motor controller, CAN ID, inversion, current limits, gear ratio, travel limits, and the control mode. Keep the generated code as a readable reference. Move those proven values into reusable components when the robot has several mechanisms or needs simulation, replay, and consistent logging.
+Use YAMG when you need to establish the hardware facts first: motor controller, CAN ID, inversion,
+current limits, gear ratio, travel limits, and the control mode. Keep the generated code as a
+readable reference. Move those proven values into reusable components when the robot has several
+mechanisms or needs simulation, replay, and consistent logging.
 
 ### Start with the mechanism contract
 
@@ -30,7 +35,10 @@ Before opening a generator or writing Java, decide what the mechanism controls.
   ]}
 />
 
-This choice decides the public API. A shooter wheel should accept an `AngularVelocity`. An elevator should accept a `Distance`. A feeder roller should accept a `Voltage` or `Current`. Keeping those types separate prevents a subsystem from accidentally commanding a roller as though it were a flywheel.
+This choice decides the public API. A shooter wheel should accept an `AngularVelocity`. An elevator
+should accept a `Distance`. A feeder roller should accept a `Voltage` or `Current`. Keeping those
+types separate prevents a subsystem from accidentally commanding a roller as though it were a
+flywheel.
 
 ### What YAMG contributes
 
@@ -44,19 +52,25 @@ YAMG asks for the details that every real mechanism needs:
 - position limits for elevators and pivots
 - starter feedback and feedforward gains
 
-The generated class is useful on a test board because it places the configuration, motor object, and command methods in one file. Read each generated setting before enabling hardware. Default gains and limits still need to be checked against the mechanism in front of you.
+The generated class is useful on a test board because it places the configuration, motor object, and
+command methods in one file. Read each generated setting before enabling hardware. Default gains and
+limits still need to be checked against the mechanism in front of you.
 
 ### Where a component library begins
 
 Team 190's GompeiLib separates a mechanism into three layers:
 
-1. A component such as `GenericFlywheel`, `GenericRoller`, `Elevator`, or `Arm` owns goals, state, logging, and the mechanism-level API.
+1. A component such as `GenericFlywheel`, `GenericRoller`, `Elevator`, or `Arm` owns goals, state,
+   logging, and the mechanism-level API.
 2. An IO interface defines the sensor values and actuator requests the component needs.
 3. A hardware or simulation IO class implements that interface.
 
-The component receives its parent `Subsystem`. It does not register as another WPILib subsystem. The parent calls each component's `periodic()` method and creates the commands that require the parent.
+The component receives its parent `Subsystem`. It does not register as another WPILib subsystem. The
+parent calls each component's `periodic()` method and creates the commands that require the parent.
 
-GarageDocs uses that architecture in the next lessons. The examples use 2026 WPILib package names and simplify GompeiLib's 2027-alpha code. They copy the separation of responsibilities rather than asking students to install GompeiLib directly.
+GarageDocs uses that architecture in the next lessons. The examples use 2026 WPILib package names
+and simplify GompeiLib's 2027-alpha code. They copy the separation of responsibilities rather than
+asking students to install GompeiLib directly.
 
 ### A practical workflow
 

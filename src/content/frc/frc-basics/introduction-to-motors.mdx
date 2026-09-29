@@ -13,13 +13,17 @@ description: "Create and command Talon FX, SPARK MAX, SPARK Flex, and Thrifty No
 
 ### How code reaches a motor
 
-This page shows how to create CTRE Talon FX, REV SPARK MAX, REV SPARK Flex, and Thrifty Nova motor-controller objects in `Robot.java`, set their output from the robot lifecycle, reverse direction, and stop them.
+This page shows how to create CTRE Talon FX, REV SPARK MAX, REV SPARK Flex, and Thrifty Nova
+motor-controller objects in `Robot.java`, set their output from the robot lifecycle, reverse
+direction, and stop them.
 
-The tabbed examples let you compare the vendor APIs. Choose the class and library that match the controller physically installed on the robot.
+The tabbed examples let you compare the vendor APIs. Choose the class and library that match the
+controller physically installed on the robot.
 
 ### CTRE: Talon FX
 
-The Talon FX is a high-performance motor controller with a built-in encoder. It requires the CTRE Phoenix 6 library.
+The Talon FX is a high-performance motor controller with a built-in encoder. It requires the CTRE
+Phoenix 6 library.
 
 <ReferenceImage
   src="/media/hardware/talonfx.png"
@@ -46,7 +50,7 @@ public class Robot extends TimedRobot {
     
     @Override
     public void teleopPeriodic() {
-        // Set motor to 50% speed forward (range: -1.0 to 1.0)
+        // Set motor to 50% duty cycle forward (range: -1.0 to 1.0)
         m_motor.setControl(m_output.withOutput(0.5));
     }
 }
@@ -79,7 +83,7 @@ public class Robot extends TimedRobot {
     
     @Override
     public void teleopPeriodic() {
-        // Set motor to 50% speed forward (range: -1.0 to 1.0)
+        // Set motor to 50% duty cycle forward (range: -1.0 to 1.0)
         m_motor.set(0.5);
     }
 }
@@ -87,7 +91,9 @@ public class Robot extends TimedRobot {
 
 ### REV: SPARK Flex
 
-The SPARK Flex is a separate brushless motor controller. It can dock directly to a NEO Vortex, and REVLib gives it its own `SparkFlex` class. Do not create a `SparkMax` object for a physical SPARK Flex.
+The SPARK Flex is a separate brushless motor controller. It can dock directly to a NEO Vortex, and
+REVLib gives it its own `SparkFlex` class. Do not create a `SparkMax` object for a physical SPARK
+Flex.
 
 ```java
 package frc.robot;
@@ -109,7 +115,16 @@ public class Robot extends TimedRobot {
 
 ### Thrifty Bot: Thrifty Nova
 
-The Thrifty Nova is a separate brushless motor controller supported by ThriftyLib. Its percent-output method is `setPercent()`. Confirm the connected motor type in Thrifty Config before running the motor.
+The Thrifty Nova is a separate motor controller supported by ThriftyLib. The example below and the
+Nova tab later on use **Cobra's ThriftyLib 2026.0.1 API**, whose percent-output method is
+`setPercent()`. These illustrate output calls; complete
+[Motor Configuration Basics](/frc/motor-configuration-basics) before running hardware.
+
+**2026 and 2027 use the same documentation source right now:** the
+[ThriftyLib hub](https://docs.thethriftybot.com/software/thriftylib/latest/overview). Its current
+API constructs `com.thrifty.nova.Nova` with a bus and CAN ID, and sends percent output through
+`motor.control(MotorControl.percent(...))`. [Thrifty Nova Control](/frc/thrifty-nova-control)
+explains that API. Match the example to your installed vendordep.
 
 ```java
 package frc.robot;
@@ -129,7 +144,9 @@ public class Robot extends TimedRobot {
 
 ### Control Basics
 
-**Speed:** Values range from -1.0 (full reverse) to 1.0 (full forward). 0.0 stops the motor.
+**Duty Cycle:** Values range from -1.0 (full reverse request) to 1.0 (full forward request). A value
+of 0.0 requests neutral output. Half output does not guarantee half speed; motor speed depends on
+the voltage and load.
 
 **Multiple Motors:** Create separate instances for each motor (e.g., left and right drive motors).
 
@@ -143,12 +160,15 @@ public class Robot extends TimedRobot {
 - Use unique CAN IDs.
 - Talon FX uses `setControl`.
 - SPARK MAX and SPARK Flex use `set` for this introductory percent-output example.
-- Thrifty Nova uses `setPercent`.
+- The older Nova example uses `setPercent`; the current API uses
+  `control(MotorControl.percent(...))`.
 - Range is -1.0 to 1.0.
 
 </RulesBox>
 
 <Sources items={[
+  {"source":"cobra","path":"src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIONova.java","note":"Historical ThriftyNova construction and setPercent API."},
+  {"source":"cobra","path":"vendordeps/ThriftyLib-2026.json","note":"Version 2026.0.1 for the retained Nova examples."},
   {"source": "mantik", "path": "src/content/frc/frc-basics/intro-to-motors.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
   {"source": "wpilib", "path": "docs/software/hardware-apis/motors/using-motor-controllers.html", "note": "Motor controllers in WPILib and the vendor libraries."},
   {"source": "ctre", "path": "docs/api-reference/api-usage/api-overview.html", "note": "Phoenix 6 API overview: devices, control requests, status signals."},
@@ -157,8 +177,8 @@ public class Robot extends TimedRobot {
   {"source": "rev", "path": "revlib/", "note": "REVLib and <code>SparkMax</code>."},
   {"source": "rev", "path": "revlib/spark/max-vs-flex", "note": "Separate <code>SparkMax</code> and <code>SparkFlex</code> classes and the SPARK Flex constructor."},
   {"source": "rev", "path": "brushless/neo/v1.1", "note": "The NEO brushless motor."},
-  {"source": "thrifty", "path": "thrifty-nova/software-resources/getting-started-with-code", "note": "ThriftyLib installation, <code>ThriftyNova</code> construction, and percent output."},
-  {"source": "thrifty", "path": "thrifty-nova/software-resources/set-output", "note": "The <code>setPercent</code> output range and other supported control modes."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/creating-a-device", "note": "Current Nova construction, distinct from the retained historical example."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/control-types", "note": "Current percent-output request and duty-cycle units."},
   {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "The <code>TimedRobot</code> lifecycle methods the examples fill in."}
 ]} />
 

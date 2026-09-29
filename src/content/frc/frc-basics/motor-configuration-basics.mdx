@@ -13,16 +13,19 @@ description: "Configure inversion, idle mode, and current limits for Talon FX, S
 
 ### Configure the controller before moving the mechanism
 
-Motor configuration connects software assumptions to the physical robot. This lesson covers four controller families used by FRC 4451:
+Motor configuration connects software assumptions to the physical robot. This lesson covers four
+controller families used by FRC 4451:
 
 | Controller | Configuration API |
 |---|---|
 | CTRE Talon FX | `TalonFXConfiguration` applied through the device configurator |
 | REV SPARK MAX | `SparkMaxConfig` passed to `configure()` |
 | REV SPARK Flex | `SparkFlexConfig` passed to `configure()` |
-| Thrifty Nova | Configuration methods called on the `ThriftyNova` object |
+| Thrifty Nova | Current `Nova.configure(...)`; Cobra 2026.0.1 uses chained `ThriftyNova` setters |
 
-In a command-based project, configure a controller in the constructor of the subsystem that owns it. In a Timed Robot project, configure it during robot initialization. Do not send motor output until configuration finishes.
+In a command-based project, configure a controller in the constructor of the subsystem that owns it.
+In a Timed Robot project, configure it during robot initialization. Do not send motor output until
+configuration finishes.
 
 ### Decide each setting from the mechanism
 
@@ -32,13 +35,18 @@ In a command-based project, configure a controller in the constructor of the sub
 | Idle mode | Whether the motor resists motion or coasts at zero output | Stop the motor and observe how quickly the mechanism slows |
 | Current limit | How much electrical current the controller permits | Watch current and voltage while applying a controlled load |
 
-Brake mode resists motion when motor output is zero. It does not command the mechanism to hold a position. An elevator or arm that must hold a position needs closed-loop control and a safe plan for gravity.
+Brake mode resists motion when motor output is zero. It does not command the mechanism to hold a
+position. An elevator or arm that must hold a position needs closed-loop control and a safe plan for
+gravity.
 
-Current limits are mechanism settings. Choose them from the motor data, controller documentation, wiring and breaker protection, expected load, gearing, and test results. The values below demonstrate API structure and are not defaults for every robot.
+Current limits are mechanism settings. Choose them from the motor data, controller documentation,
+wiring and breaker protection, expected load, gearing, and test results. The values below
+demonstrate API structure and are not defaults for every robot.
 
 ### CTRE Talon FX
 
-The Talon FX collects settings in a `TalonFXConfiguration`, then applies the complete object through the controller's configurator.
+The Talon FX collects settings in a `TalonFXConfiguration`, then applies the complete object through
+the controller's configurator.
 
 ```java
 TalonFXConfiguration config = new TalonFXConfiguration();
@@ -52,11 +60,13 @@ config.CurrentLimits.SupplyCurrentLimit = 40.0; // Example only
 m_motor.getConfigurator().apply(config);
 ```
 
-CTRE identifies inversion by the positive rotor direction: clockwise or counterclockwise when viewed from the motor shaft. Confirm the installed orientation before choosing the enum value.
+CTRE identifies inversion by the positive rotor direction: clockwise or counterclockwise when viewed
+from the motor shaft. Confirm the installed orientation before choosing the enum value.
 
 ### REV SPARK MAX
 
-Use `SparkMaxConfig` for a physical SPARK MAX. The motor type is selected separately when the `SparkMax` object is constructed.
+Use `SparkMaxConfig` for a physical SPARK MAX. The motor type is selected separately when the
+`SparkMax` object is constructed.
 
 ```java
 SparkMaxConfig config = new SparkMaxConfig();
@@ -72,11 +82,14 @@ m_motor.configure(
         PersistMode.kPersistParameters);
 ```
 
-`ResetMode.kResetSafeParameters` starts from known safe parameters before applying this configuration. `PersistMode.kPersistParameters` saves the settings through a power cycle. Apply persistent configuration during startup rather than repeatedly in a periodic method.
+`ResetMode.kResetSafeParameters` starts from known safe parameters before applying this
+configuration. `PersistMode.kPersistParameters` saves the settings through a power cycle. Apply
+persistent configuration during startup rather than repeatedly in a periodic method.
 
 ### REV SPARK Flex
 
-Use `SparkFlexConfig` for a physical SPARK Flex. The configuration pattern resembles SPARK MAX, but the controller class and configuration class must match the hardware.
+Use `SparkFlexConfig` for a physical SPARK Flex. The configuration pattern resembles SPARK MAX, but
+the controller class and configuration class must match the hardware.
 
 ```java
 SparkFlexConfig config = new SparkFlexConfig();
@@ -92,11 +105,16 @@ m_motor.configure(
         PersistMode.kPersistParameters);
 ```
 
-A SPARK Flex connected to a NEO Vortex still needs a limit selected for the mechanism. Riptide used a `60 A` smart current limit for each swerve drive motor. That value describes Riptide's drivetrain and should not be copied to a different mechanism without reviewing its design.
+A SPARK Flex connected to a NEO Vortex still needs a limit selected for the mechanism. Riptide used
+a `60 A` smart current limit for each swerve drive motor. That value describes Riptide's drivetrain
+and should not be copied to a different mechanism without reviewing its design.
 
 ### Thrifty Nova
 
-Thrifty Nova configuration methods return the same controller object, so related settings can be chained together. Current ThriftyLib distinguishes **supply current**, drawn from the robot power system, from **stator current**, flowing through the motor phases and producing torque.
+Cobra's **ThriftyLib 2026.0.1** configuration methods return the same `ThriftyNova` object, so
+related settings can be chained together. This partial snippet shows that older API; it assumes the
+controller and imports already exist. Nova distinguishes **supply current**, drawn from the robot
+power system, from **stator current**, flowing through the motor phases and producing torque.
 
 ```java
 m_motor
@@ -106,9 +124,24 @@ m_motor
         .setMaxCurrent(CurrentType.STATOR, 60.0); // Example only
 ```
 
-After configuration, inspect `m_motor.getErrors()`. A requested setting is not confirmed until the controller reports that it accepted the setting.
+In that older API, inspect `m_motor.getErrors()` after configuration. The current shared
+[2026/2027 hub](https://docs.thethriftybot.com/software/thriftylib/latest/overview) instead
+documents `NovaConfig` options passed to `Nova.configure(...)`, a returned `ThriftyStatusCode`, and
+readback through `status()`. See [Thrifty Nova Control](/frc/thrifty-nova-control) for the current
+sequence. Do not mix methods from the two APIs.
 
-The Nova can operate several supported brushless motors. Confirm the motor selection in Thrifty Config, especially when switching between REV-style motors and the WCP Minion. The Minion requires its documented motor-type setting because its phase-wire colors differ.
+Select the physical motor profile explicitly and check sensor direction before running a closed
+loop. If adapting Cobra's `ThriftyNovaConfig`, inspect its effective current values: the archived
+record raises limits below 40 A to 40 A.
+[Nova hardware setup](/hardware/thrifty-bot-hardware-and-config#connect-configuration-to-code)
+explains this limitation.
+
+### Check Nova Configuration in Simulation
+
+The documented Nova simulator can check inversion, output clamps, soft limits, and telemetry. It
+requires one device update every 20 ms and ignores all PID gains. Follow
+[Thrifty Nova Simulation](/frc/thrifty-nova-simulation), then verify actual current, direction, and
+stopping behavior on the physical mechanism.
 
 ### Test one setting at a time
 
@@ -122,18 +155,22 @@ The Nova can operate several supported brushless motors. Confirm the motor selec
 
 <RulesBox title="Done when">
 
-Positive output moves the mechanism in its documented positive direction. The idle mode produces the expected stopping behavior. Current remains within the mechanism's approved limits, and the vendor tool shows no unexplained configuration or hardware fault.
+Positive output moves the mechanism in its documented positive direction. The idle mode produces the
+expected stopping behavior. Current remains within the mechanism's approved limits, and the vendor
+tool shows no unexplained configuration or hardware fault.
 
 </RulesBox>
 
 <Sources items={[
+  {"source":"cobra","path":"src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java","note":"Effective current limits in the older record."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/simulation", "note": "Configuration simulation and ignored PID gains."},
   {"source": "mantik", "path": "src/content/frc/frc-basics/motor-config.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
   {"source": "ctre", "path": "docs/api-reference/api-usage/configuration.html", "note": "Applying <code>TalonFXConfiguration</code>, inversion, and neutral mode."},
   {"source": "ctre", "path": "docs/hardware-reference/talonfx/improving-performance-with-current-limits.html", "note": "Supply and stator current limits and their purposes."},
   {"source": "rev", "path": "revlib/spark/configuring-a-spark", "note": "SPARK configuration objects, motor type, reset mode, persistence mode, inversion, idle mode, and smart current limits."},
   {"source": "rev", "path": "revlib/spark/max-vs-flex", "note": "The separate SPARK MAX and SPARK Flex device and configuration classes."},
-  {"source": "thrifty", "path": "thrifty-nova/software-resources/configure-controller-settings", "note": "Chained Nova configuration, inversion, brake mode, and configuration error reporting."},
-  {"source": "thrifty", "path": "thrifty-nova/software-resources/configure-controller-settings/motor-type-minion-setting", "note": "The Nova motor-type selection required for the WCP Minion."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/configs", "note": "Current batched configuration; the retained chained example is sourced from Cobra."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/creating-a-device", "note": "Explicit physical motor selection."},
   {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIONova.java", "note": "FRC 4451's Nova inversion, brake mode, supply limit, stator limit, and error-checking pattern."},
   {"source": "riptide", "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOSpark.java", "note": "Riptide's SPARK Flex configuration and 60 A drive-motor current limit."}
 ]} />

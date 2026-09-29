@@ -11,7 +11,8 @@ duration: 15 min
 description: "Build an angle-controlled pivot and calculate mechanism angle, angular speed, gravity torque, and moment of inertia."
 ---
 
-A pivot rotates a mechanism to an angle. Arms, wrists, hoods, and turrets can share the same public component shape, but their limits and gravity models differ.
+A pivot rotates a mechanism to an angle. Arms, wrists, hoods, and turrets can share the same public
+component shape, but their limits and gravity models differ.
 
 This page uses **motor rotations per pivot rotation** for gear reduction.
 
@@ -30,7 +31,9 @@ pivot rotations = 25 / 100 = 0.25
 pivot angle = 0.25 × 360° = 90°
 ```
 
-An absolute encoder mounted after the gearbox may already report the mechanism angle. The IO layer should apply its offset and direction so the component always receives the documented pivot coordinate.
+An absolute encoder mounted after the gearbox may already report the mechanism angle. The IO layer
+should apply its offset and direction so the component always receives the documented pivot
+coordinate.
 
 ### Calculate gravity torque
 
@@ -40,21 +43,28 @@ For a mechanism whose center of mass is distance `L` from the pivot:
 gravity torque = mass × gravitational acceleration × L × cos(angle)
 ```
 
-This form assumes zero degrees is horizontal. At horizontal, gravity produces its largest torque. At 90 degrees above horizontal, the center of mass is over the pivot and ideal gravity torque is zero.
+This form assumes zero degrees is horizontal. At horizontal, gravity produces its largest torque. At
+90 degrees above horizontal, the center of mass is over the pivot and ideal gravity torque is zero.
 
-If your zero points somewhere else, shift the angle before taking the cosine. Write the zero direction beside the constant. A correct equation with the wrong angle convention produces the wrong feedforward.
+If your zero points somewhere else, shift the angle before taking the cosine. Write the zero
+direction beside the constant. A correct equation with the wrong angle convention produces the wrong
+feedforward.
 
-A vertical-axis turret does not lift its mass as it rotates, so its gravity torque around that axis is approximately zero. Configure `kG = 0` instead of applying arm-cosine compensation.
+A vertical-axis turret does not lift its mass as it rotates, so its gravity torque around that axis
+is approximately zero. Configure `kG = 0` instead of applying arm-cosine compensation.
 
 ### Estimate moment of inertia
 
-Moment of inertia describes how hard the mechanism is to accelerate around its pivot. For a point mass:
+Moment of inertia describes how hard the mechanism is to accelerate around its pivot. For a point
+mass:
 
 ```text
 moment of inertia = mass × distance²
 ```
 
-Real arms distribute mass along their length, so use CAD when available. Moving the same mass twice as far from the pivot makes its contribution to moment of inertia four times larger. This affects acceleration, simulation, and the `kA` needed by a feedforward.
+Real arms distribute mass along their length, so use CAD when available. Moving the same mass twice
+as far from the pivot makes its contribution to moment of inertia four times larger. This affects
+acceleration, simulation, and the `kA` needed by a feedforward.
 
 ### Define the pivot IO
 
@@ -69,13 +79,19 @@ public interface PivotIO {
   }
 
   default void updateInputs(PivotIOInputs inputs) {}
+
   default void setPosition(Angle goal) {}
+
   default void setVoltage(Voltage output) {}
+
   default void stop() {}
 }
 ```
 
 ### Build the component
+
+Use the shared [numeric validator](/frc/trapezoidal-motion-profiling#validate-numeric-requests) and
+import `frc.robot.util.Numbers`. The setter checks the request before replacing the stored goal.
 
 ```java
 public final class Pivot {
@@ -87,12 +103,7 @@ public final class Pivot {
   private final Angle tolerance;
   private Angle goal;
 
-  public Pivot(
-      PivotIO io,
-      String logKey,
-      Angle minAngle,
-      Angle maxAngle,
-      Angle tolerance) {
+  public Pivot(PivotIO io, String logKey, Angle minAngle, Angle maxAngle, Angle tolerance) {
     this.io = io;
     this.logKey = logKey;
     this.minAngle = minAngle;
@@ -108,10 +119,9 @@ public final class Pivot {
   }
 
   public void setGoal(Angle requestedGoal) {
-    goal = Degrees.of(MathUtil.clamp(
-        requestedGoal.in(Degrees),
-        minAngle.in(Degrees),
-        maxAngle.in(Degrees)));
+    double requested = requestedGoal.in(Degrees);
+    Numbers.requireFinite("requested goal", requested);
+    goal = Degrees.of(MathUtil.clamp(requested, minAngle.in(Degrees), maxAngle.in(Degrees)));
   }
 
   public boolean atGoal() {
@@ -120,28 +130,30 @@ public final class Pivot {
 }
 ```
 
-This component suits a limited arm, wrist, or hood. A continuous turret needs angle wrapping instead of simple clamping, plus a plan for cable protection.
+This component suits a limited arm, wrist, or hood. A continuous turret needs angle wrapping instead
+of simple clamping, plus a plan for cable protection.
 
 ### Match the gravity model to the axis
 
 ```java
 // Vertical turret axis
-var turretGains = new Slot0Configs()
-    .withKG(0.0);
+var turretGains = new Slot0Configs().withKG(0.0);
 
 // Hood or arm with zero degrees horizontal
-var hoodGains = new Slot0Configs()
-    .withKG(0.35)
-    .withGravityType(GravityTypeValue.Arm_Cosine);
+var hoodGains = new Slot0Configs().withKG(0.35).withGravityType(GravityTypeValue.Arm_Cosine);
 ```
 
 The values are illustrative. Find gains on the actual mechanism using the manual tuning procedure.
 
 ### Simulate the pivot
 
-Use `SingleJointedArmSim` when gravity acts on a limited rotating mechanism. It needs the motor model, gearing, moment of inertia, arm length, angle limits, and a gravity flag. Use `DCMotorSim` for a vertical-axis turret when a simple rotating load is the better model.
+Use `SingleJointedArmSim` when gravity acts on a limited rotating mechanism. It needs the motor
+model, gearing, moment of inertia, arm length, angle limits, and a gravity flag. Use `DCMotorSim`
+for a vertical-axis turret when a simple rotating load is the better model.
 
-Simulation can reveal reversed sensors, incorrect ratios, unreachable goals, bad limits, and missing gravity compensation. Hardware checks still establish the absolute offset and verify that the mechanism clears its frame.
+Simulation can reveal reversed sensors, incorrect ratios, unreachable goals, bad limits, and missing
+gravity compensation. Hardware checks still establish the absolute offset and verify that the
+mechanism clears its frame.
 
 <RulesBox title="Check your work">
 

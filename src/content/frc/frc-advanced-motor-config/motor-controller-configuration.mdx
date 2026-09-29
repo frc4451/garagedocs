@@ -26,12 +26,24 @@ Every motor controller should be configured for safety and consistency. Key para
 <RulesBox title="Parameters" subtitle="Configure these:">
 
 - **Inversion:** Positive input = Forward motion.
-- **Idle Mode:** Brake (Hold) vs Coast (Spin).
+- **Idle Mode:** Brake resists rotation at neutral output; coast allows the mechanism to slow with
+  its load. Neither is an active position command.
 - **Current Limit:** Protect motor/battery (e.g., 40A).
 - **Voltage Comp:** Consistent output despite battery drain (e.g., 12V).
 - **Ramp Rate:** Limit acceleration to prevent brownouts/wear.
 
 </RulesBox>
+
+### Thrifty Nova Configuration and Simulation
+
+For Nova, follow [Thrifty Nova Control](/frc/thrifty-nova-control) for the shared 2026/2027
+documentation source, current `Nova.configure(...)` API, status checks, and sensor units. Cobra's
+older `ThriftyNova` example uses a different API. Keep the selected dependency explicit.
+
+[Thrifty Nova Simulation](/frc/thrifty-nova-simulation) provides configuration, inversion, clamp,
+limit, and telemetry checks at 50 Hz. The documented simulator ignores all PID gains, so its results
+do not establish a physical Nova tune. The Phoenix examples below have their own API and simulation
+contract.
 
 ### Configuration Code
 
@@ -39,9 +51,12 @@ Every motor controller should be configured for safety and consistency. Key para
 
 ### Applying Configuration Can Fail
 
-`getConfigurator().apply(config)` returns a `StatusCode`. On a busy CAN bus, with twenty or more devices all powering up at once, it sometimes does not succeed.
+`getConfigurator().apply(config)` returns a `StatusCode`. On a busy CAN bus, with twenty or more
+devices all powering up at once, it sometimes does not succeed.
 
-A failed apply is silent. The motor keeps whatever configuration it had before, which might be last season's inversion or no current limit at all, and nothing reports it. You find out when a mechanism runs backwards or a breaker trips.
+A failed apply is silent. The motor keeps whatever configuration it had before, which might be last
+season's inversion or no current limit at all, and nothing reports it. You find out when a mechanism
+runs backwards or a breaker trips.
 
 Retry it:
 
@@ -66,11 +81,13 @@ public class PhoenixUtil {
 PhoenixUtil.tryUntilOk(5, () -> motor.getConfigurator().apply(config));
 ```
 
-Five attempts cost nothing and remove the failure mode. Our robot code routes every apply through this helper.
+Five attempts cost nothing and remove the failure mode. Our robot code routes every apply through
+this helper.
 
 ### Control Request Types
 
-Once configured, a Talon FX is commanded with a **control request** object. Reuse one instance per motor rather than allocating a new one each loop, and set its value with the `with...` methods.
+Once configured, a Talon FX is commanded with a **control request** object. Reuse one instance per
+motor rather than allocating a new one each loop, and set its value with the `with...` methods.
 
 <ContentTable
   title="Phoenix 6 control requests"
@@ -121,13 +138,17 @@ PhoenixUtil.tryUntilOk(5, () -> leftShooter.getConfigurator().apply(config));
 leftShooter.setControl(new Follower(rightShooter.getDeviceID(), MotorAlignmentValue.Opposed));
 ```
 
-`MotorAlignmentValue.Opposed` means the follower runs the opposite direction from the leader, which is correct for motors mounted facing each other. Use `Aligned` when they face the same way.
+`MotorAlignmentValue.Opposed` means the follower runs the opposite direction from the leader, which
+is correct for motors mounted facing each other. Use `Aligned` when they face the same way.
 
-Following happens on the motor controller, so the follower keeps tracking even if the roboRIO loop is slow. Commanding both motors from code instead works, but adds CAN traffic and lets the two drift apart.
+Following happens on the motor controller, so the follower keeps tracking even if the roboRIO loop
+is slow. Commanding both motors from code instead works, but adds CAN traffic and lets the two drift
+apart.
 
 ### Software Limit Switches
 
-For a mechanism with hard stops, let the controller enforce the range rather than checking it in code:
+For a mechanism with hard stops, let the controller enforce the range rather than checking it in
+code:
 
 ```java
 config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
@@ -136,28 +157,42 @@ config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
 config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = 0;
 ```
 
-The motor controller refuses to drive past these positions regardless of what is commanded. That protects the mechanism even from a bug in your own code.
+The motor controller refuses to drive past these positions regardless of what is commanded. That
+protects the mechanism even from a bug in your own code.
 
 ### Signal rates and the CAN budget
 
-Configuration decides what a device does. It also decides how much it says, and on a robot with a dozen TalonFXs that becomes a budget worth managing.
+Configuration decides what a device does. It also decides how much it says, and on a robot with a
+dozen TalonFXs that becomes a budget worth managing.
 
-Every value you read from a Phoenix 6 device is a `StatusSignal` published at some frequency. Reading them one at a time costs a bus transaction each; `StatusSignal.refreshAll(...)` fetches a batch in one go, which is why competition code tends to collect its signals and refresh them together.
+Every value you read from a Phoenix 6 device is a `StatusSignal` published at some frequency.
+Reading them one at a time costs a bus transaction each; `StatusSignal.refreshAll(...)` fetches a
+batch in one go, which is why competition code tends to collect its signals and refresh them
+together.
 
-FRC 2910 make that explicit with a `StatusSignalRefresher`, a single object that every subsystem registers its signals with. Its useful idea is the second argument:
+FRC 2910 make that explicit with a `StatusSignalRefresher`, a single object that every subsystem
+registers its signals with. Its useful idea is the second argument:
 
 ```java
 // 2910: 0 refreshes every loop, 1 every other loop, 2 every third
 public void addStatusSignals(int delayLoopCount, StatusSignal<?>... signals)
 ```
 
-Not every signal needs 50 Hz. A drive motor's position does; a temperature or a fault flag does not, and refreshing it every third loop costs a third as much. The signals are registered during construction and refreshed in one batch per loop.
+Not every signal needs 50 Hz. A drive motor's position does; a temperature or a fault flag does not,
+and refreshing it every third loop costs a third as much. The signals are registered during
+construction and refreshed in one batch per loop.
 
-Two related knobs live on the device itself. A signal's publish frequency can be set directly, and `optimizeBusUtilization()` turns off everything you have not asked for, so the device stops broadcasting signals nothing reads.
+Two related knobs live on the device itself. A signal's publish frequency can be set directly, and
+`optimizeBusUtilization()` turns off everything you have not asked for, so the device stops
+broadcasting signals nothing reads.
 
-This matters when the symptom appears: loop overruns that scale with the number of devices, or a CAN utilisation figure climbing through the 80s in Phoenix Tuner X. Both point at the bus rather than at your code, and both are configuration problems.
+This matters when the symptom appears: loop overruns that scale with the number of devices, or a CAN
+utilisation figure climbing through the 80s in Phoenix Tuner X. Both point at the bus rather than at
+your code, and both are configuration problems.
 
 <Sources items={[
+  {"source": "thrifty", "path": "software/thriftylib/latest/configs", "note": "Current batched Nova configuration."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/simulation", "note": "Nova coverage and update-rate distinction from Phoenix."},
   {"source": "ctre", "path": "docs/api-reference/api-usage/status-signals.html", "note": "Status signals, batched refresh, update frequency and <code>optimizeBusUtilization</code>."},
   {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/util/StatusSignalRefresher.java", "note": "One object collecting every signal on the robot, refreshing in batches with <code>StatusSignal.refreshAll</code>, and a per-signal delay so low-value signals refresh every second or third loop."},
   {"source": "mantik", "path": "src/content/frc/frc-advanced-motor-config/motor-controller-configuration.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},

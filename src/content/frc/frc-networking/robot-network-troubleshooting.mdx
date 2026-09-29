@@ -13,13 +13,18 @@ description: "The general diagnostic ladder applied to a robot that will not con
 
 <RulesBox title="Before you start">
 
-This page applies the ladder from [Network Diagnostics](/tools/network-diagnostics) to a robot. That page has every command, for PowerShell and Terminal, with the explanation of what each one shows. This page says what to expect at each rung on a `10.TE.AM` network and what each answer means. If you have never opened a shell, read [The Command Line](/tools/command-line-basics) first.
+This page applies the ladder from [Network Diagnostics](/tools/network-diagnostics) to a robot. That
+page has every command, for PowerShell and Terminal, with the explanation of what each one shows.
+This page says what to expect at each rung on a `10.TE.AM` network and what each answer means. If
+you have never opened a shell, read [The Command Line](/tools/command-line-basics) first.
 
 </RulesBox>
 
 ### The ladder, with a robot on the end of it
 
-Go down in order. The first rung that fails is the problem; nothing below it means anything until it passes. Every example uses team 4451 (`10.44.51.x`); [The Robot Network](/frc/robot-network#the-address-pattern) has the arithmetic for yours.
+Go down in order. The first rung that fails is the problem; nothing below it means anything until it
+passes. Every example uses team 4451 (`10.44.51.x`);
+[The Robot Network](/frc/robot-network#the-address-pattern) has the arithmetic for yours.
 
 <ContentTable
   headers={["Rung", "Question", "What to expect on a robot network", "Command detail"]}
@@ -34,39 +39,66 @@ Go down in order. The first rung that fails is the problem; nothing below it mea
 
 ### Rung 1: the laptop
 
-Many "robot" problems end here. The laptop's address must start with `10.44.51` and its mask must be `255.0.0.0`.
+Many "robot" problems end here. The laptop's address must start with `10.44.51` and its mask must be
+`255.0.0.0`.
 
-- `169.254.x.x`: the laptop did not get a DHCP lease from the radio. The radio may still be booting (allow a full minute after power-on), the cable may be in the wrong port, or the cable may be bad. Alternatively, set a static `10.44.51.5` ([Setting a Static IP](/tools/setting-a-static-ip)).
-- `192.168.x.x`: the laptop is on the shop Wi-Fi, not the robot. Turn Wi-Fi off or join the robot's network.
-- `10.44.51.x` with a `255.255.255.0` mask works while the radio's range happens to match and fails the day it does not. Fix the mask.
-- A leftover static address from an event, on a shop network whose radio now hands out something else. Check the laptop before blaming the robot.
+- `169.254.x.x`: the laptop did not get a DHCP lease from the radio. The radio may still be booting
+  (allow a full minute after power-on), the cable may be in the wrong port, or the cable may be bad.
+  Alternatively, set a static `10.44.51.5` ([Setting a Static IP](/tools/setting-a-static-ip)).
+- `192.168.x.x`: the laptop is on the shop Wi-Fi, not the robot. Turn Wi-Fi off or join the robot's
+  network.
+- `10.44.51.x` with a `255.255.255.0` mask works while the radio's range happens to match and fails
+  the day it does not. Fix the mask.
+- A leftover static address from an event, on a shop network whose radio now hands out something
+  else. Check the laptop before blaming the robot.
 
 ### Rung 2: radio, then roboRIO
 
 Ping `.1` first, then `.2`. The pattern of answers narrows the cause:
 
-- **Neither answers:** the laptop is not on the robot's network (back to rung 1), or the radio is off.
-- **The radio answers and the roboRIO does not:** the problem is between them. Check the Ethernet cable from the radio to the RIO and the RIO's status lights. Your laptop is fine.
-- **Both answer but replies come and go:** a loose cable, or the robot browning out. Leave `ping -t 10.44.51.2` (`ping 10.44.51.2` on Terminal) running, move cables one at a time, and watch the battery voltage on the Driver Station.
-- **Replies take around 200 ms over Wi-Fi:** the radio is competing for the channel. Use a cable in the pit; at an event, Wi-Fi is not permitted anyway.
+- **Neither answers:** the laptop is not on the robot's network (back to rung 1), or the radio is
+  off.
+- **The radio answers and the roboRIO does not:** the problem is between them. Check the Ethernet
+  cable from the radio to the RIO and the RIO's status lights. Your laptop is fine.
+- **Both answer but replies come and go:** a loose cable, or the robot browning out. Leave
+  `ping -t 10.44.51.2` (`ping 10.44.51.2` on Terminal) running, move cables one at a time, and watch
+  the battery voltage on the Driver Station.
+- **Replies take around 200 ms over Wi-Fi:** the radio is competing for the channel. Use a cable in
+  the pit; at an event, Wi-Fi is not permitted anyway.
 
 ### Rung 3: the ARP table
 
-After pinging, `arp -a` lists the devices that answered recently, with hardware addresses. On a healthy robot network you should recognise every line: the radio at `.1`, the roboRIO at `.2` with a National Instruments MAC (`00:80:2F`), and a Raspberry Pi or Orange Pi coprocessor (`D8:3A:DD`, `B8:27:EB`) at the address on the team's static list.
+After pinging, `arp -a` lists the devices that answered recently, with hardware addresses. On a
+healthy robot network you should recognise every line: the radio at `.1`, the roboRIO at `.2` with a
+National Instruments MAC (`00:80:2F`), and a Raspberry Pi or Orange Pi coprocessor (`D8:3A:DD`,
+`B8:27:EB`) at the address on the team's static list.
 
-- **A coprocessor missing from the table** after pinging its address: it is off, unplugged, or came up on DHCP at another address. The [subnet sweep](/tools/network-diagnostics#rung-3-check-known-neighbors) finds it; the fix is to make its address static.
-- **The MAC for `.2` changing between runs, or two addresses sharing a MAC:** two devices claiming one address. Possibilities include a second roboRIO on the bench or a coprocessor someone set to `.2`. This table is where a duplicate becomes visible.
-- **A stale entry after re-imaging:** clear the table (requires administrator rights; commands on the Tools page) and ping again.
+- **A coprocessor missing from the table** after pinging its address: it is off, unplugged, or came
+  up on DHCP at another address. The
+  [subnet sweep](/tools/network-diagnostics#rung-3-check-known-neighbors) finds it; the fix is to
+  make its address static.
+- **The MAC for `.2` changing between runs, or two addresses sharing a MAC:** two devices claiming
+  one address. Possibilities include a second roboRIO on the bench or a coprocessor someone set to
+  `.2`. This table is where a duplicate becomes visible.
+- **A stale entry after re-imaging:** clear the table (requires administrator rights; commands on
+  the Tools page) and ping again.
 
 ### Rung 4: the name
 
-The Driver Station and most tools find the roboRIO as `roborio-4451-frc.local`. If `.2` pings and the name does not, the network path is working and mDNS resolution is the problem. On Windows the responder is installed with the NI Driver Station tools; VPN clients are a common cause of interference. Use the numeric address everywhere the name was while you sort that out. Nothing on the robot depends on which one you used.
+The Driver Station and most tools find the roboRIO as `roborio-4451-frc.local`. If `.2` pings and
+the name does not, the network path is working and mDNS resolution is the problem. On Windows the
+responder is installed with the NI Driver Station tools; VPN clients are a common cause of
+interference. Use the numeric address everywhere the name was while you sort that out. Nothing on
+the robot depends on which one you used.
 
 ### Rung 5: the roboRIO answers but the code is not running
 
-A roboRIO that pings but has port `5810` closed has booted with no robot program running. The code may have crashed on start-up, the deploy may have failed, or the program may still be starting. Leave the network alone; the robot program is the thing to investigate. In order:
+A roboRIO that pings but has port `5810` closed has booted with no robot program running. The code
+may have crashed on start-up, the deploy may have failed, or the program may still be starting.
+Leave the network alone; the robot program is the thing to investigate. In order:
 
-1. **Driver Station:** the *Diagnostics* tab shows *Robot Code* red, and the console (gear icon, then *View Console*) shows the exception that stopped it.
+1. **Driver Station:** the *Diagnostics* tab shows *Robot Code* red, and the console (gear icon,
+   then *View Console*) shows the exception that stopped it.
 2. **Redeploy** from VS Code and watch the terminal for the failure.
 3. **SSH in** and read the program's output from a shell:
 
@@ -87,9 +119,13 @@ ssh admin@10.44.51.2          # password is blank on a stock image; press Enter
 </CodeTab>
 </CodeTabs>
 
-[Shell Troubleshooting](/tools/shell-troubleshooting#connect-with-ssh) covers SSH itself, and [reading a stack trace](/tools/shell-troubleshooting#read-a-java-stack-trace) covers what you will find.
+[Shell Troubleshooting](/tools/shell-troubleshooting#connect-with-ssh) covers SSH itself, and
+[reading a stack trace](/tools/shell-troubleshooting#read-a-java-stack-trace) covers what you will
+find.
 
-For a coprocessor the equivalent check is port `5800`. If the device pings but the PhotonVision UI does not load, the service is down on the device; the PhotonVision documentation covers restarting it.
+For a coprocessor the equivalent check is port `5800`. If the device pings but the PhotonVision UI
+does not load, the service is down on the device; the PhotonVision documentation covers restarting
+it.
 
 ### What each failure usually means
 
@@ -111,17 +147,25 @@ For a coprocessor the equivalent check is port `5800`. If the device pings but t
 
 <RulesBox title="Common mistakes">
 
-- **Starting at rung 2.** Pinging the roboRIO before checking your own address costs the ten minutes it takes to discover the laptop was on <code>192.168</code>.
-- **Blaming the network for a code crash.** If ping works and <code>5810</code> is closed, the network is fine. Read the Driver Station console.
+- **Starting at rung 2.** Pinging the roboRIO before checking your own address costs the ten minutes
+  it takes to discover the laptop was on <code>192.168</code>.
+- **Blaming the network for a code crash.** If ping works and <code>5810</code> is closed, the
+  network is fine. Read the Driver Station console.
 - **Trusting a name over a number.** When they disagree, the number is right.
-- **Changing two things at once.** Swap the cable or change the address, then ping again. Two changes and a success teaches you nothing.
-- **Forgetting the USB tether.** When nothing works and the pit is closing, <code>172.22.11.2</code> over USB reaches the roboRIO regardless of every setting above.
+- **Changing two things at once.** Swap the cable or change the address, then ping again. Two
+  changes and a success teaches you nothing.
+- **Forgetting the USB tether.** When nothing works and the pit is closing, <code>172.22.11.2</code>
+  over USB reaches the roboRIO regardless of every setting above.
 
 </RulesBox>
 
 <RulesBox title="Origin">
 
-This page is adapted from the Networking page of [FSC Open Docs](https://github.com/firstsouthcarolina/FSCOpenDocs), written by FIRST South Carolina and contributors including FRC 4451's mentors, and used under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). This page is distributed under the same licence.
+This page is adapted from the Networking page of
+[FSC Open Docs](https://github.com/firstsouthcarolina/FSCOpenDocs), written by FIRST South Carolina
+and contributors including FRC 4451's mentors, and used under
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). This page is distributed under the
+same licence.
 
 </RulesBox>
 

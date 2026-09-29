@@ -12,13 +12,22 @@ description: "Two parts on one arm. Part 1 brackets the angle-dependent kG with 
 durationFixed: true
 ---
 
-This session tunes the practice project's arm. **Part 1** runs in the simulator: gravity and friction, then `kP` and `kD`, then a trapezoidal profile generated in code. **Part 2** puts the same profile on the motor controller as Motion Magic and tunes it in Phoenix Tuner, which is the tool you will use on the robot.
+This session tunes the practice project's arm. **Part 1** runs in the simulator: gravity and
+friction, then `kP` and `kD`, then a trapezoidal profile generated in code. **Part 2** puts the same
+profile on the motor controller as Motion Magic and tunes it in Phoenix Tuner, which is the tool you
+will use on the robot.
 
 <RulesBox title="Before you start">
 
-The [Setup](/frc/pid-tuning-practice-setup) page done and the [Elevator](/frc/pid-tuning-practice-elevator) session completed; this page assumes the bracket and the ladder are familiar. Choose the *Arm* mechanism, add its live tuning widget, graph position, setpoint and voltage, and zero every gain.
+The [Setup](/frc/pid-tuning-practice-setup) page done and the
+[Elevator](/frc/pid-tuning-practice-elevator) session completed; this page assumes the bracket and
+the ladder are familiar. Choose the *Arm* mechanism, add its live tuning widget, graph position,
+setpoint and voltage, and zero every gain.
 
-The procedure is the [arm-and-elevator recipe](/frc/manual-tuning-arm-and-elevator) with one difference from the elevator: an arm's gravity term is `kG · cos θ`, largest with the arm horizontal and zero with it vertical. The bracket is done **horizontal**, where it measures the full term. Once the profile is on, the [profiled recipe](/frc/manual-tuning-profiled) takes over.
+The procedure is the [arm-and-elevator recipe](/frc/manual-tuning-arm-and-elevator) with one
+difference from the elevator: an arm's gravity term is `kG · cos θ`, largest with the arm horizontal
+and zero with it vertical. The bracket is done **horizontal**, where it measures the full term. Once
+the profile is on, the [profiled recipe](/frc/manual-tuning-profiled) takes over.
 
 </RulesBox>
 
@@ -28,76 +37,140 @@ The procedure is the [arm-and-elevator recipe](/frc/manual-tuning-arm-and-elevat
 
 ### Part 1: bracket, ladder, then a profile in code
 
-The simulated arm is a light three-foot arm on a 12:1 reduction, positions in degrees, with soft limits at −20 and +10 degrees and a starting angle of −5 degrees. It is light enough that `kG` is small and precise: a few thousandths of a volt show on the graph as drift.
+The simulated arm is a light three-foot arm on a 12:1 reduction, positions in degrees, with soft
+limits at −20 and +10 degrees and a starting angle of −5 degrees. It is light enough that `kG` is
+small and precise: a few thousandths of a volt show on the graph as drift.
 
 <StepsBox title="Part 1 steps">
 
 1. **Zero every gain.**
-2. **Set the setpoint to horizontal (0 degrees)**, which is inside the soft limits the graph marks in red. Nudge the arm there by hand in the tuning table if it is not. With `kP` at zero the arm is held by `kG` alone.
-3. **Find the lower bound of `kG`**: raise it by doubling until the arm stops dropping, then narrow. On this arm expect to narrow to three decimal places before the position trace is flat. This is `kG − kS`.
-4. **Find the upper bound**: keep raising until the arm begins to rise, then narrow. This is `kG + kS`.
-5. **Enter `kG` as the midpoint and `kS` as half the difference.** Check the hold at a second angle. The arm should now stay wherever it is put; if it drifts at one angle and not another, the gravity type is wrong, not the number.
-6. **Set a setpoint a few degrees away** and **raise `kP`** by doubling from 0.1 until the arm overshoots. Keep doubling until it reaches the setpoint, then until it passes it; on a heavier arm this takes more doublings than you expect.
-7. **Raise `kD`** until the overshoot stops, then **repeat** with more `kP`, to the latency limit, and back off `kD` then `kP` as before.
-8. **Try the largest move the soft limits allow**, from −20 to +10 degrees. The trace will overshoot or the voltage will pin at 12 V; this is what the profile fixes.
-9. **Set the profile's maximum velocity** in the tuning table (`closedloop/motionprofile/maxVelocity`, degrees per second). Choose it from the move you want: 30 degrees in under a second, including the ramps, is about 45 deg/s. A lower value gives a slower, smoother move.
-10. **Set the maximum acceleration** (`maxAcceleration`, degrees per second per second). Larger than the maximum velocity means the arm reaches cruise in under a second. Raise it until the start of the move is crisp without a visible jump; lower it if the arm cannot follow the ramp.
-11. **Re-run the ladder under the profile.** With a profile the setpoint moves in a trapezoid and the loop corrects a small error against it, so the `kP` that overshot on the step is now usable and `kD` matters less. Put `closedloop/setpoint/velocity` and `measurement/velocity` on a graph and add `kA` (match the ramp) and `kV` (match the cruise) if the measured velocity lags the profile; on this arm, with little drag, `kV` may stay zero.
+2. **Set the setpoint to horizontal (0 degrees)**, which is inside the soft limits the graph marks
+   in red. Nudge the arm there by hand in the tuning table if it is not. With `kP` at zero the arm
+   is held by `kG` alone.
+3. **Find the lower bound of `kG`**: raise it by doubling until the arm stops dropping, then narrow.
+   On this arm expect to narrow to three decimal places before the position trace is flat. This is
+   `kG − kS`.
+4. **Find the upper bound**: keep raising until the arm begins to rise, then narrow. This is
+   `kG + kS`.
+5. **Enter `kG` as the midpoint and `kS` as half the difference.** Check the hold at a second angle.
+   The arm should now stay wherever it is put; if it drifts at one angle and not another, the
+   gravity type is wrong, not the number.
+6. **Set a setpoint a few degrees away** and **raise `kP`** by doubling from 0.1 until the arm
+   overshoots. Keep doubling until it reaches the setpoint, then until it passes it; on a heavier
+   arm this takes more doublings than you expect.
+7. **Raise `kD`** until the overshoot stops, then **repeat** with more `kP`, to the latency limit,
+   and back off `kD` then `kP` as before.
+8. **Try the largest move the soft limits allow**, from −20 to +10 degrees. The trace will overshoot
+   or the voltage will pin at 12 V; this is what the profile fixes.
+9. **Set the profile's maximum velocity** in the tuning table
+   (`closedloop/motionprofile/maxVelocity`, degrees per second). Choose it from the move you want:
+   30 degrees in under a second, including the ramps, is about 45 deg/s. A lower value gives a
+   slower, smoother move.
+10. **Set the maximum acceleration** (`maxAcceleration`, degrees per second per second). Larger than
+    the maximum velocity means the arm reaches cruise in under a second. Raise it until the start of
+    the move is crisp without a visible jump; lower it if the arm cannot follow the ramp.
+11. **Re-run the ladder under the profile.** With a profile the setpoint moves in a trapezoid and
+    the loop corrects a small error against it, so the `kP` that overshot on the step is now usable
+    and `kD` matters less. Put `closedloop/setpoint/velocity` and `measurement/velocity` on a graph
+    and add `kA` (match the ramp) and `kV` (match the cruise) if the measured velocity lags the
+    profile; on this arm, with little drag, `kV` may stay zero.
 12. **Verify** a small move, a large move, and a move in each direction.
 
 </StepsBox>
 
 <RulesBox title="What the graph should show">
 
-- The bracket on this arm is a flat line to three decimals of `kG`. A wobble at the fourth decimal is the integrator, not friction.
-- Under the profile the position trace is straight ramps and one corner, and the velocity trace is a trapezoid the measurement sits on. Overshoot at the end of a profiled move means `kP` is high for the current `kD`; a bump at the start means `maxAcceleration` is more than the motor can deliver, or `kA` is missing.
-- Overshoot on an arm with hard stops is a collision. If the tuning ends in a compromise, take the overdamped small move rather than the overshooting large one.
+- The bracket on this arm is a flat line to three decimals of `kG`. A wobble at the fourth decimal
+  is the integrator, not friction.
+- Under the profile the position trace is straight ramps and one corner, and the velocity trace is a
+  trapezoid the measurement sits on. Overshoot at the end of a profiled move means `kP` is high for
+  the current `kD`; a bump at the start means `maxAcceleration` is more than the motor can deliver,
+  or `kA` is missing.
+- Overshoot on an arm with hard stops is a collision. If the tuning ends in a compromise, take the
+  overdamped small move rather than the overshooting large one.
 
 </RulesBox>
 
 ### Part 2: Motion Magic in Phoenix Tuner
 
-Part 1 generated the trapezoid in robot code. On a Phoenix motor controller the same profile runs **on the device** as Motion Magic, with cruise velocity, acceleration and jerk as configuration and the feedforward computed on the controller from the profile's own setpoints ([Why Motion Magic](/frc/why-motion-magic)). This part tunes it in Phoenix Tuner against a real arm or a simulated TalonFX ([TalonFX Simulation](/frc/talonfx-simulation)); the steps are the same for an elevator with `Elevator_Static` gravity.
+Part 1 generated the trapezoid in robot code. On a Phoenix motor controller the same profile runs
+**on the device** as Motion Magic, with cruise velocity, acceleration and jerk as configuration and
+the feedforward computed on the controller from the profile's own setpoints
+([Why Motion Magic](/frc/why-motion-magic)). This part tunes it in Phoenix Tuner against a real arm
+or a simulated TalonFX ([TalonFX Simulation](/frc/talonfx-simulation)); the steps are the same for
+an elevator with `Elevator_Static` gravity.
 
 <YouTubeEmbed id="edoeF-Z5IYA" title="PID Practice: Motion Magic" />
 
 <RulesBox title="Before you start">
 
-Supply and stator current limits set, positive output moving the arm upward, `SensorToMechanismRatio` set so positions are in mechanism rotations ([Motor Controller Configuration](/frc/motor-controller-configuration)), and Phoenix Tuner connected to the device. The robot must be enabled in the Driver Station for the device to move.
+Supply and stator current limits set, positive output moving the arm upward,
+`SensorToMechanismRatio` set so positions are in mechanism rotations
+([Motor Controller Configuration](/frc/motor-controller-configuration)), and Phoenix Tuner connected
+to the device. The robot must be enabled in the Driver Station for the device to move.
 
-The video finds `kG` and `kP` first and then sets the profile from a measured top speed. On a real mechanism, run the [profiled recipe](/frc/manual-tuning-profiled) in full: `kA` by matching the ramp and `kV` by matching the cruise before the final `kP`/`kD` pass. The device publishes the profile's position and velocity as `ClosedLoopReference` and `ClosedLoopReferenceSlope`, so there is something on the plot to match against.
+The video finds `kG` and `kP` first and then sets the profile from a measured top speed. On a real
+mechanism, run the [profiled recipe](/frc/manual-tuning-profiled) in full: `kA` by matching the ramp
+and `kV` by matching the cruise before the final `kP`/`kD` pass. The device publishes the profile's
+position and velocity as `ClosedLoopReference` and `ClosedLoopReferenceSlope`, so there is something
+on the plot to match against.
 
 </RulesBox>
 
 <StepsBox title="Part 2 steps">
 
-1. In Tuner's *Config* tab, set every slot gain to zero and every Motion Magic value to zero, then write the configuration to the device.
+1. In Tuner's *Config* tab, set every slot gain to zero and every Motion Magic value to zero, then
+   write the configuration to the device.
 2. Set the gravity type for the mechanism (`Arm_Cosine`; for an elevator `Elevator_Static`).
 3. In the *Plot* tab, plot position and velocity and start the plot.
-4. Select the *VoltageOut* control and enable the output at 0 V. With the arm horizontal, bracket the holding voltage exactly as in Part 1: raise until it stops dropping (lower bound), keep raising until it rises (upper bound). `kG` is the midpoint, `kS` half the difference. Enter both in the slot.
-5. Switch to *PositionVoltage* with a setpoint a tenth of a rotation away. Raise `kP` by doubling until the arm overshoots; raise `kD` until it stops; repeat to the latency limit and back off. Stop at the first sign of instability; this is a real mechanism.
-6. **Cruise velocity.** Command a duty cycle large enough for a fast move, in the safe direction, and read the flat part of the velocity plot: that is the top speed the mechanism reaches. Set Motion Magic cruise velocity at or below it.
-7. **Acceleration.** Set it from how quickly you want the arm to reach cruise; a value numerically larger than the cruise velocity reaches it in under a second. **Jerk** is optional and rounds the corners of the acceleration; leave it at zero to start.
-8. Switch to *MotionMagicVoltage* and add the device's `ClosedLoopReference` and `ClosedLoopReferenceSlope` signals to the plot: they are the profile's position and velocity. Add `kA` until the measured velocity follows the reference slope's ramp and `kV` until it holds the cruise, then re-run the `kP`/`kD` pass against the profile.
-9. Verify small and large moves in both directions, then copy the slot and Motion Magic values into the mechanism's configuration in code.
+4. Select the *VoltageOut* control and enable the output at 0 V. With the arm horizontal, bracket
+   the holding voltage exactly as in Part 1: raise until it stops dropping (lower bound), keep
+   raising until it rises (upper bound). `kG` is the midpoint, `kS` half the difference. Enter both
+   in the slot.
+5. Switch to *PositionVoltage* with a setpoint a tenth of a rotation away. Raise `kP` by doubling
+   until the arm overshoots; raise `kD` until it stops; repeat to the latency limit and back off.
+   Stop at the first sign of instability; this is a real mechanism.
+6. **Cruise velocity.** Command a duty cycle large enough for a fast move, in the safe direction,
+   and read the flat part of the velocity plot: that is the top speed the mechanism reaches. Set
+   Motion Magic cruise velocity at or below it.
+7. **Acceleration.** Set it from how quickly you want the arm to reach cruise; a value numerically
+   larger than the cruise velocity reaches it in under a second. **Jerk** is optional and rounds the
+   corners of the acceleration; leave it at zero to start.
+8. Switch to *MotionMagicVoltage* and add the device's `ClosedLoopReference` and
+   `ClosedLoopReferenceSlope` signals to the plot: they are the profile's position and velocity. Add
+   `kA` until the measured velocity follows the reference slope's ramp and `kV` until it holds the
+   cruise, then re-run the `kP`/`kD` pass against the profile.
+9. Verify small and large moves in both directions, then copy the slot and Motion Magic values into
+   the mechanism's configuration in code.
 
 </StepsBox>
 
 <RulesBox title="What changed from Part 1">
 
-- The profile constraints moved from the code's constraints object to the controller's `MotionMagicConfigs` (cruise velocity, acceleration, jerk), in mechanism units after the sensor-to-mechanism ratio.
-- The controller's `kV` and `kA` multiply the profile's own velocity and acceleration setpoints, so the feedforward is exact to the profile rather than approximated in code.
-- The request changed from `PositionVoltage` to `MotionMagicVoltage` (or the torque-current form). In the ROBOTZ Garage library that is `setGoal` on a `SingleRoller`; the values you found go into the mechanism's `MotionMagicConfigs` and `Slot0Configs` ([Motor Controller Configuration](/frc/motor-controller-configuration)).
+- The profile constraints moved from the code's constraints object to the controller's
+  `MotionMagicConfigs` (cruise velocity, acceleration, jerk), in mechanism units after the
+  sensor-to-mechanism ratio.
+- The controller's `kV` and `kA` multiply the profile's own velocity and acceleration setpoints, so
+  the feedforward is exact to the profile rather than approximated in code.
+- The request changed from `PositionVoltage` to `MotionMagicVoltage` (or the torque-current form).
+  In the ROBOTZ Garage library that is `setGoal` on a `SingleRoller`; the values you found go into
+  the mechanism's `MotionMagicConfigs` and `Slot0Configs`
+  ([Motor Controller Configuration](/frc/motor-controller-configuration)).
 
 </RulesBox>
 
 <RulesBox title="Common mistakes">
 
-- **Bracketing somewhere other than horizontal.** The gravity term is largest there; a bracket at 45 degrees measures `kG · cos 45°` and the arm drifts at horizontal.
-- **Profile limits in the wrong units.** The practice project's arm is in degrees; a Phoenix device is in mechanism rotations after the ratio. 45 deg/s is 0.125 rot/s.
-- **Acceleration lower than the motor can deliver looks fine; higher does not.** A bump at the start of every move is the profile asking for more than the motor has.
-- **Tuning `kP` before `kA` under a profile.** Feedback found first is compensating for a missing `kA`.
-- **Accepting overshoot on an arm with hard stops.** Trade the overdamped small move for no overshoot on the large one.
+- **Bracketing somewhere other than horizontal.** The gravity term is largest there; a bracket at 45
+  degrees measures `kG · cos 45°` and the arm drifts at horizontal.
+- **Profile limits in the wrong units.** The practice project's arm is in degrees; a Phoenix device
+  is in mechanism rotations after the ratio. 45 deg/s is 0.125 rot/s.
+- **Acceleration lower than the motor can deliver looks fine; higher does not.** A bump at the start
+  of every move is the profile asking for more than the motor has.
+- **Tuning `kP` before `kA` under a profile.** Feedback found first is compensating for a missing
+  `kA`.
+- **Accepting overshoot on an arm with hard stops.** Trade the overdamped small move for no
+  overshoot on the large one.
 
 </RulesBox>
 

@@ -11,29 +11,46 @@ duration: 30 min
 description: "The second way to compose a mechanism drawing: give every component its own root and move it each loop instead of appending ligaments into a tree. How the offset is stored and replayed, what an absolute-angle flag buys, and which of the two designs to pick."
 ---
 
-[Mechanisms per Subsystem](/frc/mechanisms-per-subsystem) builds a drawing by appending ligaments into a tree: the root holds the elevator, the elevator holds the pivot, and each child's angle is measured from its parent. That is the structure the `LoggedMechanism2d` API is shaped around, and it has one cost the earlier lesson names and then works around.
+[Mechanisms per Subsystem](/frc/mechanisms-per-subsystem) builds a drawing by appending ligaments
+into a tree: the root holds the elevator, the elevator holds the pivot, and each child's angle is
+measured from its parent. That is the structure the `LoggedMechanism2d` API is shaped around, and it
+has one cost the earlier lesson names and then works around.
 
-There is a second design that pays that cost differently. FRC 3847 has shipped it for two seasons, and it is worth knowing because the trade is real rather than a matter of taste.
+There is a second design that pays that cost differently. FRC 3847 has shipped it for two seasons,
+and it is worth knowing because the trade is real rather than a matter of taste.
 
 <RulesBox title="Before you start">
 
-[Mechanisms per Subsystem](/frc/mechanisms-per-subsystem) for the tree this lesson is an alternative to, and [Ligaments and Components](/frc/ligaments-and-components) for the component contract both designs share.
+[Mechanisms per Subsystem](/frc/mechanisms-per-subsystem) for the tree this lesson is an alternative
+to, and [Ligaments and Components](/frc/ligaments-and-components) for the component contract both
+designs share.
 
 </RulesBox>
 
 ### The cost of appending
 
-Appending is what makes a chain move together: raise the elevator and the pivot on its top rides up for free, because the pivot's position is defined by its parent. That is the feature.
+Appending is what makes a chain move together: raise the elevator and the pivot on its top rides up
+for free, because the pivot's position is defined by its parent. That is the feature.
 
-The price is that the child's **angle** is also defined by its parent. A pivot appended to an elevator standing at 82 degrees and set to 30 degrees draws at 112 degrees on the canvas. When what you have is an absolute mechanism angle, which is what an encoder reports, you have to subtract the parent's angle before setting it, and subtract it again every time the chain changes. FRC 6328's superstructure does exactly that with `pivotFinalAngle.minus(elevatorAngle)`.
+The price is that the child's **angle** is also defined by its parent. A pivot appended to an
+elevator standing at 82 degrees and set to 30 degrees draws at 112 degrees on the canvas. When what
+you have is an absolute mechanism angle, which is what an encoder reports, you have to subtract the
+parent's angle before setting it, and subtract it again every time the chain changes. FRC 6328's
+superstructure does exactly that with `pivotFinalAngle.minus(elevatorAngle)`.
 
-That subtraction is small. It stops being small when the chain is four deep, when a mechanism is sometimes mounted and sometimes not, or when the subtraction is spread across four subsystems written by four people.
+That subtraction is small. It stops being small when the chain is four deep, when a mechanism is
+sometimes mounted and sometimes not, or when the subtraction is spread across four subsystems
+written by four people.
 
 ### The alternative: own your root, and move it
 
-The other design drops `append()` entirely. Every mechanism gets its **own root** from the canvas, and every loop it recomputes where that root should be and calls `setPosition` on it.
+The other design drops `append()` entirely. Every mechanism gets its **own root** from the canvas,
+and every loop it recomputes where that root should be and calls `setPosition` on it.
 
-FRC 3847's `spectrumLib.sim` package is built this way, and the principle is stated in a comment at the top of their `RobotSim` class: always move the root or origin to change a component's display position. Their `ArmSim`, `LinearSim` and `RollerSim` each take the canvas, ask it for a root, and reposition that root in `simulationPeriodic()`.
+FRC 3847's `spectrumLib.sim` package is built this way, and the principle is stated in a comment at
+the top of their `RobotSim` class: always move the root or origin to change a component's display
+position. Their `ArmSim`, `LinearSim` and `RollerSim` each take the canvas, ask it for a root, and
+reposition that root in `simulationPeriodic()`.
 
 Nothing is a child of anything else on the canvas. The chain lives in the code instead:
 
@@ -63,13 +80,22 @@ public class MountedPivot {
 
 Two ideas carry the whole design.
 
-**The offset is stored once, in polar form.** At construction, the component records how far it sat from its parent's mount point and at what angle. Every loop it rotates that stored offset by the parent's current angle and adds the parent's current position. A rigid attachment is a constant distance and a constant angle offset, which is exactly what those two numbers are.
+**The offset is stored once, in polar form.** At construction, the component records how far it sat
+from its parent's mount point and at what angle. Every loop it rotates that stored offset by the
+parent's current angle and adds the parent's current position. A rigid attachment is a constant
+distance and a constant angle offset, which is exactly what those two numbers are.
 
-**The parent is an interface, not a ligament.** A parent exposes its current mount point, its current angle and how far it has moved from where it started. Anything that can answer those questions can be a parent, which is why 3847's package has both an arm-style mount and a linear-stage mount: an arm hands children its swinging tip, a linear stage hands them a point that translates without rotating.
+**The parent is an interface, not a ligament.** A parent exposes its current mount point, its
+current angle and how far it has moved from where it started. Anything that can answer those
+questions can be a parent, which is why 3847's package has both an arm-style mount and a
+linear-stage mount: an arm hands children its swinging tip, a linear stage hands them a point that
+translates without rotating.
 
 ### What the absolute-angle flag buys
 
-Because the child sets the angle on its own ligament rather than on a ligament inside its parent's tree, it gets to choose what that angle means. 3847's configs carry a flag for it, and the two settings answer two different questions:
+Because the child sets the angle on its own ligament rather than on a ligament inside its parent's
+tree, it gets to choose what that angle means. 3847's configs carry a flag for it, and the two
+settings answer two different questions:
 
 <ContentTable
   headers={["Setting", "The drawn angle is", "Use it when"]}
@@ -79,7 +105,8 @@ Because the child sets the angle on its own ligament rather than on a ligament i
   ]}
 />
 
-The tree design can express both too, but only by doing the arithmetic at the call site every time. Making it a property of the component moves the decision next to the constant that caused it.
+The tree design can express both too, but only by doing the arithmetic at the call site every time.
+Making it a property of the component moves the decision next to the constant that caused it.
 
 ### The two designs, side by side
 
@@ -96,22 +123,36 @@ The tree design can express both too, but only by doing the arithmetic at the ca
   ]}
 />
 
-That last row is the one to weigh hardest. [Mechanisms in 3D](/frc/mechanisms-in-3d) gets its component poses free from the tree, because a tree is exactly what that method needs. A canvas of unrelated roots has no structure to convert, so the 3D poses become hand-written arithmetic.
+That last row is the one to weigh hardest. [Mechanisms in 3D](/frc/mechanisms-in-3d) gets its
+component poses free from the tree, because a tree is exactly what that method needs. A canvas of
+unrelated roots has no structure to convert, so the 3D poses become hand-written arithmetic.
 
 ### Which one to use
 
-**Use the appended tree by default.** It is what the API is shaped for, it is what Cobra's existing component classes already expose a ligament for, and it hands you the 3D poses at the end. The parent-relative angle is one subtraction, documented in one place.
+**Use the appended tree by default.** It is what the API is shaped for, it is what Cobra's existing
+component classes already expose a ligament for, and it hands you the 3D poses at the end. The
+parent-relative angle is one subtraction, documented in one place.
 
-**Reach for moving roots when the tree is fighting you.** The signals are concrete: several mechanisms whose encoders all read absolute, a mechanism that attaches and detaches, or a drawing where the same component appears on more than one canvas. A top-down turret view and a side-on hood view cannot be one tree, and two roots fed from the same subsystem is a smaller thing to maintain than two trees.
+**Reach for moving roots when the tree is fighting you.** The signals are concrete: several
+mechanisms whose encoders all read absolute, a mechanism that attaches and detaches, or a drawing
+where the same component appears on more than one canvas. A top-down turret view and a side-on hood
+view cannot be one tree, and two roots fed from the same subsystem is a smaller thing to maintain
+than two trees.
 
-**Do not mix them inside one canvas.** A canvas where some things are appended and some move their own roots has two mental models in one picture, and the next person has to read both to know which one a given mechanism follows.
+**Do not mix them inside one canvas.** A canvas where some things are appended and some move their
+own roots has two mental models in one picture, and the next person has to read both to know which
+one a given mechanism follows.
 
 <RulesBox title="Common mistakes">
 
-- Call `setPosition` on every mounted root every loop. A root that is set once stays where it started while the drawing around it moves.
-- Capture the offset at construction, before anything has moved. Reading it later records a displaced position as the resting one.
-- Pick absolute or relative per component from what the encoder reports, not from what looks right on the first run.
-- Remember that no tree means no `generate3dMechanism()`. Decide how the 3D poses will be produced before committing.
+- Call `setPosition` on every mounted root every loop. A root that is set once stays where it
+  started while the drawing around it moves.
+- Capture the offset at construction, before anything has moved. Reading it later records a
+  displaced position as the resting one.
+- Pick absolute or relative per component from what the encoder reports, not from what looks right
+  on the first run.
+- Remember that no tree means no `generate3dMechanism()`. Decide how the 3D poses will be produced
+  before committing.
 
 </RulesBox>
 

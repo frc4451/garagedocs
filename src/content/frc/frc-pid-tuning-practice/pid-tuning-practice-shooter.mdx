@@ -12,13 +12,23 @@ description: "Velocity tuning for a simulated shooter flywheel by the two-setpoi
 durationFixed: true
 ---
 
-A shooter is a velocity loop: the goal is to hold a speed, not reach a position. That changes what the gains do. `kV` carries almost all of the output, `kS` covers friction, `kP` is small and exists to recover from a disturbance such as a game piece passing through, and `kD` and `kI` are usually zero. This session tunes the practice project's flywheel that way.
+A shooter is a velocity loop: the goal is to hold a speed, not reach a position. That changes what
+the gains do. `kV` carries almost all of the output, `kS` covers friction, `kP` is small and exists
+to recover from a disturbance such as a game piece passing through, and `kD` and `kI` are usually
+zero. This session tunes the practice project's flywheel that way.
 
 <RulesBox title="Before you start">
 
-The [Setup](/frc/pid-tuning-practice-setup) page done, the *Shooter* mechanism chosen, its live tuning widget added, and every gain at zero. Graph `measurement/velocity` and `closedloop/setpoint/velocity` on one axis and `motor/outputVoltage` on the other. Do not put position on the velocity graph; a flywheel's position climbs without bound and squashes the velocity trace.
+The [Setup](/frc/pid-tuning-practice-setup) page done, the *Shooter* mechanism chosen, its live
+tuning widget added, and every gain at zero. Graph `measurement/velocity` and
+`closedloop/setpoint/velocity` on one axis and `motor/outputVoltage` on the other. Do not put
+position on the velocity graph; a flywheel's position climbs without bound and squashes the velocity
+trace.
 
-The procedure is the [flywheel recipe](/frc/manual-tuning-flywheel) from Manual Tuning, in volts. The video below demonstrates a shortcut (finding `kV` through the `kS` field at one rotation per second); the steps here run the two-setpoint method, which is the one to use on a real shooter because it separates friction from back-EMF instead of lumping them.
+The procedure is the [flywheel recipe](/frc/manual-tuning-flywheel) from Manual Tuning, in volts.
+The video below demonstrates a shortcut (finding `kV` through the `kS` field at one rotation per
+second); the steps here run the two-setpoint method, which is the one to use on a real shooter
+because it separates friction from back-EMF instead of lumping them.
 
 </RulesBox>
 
@@ -28,45 +38,72 @@ The procedure is the [flywheel recipe](/frc/manual-tuning-flywheel) from Manual 
 
 ### Units first
 
-The practice flywheel is a four-inch, one-pound wheel on a 12:1 reduction with a soft limit of 1000 RPM at the wheel. YAMS reports velocity in the units the graph is set to; the tuning table's setpoint is in the mechanism's own units. Before tuning, put both on the same unit so the setpoint and the measurement can sit on one line. AdvantageScope converts a trace's units from its menu (the three dots on the graph entry, *Edit Units*, angular velocity). Rotations per second is the sensible choice: it is what SparkMax and TalonFX velocity loops use, and the conversion from a shooter's usual RPM is a division by 60.
+The practice flywheel is a four-inch, one-pound wheel on a 12:1 reduction with a soft limit of 1000
+RPM at the wheel. YAMS reports velocity in the units the graph is set to; the tuning table's
+setpoint is in the mechanism's own units. Before tuning, put both on the same unit so the setpoint
+and the measurement can sit on one line. AdvantageScope converts a trace's units from its menu (the
+three dots on the graph entry, *Edit Units*, angular velocity). Rotations per second is the sensible
+choice: it is what SparkMax and TalonFX velocity loops use, and the conversion from a shooter's
+usual RPM is a division by 60.
 
 <StepsBox title="Shooter steps">
 
 1. **Zero every gain.**
 2. **Set a low setpoint**, about 10 % of the top speed: 100 RPM, which is 1.67 rot/s.
-3. **Set `kP` very small**, such as 0.001, so the loop responds at all. Kept this small it cannot hide a wrong `kS` or `kV`.
-4. **Raise `kS`** by doubling until the wheel reaches the low setpoint. At low speed friction dominates and `kV` barely matters, so this isolates `kS`. In the simulator the model has little friction and `kS` comes out small; on hardware it does not.
+3. **Set `kP` very small**, such as 0.001, so the loop responds at all. Kept this small it cannot
+   hide a wrong `kS` or `kV`.
+4. **Raise `kS`** by doubling until the wheel reaches the low setpoint. At low speed friction
+   dominates and `kV` barely matters, so this isolates `kS`. In the simulator the model has little
+   friction and `kS` comes out small; on hardware it does not.
 5. **Set a high setpoint**, about 80 % of the top speed: 800 RPM, 13.3 rot/s.
-6. **Raise `kV`** until the wheel reaches the high setpoint. At high speed back-EMF dominates and `kS` barely matters.
+6. **Raise `kV`** until the wheel reaches the high setpoint. At high speed back-EMF dominates and
+   `kS` barely matters.
 7. **Back to the low setpoint.** Adding `kV` usually makes it overshoot; lower `kS`.
 8. **Repeat 4 to 7** until neither number changes between passes. Two or three round trips is usual.
-9. **At the high setpoint, raise `kP`** by doubling from 0.001 until the velocity trace oscillates around the setpoint, then back off to just below. A shooter's `kP` is small because the error is large: 100 rot/s of error times `kP = 0.01` is a full volt.
-10. **Test a disturbance.** With the wheel at speed, command a brief duty-cycle pulse (a joystick button) or drop the setpoint and raise it again, and watch how quickly the trace returns. If recovery is slow, `kP` has room to rise; if the trace rings, it is too high.
-11. **Verify** at the speeds the shooter will be commanded to. If the gains found at 10 % and 80 % do not hold at the real operating points, redo the procedure with those as the low and high setpoints.
+9. **At the high setpoint, raise `kP`** by doubling from 0.001 until the velocity trace oscillates
+   around the setpoint, then back off to just below. A shooter's `kP` is small because the error is
+   large: 100 rot/s of error times `kP = 0.01` is a full volt.
+10. **Test a disturbance.** With the wheel at speed, command a brief duty-cycle pulse (a joystick
+    button) or drop the setpoint and raise it again, and watch how quickly the trace returns. If
+    recovery is slow, `kP` has room to rise; if the trace rings, it is too high.
+11. **Verify** at the speeds the shooter will be commanded to. If the gains found at 10 % and 80 %
+    do not hold at the real operating points, redo the procedure with those as the low and high
+    setpoints.
 
 </StepsBox>
 
 <RulesBox title="What the graph should show">
 
-- With only `kS` and `kV`, the velocity trace rises and settles on the setpoint with no correction: that is feedforward doing its job, and it is the shape to get before touching `kP`.
-- Under a disturbance the trace dips and returns. The return is `kP`; the depth of the dip is the wheel's inertia and is not a gain problem.
-- Voltage sits at a steady value at speed. If it climbs toward 12 V as the setpoint rises, the setpoint is beyond what the motor can deliver through this reduction; pick a lower one.
+- With only `kS` and `kV`, the velocity trace rises and settles on the setpoint with no correction:
+  that is feedforward doing its job, and it is the shape to get before touching `kP`.
+- Under a disturbance the trace dips and returns. The return is `kP`; the depth of the dip is the
+  wheel's inertia and is not a gain problem.
+- Voltage sits at a steady value at speed. If it climbs toward 12 V as the setpoint rises, the
+  setpoint is beyond what the motor can deliver through this reduction; pick a lower one.
 
 </RulesBox>
 
 <RulesBox title="Common mistakes">
 
-- **Finding `kS` by "when it starts to move".** That is static friction; a spinning wheel needs kinetic friction, which is what the low setpoint measures.
+- **Finding `kS` by "when it starts to move".** That is static friction; a spinning wheel needs
+  kinetic friction, which is what the low setpoint measures.
 - **A large `kP` while finding `kS` and `kV`.** It reaches the setpoint on its own and hides both.
-- **Stopping after one pass.** The low and high setpoints disturb each other; go round until neither number moves.
-- **Setpoint and measurement in different units.** A wheel commanded to 800 while the graph reads 13.3 looks broken and is not.
-- **Tuning `kD`.** On a velocity loop it fights the disturbance recovery `kP` provides. Leave it at zero unless the trace rings and `kP` cannot come down.
+- **Stopping after one pass.** The low and high setpoints disturb each other; go round until neither
+  number moves.
+- **Setpoint and measurement in different units.** A wheel commanded to 800 while the graph reads
+  13.3 looks broken and is not.
+- **Tuning `kD`.** On a velocity loop it fights the disturbance recovery `kP` provides. Leave it at
+  zero unless the trace rings and `kP` cannot come down.
 
 </RulesBox>
 
 ### On the real robot
 
-The same two-setpoint procedure runs in Phoenix Tuner or the REV Hardware Client, where the velocity signal is already in rotations per second. On hardware `kS` is real, the disturbance is a game piece, and the verification step is shooting: the speed the wheel holds while a piece passes through is what decides the shot. How FRC 4451's shooter runs this loop on the controller, with the setpoint chosen from distance, is in [Flywheels](/frc/shooter-example).
+The same two-setpoint procedure runs in Phoenix Tuner or the REV Hardware Client, where the velocity
+signal is already in rotations per second. On hardware `kS` is real, the disturbance is a game
+piece, and the verification step is shooting: the speed the wheel holds while a piece passes through
+is what decides the shot. How FRC 4451's shooter runs this loop on the controller, with the setpoint
+chosen from distance, is in [Flywheels](/frc/shooter-example).
 
 <Sources items={[
   {"source": "mantik", "path": "src/content/frc/frc-pid-tuning-practice/pid-tuning-practice-shooter.mdx", "note": "Mantik's original session, its practice project and tutorial video; the procedure was rewritten around the Manual Tuning recipes."},

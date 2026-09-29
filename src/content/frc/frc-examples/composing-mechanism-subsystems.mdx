@@ -11,7 +11,8 @@ duration: 30 min
 description: "Compose reusable pivots, flywheels, rollers, and elevators into turreted-shooter, feeder, intake, and climber subsystems."
 ---
 
-A robot subsystem should represent one responsibility that the command scheduler must coordinate. A reusable mechanism component represents one controlled piece of hardware inside that responsibility.
+A robot subsystem should represent one responsibility that the command scheduler must coordinate. A
+reusable mechanism component represents one controlled piece of hardware inside that responsibility.
 
 <ReferenceImage
   src="/media/kit-bot/commands-and-subsystems.png"
@@ -41,15 +42,26 @@ Climber subsystem
   └─ carriage: Elevator   extends the hook and lifts the robot
 ```
 
-The turret, hood, and shooter wheel belong together because one shot solution produces all three goals. The feeder stays separate because it handles game pieces and should wait until the aiming subsystem reports that the shot is ready. The intake owns the two components that collect a game piece. The climber owns an elevator because its public goal is a linear hook or carriage position.
+The turret, hood, and shooter wheel belong together because one shot solution produces all three
+goals. The feeder stays separate because it handles game pieces and should wait until the aiming
+subsystem reports that the shot is ready. The intake owns the two components that collect a game
+piece. The climber owns an elevator because its public goal is a linear hook or carriage position.
 
 ### Why the components are plain objects
 
-WPILib commands declare requirements on subsystems. If every motor wrapper extends `SubsystemBase`, a command that needs the complete shooter must collect three separate requirements. It also becomes easy to schedule one command for the hood and another for the turret while a third command assumes it owns the whole shooter.
+WPILib commands declare requirements on subsystems. If every motor wrapper extends `SubsystemBase`,
+a command that needs the complete shooter must collect three separate requirements. It also becomes
+easy to schedule one command for the hood and another for the turret while a third command assumes
+it owns the whole shooter.
 
-GompeiLib avoids that problem by passing the parent `Subsystem` into its components. The parent remains the scheduler boundary. GarageDocs follows the same ownership rule: components are plain objects, and commands come from the parent subsystem.
+GompeiLib avoids that problem by passing the parent `Subsystem` into its components. The parent
+remains the scheduler boundary. GarageDocs follows the same ownership rule: components are plain
+objects, and commands come from the parent subsystem.
 
-This is a choice rather than the only answer. FRC 254 and FRC 2910 share mechanism code the other way, with a base subsystem that concrete mechanisms extend, and accept the per-mechanism requirement in exchange. [Base Subsystems and Components](/frc/base-subsystems-and-components) compares the two, because both appear in code worth reading.
+This is a choice rather than the only answer. FRC 254 and FRC 2910 share mechanism code the other
+way, with a base subsystem that concrete mechanisms extend, and accept the per-mechanism requirement
+in exchange. [Base Subsystems and Components](/frc/base-subsystems-and-components) compares the two,
+because both appear in code worth reading.
 
 ### Build the aiming subsystem
 
@@ -113,9 +125,13 @@ public final class TurretedShooter extends SubsystemBase {
 }
 ```
 
-`aim(...)` reads the supplier every scheduler loop. A shot planner can update turret angle, hood angle, and wheel speed while the robot moves. The subsystem applies the three values as one shot goal.
+`aim(...)` reads the supplier every scheduler loop. A shot planner can update turret angle, hood
+angle, and wheel speed while the robot moves. The subsystem applies the three values as one shot
+goal.
 
-The `readyToShoot()` method uses measured position and velocity from all three components. A timer cannot replace these checks because battery voltage, starting position, and disturbances change how long each mechanism takes.
+The `readyToShoot()` method uses measured position and velocity from all three components. A timer
+cannot replace these checks because battery voltage, starting position, and disturbances change how
+long each mechanism takes.
 
 ### Configure the two pivots for different physics
 
@@ -124,9 +140,11 @@ Both rotating mechanisms use the same `Pivot` API. Their hardware IO configurati
 - **Turret:** position control, `kG = 0`, limited or wrap-aware travel, cable protection.
 - **Hood:** position control, nonzero `kG`, `Arm_Cosine` gravity type, hard and soft limits.
 
-The flywheel uses velocity control and coast mode. It has no position goal and does not need gravity compensation.
+The flywheel uses velocity control and coast mode. It has no position goal and does not need gravity
+compensation.
 
-This is the value of components: the subsystem reads as turret, hood, and flywheel behavior. CTRE configuration remains in the three IO implementations.
+This is the value of components: the subsystem reads as turret, hood, and flywheel behavior. CTRE
+configuration remains in the three IO implementations.
 
 ### Build the feeder subsystem
 
@@ -172,13 +190,17 @@ public final class Feeder extends SubsystemBase {
 }
 ```
 
-The tower and kicker do not receive RPM goals. They push pieces while the command runs. Their logged velocity and current can still support jam detection later.
+The tower and kicker do not receive RPM goals. They push pieces while the command runs. Their logged
+velocity and current can still support jam detection later.
 
 ### Build a pivoting intake
 
-Cobra's `Intake` owns two library mechanisms: a pivot called `endeffector` and a roller mechanism called `rollers`. Its command factories deploy, lift, squeeze, or stow the pivot and run the rollers with torque current. The parent calls both mechanism `periodic()` methods.
+Cobra's `Intake` owns two library mechanisms: a pivot called `endeffector` and a roller mechanism
+called `rollers`. Its command factories deploy, lift, squeeze, or stow the pivot and run the rollers
+with torque current. The parent calls both mechanism `periodic()` methods.
 
-The example below keeps that structure while using the `Pivot` and `Roller` components from the previous lessons:
+The example below keeps that structure while using the `Pivot` and `Roller` components from the
+previous lessons:
 
 ```java
 public final class Intake extends SubsystemBase {
@@ -243,15 +265,22 @@ public final class Intake extends SubsystemBase {
 }
 ```
 
-The angles and currents are illustrative. Measure the actual intake's travel and tune its current before enabling it on hardware.
+The angles and currents are illustrative. Measure the actual intake's travel and tune its current
+before enabling it on hardware.
 
-`collect()` sets both component goals in one command that requires the `Intake` subsystem. It does not create parallel commands for the pivot and roller. Two commands from the same parent would carry the same subsystem requirement and cannot run in parallel.
+`collect()` sets both component goals in one command that requires the `Intake` subsystem. It does
+not create parallel commands for the pivot and roller. Two commands from the same parent would carry
+the same subsystem requirement and cannot run in parallel.
 
-The pivot keeps its last position goal after `deploy()` or `liftPiece()` ends because `Intake.periodic()` continues to call `pivot.periodic()`. The roller stops in the end action when `collect()` is interrupted. A sensor can later end the command when a game piece reaches the correct location.
+The pivot keeps its last position goal after `deploy()` or `liftPiece()` ends because
+`Intake.periodic()` continues to call `pivot.periodic()`. The roller stops in the end action when
+`collect()` is interrupted. A sensor can later end the command when a game piece reaches the correct
+location.
 
 ### Build an elevator climber
 
-A climber that raises and lowers a hook or carriage is an elevator mechanism. Its public API uses `Distance`, even when the motor controller measures rotor rotations.
+A climber that raises and lowers a hook or carriage is an elevator mechanism. Its public API uses
+`Distance`, even when the motor controller measures rotor rotations.
 
 ```java
 public final class Climber extends SubsystemBase {
@@ -298,7 +327,9 @@ public final class Climber extends SubsystemBase {
 }
 ```
 
-Extending moves the hook upward. Pulling the robot up commands a lower carriage position after the hook is attached. Keep those as separate commands until the robot has a trustworthy way to confirm attachment. Driver confirmation is better than an automatic delay when no load sensor exists.
+Extending moves the hook upward. Pulling the robot up commands a lower carriage position after the
+hook is attached. Keep those as separate commands until the robot has a trustworthy way to confirm
+attachment. Driver confirmation is better than an automatic delay when no load sensor exists.
 
 The climber's elevator IO should configure:
 
@@ -308,11 +339,13 @@ The climber's elevator IO should configure:
 - a profile that avoids slamming the hook or frame
 - a reliable zero reference, such as a limit switch or absolute sensor
 
-`moveTo()` ends when measured distance enters the component's tolerance. The parent subsystem remains required for the entire sequence, including the wait.
+`moveTo()` ends when measured distance enters the component's tolerance. The parent subsystem
+remains required for the entire sequence, including the wait.
 
 ### Coordinate the subsystems
 
-The scoring command owns both subsystems. The aiming command continues to update the shot goal while the feeder waits.
+The scoring command owns both subsystems. The aiming command continues to update the shot goal while
+the feeder waits.
 
 ```java
 public Command score(
@@ -329,13 +362,18 @@ public Command score(
 }
 ```
 
-`feeder.feed()` already requires the `Feeder` subsystem. `shooter.aim()` requires `TurretedShooter`. The command group therefore prevents other commands from taking either responsibility during the shot.
+`feeder.feed()` already requires the `Feeder` subsystem. `shooter.aim()` requires `TurretedShooter`.
+The command group therefore prevents other commands from taking either responsibility during the
+shot.
 
-For a state-driven robot, the same component methods can be called from the subsystem's `applyState()` method. The ownership does not change. Commands or a superstructure set the wanted behavior, and each subsystem applies goals to its components.
+For a state-driven robot, the same component methods can be called from the subsystem's
+`applyState()` method. The ownership does not change. Commands or a superstructure set the wanted
+behavior, and each subsystem applies goals to its components.
 
 ### Simulation and logging
 
-Each component should have a real IO, a simulation IO, and an empty replay IO when the robot uses AdvantageKit. Use one log path per component:
+Each component should have a real IO, a simulation IO, and an empty replay IO when the robot uses
+AdvantageKit. Use one log path per component:
 
 ```text
 TurretedShooter/Turret/Position
@@ -354,18 +392,22 @@ Climber/Carriage/PositionGoal
 TurretedShooter/Ready
 ```
 
-Graph goals beside measurements. The readiness signal should become true only after the turret and hood enter tolerance and the flywheel reaches speed. Feeding before that transition points to a command-group or readiness error.
+Graph goals beside measurements. The readiness signal should become true only after the turret and
+hood enter tolerance and the flywheel reaches speed. Feeding before that transition points to a
+command-group or readiness error.
 
 ### Decide subsystem boundaries from behavior
 
-Keep components together when they share one goal, must move as one unit, or should be locked by the same command requirement. Split them when they perform separate jobs or need to run concurrently.
+Keep components together when they share one goal, must move as one unit, or should be locked by the
+same command requirement. Split them when they perform separate jobs or need to run concurrently.
 
 For this example:
 
 - The shot planner returns one goal for turret, hood, and flywheel, so they share `TurretedShooter`.
 - The feeder waits for shooter readiness and then runs independently, so it gets its own subsystem.
 - The intake pivot and roller collect one game piece together, so they share `Intake`.
-- The climber contains one elevator component and owns every command that changes the robot's climbing height.
+- The climber contains one elevator component and owns every command that changes the robot's
+  climbing height.
 - A robot-wide superstructure may coordinate these subsystems without owning their motors directly.
 
 <RulesBox title="Common mistakes">

@@ -13,13 +13,22 @@ description: Building a class on top of another so shared behaviour is written o
 
 ## Learn Inheritance
 
-The [Classes](/java/fundamentals/classes), [Objects](/java/fundamentals/objects), and [Overloading](/java/fundamentals/overloading) lessons introduced fields, constructors, instance methods, references, and constructor delegation. This lesson uses those ideas to put shared state and behavior in one class, then specialize it in other classes.
+The [Classes](/java/fundamentals/classes), [Objects](/java/fundamentals/objects), and
+[Overloading](/java/fundamentals/overloading) lessons introduced fields, constructors, instance
+methods, references, and constructor delegation. This lesson uses those ideas to put shared state
+and behavior in one class, then specialize it in other classes.
 
-You will create a superclass and subclass, trace their constructors, override an instance method, and choose between inheritance and composition. Every complete program is a console model. It prints requested actions and does not use WPILib or control robot hardware.
+You will create a superclass and subclass, trace their constructors, override an instance method,
+and choose between inheritance and composition. Every complete program is a console model. It prints
+requested actions and does not use WPILib or control robot hardware.
 
-For each complete program, select **Run** beneath the code in the browser. To run one locally, replace the contents of `Main.java`, save the file, and follow [Compile And Run](/java/fundamentals/setup#compile-and-run).
+For each complete program, select **Run** beneath the code in the browser. To run one locally,
+replace the contents of `Main.java`, save the file, and follow
+[Compile And Run](/java/fundamentals/setup#compile-and-run).
 
-The examples place their model classes inside `Main` so the browser can run one source file. `public static` makes each nested class available to `main` without requiring a `Main` object; it does not make the model's fields static.
+The examples place their model classes inside `Main` so the browser can run one source file.
+`public static` makes each nested class available to `main` without requiring a `Main` object; it
+does not make the model's fields static.
 
 ### Sharing What Is Common
 
@@ -32,7 +41,10 @@ The examples place their model classes inside `Main` so the browser can run one 
   contain
 />
 
-Suppose an intake and shooter both need a name and an enabled state. Copying those fields and methods into both classes would give you two places to maintain the same behavior. A **superclass** can hold the shared members. A **subclass** uses `extends` to inherit accessible members and can add its own members.
+Suppose an intake and shooter both need a name and an enabled state. Copying those fields and
+methods into both classes would give you two places to maintain the same behavior. A **superclass**
+can hold the shared members. A **subclass** uses `extends` to inherit accessible members and can add
+its own members.
 
 Run this complete program:
 
@@ -88,7 +100,9 @@ intake enabled: true
 collecting
 ```
 
-`Intake` inherits the public `enable`, `disable`, and `status` methods. Its constructor calls the `Subsystem` constructor, and its `collect` method supplies behavior specific to an intake. The fields remain private to `Subsystem`; inherited methods can still use them.
+`Intake` inherits the public `enable`, `disable`, and `status` methods. Its constructor calls the
+`Subsystem` constructor, and its `collect` method supplies behavior specific to an intake. The
+fields remain private to `Subsystem`; inherited methods can still use them.
 
 <ContentTable
   title="Vocabulary"
@@ -105,7 +119,9 @@ collecting
 
 ### Constructors And `super`
 
-Constructors are not inherited. A subclass uses its own constructors, which may be explicitly declared or supplied as a default constructor by the compiler. A constructor can invoke a superclass constructor with `super(...)`.
+Constructors are not inherited. A subclass uses its own constructors, which may be explicitly
+declared or supplied as a default constructor by the compiler. A constructor can invoke a superclass
+constructor with `super(...)`.
 
 The next complete program prints from each constructor so you can see the Java 17-compatible order:
 
@@ -153,24 +169,42 @@ Intake constructor: port 3
 intake uses port 3
 ```
 
-In Java 17, an explicit `super(...)` or `this(...)` invocation must be the first statement in a constructor body. The browser runner uses Java 17, so GarageDocs examples keep that form. After the superclass constructor finishes, Java runs the subclass's instance field initializers and then the remaining statements in the subclass constructor.
+In Java 17, an explicit `super(...)` or `this(...)` invocation must be the first statement in a
+constructor body. The browser runner uses Java 17, so GarageDocs examples keep that form. After the
+superclass constructor finishes, Java runs the subclass's instance field initializers and then the
+remaining statements in the subclass constructor.
 
-Java 25 permits a restricted **prologue** before `super(...)` or `this(...)`. Those statements run before the invoked constructor. The rules allow some field assignments while preventing field reads and other uses of the unfinished object; see the Java 25 source at the end of this lesson for the full restrictions. This lesson does not use that Java 25-only syntax because the browser runner must compile the examples.
+Java 25 permits a restricted **prologue** before `super(...)` or `this(...)`. Those statements run
+before the invoked constructor. The rules allow some field assignments while preventing field reads
+and other uses of the unfinished object; see the Java 25 source at the end of this lesson for the
+full restrictions. This lesson does not use that Java 25-only syntax because the browser runner must
+compile the examples.
 
 <RulesBox title="Constructor Rules">
 
 - If a constructor omits both `this(...)` and `super(...)`, Java inserts an implicit `super()` call.
-- The implicit call compiles only when the direct superclass has an accessible no-argument constructor.
-- A constructor can delegate to another constructor in the same class with `this(...)`, or invoke a direct superclass constructor with `super(...)`. It cannot do both directly.
-- Every class except `Object` has one direct superclass. An ordinary class with no written `extends` clause has `Object` as its direct superclass. The enum and record forms taught later have special superclass rules.
+- The implicit call compiles only when the direct superclass has an accessible no-argument
+  constructor.
+- A constructor can delegate to another constructor in the same class with `this(...)`, or invoke a
+  direct superclass constructor with `super(...)`. It cannot do both directly.
+- Every class except `Object` has one direct superclass. An ordinary class with no written `extends`
+  clause has `Object` as its direct superclass. The enum and record forms taught later have special
+  superclass rules.
 
 </RulesBox>
 
-If `Subsystem` declares only `Subsystem(String name)`, omitting `super("intake")` from `Intake()` produces a compile error because Java tries to call a nonexistent `Subsystem()` constructor. Read the first compiler line that points into `Intake`; it identifies the constructor whose implicit call failed. If you are working locally, [Read Diagnostics](/tools/vscode-editing-java#read-diagnostics) shows how to find the message in VS Code.
+If `Subsystem` declares only `Subsystem(String name)`, omitting `super("intake")` from `Intake()`
+produces a compile error because Java tries to call a nonexistent `Subsystem()` constructor. Read
+the first compiler line that points into `Intake`; it identifies the constructor whose implicit call
+failed. If you are working locally, [Read Diagnostics](/tools/vscode-editing-java#read-diagnostics)
+shows how to find the message in VS Code.
 
 ### Overriding
 
-A subclass can **override** an accessible instance method from a superclass. The overriding method uses the same method name, the same parameter types, and a compatible return type. It cannot reduce the inherited method's access. For example, an override of a `protected` method may be `protected` or `public`, but not `private`.
+A subclass can **override** an accessible instance method from a superclass. The overriding method
+uses the same method name, the same parameter types, and a compatible return type. It cannot reduce
+the inherited method's access. For example, an override of a `protected` method may be `protected`
+or `public`, but not `private`.
 
 Run this complete program:
 
@@ -217,15 +251,27 @@ subsystem: intake
 port: 3
 ```
 
-The variable `selected` has the declared type `Subsystem`, while its reference identifies an `Intake` object. For an overridden instance method, Java selects the implementation from the object's runtime class. The call therefore enters `Intake.describe()`. That method uses `super.describe()` to run the superclass implementation before printing the port. The [Runtime Polymorphism](/java/fundamentals/runtime-polymorphism#two-kinds-of-type) lesson develops this rule further.
+The variable `selected` has the declared type `Subsystem`, while its reference identifies an
+`Intake` object. For an overridden instance method, Java selects the implementation from the
+object's runtime class. The call therefore enters `Intake.describe()`. That method uses
+`super.describe()` to run the superclass implementation before printing the port. The
+[Runtime Polymorphism](/java/fundamentals/runtime-polymorphism#two-kinds-of-type) lesson develops
+this rule further.
 
-Write `@Override` above each intended override. The compiler then checks the relationship. Without the annotation, a misspelled name declares an unrelated method, while the right name with a different parameter list may declare an overload.
+Write `@Override` above each intended override. The compiler then checks the relationship. Without
+the annotation, a misspelled name declares an unrelated method, while the right name with a
+different parameter list may declare an overload.
 
-Private methods are not inherited, static methods are hidden rather than overridden, and final instance methods cannot be overridden. An overriding instance method also cannot switch between instance and static.
+Private methods are not inherited, static methods are hidden rather than overridden, and final
+instance methods cannot be overridden. An overriding instance method also cannot switch between
+instance and static.
 
 ### Access Levels
 
-Access depends on both the modifier and where the accessing code is declared. The table describes separate top-level classes. Nested classes that share an enclosing top-level class can access one another's private members through Java's nestmate rules, which is why a one-file teaching example may behave differently.
+Access depends on both the modifier and where the accessing code is declared. The table describes
+separate top-level classes. Nested classes that share an enclosing top-level class can access one
+another's private members through Java's nestmate rules, which is why a one-file teaching example
+may behave differently.
 
 <ContentTable
   headers={["Modifier", "Declaring class", "Same package", "Subclass in another package", "Other code"]}
@@ -237,11 +283,17 @@ Access depends on both the modifier and where the accessing code is declared. Th
   ]}
 />
 
-A **package** groups related Java types under a package name. Code in the same package can access a `protected` member even when that code is not in a subclass.
+A **package** groups related Java types under a package name. Code in the same package can access a
+`protected` member even when that code is not in a subclass.
 
-The rest of this section is optional detail before the Packages lesson. Across a package boundary, protected access is narrower: the access must occur inside a subclass, and an instance member must be accessed through that subclass object or an object of one of its subclasses. A subclass in another package cannot use a `Subsystem` reference to reach that reference's protected member.
+The rest of this section is optional detail before the Packages lesson. Across a package boundary,
+protected access is narrower: the access must occur inside a subclass, and an instance member must
+be accessed through that subclass object or an object of one of its subclasses. A subclass in
+another package cannot use a `Subsystem` reference to reach that reference's protected member.
 
-This partial snippet illustrates the cross-package restriction. It requires separate files in the shown packages, so it is marked `norun` and does not belong in the browser's single `Main.java` file:
+This partial snippet illustrates the cross-package restriction. It requires separate files in the
+shown packages, so it is marked `norun` and does not belong in the browser's single `Main.java`
+file:
 
 ```java norun
 // In devices/Subsystem.java
@@ -267,13 +319,18 @@ public class Intake extends Subsystem {
 }
 ```
 
-Private fields with public or protected methods usually give the superclass more control over valid state. A protected field exposes its representation to subclasses, which makes later changes to that representation harder.
+Private fields with public or protected methods usually give the superclass more control over valid
+state. A protected field exposes its representation to subclasses, which makes later changes to that
+representation harder.
 
 ### What Is Not Inherited
 
-Constructors are not inherited. Private members belong to the superclass but are not inherited by the subclass. Fields and static methods follow hiding rules instead of instance-method overriding rules.
+Constructors are not inherited. Private members belong to the superclass but are not inherited by
+the subclass. Fields and static methods follow hiding rules instead of instance-method overriding
+rules.
 
-The next complete program demonstrates field hiding. Both `Parent` and `Child` declare a field named `label`, so a `Child` object contains both fields. Field access uses the reference's declared type.
+The next complete program demonstrates field hiding. Both `Parent` and `Child` declare a field named
+`label`, so a `Child` object contains both fields. Field access uses the reference's declared type.
 
 ```java
 public class Main {
@@ -302,9 +359,14 @@ parent
 child
 ```
 
-The two results come from the same object viewed through different declared types. This behavior is easy to misread. Keep fields private and expose behavior through methods when subclasses need to cooperate.
+The two results come from the same object viewed through different declared types. This behavior is
+easy to misread. Keep fields private and expose behavior through methods when subclasses need to
+cooperate.
 
-A subclass can declare a static method with the same signature as an accessible static method in its superclass. The subclass method hides the superclass method. Selection depends on the qualifying class or the expression's declared type, not the object's runtime class. Prefer calling static methods through the class that declares them so the selection is visible in the code.
+A subclass can declare a static method with the same signature as an accessible static method in its
+superclass. The subclass method hides the superclass method. Selection depends on the qualifying
+class or the expression's declared type, not the object's runtime class. Prefer calling static
+methods through the class that declares them so the selection is visible in the code.
 
 ### Java Has Single Inheritance
 
@@ -315,13 +377,18 @@ A class can directly extend one class. This partial declaration does not compile
 public class Intake extends Subsystem, Loggable { }
 ```
 
-When one class needs to fill several roles, it can implement several [interfaces](/java/fundamentals/interfaces#implementing-several). Interfaces describe capabilities without giving the class several superclass objects.
+When one class needs to fill several roles, it can implement several
+[interfaces](/java/fundamentals/interfaces#implementing-several). Interfaces describe capabilities
+without giving the class several superclass objects.
 
 ### When Inheritance Is the Wrong Tool
 
-Use inheritance when every subclass object can safely be used wherever the superclass is expected. A drivetrain can be modeled as one kind of subsystem. A robot is not one kind of drivetrain, so `Robot extends Drivetrain` would describe the wrong relationship.
+Use inheritance when every subclass object can safely be used wherever the superclass is expected. A
+drivetrain can be modeled as one kind of subsystem. A robot is not one kind of drivetrain, so
+`Robot extends Drivetrain` would describe the wrong relationship.
 
-Composition stores one object inside another. The following partial snippet belongs inside a larger program that already declares `Drivetrain`. Place `Robot` beside `Drivetrain`, not inside a method:
+Composition stores one object inside another. The following partial snippet belongs inside a larger
+program that already declares `Drivetrain`. Place `Robot` beside `Drivetrain`, not inside a method:
 
 ```java norun
 public class Robot {
@@ -337,19 +404,24 @@ public class Robot {
 }
 ```
 
-Here, a `Robot` **has a** `Drivetrain`. The constructor receives the dependency instead of constructing it internally, which also connects to [Dependency Injection](/java/fundamentals/dependency-injection#passing-it-in-instead).
+Here, a `Robot` **has a** `Drivetrain`. The constructor receives the dependency instead of
+constructing it internally, which also connects to
+[Dependency Injection](/java/fundamentals/dependency-injection#passing-it-in-instead).
 
 <RulesBox title="Choose the Relationship">
 
-Inheritance ties a subclass to the superclass's accessible behavior and construction rules. Use it when the subtype relationship is accurate and shared behavior belongs in the superclass.
+Inheritance ties a subclass to the superclass's accessible behavior and construction rules. Use it
+when the subtype relationship is accurate and shared behavior belongs in the superclass.
 
-Composition makes the contained object's role explicit and lets callers provide a different implementation or test object. Use it when one object uses or owns another object.
+Composition makes the contained object's role explicit and lets callers provide a different
+implementation or test object. Use it when one object uses or owns another object.
 
 </RulesBox>
 
 ### Preventing Inheritance
 
-`final` on a class prevents subclasses. `final` on an instance method allows inheritance of that method but prevents an override.
+`final` on a class prevents subclasses. `final` on an instance method allows inheritance of that
+method but prevents an override.
 
 These are partial declarations. Place them at class scope, not inside `main`:
 
@@ -376,28 +448,41 @@ Use `final` when allowing a subclass or override would violate the class's inten
 - Reducing an overridden method's access or trying to override a private or final method.
 - Reading a protected member through a superclass reference from a subclass in another package.
 - Building a deep hierarchy that makes construction and behavior hard to trace.
-- Calling an overridable method from a constructor. Dynamic dispatch can enter the subclass method before the subclass's field initializers and constructor body have finished.
+- Calling an overridable method from a constructor. Dynamic dispatch can enter the subclass method
+  before the subclass's field initializers and constructor body have finished.
 
 </RulesBox>
 
 ## Check Your Understanding
 
-1. In the first program, which members are declared by `Subsystem`, and which are declared by `Intake`?
-2. Why does the constructor trace print the `Subsystem` line first in the Java 17-compatible example?
-3. Why does `selected.describe()` call `Intake.describe()` when `selected` is declared as `Subsystem`?
-4. Optional: in another package, can an `Intake` subclass read a protected field through a variable declared as `Subsystem`? Explain the qualifier restriction.
-5. Would `Robot extends Drivetrain` describe a safe subtype relationship? Name the composition relationship instead.
+1. In the first program, which members are declared by `Subsystem`, and which are declared by
+   `Intake`?
+2. Why does the constructor trace print the `Subsystem` line first in the Java 17-compatible
+   example?
+3. Why does `selected.describe()` call `Intake.describe()` when `selected` is declared as
+   `Subsystem`?
+4. Optional: in another package, can an `Intake` subclass read a protected field through a variable
+   declared as `Subsystem`? Explain the qualifier restriction.
+5. Would `Robot extends Drivetrain` describe a safe subtype relationship? Name the composition
+   relationship instead.
 
 <JavaPlayground id="java-inheritance" />
 
-In the playground, complete the marked inheritance declaration and print the inherited `type` field. Keep the supplied class names and exact expected output. The starter keeps both classes in the same package and gives `type` no access modifier, so `NeoMotor` can use it through package access. That small exercise demonstrates inheritance; for a class you maintain, prefer a private field with a method that exposes the needed behavior.
+In the playground, complete the marked inheritance declaration and print the inherited `type` field.
+Keep the supplied class names and exact expected output. The starter keeps both classes in the same
+package and gives `type` no access modifier, so `NeoMotor` can use it through package access. That
+small exercise demonstrates inheritance; for a class you maintain, prefer a private field with a
+method that exposes the needed behavior.
 
 <ExerciseBox title="Practice">
 
-1. Write a `Subsystem` base class with a name and enable/disable behavior, then two subclasses that add their own methods.
-2. Add a `describe()` method to the parent and override it in one subclass, calling `super.describe()` inside.
+1. Write a `Subsystem` base class with a name and enable/disable behavior, then two subclasses that
+   add their own methods.
+2. Add a `describe()` method to the parent and override it in one subclass, calling
+   `super.describe()` inside.
 3. Demonstrate field hiding, then fix it by making the field private with a getter.
-4. Give the parent only a parameterized constructor, then write a subclass constructor that omits `super(...)`. Read the compile error.
+4. Give the parent only a parameterized constructor, then write a subclass constructor that omits
+   `super(...)`. Read the compile error.
 5. Take a class that extends another purely for code reuse and rewrite it using composition.
 
 <details>
@@ -407,7 +492,8 @@ In the playground, complete the marked inheritance declaration and print the inh
 2. Put `super.describe()` first, then print the subclass detail.
 3. Use the same field name in both classes and assign a `Child` object to a `Parent` variable.
 4. Java inserts `super()` when no explicit constructor invocation appears.
-5. Replace `extends X` with a private field of type `X`, then forward only the calls the containing class needs.
+5. Replace `extends X` with a private field of type `X`, then forward only the calls the containing
+   class needs.
 
 </details>
 

@@ -11,9 +11,12 @@ duration: 10 min
 description: "Build an effort-controlled roller and calculate gearing, surface speed, output torque, and contact force."
 ---
 
-A roller moves or holds a game piece by pushing on it. Intakes, feeders, conveyors, and indexers usually care about effort and direction more than a fixed shaft speed. Their component API should therefore request voltage or torque current.
+A roller moves or holds a game piece by pushing on it. Intakes, feeders, conveyors, and indexers
+usually care about effort and direction more than a fixed shaft speed. Their component API should
+therefore request voltage or torque current.
 
-Measured speed still belongs in the log. It can show that a belt broke or a piece jammed, even though speed is not the goal.
+Measured speed still belongs in the log. It can show that a belt broke or a piece jammed, even
+though speed is not the goal.
 
 ### Calculate roller speed
 
@@ -24,7 +27,8 @@ roller RPS = motor RPS / G
 surface speed = roller RPS × 2 × π × roller radius
 ```
 
-For a 2-inch-diameter roller, the radius is 1 inch. At 20 RPS, the unloaded surface speed is about 126 inches per second. The game piece may move more slowly because compliant wheels deform and slip.
+For a 2-inch-diameter roller, the radius is 1 inch. At 20 RPS, the unloaded surface speed is about
+126 inches per second. The game piece may move more slowly because compliant wheels deform and slip.
 
 ### Calculate torque and contact force
 
@@ -34,17 +38,24 @@ roller torque ≈ motor torque × gear reduction × efficiency
 contact force ≈ roller torque / roller radius
 ```
 
-In SI units, newton-meters divided by meters gives newtons. More reduction increases roller torque and lowers speed. A smaller radius increases contact force for the same shaft torque and lowers surface speed for the same shaft speed.
+In SI units, newton-meters divided by meters gives newtons. More reduction increases roller torque
+and lowers speed. A smaller radius increases contact force for the same shaft torque and lowers
+surface speed for the same shaft speed.
 
-The force at the game piece also depends on wheel compression and friction. Treat the calculation as a design estimate, then verify current and behavior with the assembled mechanism.
+The force at the game piece also depends on wheel compression and friction. Treat the calculation as
+a design estimate, then verify current and behavior with the assembled mechanism.
 
 ### Choose voltage or torque current
 
-Voltage works across common FRC motor controllers and is a good default for a roller that runs while a button or sensor condition is active.
+Voltage works across common FRC motor controllers and is a good default for a roller that runs while
+a button or sensor condition is active.
 
-Torque-current control asks a supported controller for current that produces motor torque. It is useful when the roller should keep roughly consistent pushing torque as battery voltage changes. Current limits still protect the motor and controller.
+Torque-current control asks a supported controller for current that produces motor torque. It is
+useful when the roller should keep roughly consistent pushing torque as battery voltage changes.
+Current limits still protect the motor and controller.
 
-Do not silently convert an amp request into duty cycle for hardware that lacks torque-current control. Keep the unsupported behavior explicit in that IO implementation.
+Do not silently convert an amp request into duty cycle for hardware that lacks torque-current
+control. Keep the unsupported behavior explicit in that IO implementation.
 
 ### Define the roller IO
 
@@ -58,17 +69,28 @@ public interface RollerIO {
   }
 
   default void updateInputs(RollerIOInputs inputs) {}
+
   default void setVoltage(Voltage output) {}
+
   default void setTorqueCurrent(Current output) {}
+
   default void stop() {}
 }
 ```
 
 ### Build the component
 
+Import the shared [numeric validator](/frc/trapezoidal-motion-profiling#validate-numeric-requests)
+as `frc.robot.util.Numbers`. Validate a numeric request before storing it, so an invalid request
+leaves the previous mode and goal intact.
+
 ```java
 public final class Roller {
-  private enum Mode { STOPPED, VOLTAGE, TORQUE_CURRENT }
+  private enum Mode {
+    STOPPED,
+    VOLTAGE,
+    TORQUE_CURRENT
+  }
 
   private final RollerIO io;
   private final RollerIOInputsAutoLogged inputs = new RollerIOInputsAutoLogged();
@@ -93,11 +115,13 @@ public final class Roller {
   }
 
   public void runVoltage(Voltage output) {
+    Numbers.requireFinite("voltage", output.in(Volts));
     voltageGoal = output;
     mode = Mode.VOLTAGE;
   }
 
   public void runTorqueCurrent(Current output) {
+    Numbers.requireFinite("current", output.in(Amps));
     currentGoal = output;
     mode = Mode.TORQUE_CURRENT;
   }
@@ -108,11 +132,15 @@ public final class Roller {
 }
 ```
 
-The parent subsystem decides when to run the roller. A beam break, current threshold, timer, or driver command can end that behavior without changing the component.
+The parent subsystem decides when to run the roller. A beam break, current threshold, timer, or
+driver command can end that behavior without changing the component.
 
 ### Simulate the roller
 
-Use `DCMotorSim` for a roller whose position is available but is not the control goal. Supply the motor model, moment of inertia, and gear reduction. The model represents rotating hardware, but it does not model a game piece touching the roller. A simulated jam or piece sensor needs a deliberate test condition outside the motor model.
+Use `DCMotorSim` for a roller whose position is available but is not the control goal. Supply the
+motor model, moment of inertia, and gear reduction. The model represents rotating hardware, but it
+does not model a game piece touching the roller. A simulated jam or piece sensor needs a deliberate
+test condition outside the motor model.
 
 <RulesBox title="Check your work">
 

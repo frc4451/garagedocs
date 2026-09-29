@@ -13,7 +13,8 @@ description: "Writing a class or method once and letting the caller say what typ
 
 ## One Class, Many Types
 
-`ArrayList<String>` is a generic type. Its type argument, `String`, lets the compiler reject an attempt to add an `Integer` and treat a retrieved element as a `String` without a cast.
+`ArrayList<String>` is a generic type. Its type argument, `String`, lets the compiler reject an
+attempt to add an `Integer` and treat a retrieved element as a `String` without a cast.
 
 ```java
 public class Main {
@@ -33,9 +34,11 @@ public class Main {
 }
 ```
 
-`T` is a **type parameter**. Each use supplies a **type argument**. The diamond in `new Box<>()` asks Java to infer that argument from the declaration on the left.
+`T` is a **type parameter**. Each use supplies a **type argument**. The diamond in `new Box<>()`
+asks Java to infer that argument from the declaration on the left.
 
-Select **Run** beneath the complete program in the browser. To run it locally, replace `Main.java`, save it, then follow [Compile And Run](/java/fundamentals/setup#compile-and-run). It prints:
+Select **Run** beneath the complete program in the browser. To run it locally, replace `Main.java`,
+save it, then follow [Compile And Run](/java/fundamentals/setup#compile-and-run). It prints:
 
 ```text
 Robonauts 118
@@ -45,7 +48,8 @@ Robonauts 118
 
 ## Why Not Use Object
 
-An `Object` reference can identify any object, so it loses the specific type the caller expects. The caller must cast on the way out:
+An `Object` reference can identify any object, so it loses the specific type the caller expects. The
+caller must cast on the way out:
 
 ```java
 public class Main {
@@ -74,7 +78,8 @@ Run it in the browser or locally. It prints:
 Wrong cast detected at runtime
 ```
 
-The cast compiles because the object might have been an `Integer`; runtime inspection finds a `String`. `Box<String>` instead checks values passed to `put` and returns `String` from `get`.
+The cast compiles because the object might have been an `Integer`; runtime inspection finds a
+`String`. `Box<String>` instead checks values passed to `put` and returns `String` from `get`.
 
 ## Generic Methods
 
@@ -133,13 +138,17 @@ The output is:
 Robonauts
 ```
 
-`Comparable<T>` supplies `compareTo(T other)`. A positive result means the current item comes after `best`, so the method saves it as the new maximum. The bound uses `extends` even though `Comparable` is an interface.
+`Comparable<T>` supplies `compareTo(T other)`. A positive result means the current item comes after
+`best`, so the method saves it as the new maximum. The bound uses `extends` even though `Comparable`
+is an interface.
 
 <a id="generics-and-arrays-do-not-mix"></a>
 
 ## Generic Arrays
 
-`new T[10]` is rejected. Arrays check their component type when storing values at runtime, but `T` is not a **reifiable type** with a fully available runtime representation. A generic class can use `Object[]` and isolate an unchecked cast:
+`new T[10]` is rejected. Arrays check their component type when storing values at runtime, but `T`
+is not a **reifiable type** with a fully available runtime representation. A generic class can use
+`Object[]` and isolate an unchecked cast:
 
 ```java
 public class Main {
@@ -183,26 +192,37 @@ It prints:
 12.1
 ```
 
-The fourth addition overwrites `12.4`, making `12.1` the oldest stored value. The compiler cannot prove the cast, so it reports an unchecked warning without the annotation. The class maintains safety by accepting writes only through `add(T)`. The annotation hides a warning; it does not add a check. Keep it on the smallest declaration whose safety you can explain. `ArrayList<T>` is often a simpler backing store.
+The fourth addition overwrites `12.4`, making `12.1` the oldest stored value. The compiler cannot
+prove the cast, so it reports an unchecked warning without the annotation. The class maintains
+safety by accepting writes only through `add(T)`. The annotation hides a warning; it does not add a
+check. Keep it on the smallest declaration whose safety you can explain. `ArrayList<T>` is often a
+simpler backing store.
 
 <a id="erasure-and-what-it-costs-you"></a>
 
 ## Erasure and Limits
 
-Java compiles generic declarations using **type erasure**. Roughly, a type variable becomes its leftmost bound, or `Object` if it has no bound, and the compiler inserts needed casts. One runtime class represents `Box<String>` and `Box<Integer>`.
+Java compiles generic declarations using **type erasure**. Roughly, a type variable becomes its
+leftmost bound, or `Object` if it has no bound, and the compiler inserts needed casts. One runtime
+class represents `Box<String>` and `Box<Integer>`.
 
 - `new T()` is rejected because `T` does not name a constructor to invoke.
-- `new T[n]` and `value instanceof T` are rejected because those operations require suitable runtime type information.
+- `new T[n]` and `value instanceof T` are rejected because those operations require suitable runtime
+  type information.
 - `Box<int>` is rejected because type arguments are reference types; use `Box<Integer>`.
-- A class type parameter cannot appear in a static field because the field belongs to the class, not to one parameterized use.
+- A class type parameter cannot appear in a static field because the field belongs to the class, not
+  to one parameterized use.
 
-Erasure does not remove every trace of generics. Class files can retain generic signatures for compilers and reflection. The practical limit is that an object is not separately testable as `Box<String>` with `instanceof Box<String>`.
+Erasure does not remove every trace of generics. Class files can retain generic signatures for
+compilers and reflection. The practical limit is that an object is not separately testable as
+`Box<String>` with `instanceof Box<String>`.
 
 <a id="wildcards-briefly"></a>
 
 ## Wildcards
 
-`List<Integer>` is not a subtype of `List<Number>`. Otherwise, code could add a `Double` through the `List<Number>` reference. A wildcard can accept several related list types:
+`List<Integer>` is not a subtype of `List<Number>`. Otherwise, code could add a `Double` through the
+`List<Number>` reference. A wildcard can accept several related list types:
 
 ```java
 import java.util.List;
@@ -226,11 +246,14 @@ The output is:
 4.0
 ```
 
-You can read each element as `Number`. You cannot add a non-null number because the compiler does not know the list's actual element subtype.
+You can read each element as `Number`. You cannot add a non-null number because the compiler does
+not know the list's actual element subtype.
 
 <RulesBox title="Common Mistakes">
 
-- A raw declaration such as `List values` remains legal for compatibility, but `javac -Xlint:rawtypes` reports a warning. Other operations may report unchecked warnings. Compilation normally continues after warnings.
+- A raw declaration such as `List values` remains legal for compatibility, but
+  `javac -Xlint:rawtypes` reports a warning. Other operations may report unchecked warnings.
+  Compilation normally continues after warnings.
 - Prefer `ArrayList<T>` to a generic array unless you can state and maintain the array invariant.
 - Use wrapper types such as `Integer`, not primitive type arguments such as `int`.
 - Add the bound that supplies operations such as `compareTo`.
@@ -246,7 +269,8 @@ You can read each element as `Number`. You cannot add a non-null number because 
 2. Write `public static <T> void printAll(T[] items)` and call it with `Integer[]` and `String[]`.
 3. Write `public static <T extends Comparable<T>> T min(T[] items)` and handle an empty array.
 4. Write `Stack<T>` backed by `ArrayList<T>` with `push`, `pop`, and `isEmpty`.
-5. Add `newest()` to `Ring<T>`. Reuse `valueAt` so only one declaration suppresses an unchecked warning.
+5. Add `newest()` to `Ring<T>`. Reuse `valueAt` so only one declaration suppresses an unchecked
+   warning.
 
 </ExerciseBox>
 

@@ -13,7 +13,8 @@ description: Composing commands into sequences and parallel groups, waiting on c
 
 ### Compose command sequences
 
-Command groups combine multiple commands to create complex behaviors. Use them for autonomous routines or coordinated mechanism movements.
+Command groups combine multiple commands to create complex behaviors. Use them for autonomous
+routines or coordinated mechanism movements.
 
 <RulesBox title="Group Types" subtitle="Three main patterns:">
 
@@ -25,7 +26,9 @@ Command groups combine multiple commands to create complex behaviors. Use them f
 
 ### The Commands Factories
 
-WPILib offers two equivalent ways to build a group: the `SequentialCommandGroup` / `ParallelCommandGroup` constructors, and static factories on `Commands`. Prefer the factories. They read better when nested and they compose without a `new` on every line.
+WPILib offers two equivalent ways to build a group: the `SequentialCommandGroup` /
+`ParallelCommandGroup` constructors, and static factories on `Commands`. Prefer the factories. They
+read better when nested and they compose without a `new` on every line.
 
 ```java
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -55,7 +58,8 @@ And the decorators, which chain onto any command:
 
 ### Compose on the Subsystem
 
-When every step belongs to one subsystem, put the composition on that subsystem, next to the factories it combines:
+When every step belongs to one subsystem, put the composition on that subsystem, next to the
+factories it combines:
 
 ```java
 public Command deployAndIntakeCommand() {
@@ -66,7 +70,10 @@ public Command deployAndIntakeCommand() {
 }
 ```
 
-Read it top to bottom: drop the pivot, wait until it gets there (but no longer than half a second), then start the rollers. Every step is a factory that already exists on the subsystem, so composing them needs no constructor, no imports, and no new file, and everything the intake can do stays in one place.
+Read it top to bottom: drop the pivot, wait until it gets there (but no longer than half a second),
+then start the rollers. Every step is a factory that already exists on the subsystem, so composing
+them needs no constructor, no imports, and no new file, and everything the intake can do stays in
+one place.
 
 ### Waiting Without Blocking
 
@@ -78,7 +85,8 @@ public boolean withinTolerance() {
 }
 ```
 
-The scheduler polls it once per loop. Between polls, every other subsystem keeps running, the drivetrain keeps responding, and the loop stays at 20 ms.
+The scheduler polls it once per loop. Between polls, every other subsystem keeps running, the
+drivetrain keeps responding, and the loop stays at 20 ms.
 
 <RulesBox title="Never block the scheduler">
 
@@ -91,17 +99,23 @@ while (!withinTolerance()) {
 setIntakePosition(INTAKE_PIVOT_UP);
 ```
 
-This does not work. The whole robot runs on one thread, so that `while` loop stops the scheduler, including the updates to `pivot.getPosition()`, which is what the condition reads. The drivetrain stops responding and the loop overruns.
+This does not work. The whole robot runs on one thread, so that `while` loop stops the scheduler,
+including the updates to `pivot.getPosition()`, which is what the condition reads. The drivetrain
+stops responding and the loop overruns.
 
-`Commands.waitUntil(this::withinTolerance)` expresses the same intent and yields between checks. **Any time you want to wait, that is the tool.**
+`Commands.waitUntil(this::withinTolerance)` expresses the same intent and yields between checks.
+**Any time you want to wait, that is the tool.**
 
 </RulesBox>
 
-Pair `waitUntil` with a timeout whenever the condition depends on hardware. If the mechanism jams, the condition never becomes true and the sequence hangs for the rest of the match. `.withTimeout(0.5)` gives up and moves on.
+Pair `waitUntil` with a timeout whenever the condition depends on hardware. If the mechanism jams,
+the condition never becomes true and the sequence hangs for the rest of the match.
+`.withTimeout(0.5)` gives up and moves on.
 
 ### Repeating
 
-`.repeatedly()` restarts a sequence as soon as it ends. This is how a mechanism shakes a stuck game piece loose:
+`.repeatedly()` restarts a sequence as soon as it ends. This is how a mechanism shakes a stuck game
+piece loose:
 
 ```java
 public Command agitateCommand() {
@@ -118,7 +132,8 @@ Rollers on, pivot to 28, wait, pivot to 32, wait, start over, until the button i
 
 ### Compose at the Binding
 
-When an action spans several subsystems but they do not need to react to each other, combine their factories directly in `RobotContainer`:
+When an action spans several subsystems but they do not need to react to each other, combine their
+factories directly in `RobotContainer`:
 
 ```java
 controller.L2().and(controller.R1().negate())
@@ -127,7 +142,9 @@ controller.L2().and(controller.R1().negate())
         .alongWith(intake.deployAndOutakeCommand(-1)));
 ```
 
-Three subsystems running together, built from three factories, with no new class anywhere. Each factory requires only its own subsystem, so the composed command requires all three and the scheduler resolves conflicts correctly.
+Three subsystems running together, built from three factories, with no new class anywhere. Each
+factory requires only its own subsystem, so the composed command requires all three and the
+scheduler resolves conflicts correctly.
 
 ### Autonomous Routines
 
@@ -143,7 +160,9 @@ public Command getAutoCommand() {
 }
 ```
 
-For anything path-based, the path tools generate these for you from event markers; see [PathPlanner](/frc/pathplanner#event-markers-and-named-commands) in the Autonomous group at the end of the section.
+For anything path-based, the path tools generate these for you from event markers; see
+[PathPlanner](/frc/pathplanner#event-markers-and-named-commands) in the Autonomous group at the end
+of the section.
 
 <ContentTable
   title="Where a composition belongs"
@@ -166,9 +185,13 @@ public Command agitateCommand() {
 }
 ```
 
-That assignment executes while `RobotContainer` is building bindings, at startup, not each time the button is pressed. Anything that must happen at schedule time belongs inside a `runOnce` or `run` body.
+That assignment executes while `RobotContainer` is building bindings, at startup, not each time the
+button is pressed. Anything that must happen at schedule time belongs inside a `runOnce` or `run`
+body.
 
-**`runOnce` steps end immediately.** A sequence of nothing but `runOnce` commands finishes in a single loop and commands the last setpoint straight away. The `waitUntil` between steps is what makes a sequence take time.
+**`runOnce` steps end immediately.** A sequence of nothing but `runOnce` commands finishes in a
+single loop and commands the last setpoint straight away. The `waitUntil` between steps is what
+makes a sequence take time.
 
 </RulesBox>
 

@@ -21,35 +21,80 @@ description: "PathPlanner for drawn autonomous paths: configuring AutoBuilder fo
   sourceLabel="PathPlanner documentation"
 />
 
-PathPlanner lets you draw paths on a field map, set velocity and acceleration constraints, and generate trajectories. [PathPlannerLib](https://pathplanner.dev/api/java/) loads and follows those paths in robot code.
+PathPlanner lets you draw paths on a field map, set velocity and acceleration constraints, and
+generate trajectories. [PathPlannerLib](https://pathplanner.dev/api/java/) loads and follows those
+paths in robot code.
 
-The current workflow uses [`AutoBuilder`](https://pathplanner.dev/api/java/com/pathplanner/lib/auto/AutoBuilder.html) to create path-following commands and run named commands from event markers.
+The current workflow uses
+[`AutoBuilder`](https://pathplanner.dev/api/java/com/pathplanner/lib/auto/AutoBuilder.html) to
+create path-following commands and run named commands from event markers.
 
 <RulesBox title="PathPlanner or BLine?">
 
-PathPlanner generates a trajectory (a schedule of where the robot should be at every instant) and follows it as fast as physics allows. [BLine](/frc/bline#get-to-point) follows a sequence of *points* from wherever the robot currently is, trading top speed for robustness under contact. Both live on the same robot: PathPlanner for long, fast, curved routes; BLine for short scoring segments and anything that might get bumped. The BLine lesson has the side-by-side.
+PathPlanner generates a trajectory (a schedule of where the robot should be at every instant) and
+follows it as fast as physics allows. [BLine](/frc/bline#get-to-point) follows a sequence of
+*points* from wherever the robot currently is, trading top speed for robustness under contact. Both
+live on the same robot: PathPlanner for long, fast, curved routes; BLine for short scoring segments
+and anything that might get bumped. The BLine lesson has the side-by-side.
 
 </RulesBox>
 
+### Install the PathPlanner app
+
+The app that draws paths is installed separately from PathPlannerLib. On Windows, install it from
+the Microsoft Store so it updates automatically; the
+[PathPlanner home page](https://pathplanner.dev/home.html) links the store listing and the
+[GitHub releases](https://github.com/mjansen4857/pathplanner/releases) for manual installs. Install
+the PathPlannerLib vendordep into the robot project as its own step; the AdvantageKit templates
+already include it.
+
+Open the robot project's folder in the app. It saves paths, autos and its settings under
+`src/main/deploy/pathplanner/`, and the deploy step copies them to the roboRIO. Before drawing, set
+the app's [Robot Config](https://pathplanner.dev/robot-config.html) for the drivetrain:
+
+- **Swerve:** turn holonomic mode on and enter the module locations, wheel radius, gearing and
+  maximum speed the robot code uses.
+- **Differential (Kit Bot):** leave holonomic mode off; the track width setting appears only for a
+  non-holonomic robot.
+
+The app's settings live in `settings.json`. Robot code reads them only when it builds its
+configuration with `RobotConfig.fromGUISettings()`. The AdvantageKit templates build `RobotConfig`
+in code instead, so their editor settings affect only the preview; keep them equal to the code's
+values so the preview matches what the robot runs.
+
 ### Paths, autos, and event markers
 
-**Path:** A single trajectory from point A to point B, with waypoints and rotation targets. ([PathPlannerPath API](https://pathplanner.dev/api/java/com/pathplanner/lib/path/PathPlannerPath.html))
+**Path:** A single trajectory from point A to point B, with waypoints and rotation targets.
+([PathPlannerPath API](https://pathplanner.dev/api/java/com/pathplanner/lib/path/PathPlannerPath.html))
 
-**Auto:** A full autonomous routine consisting of multiple paths and commands (e.g., "Score -> Taxi -> Balance").
+**Auto:** A full autonomous routine consisting of multiple paths and commands (e.g., "Score -> Taxi
+-> Balance").
 
-**Event Markers:** Triggers placed along a path that execute commands (like running an intake) when the robot reaches that point. ([NamedCommands API](https://pathplanner.dev/api/java/com/pathplanner/lib/auto/NamedCommands.html))
+**Event Markers:** Triggers placed along a path that execute commands (like running an intake) when
+the robot reaches that point.
+([NamedCommands API](https://pathplanner.dev/api/java/com/pathplanner/lib/auto/NamedCommands.html))
 
-**Holonomic Mode:** For swerve/mecanum drives, allows the robot to rotate independently of its movement direction.
+**Holonomic Mode:** For swerve/mecanum drives, allows the robot to rotate independently of its
+movement direction.
 
-**AutoBuilder:** A utility that builds a full "Command" from a PathPlanner file, handling path following, event markers, and telemetry automatically. ([AutoBuilder API](https://pathplanner.dev/api/java/com/pathplanner/lib/auto/AutoBuilder.html))
+**AutoBuilder:** A utility that builds a full "Command" from a PathPlanner file, handling path
+following, event markers, and telemetry automatically.
+([AutoBuilder API](https://pathplanner.dev/api/java/com/pathplanner/lib/auto/AutoBuilder.html))
 
 ### Configuring AutoBuilder
 
-To use PathPlanner, you must configure [AutoBuilder](https://pathplanner.dev/api/java/com/pathplanner/lib/auto/AutoBuilder.html) in your "RobotContainer" or "Drivetrain" subsystem. This tells PathPlanner how to control your robot and where it is. See [AutoBuilder Configuration Documentation](https://pathplanner.dev/pplib-build-an-auto.html).
+To use PathPlanner, you must configure
+[AutoBuilder](https://pathplanner.dev/api/java/com/pathplanner/lib/auto/AutoBuilder.html) in your
+"RobotContainer" or "Drivetrain" subsystem. This tells PathPlanner how to control your robot and
+where it is. See
+[AutoBuilder Configuration Documentation](https://pathplanner.dev/pplib-build-an-auto.html).
 
 ### AutoBuilder Configuration (Swerve)
 
-Current PathPlannerLib uses `AutoBuilder.configure()` with a `PPHolonomicDriveController` and a `RobotConfig` describing the drivetrain's physical properties. Older guides show `configureHolonomic()` with `HolonomicPathFollowerConfig` and `ReplanningConfig`; those types no longer exist.
+Current PathPlannerLib uses `AutoBuilder.configure()` with a `PPHolonomicDriveController` and a
+`RobotConfig` describing the drivetrain's physical properties. Older guides show
+`configureHolonomic()` with `HolonomicPathFollowerConfig` and `ReplanningConfig`; those types no
+longer exist.
 
 ```java
 import com.pathplanner.lib.auto.AutoBuilder;
@@ -97,15 +142,22 @@ public class Drive extends SubsystemBase {
 
 <RulesBox title="Keep RobotConfig honest">
 
-`RobotConfig` is how PathPlanner predicts what the robot will do. Mass, moment of inertia, and wheel coefficient of friction all feed its feedforward.
+`RobotConfig` is how PathPlanner predicts what the robot will do. Mass, moment of inertia, and wheel
+coefficient of friction all feed its feedforward.
 
-A mass left over from last season's robot produces consistent tracking error on every path, and it looks like badly tuned PID, so teams often spend a practice session tuning gains to compensate for a wrong number. Update it when the robot's weight changes.
+A mass left over from last season's robot produces consistent tracking error on every path, and it
+looks like badly tuned PID, so teams often spend a practice session tuning gains to compensate for a
+wrong number. Update it when the robot's weight changes.
 
 </RulesBox>
 
 ### AutoBuilder configuration (differential)
 
-A differential drivetrain cannot move sideways, so its follower is different: `PPLTVController` commands a forward speed and a turn rate, and the robot's heading is its direction of travel. `AutoBuilder.configure` takes the same seven arguments; the controller and the `RobotConfig` change. The code below is the AdvantageKit 2026 Kit Bot template's `Drive` constructor (Mechanical Advantage, v26.0.2), quoted with the SysId setup left out:
+A differential drivetrain cannot move sideways, so its follower is different: `PPLTVController`
+commands a forward speed and a turn rate, and the robot's heading is its direction of travel.
+`AutoBuilder.configure` takes the same seven arguments; the controller and the `RobotConfig` change.
+The code below is the AdvantageKit 2026 Kit Bot template's `Drive` constructor (Mechanical
+Advantage, v26.0.2), quoted with the SysId setup left out:
 
 ```java
 // Configure AutoBuilder for PathPlanner
@@ -123,7 +175,11 @@ AutoBuilder.configure(
     this);
 ```
 
-The speed supplier builds robot-relative `ChassisSpeeds` from the two wheel velocities through `DifferentialDriveKinematics`; there is no `vy`. `PPLTVController(0.02, maxSpeedMetersPerSec)` takes the loop period in seconds and the maximum speed in metres per second. The consumer, `runClosedLoop`, turns the chassis speeds back into wheel speeds and adds a feedforward per side before handing both to the IO:
+The speed supplier builds robot-relative `ChassisSpeeds` from the two wheel velocities through
+`DifferentialDriveKinematics`; there is no `vy`. `PPLTVController(0.02, maxSpeedMetersPerSec)` takes
+the loop period in seconds and the maximum speed in metres per second. The consumer,
+`runClosedLoop`, turns the chassis speeds back into wheel speeds and adds a feedforward per side
+before handing both to the IO:
 
 ```java
 /** Runs the drive at the desired velocity. */
@@ -145,13 +201,20 @@ public void runClosedLoop(double leftMetersPerSec, double rightMetersPerSec) {
 }
 ```
 
-`ppConfig` lives in the template's `DriveConstants`, built from the robot mass, moment of inertia, a `ModuleConfig` (wheel radius, maximum speed, wheel coefficient of friction, the gearbox with its reduction, the current limit, and two motors per side) and the track width. The template ships with placeholder mass and inertia values, so the *Keep RobotConfig honest* rule applies here first. The template already registers a `"Launch"` named command and builds its auto chooser with `AutoBuilder.buildAutoChooser()`, so an auto drawn in the editor with a `Launch` event marker runs without further wiring.
+`ppConfig` lives in the template's `DriveConstants`, built from the robot mass, moment of inertia, a
+`ModuleConfig` (wheel radius, maximum speed, wheel coefficient of friction, the gearbox with its
+reduction, the current limit, and two motors per side) and the track width. The template ships with
+placeholder mass and inertia values, so the *Keep RobotConfig honest* rule applies here first. The
+template already registers a `"Launch"` named command and builds its auto chooser with
+`AutoBuilder.buildAutoChooser()`, so an auto drawn in the editor with a `Launch` event marker runs
+without further wiring.
 
 ### Warmup and Pathfinding
 
 Two additions worth making once the basics work.
 
-**Warmup.** The first path of autonomous otherwise pays a one-time class-loading cost while the match clock is running. Schedule the warmup commands at startup to pay it before the match instead:
+**Warmup.** The first path of autonomous otherwise pays a one-time class-loading cost while the
+match clock is running. Schedule the warmup commands at startup to pay it before the match instead:
 
 ```java
 // In the Robot constructor
@@ -159,13 +222,16 @@ FollowPathCommand.warmupCommand().schedule();
 PathfindingCommand.warmupCommand().schedule();
 ```
 
-**Pathfinding with AdvantageKit.** PathPlanner's default pathfinder runs on a background thread, which makes log replay non-deterministic. Teams using AdvantageKit swap in a logged wrapper:
+**Pathfinding with AdvantageKit.** PathPlanner's default pathfinder runs on a background thread,
+which makes log replay non-deterministic. Teams using AdvantageKit swap in a logged wrapper:
 
 ```java
 Pathfinding.setPathfinder(new LocalADStarAK());
 ```
 
-`LocalADStarAK` routes the pathfinder's results through the logger so a replay follows the same path the robot did. It is a single file, published by PathPlanner's author; see [the gist](https://gist.github.com/mjansen4857/a8024b55eb427184dbd10ae8923bd57d).
+`LocalADStarAK` routes the pathfinder's results through the logger so a replay follows the same path
+the robot did. It is a single file, published by PathPlanner's author; see
+[the gist](https://gist.github.com/mjansen4857/a8024b55eb427184dbd10ae8923bd57d).
 
 You can also log the active path and target pose so they appear in AdvantageScope:
 
@@ -178,7 +244,8 @@ PathPlannerLogging.setLogTargetPoseCallback(
 
 ### Creating and Running Paths
 
-Once configured, you can load paths or full autos by name. PathPlanner files are deployed to the robot's "deploy/pathplanner" directory.
+Once configured, you can load paths or full autos by name. PathPlanner files are deployed to the
+robot's "deploy/pathplanner" directory.
 
 ### Loading Paths
 
@@ -202,7 +269,11 @@ SmartDashboard.putData("Auto Chooser", autoChooser);
 
 ### Event Markers and Named Commands
 
-To use Event Markers, you must register your commands with [NamedCommands](https://pathplanner.dev/api/java/com/pathplanner/lib/auto/NamedCommands.html) **before** building the auto. This maps the string names in the PathPlanner GUI to actual Java commands. See [Event Markers Documentation](https://pathplanner.dev/gui-editing-paths-and-autos.html#event-markers).
+To use Event Markers, you must register your commands with
+[NamedCommands](https://pathplanner.dev/api/java/com/pathplanner/lib/auto/NamedCommands.html)
+**before** building the auto. This maps the string names in the PathPlanner GUI to actual Java
+commands. See
+[Event Markers Documentation](https://pathplanner.dev/gui-editing-paths-and-autos.html#event-markers).
 
 ### Registering Named Commands
 
@@ -229,7 +300,9 @@ public class RobotContainer {
 - Always measure your robot's max velocity and acceleration accurately.
 - Use 'On-the-fly' generation for dynamic pathing if needed, but pre-generated paths are safer.
 - Visualize path following in AdvantageScope or Field2d to debug tracking errors.
-- Remember to register [NamedCommands](https://pathplanner.dev/api/java/com/pathplanner/lib/auto/NamedCommands.html) before building the auto chooser.
+- Remember to register
+  [NamedCommands](https://pathplanner.dev/api/java/com/pathplanner/lib/auto/NamedCommands.html)
+  before building the auto chooser.
 - Schedule the warmup commands at startup so the first path does not stutter.
 - Keep the robot mass in `RobotConfig` current.
 
@@ -237,7 +310,10 @@ public class RobotContainer {
 
 <Sources items={[
   {"source": "mantik", "path": "src/content/frc/frc-external-tools/pathplanner.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
+  {"source": "pathplanner", "path": "home.html", "note": "Installing the app from the Microsoft Store, or manually from the GitHub releases."},
+  {"source": "pathplanner", "path": "robot-config.html", "note": "The app's Robot Config options; track width only for non-holonomic robots."},
   {"source": "pathplanner", "path": "pplib-getting-started.html", "note": "Installing PathPlannerLib."},
+  {"source": "pathplanner", "path": "pplib-build-an-auto.html", "note": "<code>RobotConfig.fromGUISettings()</code>, the call that reads the app's settings into robot code."},
   {"source": "pathplanner", "path": "pplib-build-an-auto.html", "note": "<code>AutoBuilder.configure</code>, <code>buildAutoChooser</code>, named commands."},
   {"source": "pathplanner", "path": "pplib-follow-a-single-path.html", "note": "<code>PathPlannerPath.fromPathFile</code> and <code>AutoBuilder.followPath</code>."},
   {"source": "pathplanner", "path": "pplib-pathfinding.html", "note": "Pathfinding and the <code>Pathfinding.setPathfinder</code> hook."},

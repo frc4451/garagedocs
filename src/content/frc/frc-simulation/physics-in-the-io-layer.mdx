@@ -13,13 +13,19 @@ description: "How a subsystem gets a physics model instead of a motor: WPILib's 
 
 ### Where the physics goes
 
-A subsystem never knows it is simulated. It talks to an IO interface (`runVolts`, `setGoal`, `updateInputs`), and in `SIM` mode the object behind that interface is a class that answers with a **physics model** instead of a motor. Everything in this lesson lives in those `…IOSim` classes; the subsystem, the commands and the bindings are untouched, which is the point of [the IO layer](/frc/io-layers#swapping-implementations).
+A subsystem never knows it is simulated. It talks to an IO interface (`runVolts`, `setGoal`,
+`updateInputs`), and in `SIM` mode the object behind that interface is a class that answers with a
+**physics model** instead of a motor. Everything in this lesson lives in those `…IOSim` classes; the
+subsystem, the commands and the bindings are untouched, which is the point of
+[the IO layer](/frc/io-layers#swapping-implementations).
 
-WPILib provides the models. You provide the numbers that describe your mechanism and the glue that moves voltages in and positions out every loop.
+WPILib provides the models. You provide the numbers that describe your mechanism and the glue that
+moves voltages in and positions out every loop.
 
 ### WPILib's physics classes
 
-Each one integrates a differential equation for you: given the voltage on the motor over the last 20 ms, where is the mechanism now, how fast is it moving, and how much current did it draw.
+Each one integrates a differential equation for you: given the voltage on the motor over the last 20
+ms, where is the mechanism now, how fast is it moving, and how much current did it draw.
 
 <ContentTable
   headers={["Class", "Models", "Key inputs", "Use it for"]}
@@ -32,27 +38,44 @@ Each one integrates a differential equation for you: given the voltage on the mo
   ]}
 />
 
-The **motor type** comes from `DCMotor`: `DCMotor.getKrakenX60Foc(1)`, `getNEO(1)`, `getNeoVortex(1)`, where the argument is how many motors share the load. The class knows each motor's free speed, stall torque and current, which is what makes the model's acceleration and current draw realistic rather than arbitrary.
+The **motor type** comes from `DCMotor`: `DCMotor.getKrakenX60Foc(1)`, `getNEO(1)`,
+`getNeoVortex(1)`, where the argument is how many motors share the load. The class knows each
+motor's free speed, stall torque and current, which is what makes the model's acceleration and
+current draw realistic rather than arbitrary.
 
 The **plant** for most models is built by `LinearSystemId`:
 
 ```java
-DCMotorSim sim = new DCMotorSim(
-    LinearSystemId.createDCMotorSystem(DCMotor.getKrakenX60Foc(1), moiKgM2, gearReduction),
-    DCMotor.getKrakenX60Foc(1));
+DCMotorSim sim =
+    new DCMotorSim(
+        LinearSystemId.createDCMotorSystem(DCMotor.getKrakenX60Foc(1), moiKgM2, gearReduction),
+        DCMotor.getKrakenX60Foc(1));
 ```
 
-Every model has the same three calls, and every sim IO uses them in the same order once per loop: **`setInputVoltage(volts)`**, **`update(dtSeconds)`**, then read **`getAngularPositionRotations()` / `getAngularVelocityRPM()` / `getCurrentDrawAmps()`** (or `getPositionMeters()` and friends for the elevator).
+Every model has the same three calls, and every sim IO uses them in the same order once per loop:
+**`setInputVoltage(volts)`**, **`update(dtSeconds)`**, then read **`getAngularPositionRotations()` /
+`getAngularVelocityRPM()` / `getCurrentDrawAmps()`** (or `getPositionMeters()` and friends for the
+elevator).
 
 ### Learn the General Model First
 
-For Badge 2, first build a voltage-driven roller with `DCMotorSim`, then a software-profiled pivot with `SingleJointedArmSim`. Only after those paths work should the student add vendor sim state. Use `FlywheelSim` for the velocity-controlled wheel and `ElevatorSim` for vertical or horizontal linear motion with the appropriate gravity setting.
+For Badge 2, first build a voltage-driven roller with `DCMotorSim`, then a software-profiled pivot
+with `SingleJointedArmSim`. Only after those paths work should the student add vendor sim state. Use
+`FlywheelSim` for the velocity-controlled wheel and `ElevatorSim` for vertical or horizontal linear
+motion with the appropriate gravity setting.
 
-Team 190's GompeiLib separates these same roles into `GenericRollerIOSim`, `GenericFlywheelIOSim`, `ArmIOSim`, and `ElevatorIOSim`. Read one alongside Cobra's general simulation and identify the model construction, control calculation, update, and input snapshot. The cited GompeiLib revision uses the newer `org.wpilib` package layout; Badge 2 remains on WPILib 2026's `edu.wpi.first` APIs. Use the reference to compare responsibilities, not as a dependency or a source file to paste into the 2026 project.
+Team 190's GompeiLib separates these same roles into `GenericRollerIOSim`, `GenericFlywheelIOSim`,
+`ArmIOSim`, and `ElevatorIOSim`. Read one alongside Cobra's general simulation and identify the
+model construction, control calculation, update, and input snapshot. The cited GompeiLib revision
+uses the newer `org.wpilib` package layout; Badge 2 remains on WPILib 2026's `edu.wpi.first` APIs.
+Use the reference to compare responsibilities, not as a dependency or a source file to paste into
+the 2026 project.
 
 ### The sim IO pattern
 
-This abridged example follows FRC 4451's `SingleRollerIOSim`, the pure-WPILib version of a roller's IO: a `DCMotorSim` driven by a `ProfiledPIDController` and a feedforward in software, because there is no motor controller to run the loop:
+This abridged example follows FRC 4451's `SingleRollerIOSim`, the pure-WPILib version of a roller's
+IO: a `DCMotorSim` driven by a `ProfiledPIDController` and a feedforward in software, because there
+is no motor controller to run the loop:
 
 ```java
 public class SingleRollerIOSim implements SingleRollerIO {
@@ -130,16 +153,25 @@ public class SingleRollerIOSim implements SingleRollerIO {
 
 Read it as four responsibilities, which every sim IO you write will have:
 
-1. **Build the model** from a config record (motor, MOI, reduction), never from literals scattered in the class.
-2. **Run the control loop the hardware would have run.** A real TalonFX does position control on the controller; here a `ProfiledPIDController` does it in Java, so `setGoal` behaves the same from the subsystem's point of view.
+1. **Build the model** from a config record (motor, MOI, reduction), never from literals scattered
+   in the class.
+2. **Run the control loop the hardware would have run.** A real TalonFX does position control on the
+   controller; here a `ProfiledPIDController` does it in Java, so `setGoal` behaves the same from
+   the subsystem's point of view.
 3. **Advance the physics** exactly once per loop: `sim.update(defaultPeriodSecs)`.
-4. **Fill the inputs** from the model, the same fields the real IO fills from the motor, so the subsystem, the logs and AdvantageScope see identical data either way.
+4. **Fill the inputs** from the model, the same fields the real IO fills from the motor, so the
+   subsystem, the logs and AdvantageScope see identical data either way.
 
-The `DriverStation.isDisabled()` check at the top is not optional. A real motor controller cuts output when the robot is disabled; the model has to be told, or a disabled simulated robot keeps driving toward its last goal and the graphs lie.
+The `DriverStation.isDisabled()` check at the top is not optional. A real motor controller cuts
+output when the robot is disabled; the model has to be told, or a disabled simulated robot keeps
+driving toward its last goal and the graphs lie.
 
 ### The vendor-sim-state pattern
 
-There is a second style, and FRC 4451 uses it for anything on a TalonFX. Instead of re-implementing the motor controller's behaviour in Java, `SingleRollerIOSimTalonFX` **extends the real `SingleRollerIOTalonFX`**, so the real configuration, the real Motion Magic request and the real status signals all run unchanged, and it feeds the vendor's simulation state from a physics model:
+There is a second style, and FRC 4451 uses it for anything on a TalonFX. Instead of re-implementing
+the motor controller's behaviour in Java, `SingleRollerIOSimTalonFX` **extends the real
+`SingleRollerIOTalonFX`**, so the real configuration, the real Motion Magic request and the real
+status signals all run unchanged, and it feeds the vendor's simulation state from a physics model:
 
 ```java
 public class SingleRollerIOSimTalonFX extends SingleRollerIOTalonFX implements AutoCloseable {
@@ -170,7 +202,7 @@ public class SingleRollerIOSimTalonFX extends SingleRollerIOTalonFX implements A
 
     motorSim.update(delta);
 
-    // Tell the controller where its rotor is now (mechanism rotations ï¿½ reduction)
+    // Tell the controller where its rotor is now (mechanism rotations × reduction)
     talon.getSimState().setRawRotorPosition(motorSim.getAngularPosition().times(reduction));
     talon.getSimState().setRotorVelocity(motorSim.getAngularVelocity().times(reduction));
 
@@ -185,15 +217,78 @@ public class SingleRollerIOSimTalonFX extends SingleRollerIOTalonFX implements A
   @Override
   public void close() {
     simNotifier.close();
+    talon.close();
   }
 }
 ```
 
-This is a partial explanation of the vendor exchange, not a complete concurrent IO class. [Step 7: One Complete Mechanism](/badges/badge-2-first-mechanism#simulation-loop) specifies synchronization, input snapshots, and cleanup for the student implementation. Its simulation owner sums the current draws from all active models and writes the loaded battery voltage once per cycle; individual mechanism notifiers report current only.
+This is a partial explanation of the vendor exchange, not a complete concurrent IO class.
+[Step 7: One Complete Mechanism](/badges/badge-2-first-mechanism#simulation-loop) specifies
+synchronization, input snapshots, and cleanup for the student implementation.
 
-The data flows in a circle: Phoenix's simulated controller computes a motor voltage from the request your subsystem made → the physics model turns that voltage into rotor motion → the rotor position goes back into the simulated controller as its encoder reading → Phoenix's closed loop reacts. Because the loop runs inside Phoenix, the same controller configuration and request code can be exercised in simulation. Tracking still depends on the model. Physical friction, loading, and sensor behavior must be checked and the gains re-evaluated on hardware.
+Each mechanism notifier above reports its current draw and nothing else. One simulation owner adds
+up the draws of every active model and sets the loaded battery voltage once per robot loop. If each
+mechanism set the battery from its own current, the last one to run would overwrite the others and
+the battery would sag for one mechanism's load instead of the robot's. Cobra's `…IOSimTalonFX`
+classes set the battery inside each notifier; this owner is the proposed replacement, not Cobra
+code:
 
-[TalonFX Simulation](/frc/talonfx-simulation) takes this class apart line by line, with its four siblings. Two details worth understanding now. The model updates on a **`Notifier` at 5 ms** rather than in `updateInputs`, because the controller's own loop is faster than 20 ms and the simulation is smoother if the physics keeps up. And **`BatterySim`** lowers the simulated battery voltage as current draw rises, the same brownout behaviour you see when a real robot spins up a shooter, which makes "why does it slow down when everything runs at once" a question you can answer on a laptop.
+```java
+package frc.robot.util;
+
+import edu.wpi.first.wpilibj.simulation.BatterySim;
+import edu.wpi.first.wpilibj.simulation.RoboRioSim;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.DoubleSupplier;
+
+/** The one place the simulated battery voltage is set. */
+public final class SimBattery {
+  private static final List<DoubleSupplier> loads = new ArrayList<>();
+
+  private SimBattery() {}
+
+  /** Each simulated mechanism registers its latest current draw, in amps, once. */
+  public static void register(DoubleSupplier currentDrawAmps) {
+    loads.add(currentDrawAmps);
+  }
+
+  /** Called once per loop from Robot.simulationPeriodic(). */
+  public static void update() {
+    double[] currents = new double[loads.size()];
+    for (int i = 0; i < currents.length; i++) {
+      currents[i] = loads.get(i).getAsDouble();
+    }
+    RoboRioSim.setVInVoltage(BatterySim.calculateDefaultBatteryLoadedVoltage(currents));
+  }
+
+  /** Tests call this in teardown so one test's mechanisms do not load the next test's battery. */
+  public static void clear() {
+    loads.clear();
+  }
+}
+```
+
+The sim IO constructor registers once with `SimBattery.register(this::getLatestCurrentDrawAmps)`,
+and `Robot.simulationPeriodic()` calls `SimBattery.update()`. The supplier reads the `volatile`
+field the notifier thread writes, so the main thread sees the latest value. Each participating
+mechanism model reads the new supply voltage on its next update. In a general model, clamp voltage
+to `RobotController.getBatteryVoltage()` rather than a fixed 12 V when connecting this owner. The
+swerve template's drivetrain is outside the Badge 2 battery exercise.
+
+The data flows in a circle: Phoenix's simulated controller computes a motor voltage from the request
+your subsystem made → the physics model turns that voltage into rotor motion → the rotor position
+goes back into the simulated controller as its encoder reading → Phoenix's closed loop reacts.
+Because the loop runs inside Phoenix, the same controller configuration and request code can be
+exercised in simulation. Tracking still depends on the model. Physical friction, loading, and sensor
+behavior must be checked and the gains re-evaluated on hardware.
+
+[TalonFX Simulation](/frc/talonfx-simulation) takes this class apart line by line, with its four
+siblings. Two details worth understanding now. The model updates on a **`Notifier` at 5 ms** rather
+than in `updateInputs`, because the controller's own loop is faster than 20 ms and the simulation is
+smoother if the physics keeps up. And **`BatterySim`** lowers the simulated battery voltage as
+current draw rises, the same brownout behaviour you see when a real robot spins up a shooter, which
+makes "why does it slow down when everything runs at once" a question you can answer on a laptop.
 
 <ContentTable
   headers={["", "Software-loop sim (<code>…IOSim</code>)", "Vendor-sim-state (<code>…IOSimTalonFX</code>)"]}
@@ -204,6 +299,19 @@ The data flows in a circle: Phoenix's simulated controller computes a motor volt
     ["Team uses it for", "Anything not on a TalonFX; quick models", "Every TalonFX / TalonFXS mechanism"]
   ]}
 />
+
+### Thrifty Nova Simulation
+
+The current [ThriftyLib simulator](/frc/thrifty-nova-simulation) provides another vendor path for
+checking Nova configuration, inversion, output clamps, soft limits, and telemetry. Call each
+device's `simulationPeriodic()` once every 20 ms. Unlike the Phoenix example above, the documented
+Nova simulator ignores all PID gains; copying the Phoenix update rate or tuning procedure would test
+a different assumption.
+
+Use a separate WPILib physics IO model when you need to explore mechanism inertia, gravity, or
+robot-side feedback. State which implementation produced the log. A software-loop model does not
+verify the Nova's onboard PID tune, and a Nova device-simulation result does not verify physical
+current limiting.
 
 ### Wiring it in
 
@@ -223,21 +331,34 @@ switch (Constants.currentMode) {
 }
 ```
 
-Notice the **separate sim config**, `intakeConfigSim` beside `intakeConfig`. It carries what the model needs and the real config does not: the `DCMotor`, the moment of inertia, sometimes different gains. Keep them next to each other in the subsystem's constants file so a change to gearing updates both.
+Notice the **separate sim config**, `intakeConfigSim` beside `intakeConfig`. It carries what the
+model needs and the real config does not: the `DCMotor`, the moment of inertia, sometimes different
+gains. Keep them next to each other in the subsystem's constants file so a change to gearing updates
+both.
 
 ### Numbers that make the model honest
 
 A model is only as good as its constants. In order of how much they matter:
 
-- **Gear reduction:** get it exactly; it is on the CAD. Off by the wrong ratio and every speed and position is scaled.
-- **Motor type and count:** `getKrakenX60Foc(2)` for a two-motor gearbox. FOC versus non-FOC Kraken have different curves; pick the one the real config enables.
-- **Moment of inertia / mass:** CAD can give it; for a roller, `0.5 × m × r²` for a solid cylinder is close enough to start. Too low and the sim mechanism snaps to setpoint instantly, flattering your gains; too high and it lumbers. When the real mechanism behaves differently from the sim, this is the first number to revisit.
-- **Gravity:** `ElevatorSim` and `SingleJointedArmSim` take a `simulateGravity` flag. Enable it for an arm or vertical elevator. Disable it for a horizontal linear rail or a pivot rotating about a vertical axis, using the model appropriate to that motion.
-- **Limits:** min/max height or angle. The model stops at them like a hard stop; without them the sim elevator goes through the ceiling and the plot looks fine.
+- **Gear reduction:** get it exactly; it is on the CAD. Off by the wrong ratio and every speed and
+  position is scaled.
+- **Motor type and count:** `getKrakenX60Foc(2)` for a two-motor gearbox. FOC versus non-FOC Kraken
+  have different curves; pick the one the real config enables.
+- **Moment of inertia / mass:** CAD can give it; for a roller, `0.5 × m × r²` for a solid cylinder
+  is close enough to start. Too low and the sim mechanism snaps to setpoint instantly, flattering
+  your gains; too high and it lumbers. When the real mechanism behaves differently from the sim,
+  this is the first number to revisit.
+- **Gravity:** `ElevatorSim` and `SingleJointedArmSim` take a `simulateGravity` flag. Enable it for
+  an arm or vertical elevator. Disable it for a horizontal linear rail or a pivot rotating about a
+  vertical axis, using the model appropriate to that motion.
+- **Limits:** min/max height or angle. The model stops at them like a hard stop; without them the
+  sim elevator goes through the ceiling and the plot looks fine.
 
 ### The mechanism visualizer
 
-A number in a table is hard to read; an arm drawn at its angle is not. For each articulated mechanism FRC 4451 keeps a small class (`ElevatorMechanism`, `PivotMechanism`) that owns a `LoggedMechanismLigament2d` and updates it from the subsystem's position every loop:
+A number in a table is hard to read; an arm drawn at its angle is not. For each articulated
+mechanism FRC 4451 keeps a small class (`ElevatorMechanism`, `PivotMechanism`) that owns a
+`LoggedMechanismLigament2d` and updates it from the subsystem's position every loop:
 
 ```java
 public class ElevatorMechanism {
@@ -259,27 +380,43 @@ public class ElevatorMechanism {
 }
 ```
 
-A ligament on its own draws nothing. It has to be appended to a root on a `LoggedMechanism2d`, which a subsystem then records once per loop for AdvantageScope's Mechanism tab to draw. Cobra has the component classes and the configs for that canvas and does not yet build one, so [Mechanism Visualization](/frc/what-a-mechanism-drawing-shows) is where the assembly, the goal-against-measured overlay and the unfinished Cobra work live.
+A ligament on its own draws nothing. It has to be appended to a root on a `LoggedMechanism2d`, which
+a subsystem then records once per loop for AdvantageScope's Mechanism tab to draw. Cobra has the
+component classes and the configs for that canvas and does not yet build one, so
+[Mechanism Visualization](/frc/what-a-mechanism-drawing-shows) is where the assembly, the
+goal-against-measured overlay and the unfinished Cobra work live.
 
-The reason it matters here is that the drawing works identically on the real robot, which is how you check the model against reality: if the drawn arm and the real arm disagree at the same encoder reading, one of the constants above is wrong.
+The reason it matters here is that the drawing works identically on the real robot, which is how you
+check the model against reality: if the drawn arm and the real arm disagree at the same encoder
+reading, one of the constants above is wrong.
 
 <RulesBox title="Common mistakes">
 
-- **Calling <code>sim.update()</code> more than once per loop, or never.** Once, with the real period. Twice runs the world at double speed.
-- **Forgetting the disabled check.** The simulated mechanism keeps chasing its goal while "disabled" and the graphs show behaviour the robot will never have.
-- **Ignoring reduction on the rotor.** The vendor sim state wants <em>rotor</em> rotations: mechanism rotations × reduction. Forget it and the controller thinks the mechanism is <em>reduction</em> times slower than it is.
+- **Calling <code>sim.update()</code> more than once per loop, or never.** Once, with the real
+  period. Twice runs the world at double speed.
+- **Forgetting the disabled check.** The simulated mechanism keeps chasing its goal while "disabled"
+  and the graphs show behaviour the robot will never have.
+- **Ignoring reduction on the rotor.** The vendor sim state wants <em>rotor</em> rotations:
+  mechanism rotations × reduction. Forget it and the controller thinks the mechanism is
+  <em>reduction</em> times slower than it is.
 - **Gravity off.** kG tunes to zero, the real elevator sags.
-- **Tuning gains in a software-loop sim and expecting them to transfer.** They are a starting point. Vendor simulation exercises the device configuration, but its gains still depend on the model matching the physical mechanism.
-- **Hard-coding sim constants in the IO class.** They belong in <code>XxxConstants</code> beside the real ones, so the two cannot drift apart unnoticed.
+- **Tuning gains in a software-loop sim and expecting them to transfer.** They are a starting point.
+  Vendor simulation exercises the device configuration, but its gains still depend on the model
+  matching the physical mechanism.
+- **Hard-coding sim constants in the IO class.** They belong in <code>XxxConstants</code> beside the
+  real ones, so the two cannot drift apart unnoticed.
 
 </RulesBox>
 
 <Sources items={[
+  {"source": "thrifty", "path": "software/thriftylib/latest/simulation", "note": "Nova simulation differs from the Phoenix controller loop: 50 Hz updates and no PID-gain simulation."},
   {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/generic/roller/GenericRollerIOSim.java", "note": "General motor physics behind roller IO; a structural comparison, not a WPILib 2026 drop-in dependency."},
   {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/generic/flywheel/GenericFlywheelIOSim.java", "note": "FlywheelSim in a velocity-focused IO implementation."},
   {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/arm/ArmIOSim.java", "note": "SingleJointedArmSim, software control and input snapshots."},
   {"source": "gompeilib", "path": "src/main/java/edu/wpi/team190/gompeilib/subsystems/elevator/ElevatorIOSim.java", "note": "ElevatorSim as the linear mechanism model."},
   {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html", "note": "<code>DCMotorSim</code>, <code>ElevatorSim</code>, <code>SingleJointedArmSim</code>, <code>FlywheelSim</code>, <code>BatterySim</code>."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/BatterySim.html", "note": "<code>calculateDefaultBatteryLoadedVoltage(double...)</code>, which takes every mechanism's current at once in the proposed <code>SimBattery</code>."},
+  {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/RoboRioSim.html", "note": "<code>setVInVoltage</code>, called from one place per loop."},
   {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/ElevatorSim.html", "note": "Constructor parameters: gearbox, gearing, mass, drum radius, travel limits."},
   {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/SingleJointedArmSim.html", "note": "Arm length, MOI, gravity simulation."},
   {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/DCMotorSim.html", "note": "The generic motor model."},

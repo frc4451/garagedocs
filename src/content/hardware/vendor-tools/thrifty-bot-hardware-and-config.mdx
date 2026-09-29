@@ -10,9 +10,12 @@ difficulty: beginner
 description: "Identify Thrifty Bot CAN devices, configure them with Thrifty Config, and match their IDs and settings to ThriftyLib code."
 ---
 
-### Start with the exact product
+## Start with the Exact Product
 
-Thrifty Bot sells motor controllers, encoders, distance sensors, cameras, power devices, and mechanical parts. Read the product label before choosing instructions. This page focuses on devices that use **Thrifty Config** or **ThriftyLib**, including the Thrifty Nova used by the team library.
+Thrifty Config is the desktop application for discovering, configuring, updating, and testing
+supported Thrifty Bot devices. ThriftyLib is the library your robot program uses to configure
+devices, request output, and read their status. Start by identifying the physical device and the
+software version your project uses.
 
 <ReferenceImage
   src="/media/hardware/nova.png"
@@ -23,39 +26,106 @@ Thrifty Bot sells motor controllers, encoders, distance sensors, cameras, power 
   contain={true}
 />
 
-### Thrifty Config workflow
+## Use the Shared Software Source
 
-1. Power the device from an appropriate protected branch.
-2. Connect the supported configuration path described by the product manual.
-3. Open Thrifty Config and confirm the expected device appears.
-4. Use the identify function or disconnect other devices to match the screen entry to the physical device.
-5. Update supported firmware when the team has approved the version.
-6. Assign a unique CAN ID and label the device.
-7. Set product-specific options, then power-cycle and verify that they persisted.
-8. Match the ID and settings in the robot code.
+**2026 and 2027 use the same ThriftyLib documentation source right now:** the
+[ThriftyLib hub](https://docs.thethriftybot.com/software/thriftylib/latest/overview). GarageDocs
+uses that hub as its definitive source for Thrifty Nova software. Check the linked API reference
+when you need an exact class, method, or parameter.
 
-The Thrifty Nova motor-type setting changes how the controller handles different motor phase conventions. Verify the physical motor before choosing the setting. An incorrect selection can make the observed direction disagree with the wiring and code assumptions.
+The shared source does not make every dependency interchangeable. As checked on September 28, 2026,
+the hub's installation link supplies `ThriftyLib-2027.json`, whose version is `2027.0.0-alpha-3` for
+`2027_alpha5`. Cobra's archived project uses `2026.0.1`. Record the WPILib release, vendordep
+version, Nova firmware, and Thrifty Config version together before following an example.
 
-### Connect the configuration to Cobra
+The current [Thrifty Config download page](https://docs.thethriftybot.com/software/thrifty-config)
+separates the stable release from a 2027 beta paired with 2027 Nova firmware. Choose the application
+and firmware intended for the same setup.
 
-Cobra includes ThriftyLib and defines a `ThriftyNovaConfig` in the shared motor configuration code. The client establishes device identity and firmware. The Java configuration establishes the behavior the program requests each time it starts.
+## Identify and Configure the Nova
 
-<RulesBox title="Done when">
+Before a powered test, secure the mechanism, clear its travel, and keep the power disconnect
+accessible. Follow the device's electrical instructions for protected power and USB connection.
 
-The expected Thrifty Bot device appears in Thrifty Config with the approved firmware, a unique labeled CAN ID, and the correct product-specific options. The same ID and motor type appear in the robot constants.
+1. Read the Nova and motor labels. Record the motor model, sensor connection, and gearing.
+2. Open Thrifty Config and match the detected device to the physical controller. Connect one device
+   at a time if identity is uncertain.
+3. Record the firmware version and select an approved update that matches the intended software.
+4. Assign and label the CAN ID. The current hub documents IDs from `0` through `62`, unique on the
+   selected bus. Record the bus ID as well as the device ID.
+5. Select the motor profile that matches the connected motor. An incorrect profile can cause rough
+   commutation, heating, or failure to turn.
+6. Choose inversion, brake/coast behavior, current limits, and any position limits for this
+   mechanism. A current-limit example from a manual is not a value selected for your fixture.
+7. Save the intended persistent settings, power-cycle, and read them back. Then check which settings
+   robot startup will apply again.
+8. Run a bounded low-output test through robot code. Compare requested output, sensor direction,
+   current, voltage, and faults.
+
+Brake mode resists motion at zero output. It does not actively hold an arm or elevator at a
+commanded position. Plan for gravity before enabling or disabling either mechanism.
+
+## Install ThriftyLib
+
+In a project that matches the selected vendordep, open the WPILib Command Palette in VS Code, choose
+**Manage Vendor Libraries**, then **Install new libraries (online)**. Use the URL shown in the hub's
+[installation instructions](https://docs.thethriftybot.com/software/thriftylib/latest/overview#installation).
+At this review it is `https://software.thethriftybot.com/frcvendor/ThriftyLib-2027.json`.
+
+Build after installation and retain the resolved vendordep file with the project. If you are
+maintaining Cobra's 2026 project, keep its pinned dependency until you deliberately migrate and
+verify the robot code. The current hub documents Java and C++; it describes Python support as
+forthcoming.
+
+## Connect Configuration to Code
+
+The current API constructs a `Nova` with a bus ID, CAN ID, and optionally an explicit `MotorType`.
+Configuration options are collected into a `configure(...)` call. Check the returned status, then
+read the device's `status()` view to compare settings and measurements.
+[Thrifty Nova Control](/frc/thrifty-nova-control) explains the sequence and units.
+
+Cobra's `ThriftyNovaConfig` is a record in the ROBOTZ Garage library, separate from the vendor's
+current `NovaConfig` class. The record stores limits, inversion, gearing, and sensor assumptions,
+but has no motor-type field. Verify the actual motor selection independently.
+
+<RulesBox title="Check Cobra's Effective Limits">
+
+Cobra's archived record uses `Math.max(requestedLimit, 40.0)` for both supply and stator limits. A
+requested limit below 40 A becomes 40 A. Inspect and correct that behavior in a bench adaptation
+before relying on a lower limit, then verify what the controller accepted. Its Nova IO also leaves
+PID gain setup commented out; it is not a complete tuned closed-loop example.
+
+</RulesBox>
+
+## Check Software in Simulation
+
+Use [Thrifty Nova Simulation](/frc/thrifty-nova-simulation) to inspect configuration, output
+direction, clamps, limits, and telemetry before the physical test. The documented simulator ignores
+PID gains. It cannot establish a safe physical current limit or tune the Nova's onboard loop.
+
+<RulesBox title="Done When">
+
+The hardware record identifies the motor, firmware, application, vendordep, bus, and CAN ID. Startup
+configuration matches that record, configuration results have been checked, and a bounded physical
+test confirms the expected direction and plausible sensor readings.
 
 </RulesBox>
 
 <Sources items={[
-  {"url": "https://docs.thethriftybot.com/", "label": "Thrifty Bot Documentation", "note": "Official product, electrical, software, and configuration documentation."},
-  {"url": "https://docs.thethriftybot.com/thrifty-nova/software-resources/getting-started-with-code", "label": "Thrifty Nova: Getting Started with Code", "note": "ThriftyLib installation and CAN-ID-based device construction."},
-  {"url": "https://docs.thethriftybot.com/thrifty-nova/software-resources/configure-controller-settings/motor-type-minion-setting", "label": "Thrifty Nova: Motor Type Setting", "note": "Thrifty Config motor selection and the need to match the physical motor."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java", "note": "The team's <code>ThriftyNovaConfig</code>."},
-  {"source": "cobra", "path": "vendordeps/ThriftyLib-2026.json", "note": "The ThriftyLib dependency used by Cobra."}
+  {"source": "thrifty", "path": "software/thriftylib/latest/overview", "note": "Definitive shared 2026/2027 software source and current installation workflow."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/creating-a-device", "note": "Bus/ID addressing, explicit motor profiles and construction."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/configs", "note": "Ordered configuration, persistence, motor-side and supply current limits."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/error-handling", "note": "Configuration status results."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/simulation", "note": "Supported simulation checks and the PID limitation."},
+  {"url":"https://docs.thethriftybot.com/software/thrifty-config","label":"Thrifty Config Downloads","note":"Application purpose and separation of stable and firmware-paired beta releases."},
+  {"url":"https://software.thethriftybot.com/frcvendor/ThriftyLib-2027.json","label":"Current ThriftyLib Vendordep","note":"Resolved library version and WPILib year checked September 28, 2026."},
+  {"source":"cobra","path":"vendordeps/ThriftyLib-2026.json","note":"Cobra's historical 2026.0.1 dependency."},
+  {"source":"cobra","path":"src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java","note":"ThriftyNovaConfig fields and Math.max current-limit behavior."},
+  {"source":"cobra","path":"src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIONova.java","note":"Older configuration path and commented PID setup."}
 ]} />
 
-<LinkGrid links={[
-  {"label":"Thrifty Bot Documentation","url":"https://docs.thethriftybot.com/"},
-  {"label":"Motor Controller Configuration","url":"/frc/motor-controller-configuration"}
-]} title="Continue" section="hardware" />
-
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Thrifty Nova Control","id":"thrifty-nova-control"},
+  {"label":"Thrifty Nova Simulation","id":"thrifty-nova-simulation"},
+  {"label":"Nova and Motor Runner","url":"/hardware/thrifty-nova-and-motors"}
+]} />

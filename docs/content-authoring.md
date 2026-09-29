@@ -55,6 +55,36 @@ description: Programming and robotics learning for FIRST teams
 
 **Do not add component imports.** All block components are registered in `src/mdx-components.ts` and passed via `<Content components={components} />` in page layouts.
 
+### Prose Line Length
+
+Wrap MDX paragraph and list prose at 100 characters where possible. Run:
+
+```sh
+npm run format:mdx
+npm run lint:mdx
+```
+
+`format:mdx` wraps prose in `src/content/**/*.mdx`. To wrap one file or directory, pass its path:
+
+```sh
+npm run format:mdx -- src/content/badges/badge-2
+```
+
+The formatter preserves code fences, frontmatter, headings, tables, link destinations and MDX
+component markup. It checks the parsed structure before saving each file and refuses changes
+that alter content beyond soft whitespace. Explicit hard breaks are preserved; wrap their prose
+manually if lint reports a long line. Formatting does not replace the existing Java formatter.
+
+The linter uses remark with MDX, frontmatter and GitHub-flavored Markdown support. It checks prose
+inside components too. Code, tables, headings, frontmatter and component attributes are exempt.
+An indivisible link, image, inline-code span or inline MDX element may exceed 100 characters when
+it cannot fit; surrounding prose still wraps. A long ordinary sentence is not exempt.
+
+`npm run lint:mdx` fails on violations and runs in CI. `npm run test:mdx` checks the parser-aware
+wrapping and exceptions. The configuration is `.remarkrc.mjs`; the focused prose rule is in
+`scripts/remark-prose-line-length.mjs`, backed by
+[remark-lint-maximum-line-length](https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-maximum-line-length).
+
 ### Headings and prose
 
 Use plain markdown:

@@ -11,25 +11,35 @@ description: Explain CAN IDs, voltage requests, current limits, and relative enc
 ---
 
 
-Robot code does not power a motor directly. It sends a request to a **motor controller**. The controller switches battery power and, when configured, can limit current and report measurements. Breakers and correctly sized wiring provide separate protection in the power circuit.
+Robot code does not power a motor directly. It sends a request to a **motor controller**. The
+controller switches battery power and, when configured, can limit current and report measurements.
+Breakers and correctly sized wiring provide separate protection in the power circuit.
 
-This curriculum uses REV Robotics SPARK MAX controllers with NEO brushless motors. Focus on four ideas: CAN IDs, voltage commands, current limits, and encoder readings.
+This curriculum uses REV Robotics SPARK MAX controllers with NEO brushless motors. Focus on four
+ideas: CAN IDs, voltage commands, current limits, and encoder readings.
 
-The snippets below explain API calls. Do not paste them into the project yet; R07 provides complete files with imports.
+The snippets below explain API calls. Do not paste them into the project yet; R07 provides complete
+files with imports.
 
 ## Before You Start
 
-Review [Voltage and Current](/hardware/electrical-basics-voltage-current), [Power Wiring and CAN](/hardware/power-wiring-and-can), [R03: Constants](/kit-bot/r03-constants), and the [R00 WPILib setup](/kit-bot/r00-wpilib-setup). You will read examples in this lesson. You will not edit the robot project or power hardware.
+Review [Voltage and Current](/hardware/electrical-basics-voltage-current),
+[Power Wiring and CAN](/hardware/power-wiring-and-can), [R03: Constants](/kit-bot/r03-constants),
+and the [R00 WPILib setup](/kit-bot/r00-wpilib-setup). You will read examples in this lesson. You
+will not edit the robot project or power hardware.
 
 ## CAN IDs Identify Devices
 
-The **controller area network (CAN)** bus is a shared two-wire network. Each device needs its own numeric CAN ID so robot code can address the correct controller.
+The **controller area network (CAN)** bus is a shared two-wire network. Each device needs its own
+numeric CAN ID so robot code can address the correct controller.
 
 ```java
 SparkMax leftLeader = new SparkMax(40, MotorType.kBrushless);
 ```
 
-The `40` must match the ID configured on that physical controller. If two devices share an ID, communication becomes unreliable. If the code uses the wrong ID, it may control a different device or find no device at all.
+The `40` must match the ID configured on that physical controller. If two devices share an ID,
+communication becomes unreliable. If the code uses the wrong ID, it may control a different device
+or find no device at all.
 
 Store IDs in the mechanism's constants class. Name the device as well as its number:
 
@@ -46,7 +56,10 @@ Two common `SparkMax` output methods are:
 | `motor.set(0.5)` | Request half of the available bus voltage. |
 | `motor.setVoltage(6.0)` | Request six volts. |
 
-This curriculum uses `setVoltage` because the requested value stays in volts when battery voltage changes. The controller can only apply voltage available from the battery, and battery sag or a current limit can reduce the measured applied voltage. A voltage request describes motor effort. It does not guarantee a particular speed.
+This curriculum uses `setVoltage` because the requested value stays in volts when battery voltage
+changes. The controller can only apply voltage available from the battery, and battery sag or a
+current limit can reduce the measured applied voltage. A voltage request describes motor effort. It
+does not guarantee a particular speed.
 
 REVLib accepts a bare `double`:
 
@@ -54,18 +67,23 @@ REVLib accepts a bare `double`:
 motor.setVoltage(voltage.in(Volts));
 ```
 
-The subsystem uses a typed `Voltage`. The IO implementation converts it to the raw number REVLib expects.
+The subsystem uses a typed `Voltage`. The IO implementation converts it to the raw number REVLib
+expects.
 
 ## Current Limits Reduce Sustained Current
 
-Current rises when a motor works hard or cannot turn. A current limit tells the controller to reduce output when the configured threshold is reached. The motor, wiring, and breaker still need ratings appropriate for the circuit.
+Current rises when a motor works hard or cannot turn. A current limit tells the controller to reduce
+output when the configured threshold is reached. The motor, wiring, and breaker still need ratings
+appropriate for the circuit.
 
 ```java
 SparkMaxConfig config = new SparkMaxConfig();
 config.smartCurrentLimit(60);
 ```
 
-The correct limit depends on the motor, mechanism, wiring, breaker, and team rules. Use the value approved for the robot's hardware configuration. The later lessons provide simulation starter values. A mentor must approve the values for the physical robot before deployment.
+The correct limit depends on the motor, mechanism, wiring, breaker, and team rules. Use the value
+approved for the robot's hardware configuration. The later lessons provide simulation starter
+values. A mentor must approve the values for the physical robot before deployment.
 
 ## Encoders Measure Motion
 
@@ -76,31 +94,40 @@ double motorRotations = motor.getEncoder().getPosition();
 double motorRpm = motor.getEncoder().getVelocity();
 ```
 
-Position starts from a reference established by the program or controller. It does not tell you an absolute wheel or arm position after power-up.
+Position starts from a reference established by the program or controller. It does not tell you an
+absolute wheel or arm position after power-up.
 
-The drivetrain needs wheel distance rather than motor rotations. The gearbox and wheel size provide the conversion:
+The drivetrain needs wheel distance rather than motor rotations. The gearbox and wheel size provide
+the conversion:
 
 ```text
 wheel rotations = motor rotations / gear ratio
 distance = wheel rotations × π × wheel diameter
 ```
 
-R07 keeps this conversion inside `DriveIOReal`, so the rest of the program reads meters and meters per second.
+R07 keeps this conversion inside `DriveIOReal`, so the rest of the program reads meters and meters
+per second.
 
 ## Leaders and Followers
 
-Each Kit Bot drivetrain side has two motors. Code commands the leader, and the follower mirrors it over CAN. This pattern applies to the drivetrain only. The feeder and intake-launcher motors in R08 perform different jobs and receive separate commands.
+Each Kit Bot drivetrain side has two motors. Code commands the leader, and the follower mirrors it
+over CAN. This pattern applies to the drivetrain only. The feeder and intake-launcher motors in R08
+perform different jobs and receive separate commands.
 
 ```java
 SparkMaxConfig followerConfig = new SparkMaxConfig();
 followerConfig.follow(leaderCanId);
 ```
 
-The second argument to `follow(leaderCanId, invertRelativeToLeader)` selects whether a follower mirrors or opposes its leader. Motor mounting, leader inversion, and this follower relationship all affect wheel direction. R07 records the intended sign contract in simulation. Real direction remains unverified until the mentor-led First Deploy procedure.
+The second argument to `follow(leaderCanId, invertRelativeToLeader)` selects whether a follower
+mirrors or opposes its leader. Motor mounting, leader inversion, and this follower relationship all
+affect wheel direction. R07 records the intended sign contract in simulation. Real direction remains
+unverified until the mentor-led First Deploy procedure.
 
 ## Configuration Happens Once
 
-Create and apply motor configuration when the IO implementation is constructed. Do not reconfigure a controller every 20 ms.
+Create and apply motor configuration when the IO implementation is constructed. Do not reconfigure a
+controller every 20 ms.
 
 ```java
 SparkMaxConfig config = new SparkMaxConfig();
@@ -109,15 +136,20 @@ config.idleMode(IdleMode.kBrake).smartCurrentLimit(60).inverted(false);
 motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
 ```
 
-`kBrake` makes a stopped drivetrain resist motion. `kCoast` lets a mechanism spin down more freely. Choose the mode for the mechanism's intended behavior.
+`kBrake` makes a stopped drivetrain resist motion. `kCoast` lets a mechanism spin down more freely.
+Choose the mode for the mechanism's intended behavior.
 
 ## Save This for the Hardware Session
 
-Do not identify, configure, or power controllers during this lesson. After [R12: First Deploy](/kit-bot/r12-first-deploy), a mentor can lead the checks below with the robot supported according to that procedure.
+Do not identify, configure, or power controllers during this lesson. After
+[R12: First Deploy](/kit-bot/r12-first-deploy), a mentor can lead the checks below with the robot
+supported according to that procedure.
 
-During that session, trace the controller before entering its CAN ID. Find its power wires, the two CAN wires, and the motor cable. A label on the controller should agree with the constant in code.
+During that session, trace the controller before entering its CAN ID. Find its power wires, the two
+CAN wires, and the motor cable. A label on the controller should agree with the constant in code.
 
-These photo-rich build threads show several workable layouts. Compare them to your robot instead of copying a wire position from a photo.
+These photo-rich build threads show several workable layouts. Compare them to your robot instead of
+copying a wire position from a photo.
 
 <LinkGrid title="Electrical Layout Examples" links={[
   {"label":"YETI Robotics KitBot","url":"https://www.chiefdelphi.com/t/frc-3506-yeti-robotics-2026-build-thread/511666","description":"Photos of a wired KitBot plus shooter tests and motor-speed evidence."},
@@ -125,7 +157,9 @@ These photo-rich build threads show several workable layouts. Compare them to yo
   {"label":"Garage Gang KitBot","url":"https://www.chiefdelphi.com/t/frc-11025-garage-gang-2026-build-thread-open-alliance/510259","description":"Assembly photos and notes from diagnosing CAN communication."}
 ]} />
 
-For the hardware session, take one clear overhead photo before the first powered test. Mark each controller's CAN ID on a copy of the photo. A mentor should still inspect the real wiring before power is applied.
+For the hardware session, take one clear overhead photo before the first powered test. Mark each
+controller's CAN ID on a copy of the photo. A mentor should still inspect the real wiring before
+power is applied.
 
 ## Check Your Understanding
 
@@ -140,11 +174,14 @@ For each observation, name the first fact you would check:
 
 ## Why the Next Lessons Use an IO Interface
 
-REVLib types belong in the real IO implementation. Simulation types belong in the simulation implementation. The subsystem calls the small interface shared by both. This keeps motor configuration, unit conversion, and sensor reads in one place.
+REVLib types belong in the real IO implementation. Simulation types belong in the simulation
+implementation. The subsystem calls the small interface shared by both. This keeps motor
+configuration, unit conversion, and sensor reads in one place.
 
 <RulesBox title="Done When">
 
-You can explain what a CAN ID identifies, why a voltage request is not a speed guarantee, what a current limit protects, and what the NEO encoder reports. No project file changes are required.
+You can explain what a CAN ID identifies, why a voltage request is not a speed guarantee, what a
+current limit protects, and what the NEO encoder reports. No project file changes are required.
 
 </RulesBox>
 

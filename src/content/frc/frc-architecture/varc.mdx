@@ -11,21 +11,38 @@ duration: 25 min
 description: "The one-object-per-target pattern FRC 4451 has aligned with since 2024: a VARC recomputes a target's distance and the heading to face it every loop, and every consumer (teleop aim, path-follower rotation override, shoot-on-the-move, readiness triggers) reads the same answer. How it grew from Ember's rotation override to Cobra's library class, and how to write one."
 ---
 
-Every robot the team has built since 2024 has answered the same question the same way: *which way should the robot face right now, and how far away is the thing it is facing?* The answer is a **VARC**, one small object per field target, recomputed every loop inside [BobotState](/frc/bobot-state), and read by anything that needs to aim: the driver's rotation stick, the autonomous path follower, shoot-on-the-move, the trigger that says a shot is possible. The name is from 2024, **Vision Assisted Rotation Correction**, when the heading came straight from a seen AprilTag; today it comes from the fused pose, and the name stayed.
+Every robot the team has built since 2024 has answered the same question the same way: *which way
+should the robot face right now, and how far away is the thing it is facing?* The answer is a
+**VARC**, one small object per field target, recomputed every loop inside
+[BobotState](/frc/bobot-state), and read by anything that needs to aim: the driver's rotation stick,
+the autonomous path follower, shoot-on-the-move, the trigger that says a shot is possible. The name
+is from 2024, **Vision Assisted Rotation Correction**, when the heading came straight from a seen
+AprilTag; today it comes from the fused pose, and the name stayed.
 
-This page is why the pattern exists, how it has changed over three robots, what a VARC computes, and how to add one.
+This page is why the pattern exists, how it has changed over three robots, what a VARC computes, and
+how to add one.
 
 <RulesBox title="Before you start">
 
-[Pose Geometry](/frc/pose-geometry) for `relativeTo` and the arrow naming, [VirtualSubsystem](/frc/virtual-subsystem) and [BobotState](/frc/bobot-state) for where the objects live and when they update.
+[Pose Geometry](/frc/pose-geometry) for `relativeTo` and the arrow naming,
+[VirtualSubsystem](/frc/virtual-subsystem) and [BobotState](/frc/bobot-state) for where the objects
+live and when they update.
 
 </RulesBox>
 
 ### The problem it solves
 
-Aiming looks like a command problem: a command reads the pose, works out the heading to the target, and turns the robot. Written that way, the geometry ends up copied into every command that aims (teleop aim, an auto that shoots at the end of a path, shoot-on-the-move, an auto-align to a loading station), each with its own alliance flip, its own `atan2`, and its own bugs. When the target changes, or a lookahead is added for shooting while moving, every copy has to change.
+Aiming looks like a command problem: a command reads the pose, works out the heading to the target,
+and turns the robot. Written that way, the geometry ends up copied into every command that aims
+(teleop aim, an auto that shoots at the end of a path, shoot-on-the-move, an auto-align to a loading
+station), each with its own alliance flip, its own `atan2`, and its own bugs. When the target
+changes, or a lookahead is added for shooting while moving, every copy has to change.
 
-A VARC moves the geometry out of the commands. One object per target owns the calculation, `BobotState` updates every VARC once per loop before any command runs, and the commands read a `Rotation2d` and a `Distance`. The consumers do not know how the answer was computed. That is what makes the team's alignment strategies fast to change: a new target is one class, a new consumer is one supplier.
+A VARC moves the geometry out of the commands. One object per target owns the calculation,
+`BobotState` updates every VARC once per loop before any command runs, and the commands read a
+`Rotation2d` and a `Distance`. The consumers do not know how the answer was computed. That is what
+makes the team's alignment strategies fast to change: a new target is one class, a new consumer is
+one supplier.
 
 ### Three robots, one idea
 
@@ -38,7 +55,12 @@ A VARC moves the geometry out of the commands. One object per target owns the ca
   ]}
 />
 
-Two things changed across the years and one did not. The target object grew a distance (2025) and a pose (2026), because consumers started needing more than a heading: a shot table keyed by distance, a trigger that fires inside a range, a drive-to-pose. Selection moved from a mode enum (2024) to "closest by distance" (2025) to "by field zone, then closest" (2026). What did not change is the shape: an object per target with an `update()` that `BobotState` calls every loop, and consumers that take a `Supplier` of the result.
+Two things changed across the years and one did not. The target object grew a distance (2025) and a
+pose (2026), because consumers started needing more than a heading: a shot table keyed by distance,
+a trigger that fires inside a range, a drive-to-pose. Selection moved from a mode enum (2024) to
+"closest by distance" (2025) to "by field zone, then closest" (2026). What did not change is the
+shape: an object per target with an `update()` that `BobotState` calls every loop, and consumers
+that take a `Supplier` of the result.
 
 ### What a VARC holds
 
@@ -53,7 +75,9 @@ public abstract class TargetVARC {
 }
 ```
 
-In arrow terms: `targetPose` is `FieldToTarget`, `distance` is the length of `RobotToTarget`, and `rotationTarget` is the Field heading of `RobotToTarget`. All three are answers to "from where the robot is *now*", which is why they are recomputed every loop rather than cached.
+In arrow terms: `targetPose` is `FieldToTarget`, `distance` is the length of `RobotToTarget`, and
+`rotationTarget` is the Field heading of `RobotToTarget`. All three are answers to "from where the
+robot is *now*", which is why they are recomputed every loop rather than cached.
 
 ### HubVARC, read line by line
 
@@ -80,37 +104,69 @@ public class HubVARC extends TargetVARC {
 }
 ```
 
-Step 2 carries the comment that matters most in the file: distance is measured from where the robot is, and only the aim uses the lookahead. Shoot-on-the-move needs the heading for where the robot *will* be when the shot lands, but the flywheel speed is looked up for the distance it is at now; mixing the two puts the wrong speed on the right heading.
+Step 2 carries the comment that matters most in the file: distance is measured from where the robot
+is, and only the aim uses the lookahead. Shoot-on-the-move needs the heading for where the robot
+*will* be when the shot lands, but the flywheel speed is looked up for the distance it is at now;
+mixing the two puts the wrong speed on the right heading.
 
-`TrenchVARC` shows the other half of the pattern, a target that is chosen rather than fixed: it measures the distance to both trench openings, keeps the nearer one, snaps the rotation target to the closest of 0°, ±90° and 180° with `PoseUtils.getClosestAngle`, and offsets the target pose by the intake's length when the robot will approach sideways.
+`TrenchVARC` shows the other half of the pattern, a target that is chosen rather than fixed: it
+measures the distance to both trench openings, keeps the nearer one, snaps the rotation target to
+the closest of 0°, ±90° and 180° with `PoseUtils.getClosestAngle`, and offsets the target pose by
+the intake's length when the robot will approach sideways.
 
 ### Who reads it
 
-- **Teleop aim.** `DriveCommands.joystickDriveAtAngle(drive, x, y, () -> BobotState.getFuelClusterVARC().getRotationTarget())`: the driver keeps translation on the stick, a `ProfiledPIDController` on heading tracks the supplier.
-- **Shoot on the move.** `ShootOnTheMoveCommand` takes a `Supplier<TargetVARC>` and reads the rotation target every loop; the lookahead is already inside it.
-- **Autonomous.** BLine's `followPathWithRotationTarget(path, () -> BobotState.getHubVARC().getRotationTarget())`: `Drive.applyRotationOverride` swaps the path's rotation for a PID toward the VARC once the remaining path distance is under a threshold. This is the 2024 idea (PathPlanner's rotation override) rebuilt on BLine.
-- **Selection.** `BobotState.getShooterAlignmentVARC()` returns the hub VARC in the near-alliance zone and the closest drop-off VARC elsewhere; `getClosestDropoff()` and `getClosestTraversal()` compare distances every loop.
-- **Triggers.** `isTooCloseToHubToScore()` is `hubVARC.getDistance().lt(Feet.of(7.4))` and the zone trigger, which is a `Trigger` any binding can compose.
+- **Teleop aim.**
+  `DriveCommands.joystickDriveAtAngle(drive, x, y, () -> BobotState.getFuelClusterVARC().getRotationTarget())`:
+  the driver keeps translation on the stick, a `ProfiledPIDController` on heading tracks the
+  supplier.
+- **Shoot on the move.** `ShootOnTheMoveCommand` takes a `Supplier<TargetVARC>` and reads the
+  rotation target every loop; the lookahead is already inside it.
+- **Autonomous.** BLine's
+  `followPathWithRotationTarget(path, () -> BobotState.getHubVARC().getRotationTarget())`:
+  `Drive.applyRotationOverride` swaps the path's rotation for a PID toward the VARC once the
+  remaining path distance is under a threshold. This is the 2024 idea (PathPlanner's rotation
+  override) rebuilt on BLine.
+- **Selection.** `BobotState.getShooterAlignmentVARC()` returns the hub VARC in the near-alliance
+  zone and the closest drop-off VARC elsewhere; `getClosestDropoff()` and `getClosestTraversal()`
+  compare distances every loop.
+- **Triggers.** `isTooCloseToHubToScore()` is `hubVARC.getDistance().lt(Feet.of(7.4))` and the zone
+  trigger, which is a `Trigger` any binding can compose.
 
 ### Update order
 
-`BobotState.periodic()` updates every VARC before the hub interpolator, and the comment in the source says why: `HubVARC` reads the interpolator's lookahead from the previous loop, and the interpolator reads the VARC's distance from this one. One loop of staleness on the lookahead is acceptable; moving the interpolator above the VARCs is not. When you add a VARC that reads another VARC or an interpolator, decide which order is right and write the reason next to the call.
+`BobotState.periodic()` updates every VARC before the hub interpolator, and the comment in the
+source says why: `HubVARC` reads the interpolator's lookahead from the previous loop, and the
+interpolator reads the VARC's distance from this one. One loop of staleness on the lookahead is
+acceptable; moving the interpolator above the VARCs is not. When you add a VARC that reads another
+VARC or an interpolator, decide which order is right and write the reason next to the call.
 
 ### Writing one
 
-1. Extend `TargetVARC` in `frc.robot.bobot_state.varc`. Do not add fields to the library class for one target; put target-specific state in the subclass.
-2. In `update()`: read `BobotState.getGlobalPose()` once; build `targetPose` from a `FieldConstants` pose through `AllianceFlipUtil.apply`; set `distance` from the current pose; compute `rotationTarget` with `relativeTo … getAngle().plus(rotation)` from whichever pose the aim should use.
-3. Construct it as a `static final` field in `BobotState` with `@Getter`, and add its `update()` to `periodic()` in the right place relative to the interpolators.
-4. Log it. The existing VARCs are read on the 2D Field as `targetPose` and as a heading; a new one should appear the same way so a wrong flip is visible before a match.
+1. Extend `TargetVARC` in `frc.robot.bobot_state.varc`. Do not add fields to the library class for
+   one target; put target-specific state in the subclass.
+2. In `update()`: read `BobotState.getGlobalPose()` once; build `targetPose` from a `FieldConstants`
+   pose through `AllianceFlipUtil.apply`; set `distance` from the current pose; compute
+   `rotationTarget` with `relativeTo … getAngle().plus(rotation)` from whichever pose the aim should
+   use.
+3. Construct it as a `static final` field in `BobotState` with `@Getter`, and add its `update()` to
+   `periodic()` in the right place relative to the interpolators.
+4. Log it. The existing VARCs are read on the 2D Field as `targetPose` and as a heading; a new one
+   should appear the same way so a wrong flip is visible before a match.
 5. Consume it through a `Supplier`, never by copying its numbers into a command's fields.
 
 <RulesBox title="Common mistakes">
 
-- **Measuring distance from the lookahead.** The shot table wants the current distance; the aim wants the lookahead heading. `HubVARC` separates them on purpose.
-- **Flipping twice.** `FieldConstants` is blue-alliance; `AllianceFlipUtil.apply` once, in the VARC, and nowhere downstream.
-- **Reading a VARC before it updated.** A `VirtualSubsystem` that runs before `BobotState` sees last loop's values.
-- **Caching the rotation target in a command.** It is recomputed every loop for a reason; take the supplier.
-- **Adding a consumer-specific field to `TargetVARC`.** The library class is the shape every robot shares; per-robot needs go in the subclass.
+- **Measuring distance from the lookahead.** The shot table wants the current distance; the aim
+  wants the lookahead heading. `HubVARC` separates them on purpose.
+- **Flipping twice.** `FieldConstants` is blue-alliance; `AllianceFlipUtil.apply` once, in the VARC,
+  and nowhere downstream.
+- **Reading a VARC before it updated.** A `VirtualSubsystem` that runs before `BobotState` sees last
+  loop's values.
+- **Caching the rotation target in a command.** It is recomputed every loop for a reason; take the
+  supplier.
+- **Adding a consumer-specific field to `TargetVARC`.** The library class is the shape every robot
+  shares; per-robot needs go in the subclass.
 
 </RulesBox>
 

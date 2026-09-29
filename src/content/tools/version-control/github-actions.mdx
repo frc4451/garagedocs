@@ -12,13 +12,18 @@ description: "Read a GitHub Actions result, understand FRC 4451's robot build wo
 
 ## What a Check Proves
 
-GitHub Actions runs automated workflows after selected repository events. A pull request or commit can show a status for each check. A green check means the configured steps completed successfully for that commit. It does not prove behavior that the workflow never checked.
+GitHub Actions runs automated workflows after selected repository events. A pull request or commit
+can show a status for each check. A green check means the configured steps completed successfully
+for that commit. It does not prove behavior that the workflow never checked.
 
-FRC 4451 uses continuous integration (CI) to build shared robot code on a separate runner after a push or pull request. Run relevant checks locally first, then treat CI as a second, clean-environment check of committed files.
+FRC 4451 uses continuous integration (CI) to build shared robot code on a separate runner after a
+push or pull request. Run relevant checks locally first, then treat CI as a second,
+clean-environment check of committed files.
 
 ## The Verified Cobra Workflow
 
-The following is the complete `main` version of `.github/workflows/build.yml` fetched from the public `frc4451/Cobra2026Private` repository during this revision:
+The following is the complete `main` version of `.github/workflows/build.yml` fetched from the
+public `frc4451/Cobra2026Private` repository during this revision:
 
 ```yaml
 name: Build
@@ -54,23 +59,35 @@ jobs:
   ]}
 />
 
-The checkout and container versions above describe the checked-in Cobra workflow. They are not timeless recommendations for a new workflow. Current GitHub and WPILib guidance must be reviewed before changing those pins.
+The checkout and container versions above describe the checked-in Cobra workflow. They are not
+timeless recommendations for a new workflow. Current GitHub and WPILib guidance must be reviewed
+before changing those pins.
 
-The verified Cobra `build.gradle` uses GradleRIO 2026.2.1 and Java 17, configures JUnit Platform tests, and makes `compileJava` depend on `createVersionFile` and `spotlessApply`. Therefore this repository's `./gradlew build` can compile code, run configured tests, generate build metadata, and apply Spotless formatting. Because CI starts from a committed checkout, formatting applied only on the runner does not update the contributor's branch. A contributor should run the project build locally, review any formatting changes, commit them, and push the result.
+The verified Cobra `build.gradle` uses GradleRIO 2026.2.1 and Java 17, configures JUnit Platform
+tests, and makes `compileJava` depend on `createVersionFile` and `spotlessApply`. Therefore this
+repository's `./gradlew build` can compile code, run configured tests, generate build metadata, and
+apply Spotless formatting. Because CI starts from a committed checkout, formatting applied only on
+the runner does not update the contributor's branch. A contributor should run the project build
+locally, review any formatting changes, commit them, and push the result.
 
 ## Open a Pull Request Result
 
 1. Open the pull request in a browser.
-2. Select the area that lists checks. GitHub may show it near the merge section or under the pull request's **Checks** tab.
-3. Select the named check, such as **Build**, then open **Details**. If that route is unclear, select the repository's **Actions** tab, choose the matching workflow run, and confirm its branch and commit.
+2. Select the area that lists checks. GitHub may show it near the merge section or under the pull
+   request's **Checks** tab.
+3. Select the named check, such as **Build**, then open **Details**. If that route is unclear,
+   select the repository's **Actions** tab, choose the matching workflow run, and confirm its branch
+   and commit.
 4. Select the failed job in the left side of the run page.
 5. Expand the first failed step. Read from the start of that step, not only the final red summary.
 
-Confirm that the run's commit matches the latest commit in the pull request. A result for an older commit does not describe newer changes.
+Confirm that the run's commit matches the latest commit in the pull request. A result for an older
+commit does not describe newer changes.
 
 ## Find the First Actionable Failure
 
-Build output often ends with a summary caused by an earlier message. Keep the later context, but start at the first error tied to the failing task. A shortened example looks like this:
+Build output often ends with a summary caused by an earlier message. Keep the later context, but
+start at the first error tied to the failing task. A shortened example looks like this:
 
 ```text
 > Task :compileJava FAILED
@@ -84,7 +101,9 @@ FAILURE: Build failed with an exception.
 Execution failed for task ':compileJava'.
 ```
 
-The actionable location is `RobotContainer.java:42`; the missing symbol is `setTargetSpeed(double)`; and `:compileJava` is the failing task. Open that file and line, then check the method spelling, receiver type, imports, dependency version, and whether a required file was committed.
+The actionable location is `RobotContainer.java:42`; the missing symbol is `setTargetSpeed(double)`;
+and `:compileJava` is the failing task. Open that file and line, then check the method spelling,
+receiver type, imports, dependency version, and whether a required file was committed.
 
 ## Common Result States
 
@@ -102,25 +121,37 @@ The actionable location is `RobotContainer.java:42`; the missing symbol is `setT
 
 ## Diagnose Cobra Build Failures
 
-- For `compileJava FAILED`, start with the first compiler error. Later Java errors may result from it.
-- For a missing file or class that exists locally, run `git status` and confirm the required file was saved and committed. The runner cannot see an unsaved buffer or uncommitted file.
-- For formatting changes, run Cobra's configured build locally, inspect the diff produced by `spotlessApply`, and commit only the intended result.
-- For `Permission denied: ./gradlew`, inspect whether the workflow's execute-permission step ran and succeeded before changing repository file modes.
-- For a dependency download or runner failure, distinguish a transient service/network message from a source-code error before editing code.
+- For `compileJava FAILED`, start with the first compiler error. Later Java errors may result from
+  it.
+- For a missing file or class that exists locally, run `git status` and confirm the required file
+  was saved and committed. The runner cannot see an unsaved buffer or uncommitted file.
+- For formatting changes, run Cobra's configured build locally, inspect the diff produced by
+  `spotlessApply`, and commit only the intended result.
+- For `Permission denied: ./gradlew`, inspect whether the workflow's execute-permission step ran and
+  succeeded before changing repository file modes.
+- For a dependency download or runner failure, distinguish a transient service/network message from
+  a source-code error before editing code.
 
-Repository rules can require named status checks before merge. Open the repository's current rules or ask an owner which checks are required rather than assuming every workflow is a merge requirement.
+Repository rules can require named status checks before merge. Open the repository's current rules
+or ask an owner which checks are required rather than assuming every workflow is a merge
+requirement.
 
 ## Change a Workflow Only When Assigned
 
-Workflow YAML changes automation and can affect every branch or pull request. A student who is only fixing robot code should report an automation problem rather than editing the workflow speculatively.
+Workflow YAML changes automation and can affect every branch or pull request. A student who is only
+fixing robot code should report an automation problem rather than editing the workflow
+speculatively.
 
 For an assigned workflow change:
 
 - Read GitHub's current workflow syntax and the current WPILib CI example.
 - Preserve YAML indentation; indentation defines the structure.
-- Review action versions and container tags from their primary release sources rather than copying the historical Cobra pins.
-- Test through an authorized branch or disposable repository. Do not edit the default branch to experiment.
-- Store private values in GitHub Actions secrets. In workflow syntax, a secret reference has the form `${{ secrets.NAME }}`. Never put the secret value in YAML, logs, or lesson text.
+- Review action versions and container tags from their primary release sources rather than copying
+  the historical Cobra pins.
+- Test through an authorized branch or disposable repository. Do not edit the default branch to
+  experiment.
+- Store private values in GitHub Actions secrets. In workflow syntax, a secret reference has the
+  form `${{ secrets.NAME }}`. Never put the secret value in YAML, logs, or lesson text.
 - Limit workflow and token permissions to the operations the job needs.
 
 No workflow run, repository setting, or secret is changed by this lesson.

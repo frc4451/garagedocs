@@ -11,17 +11,25 @@ duration: 40 min
 description: "One object that owns what the whole robot is doing: FRC 2910's two-layer superstructure (a WantedState set by commands and autos, a CurrentState computed every loop, and an applyStates that drives every subsystem), read from the 2026 code, then rebuilt at Cobra's scale with an intake, a hood and a shooter."
 ---
 
-A subsystem state machine answers "what is this mechanism doing". A **superstructure** answers "what is the robot doing", and drives the mechanisms from that answer. It is the layer where the intake, the hood, the shooter and the drivetrain are made to agree, and it is the layer Cobra does not yet have. This page reads FRC 2910's 2026 superstructure and then builds one the size of Cobra.
+A subsystem state machine answers "what is this mechanism doing". A **superstructure** answers "what
+is the robot doing", and drives the mechanisms from that answer. It is the layer where the intake,
+the hood, the shooter and the drivetrain are made to agree, and it is the layer Cobra does not yet
+have. This page reads FRC 2910's 2026 superstructure and then builds one the size of Cobra.
 
 <RulesBox title="Before you start">
 
-[Subsystem State Machines](/frc/subsystem-state-machines): the superstructure sets wanted states on subsystems built that way. [BobotState](/frc/bobot-state) and [VARC](/frc/varc), because the superstructure reads pose and aiming answers rather than computing them.
+[Subsystem State Machines](/frc/subsystem-state-machines): the superstructure sets wanted states on
+subsystems built that way. [BobotState](/frc/bobot-state) and [VARC](/frc/varc), because the
+superstructure reads pose and aiming answers rather than computing them.
 
 </RulesBox>
 
 ### The shape
 
-2910's `SuperStructure` describes itself in its class comment: it "operates as a state machine with two layers: a `WantedState` set by commands or auto routines, and an internal `CurrentState` that reflects what the robot is actually doing each cycle. Each state drives various subsystems to their appropriate behaviors."
+2910's `SuperStructure` describes itself in its class comment: it "operates as a state machine with
+two layers: a `WantedState` set by commands or auto routines, and an internal `CurrentState` that
+reflects what the robot is actually doing each cycle. Each state drives various subsystems to their
+appropriate behaviors."
 
 Its `periodic()` is the whole design in fifteen lines (abridged):
 
@@ -43,7 +51,10 @@ public void periodic() {
 }
 ```
 
-Read it against the hopper from the previous page: the same three steps, inputs then decide then act, one level up. The inputs are the robot's pose and speeds from `RobotState` (2910's equivalent of BobotState). The decision maps a request to a current state. The action pushes wanted states down to subsystems.
+Read it against the hopper from the previous page: the same three steps, inputs then decide then
+act, one level up. The inputs are the robot's pose and speeds from `RobotState` (2910's equivalent
+of BobotState). The decision maps a request to a current state. The action pushes wanted states down
+to subsystems.
 
 ### The two enums
 
@@ -65,7 +76,11 @@ private enum CurrentState {
 }
 ```
 
-Two things to notice. The wanted states are *intents* in the driver's and the auto's vocabulary: score while moving, pass, home, characterise. And the auto intents are separate values (`AUTO_SCORE` rather than reusing `SCORE_ON_MOVE`), because an auto wants slightly different behaviour (no driver input to honour, a known place to stand) and the superstructure is where that difference lives, not in the auto command.
+Two things to notice. The wanted states are *intents* in the driver's and the auto's vocabulary:
+score while moving, pass, home, characterise. And the auto intents are separate values (`AUTO_SCORE`
+rather than reusing `SCORE_ON_MOVE`), because an auto wants slightly different behaviour (no driver
+input to honour, a known place to stand) and the superstructure is where that difference lives, not
+in the auto command.
 
 The transition is a table:
 
@@ -83,7 +98,9 @@ private CurrentState handleStateTransitions() {
 }
 ```
 
-In 2910's case it is close to one-to-one, because their guards live inside the state functions. The hopper's transition method had a guard in it; a superstructure's may or may not, and either is fine as long as the guard is in one place.
+In 2910's case it is close to one-to-one, because their guards live inside the state functions. The
+hopper's transition method had a guard in it; a superstructure's may or may not, and either is fine
+as long as the guard is in one place.
 
 ### applyStates: one function per state
 
@@ -104,7 +121,8 @@ private void applyStates() {
 }
 ```
 
-Each state function is the coordination logic for that intent, and it only ever *sets wanted states* and *setpoints* on subsystems. The stopped state is the simplest:
+Each state function is the coordination logic for that intent, and it only ever *sets wanted states*
+and *setpoints* on subsystems. The stopped state is the simplest:
 
 ```java
 private void stopped() {
@@ -115,7 +133,8 @@ private void stopped() {
 }
 ```
 
-Four subsystems, four requests, nothing else. A stationary auto shot is the richest one worth reading in full, because it shows a guard on the *outputs* rather than on the transition:
+Four subsystems, four requests, nothing else. A stationary auto shot is the richest one worth
+reading in full, because it shows a guard on the *outputs* rather than on the transition:
 
 ```java
 private void autoScoreStationary() {
@@ -138,7 +157,11 @@ private void autoScoreStationary() {
 }
 ```
 
-Aim the drivetrain at the hub, look up the shot from distance, spin the shooter, and feed only when the shooter reports it is at speed *and* the swerve reports it is on heading. That `if` is the interlock between three subsystems, and it is written once. Compare it with the Cobra shooter's `runShooterToHub()` command plus a readiness `Trigger` plus a feed binding: the same logic, in three files.
+Aim the drivetrain at the hub, look up the shot from distance, spin the shooter, and feed only when
+the shooter reports it is at speed *and* the swerve reports it is on heading. That `if` is the
+interlock between three subsystems, and it is written once. Compare it with the Cobra shooter's
+`runShooterToHub()` command plus a readiness `Trigger` plus a feed binding: the same logic, in three
+files.
 
 ### Setting the wanted state
 
@@ -156,11 +179,16 @@ controller
     .onFalse(Commands.runOnce(() -> superStructure.setWantedStateCommand(DEFAULT_STATE)));
 ```
 
-Every binding is two `runOnce` calls: enter an intent on press, return to `DEFAULT_STATE` on release. `DEFAULT_STATE` is itself a full behaviour (2910's default keeps the shooter spinning at a distance-based RPM and lets the driver drive), so "release" never means "do nothing"; it means "do the default". The next page is about that relationship between states and commands.
+Every binding is two `runOnce` calls: enter an intent on press, return to `DEFAULT_STATE` on
+release. `DEFAULT_STATE` is itself a full behaviour (2910's default keeps the shooter spinning at a
+distance-based RPM and lets the driver drive), so "release" never means "do nothing"; it means "do
+the default". The next page is about that relationship between states and commands.
 
 ### Rebuilding it at Cobra's scale
 
-Cobra has an intake with an end effector, a hood, a shooter flywheel, and BobotState with a `HubVARC` that already knows the heading and distance to the hub. A superstructure for it needs four intents to start:
+Cobra has an intake with an end effector, a hood, a shooter flywheel, and BobotState with a
+`HubVARC` that already knows the heading and distance to the hub. A superstructure for it needs four
+intents to start:
 
 ```java
 public class Superstructure extends SubsystemBase {
@@ -227,19 +255,35 @@ public class Superstructure extends SubsystemBase {
 }
 ```
 
-What is real and what is proposed: `BobotState.getHubVARC()`, `getShooterAlignmentVARC()` and its `getRotationTarget()`, `BobotState.getGlobalPose()`, `shooter.isNearHubVelocity(...)` and `hood.isNearGoal(...)` exist in Cobra today. `Intake.WantedState`, `Shooter.WantedState` and `hood.setWantedState` do not; they are the previous page's pattern applied to those three subsystems, and `hoodStateFor(distance)` is the zone logic currently written as BobotState triggers in `RobotContainer`, moved into one function. The `SCORE` row is the whole reason to build this: preparing and shooting are two current states behind one intent, and the interlock (`aimed && atSpeed && hoodReady`) is written once.
+What is real and what is proposed: `BobotState.getHubVARC()`, `getShooterAlignmentVARC()` and its
+`getRotationTarget()`, `BobotState.getGlobalPose()`, `shooter.isNearHubVelocity(...)` and
+`hood.isNearGoal(...)` exist in Cobra today. `Intake.WantedState`, `Shooter.WantedState` and
+`hood.setWantedState` do not; they are the previous page's pattern applied to those three
+subsystems, and `hoodStateFor(distance)` is the zone logic currently written as BobotState triggers
+in `RobotContainer`, moved into one function. The `SCORE` row is the whole reason to build this:
+preparing and shooting are two current states behind one intent, and the interlock
+(`aimed && atSpeed && hoodReady`) is written once.
 
 <RulesBox title="What the superstructure never does">
 
-- **Talk to hardware.** It sets wanted states and setpoints on subsystems. Motor calls stay in the subsystems, behind their IO layers.
-- **Compute geometry.** Distance and heading come from BobotState's VARCs, exactly as today. The superstructure consumes answers.
-- **Sequence with timers.** "Spin up, then wait 0.5 s, then feed" is a smell. Feed when the shooter *reports* it is at speed. If a step has no sensor to confirm it, that is a hardware gap to fix before the state machine papers over it.
+- **Talk to hardware.** It sets wanted states and setpoints on subsystems. Motor calls stay in the
+  subsystems, behind their IO layers.
+- **Compute geometry.** Distance and heading come from BobotState's VARCs, exactly as today. The
+  superstructure consumes answers.
+- **Sequence with timers.** "Spin up, then wait 0.5 s, then feed" is a smell. Feed when the shooter
+  *reports* it is at speed. If a step has no sensor to confirm it, that is a hardware gap to fix
+  before the state machine papers over it.
 
 </RulesBox>
 
 ### Where it runs
 
-2910's superstructure `extends SubsystemBase`, so the scheduler runs its `periodic()` and it is constructed in `RobotContainer` with references to every other subsystem. It declares no requirements and no command ever requires it; it is a subsystem only to get a periodic call. FRC 4451 has a cleaner home for that: a [VirtualSubsystem](/frc/virtual-subsystem), which is exactly "a heartbeat without the scheduler", and it should run *after* BobotState has updated its VARCs in the same loop. The [last page of this group](/frc/superstructure-for-cobra) settles the ordering.
+2910's superstructure `extends SubsystemBase`, so the scheduler runs its `periodic()` and it is
+constructed in `RobotContainer` with references to every other subsystem. It declares no
+requirements and no command ever requires it; it is a subsystem only to get a periodic call. FRC
+4451 has a cleaner home for that: a [VirtualSubsystem](/frc/virtual-subsystem), which is exactly "a
+heartbeat without the scheduler", and it should run *after* BobotState has updated its VARCs in the
+same loop. The [last page of this group](/frc/superstructure-for-cobra) settles the ordering.
 
 <Sources items={[
   {"source": "frc2910", "path": "src/main/java/org/frc2910/robot/subsystems/SuperStructure.java", "note": "The class comment, WantedState and CurrentState enums, periodic, handleStateTransitions, applyStates, stopped, autoScoreStationary and setWantedStateCommand quoted above."},

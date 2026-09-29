@@ -12,9 +12,15 @@ description: "Understand IPv4 addresses, subnet masks, DHCP, name resolution, po
 
 ## What This Page Helps You Diagnose
 
-Picture the path first: an application sends data through your laptop's network adapter, across a cable or Wi-Fi link, through any switch or router, and to the target device. A **packet** is one formatted unit of that data. A **network interface** is the operating system's connection to an adapter or virtual network. This page explains the concepts used in [Network Diagnostics](/tools/network-diagnostics) and [Setting a Static IP](/tools/setting-a-static-ip).
+Picture the path first: an application sends data through your laptop's network adapter, across a
+cable or Wi-Fi link, through any switch or router, and to the target device. A **packet** is one
+formatted unit of that data. A **network interface** is the operating system's connection to an
+adapter or virtual network. This page explains the concepts used in
+[Network Diagnostics](/tools/network-diagnostics) and
+[Setting a Static IP](/tools/setting-a-static-ip).
 
-None of this is specific to robots. The FRC track applies it to a robot's network in [The Robot Network](/frc/robot-network).
+None of this is specific to robots. The FRC track applies it to a robot's network in
+[The Robot Network](/frc/robot-network).
 
 <ReferenceImage
   src="/media/tools/osi-model.svg"
@@ -27,9 +33,12 @@ None of this is specific to robots. The FRC track applies it to a robot's networ
 
 ## Addresses
 
-An **IPv4 address** is written as four numbers from 0 to 255, such as `192.168.1.42`. IP uses addresses to identify the source and destination of packets. A network interface can have more than one address, and addresses can change. IPv6 uses a different format; the examples here use IPv4.
+An **IPv4 address** is written as four numbers from 0 to 255, such as `192.168.1.42`. IP uses
+addresses to identify the source and destination of packets. A network interface can have more than
+one address, and addresses can change. IPv6 uses a different format; the examples here use IPv4.
 
-The following ranges have different purposes. The first three are private address ranges; link-local and loopback addresses are separate categories.
+The following ranges have different purposes. The first three are private address ranges; link-local
+and loopback addresses are separate categories.
 
 <ContentTable
   headers={["Range", "Where you meet it"]}
@@ -42,11 +51,16 @@ The following ranges have different purposes. The first three are private addres
   ]}
 />
 
-A `169.254.x.x` address can support communication on the local link. It often appears when automatic configuration cannot obtain a DHCP lease; it does not mean the device is alone. `127.0.0.1` refers to the computer itself. See [IPv4 link-local addressing](https://www.rfc-editor.org/rfc/rfc3927.html).
+A `169.254.x.x` address can support communication on the local link. It often appears when automatic
+configuration cannot obtain a DHCP lease; it does not mean the device is alone. `127.0.0.1` refers
+to the computer itself. See
+[IPv4 link-local addressing](https://www.rfc-editor.org/rfc/rfc3927.html).
 
 ## Subnet Masks
 
-The **subnet mask** identifies the network portion of an IPv4 address. The laptop uses its address, mask, and routing table to decide whether a destination is on a directly connected network or needs a router.
+The **subnet mask** identifies the network portion of an IPv4 address. The laptop uses its address,
+mask, and routing table to decide whether a destination is on a directly connected network or needs
+a router.
 
 <ContentTable
   headers={["Mask / prefix", "Example laptop", "Calculated network", "Examples treated as on-link"]}
@@ -57,38 +71,62 @@ The **subnet mask** identifies the network portion of an IPv4 address. The lapto
   ]}
 />
 
-`/24` is the shorthand you will see in tools: the number of leading bits that are "network". Every `255` is eight bits, so `255.255.255.0` is 24 and `255.0.0.0` is 8. The familiar "first three numbers" shortcut works for `/24`, but subnet comparison is actually bitwise; prefixes such as `/20` can divide an octet.
+`/24` is the shorthand you will see in tools: the number of leading bits that are "network". Every
+`255` is eight bits, so `255.255.255.0` is 24 and `255.0.0.0` is 8. The familiar "first three
+numbers" shortcut works for `/24`, but subnet comparison is actually bitwise; prefixes such as `/20`
+can divide an octet.
 
-The calculated network address identifies the subnet rather than a normal host. In a conventional IPv4 subnet, the all-ones host value is the broadcast address and is also excluded from the ordinary host range. Special-purpose links can use different rules, so use the network plan rather than choosing an endpoint yourself.
+The calculated network address identifies the subnet rather than a normal host. In a conventional
+IPv4 subnet, the all-ones host value is the broadcast address and is also excluded from the ordinary
+host range. Special-purpose links can use different rules, so use the network plan rather than
+choosing an endpoint yourself.
 
-For a basic directly connected subnet, compare the network parts of the addresses using the configured mask. An on-link destination is reached through the local interface. Other destinations need a matching route, often through the default gateway. Matching addresses and masks alone do not prove a working connection.
+For a basic directly connected subnet, compare the network parts of the addresses using the
+configured mask. An on-link destination is reached through the local interface. Other destinations
+need a matching route, often through the default gateway. Matching addresses and masks alone do not
+prove a working connection.
 
-For example, `10.0.0.20/24` treats `10.0.0.5` as local but needs a route for `10.0.1.5`. With `/8`, both are treated as local. The remote device also needs a valid path back. Use the network's intended mask rather than widening it until a test happens to pass.
+For example, `10.0.0.20/24` treats `10.0.0.5` as local but needs a route for `10.0.1.5`. With `/8`,
+both are treated as local. The remote device also needs a valid path back. Use the network's
+intended mask rather than widening it until a test happens to pass.
 
 ## DHCP and Static Addresses
 
 Two common configuration methods are DHCP and a manually assigned static address.
 
-**DHCP:** a server leases an address and supplies settings such as a subnet mask and gateway. The address may change when the lease or network changes. Many laptop networks use DHCP.
+**DHCP:** a server leases an address and supplies settings such as a subnet mask and gateway. The
+address may change when the lease or network changes. Many laptop networks use DHCP.
 
-**Static:** an administrator configures the address on the device. Keep an allocation record so two devices do not receive the same address.
+**Static:** an administrator configures the address on the device. Keep an allocation record so two
+devices do not receive the same address.
 
-Use the network's addressing plan. A device that needs a stable address can use a static configuration or a DHCP reservation. On a direct connection without DHCP, a static address may be needed to reach the device's configured subnet. See [Setting a static IP](/tools/setting-a-static-ip).
+Use the network's addressing plan. A device that needs a stable address can use a static
+configuration or a DHCP reservation. On a direct connection without DHCP, a static address may be
+needed to reach the device's configured subnet. See
+[Setting a static IP](/tools/setting-a-static-ip).
 
-Keep manually assigned addresses outside the DHCP allocation pool, or coordinate them through the server's reservation settings. Record the addresses where the team can find them.
+Keep manually assigned addresses outside the DHCP allocation pool, or coordinate them through the
+server's reservation settings. Record the addresses where the team can find them.
 
 ## Names and Numbers
 
 **Name resolution** finds addresses from names:
 
-- **DNS** asks a DNS server for records associated with a name. The server may be on the local network or reached through other networks. Local DNS does not inherently require internet access.
-- **mDNS** uses multicast on the local link to resolve names such as `mydevice.local`. Support depends on the operating system, services, and network configuration. It does not normally cross routers.
+- **DNS** asks a DNS server for records associated with a name. The server may be on the local
+  network or reached through other networks. Local DNS does not inherently require internet access.
+- **mDNS** uses multicast on the local link to resolve names such as `mydevice.local`. Support
+  depends on the operating system, services, and network configuration. It does not normally cross
+  routers.
 
-If a connection works by the expected address but not by name, compare the address returned by name resolution. A stale or missing answer is one possible cause; this test does not validate every part of the network.
+If a connection works by the expected address but not by name, compare the address returned by name
+resolution. A stale or missing answer is one possible cause; this test does not validate every part
+of the network.
 
 ## Ports
 
-A **port** identifies a transport endpoint for a service. For example, `10.0.0.5:8080` specifies an address and port. TCP and UDP use separate port spaces. A successful TCP connection does not test a UDP service on the same number.
+A **port** identifies a transport endpoint for a service. For example, `10.0.0.5:8080` specifies an
+address and port. TCP and UDP use separate port spaces. A successful TCP connection does not test a
+UDP service on the same number.
 
 <ContentTable
   headers={["Port", "Usually"]}
@@ -100,19 +138,29 @@ A **port** identifies a transport endpoint for a service. For example, `10.0.0.5
   ]}
 />
 
-A device may answer ping while a particular service is unavailable. Check the port, protocol, listening address, and firewall as well as whether the service is running.
+A device may answer ping while a particular service is unavailable. Check the port, protocol,
+listening address, and firewall as well as whether the service is running.
 
 ## Hardware Addresses
 
-Ethernet and Wi-Fi interfaces use **MAC addresses** on the local link. A typical address has six hexadecimal pairs, such as `d8:3a:dd:4e:72:0f`. Addresses may be assigned by the manufacturer or configured locally; Wi-Fi privacy features can randomize them.
+Ethernet and Wi-Fi interfaces use **MAC addresses** on the local link. A typical address has six
+hexadecimal pairs, such as `d8:3a:dd:4e:72:0f`. Addresses may be assigned by the manufacturer or
+configured locally; Wi-Fi privacy features can randomize them.
 
-For a globally assigned address, its prefix can help identify the manufacturer. It is a clue, not proof of device identity. The laptop's **ARP cache** maps IPv4 neighbors to MAC addresses; it is not an inventory of all devices. [Check Known Neighbors](/tools/network-diagnostics#rung-3-check-known-neighbors) explains how to inspect it.
+For a globally assigned address, its prefix can help identify the manufacturer. It is a clue, not
+proof of device identity. The laptop's **ARP cache** maps IPv4 neighbors to MAC addresses; it is not
+an inventory of all devices.
+[Check Known Neighbors](/tools/network-diagnostics#rung-3-check-known-neighbors) explains how to
+inspect it.
 
 ## Multiple Connections
 
-A laptop can have Ethernet, Wi-Fi, and VPN connections active at once. Its routes determine where traffic goes. If overlapping networks make the route unclear, temporarily disconnect an unneeded connection and repeat the test.
+A laptop can have Ethernet, Wi-Fi, and VPN connections active at once. Its routes determine where
+traffic goes. If overlapping networks make the route unclear, temporarily disconnect an unneeded
+connection and repeat the test.
 
-Wireless interference and damaged cables can both cause intermittent failures. Compare repeated tests and check link indicators before deciding which connection or device is at fault.
+Wireless interference and damaged cables can both cause intermittent failures. Compare repeated
+tests and check link indicators before deciding which connection or device is at fault.
 
 <RulesBox title="Common Checks">
 

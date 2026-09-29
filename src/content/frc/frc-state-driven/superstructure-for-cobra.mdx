@@ -11,19 +11,33 @@ duration: 40 min
 description: "The design exercise that closes the group: where a superstructure sits in Cobra's loop (a VirtualSubsystem after BobotState, before the scheduler), which subsystems convert and which keep their command factories, how the hood's zone triggers and the shooter's readiness fold into states, a migration order that keeps the robot driveable at every step, and what to leave alone."
 ---
 
-The previous pages read other teams' code. This one is a design exercise on FRC 4451's: given Cobra as it is on `main`, where would a superstructure go, what would change, and in what order, so the robot drives at the end of every step. Nothing here is in the repository. It is the plan a student would bring to a mentor before writing the first line.
+The previous pages read other teams' code. This one is a design exercise on FRC 4451's: given Cobra
+as it is on `main`, where would a superstructure go, what would change, and in what order, so the
+robot drives at the end of every step. Nothing here is in the repository. It is the plan a student
+would bring to a mentor before writing the first line.
 
 <RulesBox title="Before you start">
 
-Every page in this group, plus [VirtualSubsystem](/frc/virtual-subsystem), [BobotState](/frc/bobot-state), [VARC](/frc/varc) and [Cobra Repository Tour](/frc/cobra-repository-tour). Have the `RobotContainer`, `Hood`, `Intake`, `Shooter` and `AutonomousManager` sources open.
+Every page in this group, plus [VirtualSubsystem](/frc/virtual-subsystem),
+[BobotState](/frc/bobot-state), [VARC](/frc/varc) and
+[Cobra Repository Tour](/frc/cobra-repository-tour). Have the `RobotContainer`, `Hood`, `Intake`,
+`Shooter` and `AutonomousManager` sources open.
 
 </RulesBox>
 
 ### Where it runs in the loop
 
-Cobra's `Robot.robotPeriodic()` runs `VirtualSubsystem.runPeriodically()` first and `CommandScheduler.getInstance().run()` second. Virtual subsystems run in construction order; `BobotState` is constructed in `RobotContainer` and updates its VARCs in its `periodic()`. The scheduler then polls triggers, runs commands, and calls every `SubsystemBase.periodic()`.
+Cobra's `Robot.robotPeriodic()` runs `VirtualSubsystem.runPeriodically()` first and
+`CommandScheduler.getInstance().run()` second. Virtual subsystems run in construction order;
+`BobotState` is constructed in `RobotContainer` and updates its VARCs in its `periodic()`. The
+scheduler then polls triggers, runs commands, and calls every `SubsystemBase.periodic()`.
 
-That fixes the superstructure's place: a `VirtualSubsystem` constructed *after* `BobotState`. Each loop it then runs after the VARCs are fresh and before any subsystem's `periodic()`, so the wanted states it sets are applied by the subsystems in the same loop. The one lag to know about: the readiness it reads (`isNearHubVelocity`, `isNearGoal`) comes from inputs the subsystems updated in the *previous* loop's `periodic()`. Twenty milliseconds, the same lag every trigger on the robot already has.
+That fixes the superstructure's place: a `VirtualSubsystem` constructed *after* `BobotState`. Each
+loop it then runs after the VARCs are fresh and before any subsystem's `periodic()`, so the wanted
+states it sets are applied by the subsystems in the same loop. The one lag to know about: the
+readiness it reads (`isNearHubVelocity`, `isNearGoal`) comes from inputs the subsystems updated in
+the *previous* loop's `periodic()`. Twenty milliseconds, the same lag every trigger on the robot
+already has.
 
 ```java
 // RobotContainer constructor, in this order
@@ -31,7 +45,9 @@ new BobotState();
 superstructure = new Superstructure(intake, hood, shooter);
 ```
 
-2910 makes its superstructure a `SubsystemBase` to get a periodic call; the ROBOTZ Garage library already has the better tool for "runs every loop, owns no hardware", and BobotState is the precedent.
+2910 makes its superstructure a `SubsystemBase` to get a periodic call; the ROBOTZ Garage library
+already has the better tool for "runs every loop, owns no hardware", and BobotState is the
+precedent.
 
 ### Which subsystems convert
 
@@ -47,7 +63,8 @@ Two subsystems convert, one gains a setter, two stay. That is the whole scope.
 
 ### The intents
 
-Read `RobotContainer`'s bindings and `AutonomousManager` and list what the robot is ever asked to do. For Cobra that list is short:
+Read `RobotContainer`'s bindings and `AutonomousManager` and list what the robot is ever asked to
+do. For Cobra that list is short:
 
 ```java
 public enum WantedState {
@@ -67,7 +84,10 @@ private enum CurrentState {
 }
 ```
 
-Everything BobotState already exposes as a `Trigger` is an input to this machine, not a state of it: `isNearTrench`, `shouldStopFeedingFuelToShooter`, `isTooCloseToHubToScore`, the zone triggers. They were written for exactly this use, gating a behaviour; they were just consumed by bindings instead of by one function.
+Everything BobotState already exposes as a `Trigger` is an input to this machine, not a state of it:
+`isNearTrench`, `shouldStopFeedingFuelToShooter`, `isTooCloseToHubToScore`, the zone triggers. They
+were written for exactly this use, gating a behaviour; they were just consumed by bindings instead
+of by one function.
 
 ### The transition method, with Cobra's guards
 
@@ -92,32 +112,54 @@ private CurrentState handleStateTransitions() {
 }
 ```
 
-The tolerances are `LoggedTunableNumber`s, the same way `Hood` already declares its three angles, so they are tuned from the dashboard ([Tunable Constants](/frc/tunable-constants-and-characterization)). Every boolean in the method is logged beside the state, per [Debugging State Machines](/frc/debugging-state-machines).
+The tolerances are `LoggedTunableNumber`s, the same way `Hood` already declares its three angles, so
+they are tuned from the dashboard
+([Tunable Constants](/frc/tunable-constants-and-characterization)). Every boolean in the method is
+logged beside the state, per [Debugging State Machines](/frc/debugging-state-machines).
 
 ### Migration order
 
-Each step leaves a robot that drives, intakes and shoots. Do them on a branch, one per practice session, with the [simulation](/frc/running-the-simulator) run and a match log read before the next.
+Each step leaves a robot that drives, intakes and shoots. Do them on a branch, one per practice
+session, with the [simulation](/frc/running-the-simulator) run and a match log read before the next.
 
-1. **Add the superstructure with only `IDLE` and `INTAKE`**, driving the intake's new state machine. Every other binding stays as it is. Prove: intake behaves as before; `Superstructure/CurrentState` and `Intake/SystemState` appear in the log.
-2. **Move the hood's zone logic in.** Delete the four `BobotState.in…Zone()` bindings; `hoodStateFor(distance)` returns the same three answers from the same VARC distance. Prove: the hood changes state at the same field positions as before (compare two logs).
-3. **Add `SCORE_HUB`** with the shooter converted. `runShooterToHub()` becomes the `HUB` arm of the shooter's `applyState`; the feed logic that lived in bindings becomes the guard above. Prove: a shot from each zone in simulation, then the readiness booleans and the state on one AdvantageScope graph.
-4. **Convert the autos.** In `AutonomousManager`, replace `shooter.runShooterToHub().withTimeout(...)` with `setWantedState(SCORE_HUB)` followed by `waitUntil(superstructure.hasShot())` and a timeout backstop, as 2910's `scoreStationary()` does. Prove: every auto in [Autonomous Simulation](/frc/autonomous-simulation), then on the robot.
+1. **Add the superstructure with only `IDLE` and `INTAKE`**, driving the intake's new state machine.
+   Every other binding stays as it is. Prove: intake behaves as before;
+   `Superstructure/CurrentState` and `Intake/SystemState` appear in the log.
+2. **Move the hood's zone logic in.** Delete the four `BobotState.in…Zone()` bindings;
+   `hoodStateFor(distance)` returns the same three answers from the same VARC distance. Prove: the
+   hood changes state at the same field positions as before (compare two logs).
+3. **Add `SCORE_HUB`** with the shooter converted. `runShooterToHub()` becomes the `HUB` arm of the
+   shooter's `applyState`; the feed logic that lived in bindings becomes the guard above. Prove: a
+   shot from each zone in simulation, then the readiness booleans and the state on one
+   AdvantageScope graph.
+4. **Convert the autos.** In `AutonomousManager`, replace
+   `shooter.runShooterToHub().withTimeout(...)` with `setWantedState(SCORE_HUB)` followed by
+   `waitUntil(superstructure.hasShot())` and a timeout backstop, as 2910's `scoreStationary()` does.
+   Prove: every auto in [Autonomous Simulation](/frc/autonomous-simulation), then on the robot.
 5. **Add `DROPOFF` and `EJECT`**, and delete the command factories nothing calls any more.
 
-Step 3 is where the design earns its keep, and where to stop and reassess if the log does not read more clearly than the bindings did.
+Step 3 is where the design earns its keep, and where to stop and reassess if the log does not read
+more clearly than the bindings did.
 
 <RulesBox title="What to leave alone">
 
-- **`BobotState` and the VARCs.** They compute; the superstructure consumes. Moving geometry into the superstructure would recreate the copied-`atan2` problem VARC was written to end.
+- **`BobotState` and the VARCs.** They compute; the superstructure consumes. Moving geometry into
+  the superstructure would recreate the copied-`atan2` problem VARC was written to end.
 - **`TeleopDrive` and the drivetrain's default command.** A stick is not an intent.
-- **The library's `SingleRoller` mechanisms.** `Flywheel` and `Pivot` are the leaves every state applies to; they do not know a superstructure exists.
-- **The transition graph.** Cobra has no two mechanisms that can hit each other. If a 2027 robot does, [Transition Graphs](/frc/transition-graphs) is the page for that day, and the two-layer design above is what it extends.
+- **The library's `SingleRoller` mechanisms.** `Flywheel` and `Pivot` are the leaves every state
+  applies to; they do not know a superstructure exists.
+- **The transition graph.** Cobra has no two mechanisms that can hit each other. If a 2027 robot
+  does, [Transition Graphs](/frc/transition-graphs) is the page for that day, and the two-layer
+  design above is what it extends.
 
 </RulesBox>
 
 ### Done when
 
-A student can hand a mentor: the intent list with the binding or auto that produces each one; the transition method with every guard traced to an existing `BobotState` or subsystem trigger; the migration order with the proof for each step; and one sentence per subsystem saying whether it converts and why. That document, not the code, is the deliverable of this group.
+A student can hand a mentor: the intent list with the binding or auto that produces each one; the
+transition method with every guard traced to an existing `BobotState` or subsystem trigger; the
+migration order with the proof for each step; and one sentence per subsystem saying whether it
+converts and why. That document, not the code, is the deliverable of this group.
 
 <Sources items={[
   {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "robotPeriodic: VirtualSubsystem.runPeriodically() before CommandScheduler.run()."},

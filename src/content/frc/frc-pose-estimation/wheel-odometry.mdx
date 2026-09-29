@@ -11,13 +11,19 @@ duration: 25 min
 description: "Tracking a robot pose from wheel or module position measurements and a gyro with WPILib odometry."
 ---
 
-Wheel odometry starts from a known pose and integrates drivetrain motion. Encoders measure wheel or module position, and a gyroscope supplies the robot's heading. WPILib combines the changes into a new `Pose2d` each update.
+Wheel odometry starts from a known pose and integrates drivetrain motion. Encoders measure wheel or
+module position, and a gyroscope supplies the robot's heading. WPILib combines the changes into a
+new `Pose2d` each update.
 
-Odometry updates without a camera or field marker. It cannot observe wheel slip or correct an incorrect conversion factor on its own, so its error accumulates until another source corrects the estimate.
+Odometry updates without a camera or field marker. It cannot observe wheel slip or correct an
+incorrect conversion factor on its own, so its error accumulates until another source corrects the
+estimate.
 
 <RulesBox title="Prerequisite">
 
-This page assumes the coordinate frames and types from [Pose Geometry](/frc/pose-geometry). Complete [Drivetrain Checks](/frc/drivetrain-checks) first to distinguish calculated wheel targets from the measured wheel motion used here.
+This page assumes the coordinate frames and types from [Pose Geometry](/frc/pose-geometry). Complete
+[Drivetrain Checks](/frc/drivetrain-checks) first to distinguish calculated wheel targets from the
+measured wheel motion used here.
 
 </RulesBox>
 
@@ -30,7 +36,8 @@ Odometry uses measured positions:
 - Each distance must be in meters.
 - Module arrays must use the order used to construct `SwerveDriveKinematics`.
 
-Do not feed requested motor output, target velocity, or a module's instantaneous speed into an odometry position argument.
+Do not feed requested motor output, target velocity, or a module's instantaneous speed into an
+odometry position argument.
 
 ### Differential-drive odometry
 
@@ -57,7 +64,8 @@ public void periodic() {
 }
 ```
 
-The wheel distances are cumulative readings. WPILib compares them with the previous update internally.
+The wheel distances are cumulative readings. WPILib compares them with the previous update
+internally.
 
 ### Swerve-drive odometry
 
@@ -90,11 +98,13 @@ public void periodic() {
 }
 ```
 
-This example uses front-left, front-right, back-left, back-right because `kinematics` was constructed in that order. A different consistent order also works.
+This example uses front-left, front-right, back-left, back-right because `kinematics` was
+constructed in that order. A different consistent order also works.
 
 ### Higher-rate samples
 
-Some drivetrains collect synchronized gyro and module samples faster than the normal robot loop. Apply each sample with its timestamp and keep the arrays aligned.
+Some drivetrains collect synchronized gyro and module samples faster than the normal robot loop.
+Apply each sample with its timestamp and keep the arrays aligned.
 
 FRC 4451's Cobra drivetrain follows this pattern with pose estimators:
 
@@ -110,13 +120,17 @@ for (int i = 0; i < sampleTimestamps.length; i++) {
 }
 ```
 
-Every value at index `i` must describe the same sampling time. Mixing a new gyro angle with old module positions introduces error that can resemble bad calibration.
+Every value at index `i` must describe the same sampling time. Mixing a new gyro angle with old
+module positions introduces error that can resemble bad calibration.
 
 ### Gyro behavior
 
-The gyro argument supplies the measured heading. WPILib maintains an internal offset between that reading and the pose heading, so resetting the pose does not require physically zeroing the gyro.
+The gyro argument supplies the measured heading. WPILib maintains an internal offset between that
+reading and the pose heading, so resetting the pose does not require physically zeroing the gyro.
 
-A device can report a continuous angle, a wrapped angle, or an orientation adjusted by its API. Convert the device convention at the IO boundary and expose a `Rotation2d` with the sign expected by the drivetrain code.
+A device can report a continuous angle, a wrapped angle, or an orientation adjusted by its API.
+Convert the device convention at the IO boundary and expose a `Rotation2d` with the sign expected by
+the drivetrain code.
 
 If the gyro is unavailable, swerve kinematics can estimate a heading change from module deltas:
 
@@ -126,7 +140,8 @@ rawGyroRotation =
     rawGyroRotation.plus(new Rotation2d(robotMotion.dtheta));
 ```
 
-This fallback depends on the same wheel measurements that can slip. Log the disconnect and treat the resulting heading as degraded.
+This fallback depends on the same wheel measurements that can slip. Log the disconnect and treat the
+resulting heading as degraded.
 
 ### Resetting the pose
 
@@ -141,22 +156,29 @@ public void resetPose(Pose2d fieldToRobot) {
 }
 ```
 
-Common reset sources include an autonomous starting pose and a deliberate operator action at a known location. A normal vision correction should go through a pose estimator instead of repeatedly resetting odometry.
+Common reset sources include an autonomous starting pose and a deliberate operator action at a known
+location. A normal vision correction should go through a pose estimator instead of repeatedly
+resetting odometry.
 
 ### Diagnosing drift
 
 - **Distance conversion:** A straight test produces a repeatable scale error.
-- **Module steering offsets:** A swerve robot reports sideways or curved motion during a straight test.
+- **Module steering offsets:** A swerve robot reports sideways or curved motion during a straight
+  test.
 - **Wheel slip or impact:** The estimate changes more than the physical robot moved.
 - **Unsynchronized samples:** The estimate wobbles or curves during fast rotation.
-- **Gyro sign or mounting:** Estimated heading changes in the wrong direction or about the wrong axis.
+- **Gyro sign or mounting:** Estimated heading changes in the wrong direction or about the wrong
+  axis.
 - **Mechanical play:** Reversing direction produces a repeatable dead band.
 
-Record measured and estimated motion in a log. There is no useful general drift percentage; the result depends on the robot and test conditions.
+Record measured and estimated motion in a log. There is no useful general drift percentage; the
+result depends on the robot and test conditions.
 
 ### Odometry and pose estimation
 
-WPILib pose estimators wrap the corresponding odometry behavior. If the robot will use vision or QuestNav, make the pose estimator the drivetrain's authoritative pose and call its update method every loop.
+WPILib pose estimators wrap the corresponding odometry behavior. If the robot will use vision or
+QuestNav, make the pose estimator the drivetrain's authoritative pose and call its update method
+every loop.
 
 <Sources items={[
   {"source": "mantik", "path": "src/content/frc/frc-pose-estimation/odometry.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},

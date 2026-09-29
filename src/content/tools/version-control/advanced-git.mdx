@@ -12,42 +12,61 @@ description: "Understand restore, reset, revert, stash, rebase, and tags before 
 
 ## Choose by Goal
 
-Use this page after [Local Git Workflow](/tools/local-git-workflow), [Branching and Merging](/tools/branching-and-merging), and [GitHub Remotes](/tools/github-remotes). Practice unfamiliar history operations only in the disposable practice repository. Do not use an Automation Team robot repository as a test fixture.
+Use this page after [Local Git Workflow](/tools/local-git-workflow),
+[Branching and Merging](/tools/branching-and-merging), and [GitHub Remotes](/tools/github-remotes).
+Practice unfamiliar history operations only in the disposable practice repository. Do not use an
+Automation Team robot repository as a test fixture.
 
-Before any undo operation, open the repository folder in VS Code, open its integrated terminal, and run `git status` and `git log --oneline -5`. Read the branch name, changed paths, and recent commits before choosing a command.
+Before any undo operation, open the repository folder in VS Code, open its integrated terminal, and
+run `git status` and `git log --oneline -5`. Read the branch name, changed paths, and recent commits
+before choosing a command.
 
 Git uses these names below:
 
 - The **working tree** is the saved files in the repository folder.
 - The **index**, also called the staging area, holds the versions selected for the next commit.
-- `HEAD` identifies the current commit. `HEAD~1` identifies its first parent, usually the previous commit on a simple branch.
+- `HEAD` identifies the current commit. `HEAD~1` identifies its first parent, usually the previous
+  commit on a simple branch.
 - **Shared history** includes commits that other people may already have fetched or based work on.
 
 ## Inspect Before Changing
 
-Use `git diff` for unstaged tracked changes, `git diff --staged` for staged changes, and `git show HEAD` for the current commit. These commands inspect state without changing it. If a path or commit is unexpected, stop and identify it before continuing.
+Use `git diff` for unstaged tracked changes, `git diff --staged` for staged changes, and
+`git show HEAD` for the current commit. These commands inspect state without changing it. If a path
+or commit is unexpected, stop and identify it before continuing.
 
 ## Unstage Without Losing Work
 
-To remove a file from the next commit while keeping its saved edits, replace the placeholder with the exact path shown by `git status`:
+To remove a file from the next commit while keeping its saved edits, replace the placeholder with
+the exact path shown by `git status`:
 
 ```text
 git restore --staged path-to-file
 ```
 
-Run `git status` again. The path should move from **Changes to be committed** to **Changes not staged for commit**. This command changes the index; it does not erase the working file.
+Run `git status` again. The path should move from **Changes to be committed** to **Changes not
+staged for commit**. This command changes the index; it does not erase the working file.
 
 ## Discard an Unstaged File Edit
 
-`git restore path-to-file` replaces the working file with the version in the index. Unstaged edits to that path are lost. Before running it, inspect `git diff -- path-to-file` and copy any text you may need elsewhere.
+`git restore path-to-file` replaces the working file with the version in the index. Unstaged edits
+to that path are lost. Before running it, inspect `git diff -- path-to-file` and copy any text you
+may need elsewhere.
 
-Afterward, run `git status` and open the file. The unstaged change should be gone. If the file also has staged changes, the working copy becomes the staged version rather than necessarily the current commit.
+Afterward, run `git status` and open the file. The unstaged change should be gone. If the file also
+has staged changes, the working copy becomes the staged version rather than necessarily the current
+commit.
 
 ## Reverse a Shared Commit
 
-Use `git revert commit-id` to create a new commit that applies the inverse of an earlier commit. This preserves the existing history, which makes revert the usual choice for a commit that has been pushed or used by teammates.
+Use `git revert commit-id` to create a new commit that applies the inverse of an earlier commit.
+This preserves the existing history, which makes revert the usual choice for a commit that has been
+pushed or used by teammates.
 
-Copy the exact commit ID from `git log --oneline`. Git may open an editor for the new commit message. Save and close the message to finish. Then inspect `git status`, `git show HEAD`, and the affected files. A conflict can stop the revert; use `git revert --abort` to return to the state before the attempted revert if you should not resolve it now.
+Copy the exact commit ID from `git log --oneline`. Git may open an editor for the new commit
+message. Save and close the message to finish. Then inspect `git status`, `git show HEAD`, and the
+affected files. A conflict can stop the revert; use `git revert --abort` to return to the state
+before the attempted revert if you should not resolve it now.
 
 ## Revise an Unpushed Local Commit
 
@@ -59,31 +78,52 @@ Reset moves the current branch name. Use it only for local history that teammate
 | `git reset --mixed HEAD~1` | Move the branch back one commit; keep the changes in the working tree but remove them from staging. This is the default mode. |
 | Hard mode (`--hard`) | Move the branch to a separately verified target and replace the index and tracked working files with that target. It can also delete untracked paths that obstruct the reset. This page does not provide a ready-to-run hard-reset command. |
 
-`git reset --hard` is not a general undo button. It destroys tracked working changes that are not present at the target and can make the moved-away commit hard to find. Do not run it outside a scratch repository without a mentor-reviewed recovery plan and a verified target commit.
+`git reset --hard` is not a general undo button. It destroys tracked working changes that are not
+present at the target and can make the moved-away commit hard to find. Do not run it outside a
+scratch repository without a mentor-reviewed recovery plan and a verified target commit.
 
 ## Stash Work Safely
 
-A stash stores unfinished changes locally and returns tracked files to the current commit. `-u` includes untracked files; ignored files are still excluded.
+A stash stores unfinished changes locally and returns tracked files to the current commit. `-u`
+includes untracked files; ignored files are still excluded.
 
 Run one step at a time in the disposable practice repository:
 
-1. Confirm the practice repository starts clean with `git status`. If it lists changes, finish or preserve them before this exercise.
-2. In VS Code Explorer, open the tracked `README.md`, add a line that says `Tracked stash practice`, and save it. Then create a new file named `stash-note.txt`, enter `Untracked stash practice`, and save it.
-3. Run `git status`. It should list `README.md` as modified and `stash-note.txt` as untracked. If either path is missing, confirm the file was saved in the repository folder.
-4. Run `git stash push -u -m "Practice work in progress"`. The `-u` option is necessary here because the exercise intentionally includes `stash-note.txt` as an untracked file.
-5. Run `git status`. It should report a clean working tree: the tracked README edit has returned to the current commit's version, and the untracked `stash-note.txt` is no longer in the working tree. If another change remains, stop and identify it.
+1. Confirm the practice repository starts clean with `git status`. If it lists changes, finish or
+   preserve them before this exercise.
+2. In VS Code Explorer, open the tracked `README.md`, add a line that says `Tracked stash practice`,
+   and save it. Then create a new file named `stash-note.txt`, enter `Untracked stash practice`, and
+   save it.
+3. Run `git status`. It should list `README.md` as modified and `stash-note.txt` as untracked. If
+   either path is missing, confirm the file was saved in the repository folder.
+4. Run `git stash push -u -m "Practice work in progress"`. The `-u` option is necessary here because
+   the exercise intentionally includes `stash-note.txt` as an untracked file.
+5. Run `git status`. It should report a clean working tree: the tracked README edit has returned to
+   the current commit's version, and the untracked `stash-note.txt` is no longer in the working
+   tree. If another change remains, stop and identify it.
 6. Run `git stash list`. The top entry should include `Practice work in progress`.
-7. Run `git stash apply 'stash@{0}'`. The quotation marks make PowerShell pass the braces unchanged and are also accepted by the other shells used in this curriculum.
-8. Run `git status`. `README.md` should again be modified and `stash-note.txt` should again be untracked. Open both files and confirm that their practice text returned.
-9. Keep the stash until you have verified every restored file. Then run `git stash drop 'stash@{0}'` only if that saved entry is no longer needed.
+7. Run `git stash apply 'stash@{0}'`. The quotation marks make PowerShell pass the braces unchanged
+   and are also accepted by the other shells used in this curriculum.
+8. Run `git status`. `README.md` should again be modified and `stash-note.txt` should again be
+   untracked. Open both files and confirm that their practice text returned.
+9. Keep the stash until you have verified every restored file. Then run `git stash drop 'stash@{0}'`
+   only if that saved entry is no longer needed.
 
-`git stash pop` applies an entry and removes it after a successful application. Use separate `apply`, inspect, and `drop` steps while learning. If applying creates conflicts, resolve or abandon the working changes before deleting the stash.
+`git stash pop` applies an entry and removes it after a successful application. Use separate
+`apply`, inspect, and `drop` steps while learning. If applying creates conflicts, resolve or abandon
+the working changes before deleting the stash.
 
 ## Rebase With a Recovery Point
 
-Rebase copies commits onto a different base and gives the copies new commit identities. Interactive rebase can reorder, combine, edit, or remove local commits. Do not rebase commits that teammates may already use unless everyone coordinating that branch agrees.
+Rebase copies commits onto a different base and gives the copies new commit identities. Interactive
+rebase can reorder, combine, edit, or remove local commits. Do not rebase commits that teammates may
+already use unless everyone coordinating that branch agrees.
 
-Before starting, confirm a clean working tree and inspect the commit graph. During a stopped rebase, run `git status` for Git's next instruction. After resolving and staging a conflict, use `git rebase --continue`. Use `git rebase --abort` to return the branch and working tree to their state before the rebase began. Do not start a history-rewriting exercise until you can identify the intended commits in a graph.
+Before starting, confirm a clean working tree and inspect the commit graph. During a stopped rebase,
+run `git status` for Git's next instruction. After resolving and staging a conflict, use
+`git rebase --continue`. Use `git rebase --abort` to return the branch and working tree to their
+state before the rebase began. Do not start a history-rewriting exercise until you can identify the
+intended commits in a graph.
 
 ## Tag a Verified Commit
 
@@ -92,14 +132,21 @@ A tag gives a commit a stable name. An annotated tag also records a message and 
 1. Run `git status`; finish or preserve unrelated changes.
 2. Run `git log --oneline --decorate -5` and identify the exact commit to label.
 3. Inspect it with `git show commit-id`.
-4. In a scratch repository, create a local annotated tag with `git tag -a practice-v1 commit-id -m "Practice version"`.
+4. In a scratch repository, create a local annotated tag with
+   `git tag -a practice-v1 commit-id -m "Practice version"`.
 5. Run `git show practice-v1` and verify the tag target and message.
 
-A tag remains local until explicitly pushed. Pushing a tag changes the remote, and creating a GitHub release changes online repository state. Those are mentor-guided actions for an Automation Team repository. A GitHub release uses a tag and can add release notes and downloadable assets; it is a separate GitHub object, not another kind of Git commit.
+A tag remains local until explicitly pushed. Pushing a tag changes the remote, and creating a GitHub
+release changes online repository state. Those are mentor-guided actions for an Automation Team
+repository. A GitHub release uses a tag and can add release notes and downloadable assets; it is a
+separate GitHub object, not another kind of Git commit.
 
 ## Follow the Repository Policy
 
-Feature branches are one way to separate reviewable work. Other repositories may integrate small changes directly into a shared main line or maintain additional release branches. Use the policy of the repository you are contributing to. Extra long-lived branches add merge and access-control work, so create them only for a documented need.
+Feature branches are one way to separate reviewable work. Other repositories may integrate small
+changes directly into a shared main line or maintain additional release branches. Use the policy of
+the repository you are contributing to. Extra long-lived branches add merge and access-control work,
+so create them only for a documented need.
 
 <RulesBox title="Stop Before You Lose Work">
 

@@ -11,15 +11,23 @@ description: "Subsystem command factories, CommandXboxController, and binding bu
 ---
 
 
-A **command** is an action the robot takes. A **trigger** is a condition that schedules a command. Buttons are the most common triggers. This module is where the heartbeat module from R04 finally gets a button to press.
+A **command** is an action the robot takes. A **trigger** is a condition that schedules a command.
+Buttons are the most common triggers. This module is where the heartbeat module from R04 finally
+gets a button to press.
 
-WPILib connects commands to conditions through small Java interfaces such as `Runnable` and `BooleanSupplier`. This lesson explains that connection in the robot project. If you want to practice the same idea in a smaller program, use [A22: Command-Binding Lab](/java/assignments/a22-command-binding).
+WPILib connects commands to conditions through small Java interfaces such as `Runnable` and
+`BooleanSupplier`. This lesson explains that connection in the robot project. If you want to
+practice the same idea in a smaller program, use
+[A22: Command-Binding Lab](/java/assignments/a22-command-binding).
 
 ---
 
 ## Before You Start
 
-Complete R04 and keep its Heartbeat output working. Review [Lambdas: Where You Will Meet Them](/java/fundamentals/lambdas#where-you-will-meet-them) and [Functional Interfaces](/java/fundamentals/interfaces#functional-interfaces). You need the Sim GUI keyboard mapping or a USB controller. No robot hardware is required.
+Complete R04 and keep its Heartbeat output working. Review
+[Lambdas: Where You Will Meet Them](/java/fundamentals/lambdas#where-you-will-meet-them) and
+[Functional Interfaces](/java/fundamentals/interfaces#functional-interfaces). You need the Sim GUI
+keyboard mapping or a USB controller. No robot hardware is required.
 
 ## Commands
 
@@ -32,7 +40,8 @@ Complete R04 and keep its Heartbeat output working. Review [Lambdas: Where You W
   contain
 />
 
-A command is an object that does work, optionally over multiple ticks. It has four hook methods the scheduler calls in order:
+A command is an object that does work, optionally over multiple ticks. It has four hook methods the
+scheduler calls in order:
 
 | Hook | When it runs | What it's for |
 |---|---|---|
@@ -41,15 +50,19 @@ A command is an object that does work, optionally over multiple ticks. It has fo
 | `isFinished()` | Every tick after `execute()` | Returns `true` to stop the command |
 | `end(boolean interrupted)` | Once when the command stops | Cleanup: stop motors, reset flags |
 
-The `Command` abstract class has a few more methods (`getRequirements`, `runsWhenDisabled`), but those four are the lifecycle.
+The `Command` abstract class has a few more methods (`getRequirements`, `runsWhenDisabled`), but
+those four are the lifecycle.
 
-Start with the command factory methods inherited from `SubsystemBase`. They build common command shapes and automatically require that subsystem. R11 later shows why controller-specific drive logic can use its own command class.
+Start with the command factory methods inherited from `SubsystemBase`. They build common command
+shapes and automatically require that subsystem. R11 later shows why controller-specific drive logic
+can use its own command class.
 
 ---
 
 ## Add Subsystem Commands
 
-This is a partial snippet. Place the `import` line below the package declaration, then add these methods inside `Heartbeat`, before its final closing brace:
+This is a partial snippet. Place the `import` line below the package declaration, then add these
+methods inside `Heartbeat`, before its final closing brace:
 
 ```java
 import edu.wpi.first.wpilibj2.command.Command;
@@ -63,7 +76,9 @@ public Command printCountCommand() {
 }
 ```
 
-`this::reset` is a **method reference**. It passes the existing `reset` method as the action, like the lambda `() -> reset()`. `runOnce` is inherited from `SubsystemBase`. The command runs its action once, ends, and already requires `heartbeat`.
+`this::reset` is a **method reference**. It passes the existing `reset` method as the action, like
+the lambda `() -> reset()`. `runOnce` is inherited from `SubsystemBase`. The command runs its action
+once, ends, and already requires `heartbeat`.
 
 Keep the distinction clear:
 
@@ -79,13 +94,17 @@ public Command holdResetCommand() {
 }
 ```
 
-The inherited `run` factory calls `reset()` every scheduler tick until the command is interrupted. Before building, confirm that all three methods are inside the `Heartbeat` class and that the file still has only one final closing brace.
+The inherited `run` factory calls `reset()` every scheduler tick until the command is interrupted.
+Before building, confirm that all three methods are inside the `Heartbeat` class and that the file
+still has only one final closing brace.
 
 ---
 
 ## Triggers
 
-A `Trigger` checks a true-or-false condition every scheduler tick. A binding tells it which command to schedule when that condition changes. Pressing a button changes its condition from `false` to `true`.
+A `Trigger` checks a true-or-false condition every scheduler tick. A binding tells it which command
+to schedule when that condition changes. Pressing a button changes its condition from `false` to
+`true`.
 
 You almost never construct one by hand. You get them from a `CommandXboxController`:
 
@@ -107,7 +126,8 @@ The CommandXboxController exposes every button as a `Trigger`. The four common b
 | `.whileTrue(command)` | When trigger becomes true, schedule command. When it becomes false, cancel command. |
 | `.whileFalse(command)` | The inverse of `whileTrue`. Rarely needed. |
 
-You'll use `onTrue` for "do one thing on press" and `whileTrue` for "keep doing this while the button is held."
+You'll use `onTrue` for "do one thing on press" and `whileTrue` for "keep doing this while the
+button is held."
 
 ---
 
@@ -146,15 +166,20 @@ public class RobotContainer {
 
 Three patterns to absorb:
 
-1. **One field per controller**. This Kit Bot uses one driver controller on port 0 for driving, intake, launch, and eject controls.
-2. **One method for all bindings: `configureBindings()`**. Lives in `RobotContainer`'s constructor flow. Every button on every controller gets its binding here. When you can't remember "what does A do?", this is the only file you have to read.
-3. **The binding reads like a wiring statement.** The trigger is on the left and the subsystem action is on the right: `driver.a().onTrue(heartbeat.resetCommand())`.
+1. **One field per controller**. This Kit Bot uses one driver controller on port 0 for driving,
+   intake, launch, and eject controls.
+2. **One method for all bindings: `configureBindings()`**. Lives in `RobotContainer`'s constructor
+   flow. Every button on every controller gets its binding here. When you can't remember "what does
+   A do?", this is the only file you have to read.
+3. **The binding reads like a wiring statement.** The trigger is on the left and the subsystem
+   action is on the right: `driver.a().onTrue(heartbeat.resetCommand())`.
 
 ---
 
 ## Default Commands
 
-A subsystem can have a **default command**: the command that runs whenever no other command is using it. This is how teleop drive works: "when nothing else is driving, read the sticks and drive."
+A subsystem can have a **default command**: the command that runs whenever no other command is using
+it. This is how teleop drive works: "when nothing else is driving, read the sticks and drive."
 
 Add another factory to `Heartbeat`:
 
@@ -175,24 +200,32 @@ Add this line inside the `RobotContainer` constructor, after `configureBindings(
 heartbeat.setDefaultCommand(heartbeat.reportIdleCommand());
 ```
 
-`setDefaultCommand` schedules that command whenever no other command requires `heartbeat`. Because the factory lives on `Heartbeat`, the returned command already has the correct requirement.
+`setDefaultCommand` schedules that command whenever no other command requires `heartbeat`. Because
+the factory lives on `Heartbeat`, the returned command already has the correct requirement.
 
-We'll use this pattern in R11 to make stick input the default drivetrain behaviour, once the drivetrain itself is built in R07.
+We'll use this pattern in R11 to make stick input the default drivetrain behaviour, once the
+drivetrain itself is built in R07.
 
 ---
 
 ## Preview for R11
 
-For triggers like the A button, bind a subsystem command directly. Analog sticks are different because controller input does not belong inside a subsystem. Read this example for R11; do not paste it yet. `drive` and `TeleopDrive` have not been created:
+For triggers like the A button, bind a subsystem command directly. Analog sticks are different
+because controller input does not belong inside a subsystem. Read this example for R11; do not paste
+it yet. `drive` and `TeleopDrive` have not been created:
 
 ```java
 drive.setDefaultCommand(
     new TeleopDrive(drive, () -> -driver.getLeftY(), () -> driver.getRightX()));
 ```
 
-WPILib controller Y values increase toward the bottom of the axis. The `-` sign makes a forward stick movement positive in the later drive convention.
+WPILib controller Y values increase toward the bottom of the axis. The `-` sign makes a forward
+stick movement positive in the later drive convention.
 
-`TeleopDrive` owns the controller suppliers and stick math. `Drive` owns drivetrain behavior. Commands that coordinate several subsystems belong in an autonomous or composition class. This keeps controllers and unrelated subsystems out of each subsystem while still putting single-mechanism actions beside the mechanism that performs them.
+`TeleopDrive` owns the controller suppliers and stick math. `Drive` owns drivetrain behavior.
+Commands that coordinate several subsystems belong in an autonomous or composition class. This keeps
+controllers and unrelated subsystems out of each subsystem while still putting single-mechanism
+actions beside the mechanism that performs them.
 
 ---
 
@@ -200,12 +233,17 @@ WPILib controller Y values increase toward the bottom of the axis. The `-` sign 
 
 In your project:
 
-1. Add the `CommandXboxController driver` field to `RobotContainer` and the two bindings from the snippet above.
+1. Add the `CommandXboxController driver` field to `RobotContainer` and the two bindings from the
+   snippet above.
 2. Build and run **WPILib: Simulate Robot Code**.
-3. Assign a controller or keyboard joystick to **Joystick 0**. For a keyboard, open its mapping and identify the keys for A and B. Watch the displayed button indicators change before testing the code.
-4. Enable in teleop. Watch the console. Heartbeat ticks roll up automatically. Press the A-button equivalent: the count resets to 0. Press B: the current count prints.
+3. Assign a controller or keyboard joystick to **Joystick 0**. For a keyboard, open its mapping and
+   identify the keys for A and B. Watch the displayed button indicators change before testing the
+   code.
+4. Enable in teleop. Watch the console. Heartbeat ticks roll up automatically. Press the A-button
+   equivalent: the count resets to 0. Press B: the current count prints.
 
-If the sim's keyboard mapping is confusing, plug a real Xbox controller via USB. The sim picks it up.
+If the sim's keyboard mapping is confusing, plug a real Xbox controller via USB. The sim picks it
+up.
 
 ---
 
@@ -220,13 +258,18 @@ You now have:
 - A working subsystem class that does periodic work.
 - A button-bound command that talks to the subsystem.
 
-Everything in Phase 2 (R03–R05) was deliberately *no hardware*. Phase 3 (R06–R08), next, is the IO interface pattern from A17, applied to the Kit Bot's actual SPARK MAX motor controllers. Once you finish that, the drivetrain works in sim.
+Everything in Phase 2 (R03–R05) was deliberately *no hardware*. Phase 3 (R06–R08), next, is the IO
+interface pattern from A17, applied to the Kit Bot's actual SPARK MAX motor controllers. Once you
+finish that, the drivetrain works in sim.
 
 ---
 
 <RulesBox title="Done When">
 
-With a keyboard or controller on Joystick 0 in the Sim GUI, the A binding resets the heartbeat count and the B binding prints it. Both are visible in the console; neither works until the robot is enabled. After resetting, press B. Save the smaller printed count beside a value from before the reset.
+With a keyboard or controller on Joystick 0 in the Sim GUI, the A binding resets the heartbeat count
+and the B binding prints it. Both are visible in the console; neither works until the robot is
+enabled. After resetting, press B. Save the smaller printed count beside a value from before the
+reset.
 
 </RulesBox>
 

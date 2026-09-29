@@ -12,13 +12,20 @@ description: "Two parts on one simulated elevator. Part 1 brackets kG to get kG 
 durationFixed: true
 ---
 
-This session tunes the practice project's elevator twice. **Part 1** is a plain position loop: gravity and friction first, then `kP` and `kD`. **Part 2** switches to the project's exponential-profile elevator and finds the feedforward terms a profile makes possible. The two runs on one graph show what the profile buys.
+This session tunes the practice project's elevator twice. **Part 1** is a plain position loop:
+gravity and friction first, then `kP` and `kD`. **Part 2** switches to the project's
+exponential-profile elevator and finds the feedforward terms a profile makes possible. The two runs
+on one graph show what the profile buys.
 
 <RulesBox title="Before you start">
 
-The [Setup](/frc/pid-tuning-practice-setup) page done, with the *Elevator* mechanism chosen, the line graph showing position, setpoint and applied voltage, and *Live Tuning* on. Every gain at zero.
+The [Setup](/frc/pid-tuning-practice-setup) page done, with the *Elevator* mechanism chosen, the
+line graph showing position, setpoint and applied voltage, and *Live Tuning* on. Every gain at zero.
 
-The procedure is the [arm-and-elevator recipe](/frc/manual-tuning-arm-and-elevator) from Manual Tuning, in voltage mode: volts instead of amps, and a much smaller `kP` because the motor's back-EMF damps the loop for you. The video below demonstrates the shortcut version (first hold point as `kG`, then `kP` by doubling); the steps here run the full recipe, which also gives you `kS`.
+The procedure is the [arm-and-elevator recipe](/frc/manual-tuning-arm-and-elevator) from Manual
+Tuning, in voltage mode: volts instead of amps, and a much smaller `kP` because the motor's back-EMF
+damps the loop for you. The video below demonstrates the shortcut version (first hold point as `kG`,
+then `kP` by doubling); the steps here run the full recipe, which also gives you `kS`.
 
 </RulesBox>
 
@@ -28,49 +35,92 @@ The procedure is the [arm-and-elevator recipe](/frc/manual-tuning-arm-and-elevat
 
 ### Part 1: gravity, friction, then feedback
 
-The elevator is a 16 lb carriage on a 12:1 reduction with about three metres of travel, starting at half a metre. `kG` is the voltage that cancels its weight, and it is the same at every height, which is what makes an elevator the easiest gravity mechanism to bracket.
+The elevator is a 16 lb carriage on a 12:1 reduction with about three metres of travel, starting at
+half a metre. `kG` is the voltage that cancels its weight, and it is the same at every height, which
+is what makes an elevator the easiest gravity mechanism to bracket.
 
 <StepsBox title="Part 1 steps">
 
 1. **Zero every gain** in the tuning table: `kP`, `kI`, `kD`, `kS`, `kG`, `kV`, `kA`.
-2. **Set a setpoint the elevator cannot reach**, such as 10 m. With `kP` at zero the setpoint does nothing except keep the loop enabled; the carriage moves only on `kG`.
-3. **Find the lower bound of `kG`.** Raise `kG` by doubling (0.1, 0.2, 0.4 …) until the carriage stops falling, then narrow between the last value that fell and the first that held. This value is gravity minus friction, `kG − kS`.
-4. **Find the upper bound.** Keep raising `kG` until the carriage starts to climb, then narrow between the last value that held and the first that climbed. This is gravity plus friction, `kG + kS`.
-5. **Compute both gains.** `kG` is the midpoint of the two bounds; `kS` is half their difference. Enter both. In the simulator the two bounds are close together, because the model has little friction; on a real elevator they are not.
+2. **Set a setpoint the elevator cannot reach**, such as 10 m. With `kP` at zero the setpoint does
+   nothing except keep the loop enabled; the carriage moves only on `kG`.
+3. **Find the lower bound of `kG`.** Raise `kG` by doubling (0.1, 0.2, 0.4 …) until the carriage
+   stops falling, then narrow between the last value that fell and the first that held. This value
+   is gravity minus friction, `kG − kS`.
+4. **Find the upper bound.** Keep raising `kG` until the carriage starts to climb, then narrow
+   between the last value that held and the first that climbed. This is gravity plus friction,
+   `kG + kS`.
+5. **Compute both gains.** `kG` is the midpoint of the two bounds; `kS` is half their difference.
+   Enter both. In the simulator the two bounds are close together, because the model has little
+   friction; on a real elevator they are not.
 6. **Set a reachable setpoint** a short distance from the current height, such as 0.1 m above it.
-7. **Raise `kP`** by doubling from 0.1 until the carriage overshoots noticeably. Watch the position trace against the setpoint: at low `kP` it approaches slowly with a long taper; as `kP` rises the corner sharpens; past the limit it passes the setpoint and comes back.
+7. **Raise `kP`** by doubling from 0.1 until the carriage overshoots noticeably. Watch the position
+   trace against the setpoint: at low `kP` it approaches slowly with a long taper; as `kP` rises the
+   corner sharpens; past the limit it passes the setpoint and comes back.
 8. **Raise `kD`** by doubling from a small value (0.01) until the overshoot stops.
-9. **Repeat 7 and 8**, more `kP` then enough `kD` to tame it, until raising `kD` adds oscillation or the carriage oscillates on the way to the setpoint. That is the latency limit. Back `kD` off until the on-the-way oscillation stops, then back `kP` off until any remaining overshoot stops.
-10. **Verify at other setpoints**: a far move (two metres), a move down, a move near the top. Gains found on a 0.1 m move often overshoot a 2 m one; if so, decide which case the elevator lives in, and read [near and far](/frc/manual-tuning-turret#near-and-far-when-one-set-of-gains-is-not-enough).
+9. **Repeat 7 and 8**, more `kP` then enough `kD` to tame it, until raising `kD` adds oscillation or
+   the carriage oscillates on the way to the setpoint. That is the latency limit. Back `kD` off
+   until the on-the-way oscillation stops, then back `kP` off until any remaining overshoot stops.
+10. **Verify at other setpoints**: a far move (two metres), a move down, a move near the top. Gains
+    found on a 0.1 m move often overshoot a 2 m one; if so, decide which case the elevator lives in,
+    and read
+    [near and far](/frc/manual-tuning-turret#near-and-far-when-one-set-of-gains-is-not-enough).
 
 </StepsBox>
 
 <RulesBox title="What the graph should show">
 
-- During the bracket (steps 3 and 4), position is a flat line between the bounds and drifts outside them. Velocity stays near zero; small wobbles are the simulation's integration step, not a gain problem.
-- A well-tuned move is a position trace that rises, turns one corner and sits on the setpoint. A trace that rounds off slowly is `kP` too low; one that crosses the setpoint and returns is `kP` too high for the current `kD`; one that shivers around the setpoint is `kD` too high.
-- Applied voltage should be well under 12 V during a small move. If it is pinned at 12 V for most of the move, the motor is saturated and no gain will make the move faster; that is the case for Part 2.
+- During the bracket (steps 3 and 4), position is a flat line between the bounds and drifts outside
+  them. Velocity stays near zero; small wobbles are the simulation's integration step, not a gain
+  problem.
+- A well-tuned move is a position trace that rises, turns one corner and sits on the setpoint. A
+  trace that rounds off slowly is `kP` too low; one that crosses the setpoint and returns is `kP`
+  too high for the current `kD`; one that shivers around the setpoint is `kD` too high.
+- Applied voltage should be well under 12 V during a small move. If it is pinned at 12 V for most of
+  the move, the motor is saturated and no gain will make the move faster; that is the case for Part
+  2.
 
-The video's `kP` landed in the tens of volts per metre for this plant. Yours should be in the same range, and a value copied from any other mechanism is meaningless.
+The video's `kP` landed in the tens of volts per metre for this plant. Yours should be in the same
+range, and a value copied from any other mechanism is meaningless.
 
 </RulesBox>
 
 ### Part 2: feedforward under an exponential profile
 
-Part 1's loop sends the whole error to `kP` at once. On a long move that saturates the motor, and the tuning ends up compromised between the near and far cases. A **profile** turns the step into a setpoint that moves at a rate the motor can follow, and it gives the controller a velocity and acceleration setpoint at every instant, so `kV` and `kA` can do most of the work ([Why Motion Magic](/frc/why-motion-magic), [Exponential profiles](/frc/exponential-motion-profiling)). The practice project's *Elevator Expo* mechanism is the same elevator under an exponential profile.
+Part 1's loop sends the whole error to `kP` at once. On a long move that saturates the motor, and
+the tuning ends up compromised between the near and far cases. A **profile** turns the step into a
+setpoint that moves at a rate the motor can follow, and it gives the controller a velocity and
+acceleration setpoint at every instant, so `kV` and `kA` can do most of the work
+([Why Motion Magic](/frc/why-motion-magic),
+[Exponential profiles](/frc/exponential-motion-profiling)). The practice project's *Elevator Expo*
+mechanism is the same elevator under an exponential profile.
 
-Switch the chooser to the exponential elevator, re-add its live tuning widget and graph entries, and zero its gains. The procedure is now the [profiled recipe](/frc/manual-tuning-profiled): the feedforward terms are found by matching the measured velocity to the profiled velocity, and `kP`/`kD` come last.
+Switch the chooser to the exponential elevator, re-add its live tuning widget and graph entries, and
+zero its gains. The procedure is now the [profiled recipe](/frc/manual-tuning-profiled): the
+feedforward terms are found by matching the measured velocity to the profiled velocity, and
+`kP`/`kD` come last.
 
 <YouTubeEmbed id="nlRjdr1KUg4" title="PID Practice: Exponential Profiles" />
 
 <StepsBox title="Part 2 steps">
 
-1. **Zero every gain.** Enter the `kG` and `kS` you found in Part 1; gravity and friction have not changed.
-2. **Put `closedloop/setpoint/velocity` and `measurement/velocity` on one graph.** The profile's velocity is what the next two steps match against; without it on the graph there is nothing to compare.
-3. **`kA`:** command a move and look at the start of it, where the profiled velocity ramps up. Raise `kA` by doubling until the *slope* of the measured velocity matches the slope of the profiled velocity. Too little and the measurement lags the ramp; too much and it overshoots the ramp.
-4. **`kV`:** look at the middle of a longer move, where the profiled velocity is constant. Raise `kV` until the measured velocity sits on the profiled velocity there. The video finds a starting value by another route: apply a fixed duty cycle (the C key), read the steady velocity and the voltage, and divide; that gives the same number for a mechanism with little drag, and either way the graph is the check.
-5. **`kP`:** raise until you see overshoot or oscillation, including during the cruise, not only at the end of the move.
-6. **`kD`:** raise until it stops. Under a profile `kD` acts like a `kP` on velocity: it pulls the measured velocity toward the profile's.
+1. **Zero every gain.** Enter the `kG` and `kS` you found in Part 1; gravity and friction have not
+   changed.
+2. **Put `closedloop/setpoint/velocity` and `measurement/velocity` on one graph.** The profile's
+   velocity is what the next two steps match against; without it on the graph there is nothing to
+   compare.
+3. **`kA`:** command a move and look at the start of it, where the profiled velocity ramps up. Raise
+   `kA` by doubling until the *slope* of the measured velocity matches the slope of the profiled
+   velocity. Too little and the measurement lags the ramp; too much and it overshoots the ramp.
+4. **`kV`:** look at the middle of a longer move, where the profiled velocity is constant. Raise
+   `kV` until the measured velocity sits on the profiled velocity there. The video finds a starting
+   value by another route: apply a fixed duty cycle (the C key), read the steady velocity and the
+   voltage, and divide; that gives the same number for a mechanism with little drag, and either way
+   the graph is the check.
+5. **`kP`:** raise until you see overshoot or oscillation, including during the cruise, not only at
+   the end of the move.
+6. **`kD`:** raise until it stops. Under a profile `kD` acts like a `kP` on velocity: it pulls the
+   measured velocity toward the profile's.
 7. **Repeat 5 and 6** to the latency limit and back off, as in Part 1.
 8. **Verify** on a short move, a long move and a move down.
 
@@ -78,23 +128,37 @@ Switch the chooser to the exponential elevator, re-add its live tuning widget an
 
 <RulesBox title="Read the difference">
 
-Put a Part 1 move and a Part 2 move of the same distance on one graph. With the profile and `kV`/`kA` in place, the setpoint is a curve the carriage can follow, the voltage is smooth rather than pinned at 12 V, and the `kP` that overshot in Part 1 is now correcting a small error against the profile instead of hauling the carriage across the whole move. The exponential shape (fast start, asymptotic finish) is the one that matches what a motor can do; the [arm session](/frc/pid-tuning-practice-arm) uses a trapezoid so you have seen both.
+Put a Part 1 move and a Part 2 move of the same distance on one graph. With the profile and
+`kV`/`kA` in place, the setpoint is a curve the carriage can follow, the voltage is smooth rather
+than pinned at 12 V, and the `kP` that overshot in Part 1 is now correcting a small error against
+the profile instead of hauling the carriage across the whole move. The exponential shape (fast
+start, asymptotic finish) is the one that matches what a motor can do; the
+[arm session](/frc/pid-tuning-practice-arm) uses a trapezoid so you have seen both.
 
 </RulesBox>
 
 <RulesBox title="Common mistakes">
 
-- **Taking the first hold point as `kG`.** That is `kG − kS`. Find the upper bound too and take the midpoint; the difference is your `kS` for free.
-- **A large `kP` during the bracket.** It holds the carriage for you and hides where the bounds are. `kP` stays zero until step 6.
-- **Tuning `kP` before `kA` in Part 2.** Feedback found first compensates for the missing feedforward, and the numbers are wrong once `kA` goes in.
-- **Editing a gain with Live Tuning off.** A joystick press turns it off; the table accepts the edit and the code ignores it.
+- **Taking the first hold point as `kG`.** That is `kG − kS`. Find the upper bound too and take the
+  midpoint; the difference is your `kS` for free.
+- **A large `kP` during the bracket.** It holds the carriage for you and hides where the bounds are.
+  `kP` stays zero until step 6.
+- **Tuning `kP` before `kA` in Part 2.** Feedback found first compensates for the missing
+  feedforward, and the numbers are wrong once `kA` goes in.
+- **Editing a gain with Live Tuning off.** A joystick press turns it off; the table accepts the edit
+  and the code ignores it.
 - **Stopping at one setpoint.** Verify near, far and downward before writing the numbers down.
 
 </RulesBox>
 
 ### On the real robot
 
-The same two procedures run in Phoenix Tuner or the REV Hardware Client with the mechanism in front of you. On hardware the bracket bounds are further apart (real friction), `kS` matters, and an overshoot on an elevator with hard stops is a collision. Tune in simulation first, then repeat on the robot with the gains from simulation as starting points and expect them to change. Where the numbers live in FRC 4451's code, and how a `SingleRoller` runs this loop on the controller, is in [Elevators](/frc/elevator-example).
+The same two procedures run in Phoenix Tuner or the REV Hardware Client with the mechanism in front
+of you. On hardware the bracket bounds are further apart (real friction), `kS` matters, and an
+overshoot on an elevator with hard stops is a collision. Tune in simulation first, then repeat on
+the robot with the gains from simulation as starting points and expect them to change. Where the
+numbers live in FRC 4451's code, and how a `SingleRoller` runs this loop on the controller, is in
+[Elevators](/frc/elevator-example).
 
 <Sources items={[
   {"source": "mantik", "path": "src/content/frc/frc-pid-tuning-practice/pid-tuning-practice-elevator.mdx", "note": "Mantik's original session, its practice project and tutorial video; the procedure was rewritten around the Manual Tuning recipes."},

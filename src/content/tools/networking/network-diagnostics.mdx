@@ -12,7 +12,9 @@ description: "Check addresses, reachability, neighbor caches, name resolution, s
 
 ## Use the Diagnostic Ladder
 
-Work through these checks to narrow a connection problem. Each test supplies evidence about part of the connection. A failed test is not always a complete diagnosis: for example, a device may block ping while accepting a web connection.
+Work through these checks to narrow a connection problem. Each test supplies evidence about part of
+the connection. A failed test is not always a complete diagnosis: for example, a device may block
+ping while accepting a web connection.
 
 <ContentTable
   headers={["Rung", "Question", "Tool"]}
@@ -26,9 +28,14 @@ Work through these checks to narrow a connection problem. Each test supplies evi
   ]}
 />
 
-Examples use PowerShell and macOS/Linux Terminal, with OS-specific commands labeled. Read [Command Line Basics](/tools/command-line-basics#running-a-program-and-giving-it-arguments) if needed. Substitute your device and laptop addresses for `10.0.0.5` and `10.0.0.20/24`. [How a Network Works](/tools/how-a-network-works) defines the terms.
+Examples use PowerShell and macOS/Linux Terminal, with OS-specific commands labeled. Read
+[Command Line Basics](/tools/command-line-basics#running-a-program-and-giving-it-arguments) if
+needed. Substitute your device and laptop addresses for `10.0.0.5` and `10.0.0.20/24`.
+[How a Network Works](/tools/how-a-network-works) defines the terms.
 
-The Linux examples assume NetworkManager for `nmcli`. Some computers do not have `dig`, `nc`, or `traceroute` installed. If a command is missing, save the message and ask a mentor which tool your computer uses; a missing command is not evidence of a network failure.
+The Linux examples assume NetworkManager for `nmcli`. Some computers do not have `dig`, `nc`, or
+`traceroute` installed. If a command is missing, save the message and ask a mentor which tool your
+computer uses; a missing command is not evidence of a network failure.
 
 ## Rung 1: Check the Laptop
 
@@ -68,17 +75,24 @@ ip -4 addr show dev enp3s0 # replace enp3s0 with that selected device
 
 Check these settings:
 
-- **Address:** compare it with the intended network. A link-local `169.254.x.x` address may mean DHCP did not provide the expected lease.
+- **Address:** compare it with the intended network. A link-local `169.254.x.x` address may mean
+  DHCP did not provide the expected lease.
 - **Mask:** compare it with the network plan. `0xffffff00` and `/24` both represent `255.255.255.0`.
-- **Interface and route:** identify whether the test uses Ethernet, Wi-Fi, or a VPN. Record the active connections and ask the network owner to help identify the route if more than one connection could reach the target.
+- **Interface and route:** identify whether the test uses Ethernet, Wi-Fi, or a VPN. Record the
+  active connections and ask the network owner to help identify the route if more than one
+  connection could reach the target.
 
-If the settings differ from the network plan, correct them through DHCP or the [static-address procedure](/tools/setting-a-static-ip), then repeat the test.
+If the settings differ from the network plan, correct them through DHCP or the
+[static-address procedure](/tools/setting-a-static-ip), then repeat the test.
 
 ## Rung 2: Test Reachability
 
-Start with the short tests. If you use continuous ping, hold **Ctrl** and press **C** to stop it before entering the next command. Use a router address only if your network plan lists one.
+Start with the short tests. If you use continuous ping, hold **Ctrl** and press **C** to stop it
+before entering the next command. Use a router address only if your network plan lists one.
 
-`ping` sends ICMP echo requests. A reply confirms that an echo request and response traversed a path at that moment. No reply can result from filtering as well as a connection failure. See the [ping reference](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/ping).
+`ping` sends ICMP echo requests. A reply confirms that an echo request and response traversed a path
+at that moment. No reply can result from filtering as well as a connection failure. See the
+[ping reference](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/ping).
 
 <CodeTabs>
 <CodeTab label="PowerShell">
@@ -101,13 +115,20 @@ ping 10.0.0.5           # runs until Ctrl-C by default
 </CodeTab>
 </CodeTabs>
 
-Compare response times and packet loss across repeated tests. High latency or missing replies can have several causes, including congestion, filtering, power loss, and link problems. An unreachable message or timeout alone does not identify which one occurred.
+Compare response times and packet loss across repeated tests. High latency or missing replies can
+have several causes, including congestion, filtering, power loss, and link problems. An unreachable
+message or timeout alone does not identify which one occurred.
 
-If a known nearby device or gateway answers but the target does not, compare the paths and target settings. An unmanaged switch may have no address to ping. Do not assume one successful ping rules out every local problem.
+If a known nearby device or gateway answers but the target does not, compare the paths and target
+settings. An unmanaged switch may have no address to ping. Do not assume one successful ping rules
+out every local problem.
 
 ## Rung 3: Check Known Neighbors
 
-The **ARP cache** records IPv4-to-MAC mappings for neighbors on a local link. It does not list every device or prove that an entry is still reachable. For a routed destination, the local mapping may be for the gateway. See the [ARP reference](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/arp).
+The **ARP cache** records IPv4-to-MAC mappings for neighbors on a local link. It does not list every
+device or prove that an entry is still reachable. For a routed destination, the local mapping may be
+for the gateway. See the
+[ARP reference](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/arp).
 
 <CodeTabs>
 <CodeTab label="PowerShell">
@@ -141,24 +162,37 @@ ip neigh show dev enp3s0   # replace enp3s0 with the selected device
 </CodeTab>
 </CodeTabs>
 
-Generate traffic to a known local address, then inspect its entry. Entries may also be learned from other ARP traffic or added statically.
+Generate traffic to a known local address, then inspect its entry. Entries may also be learned from
+other ARP traffic or added statically.
 
-- **Manufacturer prefix:** a globally assigned MAC prefix may identify the vendor. Locally assigned or randomized addresses limit this clue.
-- **Missing entry:** check whether the destination is on the local subnet and whether the cache entry expired.
-- **Incomplete entry:** address resolution has not completed; check the local link and target configuration.
-- **Changing mapping:** investigate a possible duplicate address or device replacement. Two IP addresses sharing one MAC are not by themselves proof of a duplicate IP.
+- **Manufacturer prefix:** a globally assigned MAC prefix may identify the vendor. Locally assigned
+  or randomized addresses limit this clue.
+- **Missing entry:** check whether the destination is on the local subnet and whether the cache
+  entry expired.
+- **Incomplete entry:** address resolution has not completed; check the local link and target
+  configuration.
+- **Changing mapping:** investigate a possible duplicate address or device replacement. Two IP
+  addresses sharing one MAC are not by themselves proof of a duplicate IP.
 
-Use the address of one known local target from the network plan. Send one short ping, then find that address in the neighbor table. Do not scan an address range unless the network owner has authorized a mentor to do so. A neighbor table is not a complete device inventory: some devices do not answer, and the table contains only mappings this computer has learned.
+Use the address of one known local target from the network plan. Send one short ping, then find that
+address in the neighbor table. Do not scan an address range unless the network owner has authorized
+a mentor to do so. A neighbor table is not a complete device inventory: some devices do not answer,
+and the table contains only mappings this computer has learned.
 
 <RulesBox title="Stale Entries">
 
-Neighbor entries expire, but an old mapping can remain briefly after a device changes. Record the entry and repeat the test before changing the cache. Clearing an entire cache affects unrelated connections, so this beginner procedure stops at collecting evidence. Ask the network owner to remove one confirmed target entry if that becomes necessary.
+Neighbor entries expire, but an old mapping can remain briefly after a device changes. Record the
+entry and repeat the test before changing the cache. Clearing an entire cache affects unrelated
+connections, so this beginner procedure stops at collecting evidence. Ask the network owner to
+remove one confirmed target entry if that becomes necessary.
 
 </RulesBox>
 
 ## Rung 4: Test the Name
 
-If ping resolves the name to a different address than expected, investigate name resolution. If it resolves to the expected address but gets no reply, compare the address family and connectivity tests.
+If ping resolves the name to a different address than expected, investigate name resolution. If it
+resolves to the expected address but gets no reply, compare the address family and connectivity
+tests.
 
 <CodeTabs>
 <CodeTab label="PowerShell">
@@ -179,11 +213,16 @@ dig github.com                         # an internet name: tests DNS rather than
 </CodeTab>
 </CodeTabs>
 
-`.local` normally uses mDNS on the local link. Support and filtering vary by operating system and network. A DNS query tool does not necessarily use the same resolver as an application, so compare its result with the application connection.
+`.local` normally uses mDNS on the local link. Support and filtering vary by operating system and
+network. A DNS query tool does not necessarily use the same resolver as an application, so compare
+its result with the application connection.
 
 ## Rung 5: Test the Port
 
-Test the service's actual port and protocol. Port 22 is commonly used for SSH, and port 80 for HTTP; use these examples only if the device is supposed to offer that service. A successful TCP connection does not prove the intended application is working. The commands below test TCP connections; they do not test UDP services.
+Test the service's actual port and protocol. Port 22 is commonly used for SSH, and port 80 for HTTP;
+use these examples only if the device is supposed to offer that service. A successful TCP connection
+does not prove the intended application is working. The commands below test TCP connections; they do
+not test UDP services.
 
 <CodeTabs>
 <CodeTab label="PowerShell">
@@ -204,15 +243,23 @@ nc -zv 10.0.0.5 80
 </CodeTab>
 </CodeTabs>
 
-The `nc` options shown match OpenBSD netcat, also commonly available on macOS and Linux. Other variants may differ; check `man nc` on your computer.
+The `nc` options shown match OpenBSD netcat, also commonly available on macOS and Linux. Other
+variants may differ; check `man nc` on your computer.
 
-If ping succeeds and the TCP test fails, check the service, listening address, chosen port, and firewall rules. Read the service logs before restarting it. [Ports](/tools/how-a-network-works#ports) explains the distinction; [The Robot Network](/frc/robot-network#the-ports-a-robot-uses) lists FRC-specific ports.
+If ping succeeds and the TCP test fails, check the service, listening address, chosen port, and
+firewall rules. Read the service logs before restarting it.
+[Ports](/tools/how-a-network-works#ports) explains the distinction;
+[The Robot Network](/frc/robot-network#the-ports-a-robot-uses) lists FRC-specific ports.
 
-If the device is documented to offer an HTTP page on port 80, opening `http://10.0.0.5` in a browser also tests that application. Use the documented address and port for your device. A browser error may involve HTTP, TLS, a proxy, or the service itself, so record the actual error.
+If the device is documented to offer an HTTP page on port 80, opening `http://10.0.0.5` in a browser
+also tests that application. Use the documented address and port for your device. A browser error
+may involve HTTP, TLS, a proxy, or the service itself, so record the actual error.
 
 ## Rung 6: Trace the Route
 
-`tracert` and `traceroute` send probes to reveal responding hops along a route. Missing replies can mean a router filters these probes; they do not necessarily mark where ordinary application traffic stops.
+`tracert` and `traceroute` send probes to reveal responding hops along a route. Missing replies can
+mean a router filters these probes; they do not necessarily mark where ordinary application traffic
+stops.
 
 <CodeTabs>
 <CodeTab label="PowerShell">
@@ -233,13 +280,20 @@ traceroute github.com
 </CodeTab>
 </CodeTabs>
 
-For a directly connected device, traceroute usually adds little. For routed connections, compare the responding hops with a working destination and share the output with the network administrator when needed.
+For a directly connected device, traceroute usually adds little. For routed connections, compare the
+responding hops with a working destination and share the output with the network administrator when
+needed.
 
 ## Reset One Item
 
-The checks above are read-only or send limited test traffic. Cache flushing, DHCP renewal, and adapter restarts change connection state and can interrupt unrelated work. Record the selected adapter and its current settings, save relevant logs, and ask the network owner which single action is appropriate before using an operating-system reset command.
+The checks above are read-only or send limited test traffic. Cache flushing, DHCP renewal, and
+adapter restarts change connection state and can interrupt unrelated work. Record the selected
+adapter and its current settings, save relevant logs, and ask the network owner which single action
+is appropriate before using an operating-system reset command.
 
-For a physical-link problem, first inspect the connector and status lights. With permission, disconnect and reconnect one cable or replace it with a known-good cable, then repeat the same test. Coordinate before interrupting a device in use.
+For a physical-link problem, first inspect the connector and status lights. With permission,
+disconnect and reconnect one cable or replace it with a known-good cable, then repeat the same test.
+Coordinate before interrupting a device in use.
 
 ## Symptoms and Next Checks
 
@@ -263,7 +317,8 @@ For a physical-link problem, first inspect the connector and status lights. With
 - **Treating the ARP cache as an inventory.** Missing entries do not prove a device is absent.
 - **Assuming the address is correct.** Confirm it against the network plan or device settings.
 - **Changing several things at once.** Change one setting, repeat the test, and record the result.
-- **Missing intermittent failures.** A continuous ping can help correlate lost replies with other observations, but it does not identify the cause by itself.
+- **Missing intermittent failures.** A continuous ping can help correlate lost replies with other
+  observations, but it does not identify the cause by itself.
 
 </RulesBox>
 

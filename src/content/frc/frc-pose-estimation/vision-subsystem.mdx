@@ -10,219 +10,416 @@ difficulty: intermediate
 duration: 30 min
 description: "Building a PhotonVision subsystem that extracts, checks, logs, and publishes timestamped AprilTag pose observations."
 ---
+A vision subsystem turns camera results into timestamped observations. The camera IO estimates poses
+and records why a candidate was accepted or rejected. The drivetrain owns the pose estimator and
+applies each accepted observation once.
 
-A vision subsystem should turn camera results into observations. Each observation needs enough information for the drivetrain to decide how much to trust it:
+The worked files below use AdvantageKit v26.0.2 and PhotonLib 2026.3.2 in the student's
+`Badge2Swerve` project. Put them under `src/main/java/frc/robot/subsystems/vision/`. They use the
+`VirtualSubsystem` base from [its lesson](/frc/virtual-subsystem#writing-one), placed in
+`frc.robot.util`. Build with annotation processing enabled so AdvantageKit generates
+`AprilTagIOInputsAutoLogged`.
 
-- Estimated robot pose
-- Capture timestamp
-- Tags used
-- Estimation method
-- Measurement uncertainty
-- Source camera
+### Define the Observation
 
-Keep camera processing outside the drivetrain. Keep estimator ownership inside the drivetrain.
-
-### Define the observation
-
-A record keeps related values together:
-
-```java
-public record VisionObservation(
-    String source,
-    Pose3d fieldToRobot,
-    double timestampSeconds,
-    Matrix<N3, N1> stdDevs,
-    int tagCount,
-    PoseEstimationMethod method) {}
-```
-
-A single mutable “current standard deviation” field is a poor fit because one loop can process several camera frames with different quality. Store uncertainty on the observation it describes.
-
-### Configure one camera
-
-Each camera needs its own `PhotonCamera`, `PhotonPoseEstimator`, and measured mount transform.
+Save this file as `AprilTagIO.java`. The camera name belongs in the per-camera log path. Each
+observation contains only fields AdvantageKit can serialize automatically as a record. Store the
+three uncertainty values as numbers; the drivetrain constructs its matrix at the estimator boundary.
 
 ```java
-public final class VisionIOPhoton {
-    private final String source;
-    private final PhotonCamera camera;
-    private final PhotonPoseEstimator photonEstimator;
+package frc.robot.subsystems.vision;
 
-    public VisionIOPhoton(
-            String source,
-            AprilTagFieldLayout fieldLayout,
-            Transform3d robotToCamera) {
-        this.source = source;
-        camera = new PhotonCamera(source);
-        photonEstimator =
-            new PhotonPoseEstimator(
-                fieldLayout,
-                robotToCamera);
-    }
+import edu.wpi.first.math.geometry.Pose3d;
+import org.littletonrobotics.junction.AutoLog;
+
+public interface AprilTagIO {
+  public record Observation(
+      Pose3d pose,
+      double timestampSeconds,
+      int tagCount,
+      double ambiguity,
+      double distanceMeters,
+      double residualMeters,
+      double xStdDevMeters,
+      double yStdDevMeters,
+      double headingStdDevRadians) {}
+
+  public enum Rejection {
+    NO_POSE,
+    HAS_TAGS,
+    AMBIGUITY,
+    ON_FIELD,
+    ON_FLOOR,
+    TIMESTAMP,
+    RESIDUAL
+  }
+
+  public record RejectedObservation(Observation candidate, Rejection reason) {}
+
+  @AutoLog
+  public class AprilTagIOInputs {
+    public Observation[] observations = new Observation[0];
+    public RejectedObservation[] rejected = new RejectedObservation[0];
+  }
+
+  public default void updateInputs(AprilTagIOInputs inputs) {}
 }
 ```
 
-The camera name must match the PhotonVision configuration. The field layout must match the physical field and the layout configured on the coprocessor.
+An empty array means no observations in that cycle. A live IO replaces both arrays every cycle.
+Replay uses the empty default implementation and lets `Logger.processInputs` restore the recorded
+arrays. Do not store a `String`, array, or dimension-dependent `Matrix` inside the auto-serialized
+observation record. A top-level string input is supported, but that does not make a string a
+supported record component.
 
-### Process unread results once
+### Configure One Camera
 
-```java
-public List<VisionObservation> update() {
-    List<VisionObservation> accepted =
-        new ArrayList<>();
-
-    for (PhotonPipelineResult result
-            : camera.getAllUnreadResults()) {
-        Optional<EstimatedRobotPose> estimate =
-            photonEstimator
-                .estimateCoprocMultiTagPose(result)
-                .or(() ->
-                    photonEstimator
-                        .estimateLowestAmbiguityPose(result));
-
-        if (estimate.isEmpty()) {
-            continue;
-        }
-
-        EstimatedRobotPose pose = estimate.get();
-
-        if (!isUsable(pose)) {
-            logRejected(pose);
-            continue;
-        }
-
-        Matrix<N3, N1> stdDevs =
-            calculateStdDevs(pose);
-
-        accepted.add(new VisionObservation(
-            source,
-            pose.estimatedPose,
-            pose.timestampSeconds,
-            stdDevs,
-            pose.targetsUsed.size(),
-            classifyMethod(pose)));
-    }
-
-    return accepted;
-}
-```
-
-This method drains unread results once. Other methods should read cached observations or status values instead of calling `getLatestResult()` and creating a second consumption path.
-
-### Reject measurements for stated reasons
-
-Filtering and uncertainty have different jobs:
-
-- **Filtering** removes an observation that should not enter the estimator.
-- **Uncertainty** controls the influence of an accepted observation.
-
-A filter can check:
-
-- At least one known tag contributed.
-- A single-tag observation is within the tested distance and ambiguity limits.
-- The estimated pose lies within plausible field bounds.
-- Height, roll, and pitch are plausible for a robot on the floor.
-- The timestamp is new and falls within the estimator's retained history.
-- The camera and field layout match the active configuration.
+Save the following class as `AprilTagIOPhoton.java`. Each instance owns one camera, estimator and
+timestamp watermark. Its `CameraConfig` names the camera and mount. The named filter limits below
+are initial simulation exercise settings; inspect logs before changing them, and do not treat them
+as physical calibration values.
 
 ```java
-private boolean isUsable(
-        EstimatedRobotPose estimate) {
-    if (estimate.targetsUsed.isEmpty()) {
-        return false;
+package frc.robot.subsystems.vision;
+
+import edu.wpi.first.apriltag.AprilTagFieldLayout;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Pose3d;
+import edu.wpi.first.math.geometry.Transform3d;
+import edu.wpi.first.wpilibj.Timer;
+import java.util.ArrayList;
+import java.util.function.Supplier;
+import org.photonvision.EstimatedRobotPose;
+import org.photonvision.PhotonCamera;
+import org.photonvision.PhotonPoseEstimator;
+
+public class AprilTagIOPhoton implements AprilTagIO, AutoCloseable {
+  public record CameraConfig(String name, Transform3d robotToCamera) {}
+
+  private static final double MAX_AMBIGUITY = 0.20;
+  private static final double MAX_RESIDUAL_METERS = 2.0;
+  private static final double MAX_HEIGHT_METERS = 0.30;
+  private static final double MAX_TILT_RADIANS = Math.toRadians(15.0);
+  private static final double MAX_AGE_SECONDS = 1.5;
+  private final PhotonCamera camera;
+  private final PhotonPoseEstimator estimator;
+  private final AprilTagFieldLayout layout;
+  private final Supplier<Pose2d> referencePose;
+  private double lastProcessedTimestamp = Double.NEGATIVE_INFINITY;
+
+  public AprilTagIOPhoton(
+      CameraConfig config, AprilTagFieldLayout layout, Supplier<Pose2d> referencePose) {
+    this.layout = layout;
+    this.referencePose = referencePose;
+    camera = new PhotonCamera(config.name());
+    estimator = new PhotonPoseEstimator(layout, config.robotToCamera());
+  }
+
+  protected final PhotonCamera getCamera() {
+    return camera;
+  }
+
+  @Override
+  public void updateInputs(AprilTagIOInputs inputs) {
+    var accepted = new ArrayList<Observation>();
+    var rejected = new ArrayList<RejectedObservation>();
+    for (var result : camera.getAllUnreadResults()) {
+      var estimate =
+          estimator
+              .estimateCoprocMultiTagPose(result)
+              .or(() -> estimator.estimateLowestAmbiguityPose(result));
+      if (estimate.isEmpty()) {
+        var missing =
+            new Observation(
+                new Pose3d(),
+                result.getTimestampSeconds(),
+                result.getTargets().size(),
+                -1.0,
+                0.0,
+                Double.NaN,
+                0.0,
+                0.0,
+                0.0);
+        rejected.add(new RejectedObservation(missing, Rejection.NO_POSE));
+        continue;
+      }
+
+      EstimatedRobotPose sample = estimate.get();
+      int count = sample.targetsUsed.size();
+      double ambiguity = count == 1 ? sample.targetsUsed.get(0).getPoseAmbiguity() : -1.0;
+      double distance = averageKnownTagDistance(sample);
+      double residual =
+          sample
+              .estimatedPose
+              .toPose2d()
+              .getTranslation()
+              .getDistance(referencePose.get().getTranslation());
+      var candidate =
+          new Observation(
+              sample.estimatedPose,
+              sample.timestampSeconds,
+              count,
+              ambiguity,
+              distance,
+              residual,
+              0.0,
+              0.0,
+              0.0);
+
+      double age = Timer.getFPGATimestamp() - sample.timestampSeconds;
+      boolean timestampOk =
+          Double.isFinite(sample.timestampSeconds)
+              && sample.timestampSeconds > lastProcessedTimestamp
+              && age >= 0.0
+              && age <= MAX_AGE_SECONDS;
+      if (timestampOk) lastProcessedTimestamp = sample.timestampSeconds;
+      boolean hasTags =
+          count > 0
+              && sample.targetsUsed.stream()
+                  .allMatch(tag -> layout.getTagPose(tag.getFiducialId()).isPresent());
+      Rejection reason = firstFailure(candidate, hasTags, timestampOk);
+      if (reason != null) {
+        rejected.add(new RejectedObservation(candidate, reason));
+        continue;
+      }
+
+      double scale = 1.0 + distance * distance / 30.0;
+      double xyStdDev = (count > 1 ? 0.25 : 1.0) * scale;
+      accepted.add(
+          new Observation(
+              candidate.pose(),
+              candidate.timestampSeconds(),
+              count,
+              ambiguity,
+              distance,
+              residual,
+              xyStdDev,
+              xyStdDev,
+              1.0e6));
     }
+    inputs.observations = accepted.toArray(Observation[]::new);
+    inputs.rejected = rejected.toArray(RejectedObservation[]::new);
+  }
 
-    if (estimate.targetsUsed.size() == 1) {
-        PhotonTrackedTarget tag =
-            estimate.targetsUsed.get(0);
-
-        double distanceMeters =
-            tag.getBestCameraToTarget()
-                .getTranslation()
-                .getNorm();
-
-        if (tag.getPoseAmbiguity()
-                >= ambiguityCutoff) {
-            return false;
-        }
-
-        if (distanceMeters
-                >= singleTagDistanceCutoffMeters) {
-            return false;
-        }
+  private Rejection firstFailure(Observation sample, boolean hasTags, boolean timestampOk) {
+    if (!hasTags) return Rejection.HAS_TAGS;
+    if (sample.tagCount() == 1
+        && !(sample.ambiguity() >= 0.0 && sample.ambiguity() < MAX_AMBIGUITY)) {
+      return Rejection.AMBIGUITY;
     }
-
-    Pose3d pose = estimate.estimatedPose;
-    return pose.getX() >= 0.0
-        && pose.getX() <= fieldLayout.getFieldLength()
+    Pose3d pose = sample.pose();
+    if (!(pose.getX() >= 0.0
+        && pose.getX() <= layout.getFieldLength()
         && pose.getY() >= 0.0
-        && pose.getY() <= fieldLayout.getFieldWidth();
+        && pose.getY() <= layout.getFieldWidth())) {
+      return Rejection.ON_FIELD;
+    }
+    if (!(Math.abs(pose.getZ()) <= MAX_HEIGHT_METERS
+        && Math.abs(pose.getRotation().getX()) <= MAX_TILT_RADIANS
+        && Math.abs(pose.getRotation().getY()) <= MAX_TILT_RADIANS)) {
+      return Rejection.ON_FLOOR;
+    }
+    if (!timestampOk) return Rejection.TIMESTAMP;
+    if (sample.tagCount() == 1 && !(sample.residualMeters() < MAX_RESIDUAL_METERS)) {
+      return Rejection.RESIDUAL;
+    }
+    return null;
+  }
+
+  private double averageKnownTagDistance(EstimatedRobotPose sample) {
+    double sum = 0.0;
+    int count = 0;
+    for (var target : sample.targetsUsed) {
+      var tagPose = layout.getTagPose(target.getFiducialId());
+      if (tagPose.isPresent()) {
+        sum +=
+            tagPose
+                .get()
+                .toPose2d()
+                .getTranslation()
+                .getDistance(sample.estimatedPose.toPose2d().getTranslation());
+        count++;
+      }
+    }
+    return count == 0 ? 0.0 : sum / count;
+  }
+
+  @Override
+  public void close() {
+    camera.close();
+  }
 }
 ```
 
-The cutoffs are team configuration values. Determine them from logs rather than copying the example numbers into every robot.
+### Process Unread Results Once
 
-### Assign uncertainty
+`updateInputs` drains `getAllUnreadResults()` once. The estimator first attempts a coprocessor
+multitag pose and falls back to the lowest-ambiguity single-tag estimate. An empty `Optional`
+produces a `NO_POSE` entry, whose placeholder pose must not be plotted as a valid estimate. For
+calculated poses, accepted and rejected records both retain the translation residual.
 
-A common starting heuristic gives multi-tag observations smaller x/y standard deviations than single-tag observations, then increases them with distance.
+The timestamp watermark belongs to this camera instance. It advances when a newer timestamp passes
+the age check, even if a geometry check later rejects that sample. A second camera has a separate
+watermark, so its latency does not make its frames duplicates of the first camera's frames. Use the
+estimator's FPGA time base; do not substitute wall-clock time. The retained history is at most 1.5
+seconds and can be shorter just after startup. Badge 2 requires an explanation of ordering and age,
+not a separate future-timestamp fault exercise.
+
+### Reject Measurements for Stated Reasons
+
+The six predicate names in Badge 2 map to the rejection enum: `hasTags`, `ambiguityOk`, `onField`,
+`onFloor`, `timestampOk` and `residualOk`. The code reports the first failure in that order. A
+missing pose is handled before those predicates because there is no candidate to evaluate.
+
+The residual compares the observed translation with the current estimated translation. Motion since
+capture contributes to that difference, so inspect latency and speed beside it. Ambiguity and
+residual limits apply only to single-tag observations. Multitag candidates still pass the other
+validity checks.
+
+Cobra's current `AprilTagAlgorithms.SingleTagAlgorithms` checks known tags, ambiguity and
+camera-to-tag distance. The badge adds a pose-residual gate. Camera range and pose residual answer
+different questions; do not label one as the other when comparing the student code with Cobra.
+
+### Assign Uncertainty
+
+Only accepted observations receive uncertainty values. The example starts at 1 m translation
+standard deviation for one tag and 0.25 m for several tags, then scales by `1 + distance² / 30`,
+following Cobra's distance heuristic. Here distance is the mean horizontal distance from the
+estimated robot translation to the known tags. These starting values are teaching choices, not
+Cobra's calibrated constants. The large finite heading deviation leaves heading chiefly to the gyro.
+Inspect the logs before tuning either policy.
+
+### Publish Without Owning the Drivetrain
+
+Save this file as `AprilTagVision.java`. Each log key must be unique, such as `Vision/Front` and
+`Vision/Rear`.
 
 ```java
-private Matrix<N3, N1> calculateStdDevs(
-        EstimatedRobotPose estimate) {
-    Matrix<N3, N1> base =
-        estimate.targetsUsed.size() > 1
-            ? multiTagStdDevs
-            : singleTagStdDevs;
+package frc.robot.subsystems.vision;
 
-    double averageDistanceMeters =
-        averageTagDistance(estimate);
+import frc.robot.util.VirtualSubsystem;
+import java.util.function.Consumer;
+import org.littletonrobotics.junction.Logger;
 
-    return base.times(
-        1.0
-        + averageDistanceMeters
-            * averageDistanceMeters
-            / 30.0);
+public final class AprilTagVision extends VirtualSubsystem {
+  private final AprilTagIO[] cameras;
+  private final String[] logKeys;
+  private final AprilTagIOInputsAutoLogged[] inputs;
+  private final Consumer<AprilTagIO.Observation> offerObservation;
+  private final Runnable updateWorld;
+
+  public AprilTagVision(
+      String[] logKeys,
+      AprilTagIO[] cameras,
+      Consumer<AprilTagIO.Observation> offerObservation,
+      Runnable updateWorld) {
+    if (logKeys.length != cameras.length) {
+      throw new IllegalArgumentException("One log key is required per camera");
+    }
+    this.logKeys = logKeys.clone();
+    this.cameras = cameras.clone();
+    this.offerObservation = offerObservation;
+    this.updateWorld = updateWorld;
+    inputs = new AprilTagIOInputsAutoLogged[cameras.length];
+    for (int i = 0; i < cameras.length; i++) inputs[i] = new AprilTagIOInputsAutoLogged();
+  }
+
+  @Override
+  public void periodic() {
+    updateWorld.run();
+    for (int i = 0; i < cameras.length; i++) {
+      cameras[i].updateInputs(inputs[i]);
+      Logger.processInputs(logKeys[i], inputs[i]);
+      for (var observation : inputs[i].observations) offerObservation.accept(observation);
+    }
+  }
+
+  @Override
+  public void simulationPeriodic() {
+    // The shared camera world is updated once in periodic(), before reading camera inputs.
+  }
 }
 ```
 
-This formula is the heuristic used in FRC 4451's 2026 vision code. It is a starting model, not a measured law. [Pose Estimation Calibration](/frc/pose-estimation-calibration) explains how to test it.
+Pass `BobotState::offerVisionObservation` as the consumer. In SIM, `updateWorld` is
+`() -> world.update(BobotState.getPose())`. In REPLAY it is `() -> {}`, and each IO is
+`new AprilTagIO() {}`. The drivetrain alone drains the private state queue after its odometry
+update. For each observation, pass its pose, timestamp and
+`VecBuilder.fill(observation.xStdDevMeters(), observation.yStdDevMeters(), observation.headingStdDevRadians())`
+to the template's `addVisionMeasurement` method. Then write the resulting estimated pose to
+`BobotState`.
 
-If the gyro supplies reliable heading, the vision heading standard deviation can be very large so tag observations mainly correct x and y. A robot that deliberately uses vision heading needs separate validation.
+### Add the Simulation IO
 
-### Publish without owning the drivetrain
-
-The subsystem can send accepted observations through a consumer or queue:
+Save this as `AprilTagIOPhotonSim.java`. It shares the real processing and filter. Its superclass is
+deliberately not `final`; the subclass can access the existing camera through a protected getter
+without exposing that camera to every caller.
 
 ```java
-for (VisionObservation observation : io.update()) {
-    observationConsumer.accept(observation);
+package frc.robot.subsystems.vision;
+
+import edu.wpi.first.apriltag.AprilTagFieldLayout;
+import edu.wpi.first.math.geometry.Pose2d;
+import java.util.function.Supplier;
+import org.photonvision.simulation.PhotonCameraSim;
+import org.photonvision.simulation.SimCameraProperties;
+import org.photonvision.simulation.VisionSystemSim;
+
+public final class AprilTagIOPhotonSim extends AprilTagIOPhoton {
+  private final PhotonCameraSim cameraSim;
+
+  public AprilTagIOPhotonSim(
+      CameraConfig config,
+      AprilTagFieldLayout layout,
+      Supplier<Pose2d> referencePose,
+      VisionSystemSim world,
+      SimCameraProperties properties,
+      boolean showStreams) {
+    super(config, layout, referencePose);
+    cameraSim = new PhotonCameraSim(getCamera(), properties, layout);
+    cameraSim.enableRawStream(showStreams);
+    cameraSim.enableProcessedStream(showStreams);
+    cameraSim.enableDrawWireframe(false);
+    world.addCamera(cameraSim, config.robotToCamera());
+  }
+
+  @Override
+  public void close() {
+    cameraSim.close();
+    super.close();
+  }
 }
 ```
 
-The drivetrain drains each observation once and calls `addVisionMeasurement`. This keeps estimator updates in one subsystem and lets AdvantageKit replay the observation stream.
+Construct one shared `VisionSystemSim` in SIM and add the season's tags once with
+`world.addAprilTags(layout)`. Use documented camera properties and mounting transforms. Construct
+one IO first, then add a second with its own name, transform and log key. Update the world once
+before processing all cameras, not once per camera.
+[Vision Simulation](/frc/vision-simulation#what-to-watch) explains the plots and the limitation of
+driving this world from the estimated pose.
 
-Log accepted and rejected poses separately. Also log source, tag count, ambiguity, distance, method, timestamp, and chosen standard deviations. A field plot shows where a bad estimate lands; the supporting values explain why.
+### Check the Replay Boundary
 
-<RulesBox title="Implementation checks">
+Record a SIM run containing an empty cycle, an accepted observation, and a rejected candidate. Save
+both cameras' input arrays. In REPLAY, construct no camera simulator or live camera producer.
+`Logger.processInputs` restores each cycle's arrays before publication. Compare observation counts,
+poses, timestamps, residuals, rejection reasons and all three uncertainty values. Count estimator
+insertions and show one per accepted observation, including a return to zero on an empty cycle.
 
-- Construct one `PhotonPoseEstimator` per camera.
-- Drain `getAllUnreadResults()` once per loop.
-- Keep each result's original timestamp.
-- Measure `robotToCamera` in WPILib axes.
-- Use the same season and field-layout variant on both processors.
-- Reject invalid observations before publishing them.
-- Attach uncertainty to each accepted observation.
-- Keep raw, accepted, and rejected observations in the log.
+This check is separate from opening a log in AdvantageScope. It proves the robot code consumes the
+same recorded observations. A changed rejection threshold in replay does not rerun camera filtering
+here; it reuses the recorded decisions. To compare a different filter, record another SIM run or
+explicitly log an earlier raw-data boundary in a later exercise.
 
-</RulesBox>
 
 <Sources items={[
+  {"source": "advantagekit", "path": "data-flow/supported-types/", "note": "Supported record components and top-level record arrays."},
   {"source": "mantik", "path": "src/content/frc/frc-pose-estimation/vision-subsystem.mdx", "note": "The lesson's topic and original outline come from Mantik's page of the same name; the text was rewritten for GarageDocs."},
   {"source": "photonvision", "path": "docs/programming/photonlib/robot-pose-estimator.html", "note": "One estimator per camera; <code>EstimatedRobotPose</code> fields."},
   {"source": "photonvision", "path": "docs/programming/photonlib/getting-target-data.html", "note": "Draining <code>getAllUnreadResults()</code> once."},
   {"source": "wpilib", "path": "docs/software/advanced-controls/state-space/state-space-pose-estimators.html", "note": "Standard deviations as per-measurement uncertainty."},
   {"source": "advantagekit", "path": "data-flow/recording-inputs/io-interfaces", "note": "Why the camera processing is an IO layer and the observations are logged inputs."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/VisionTypes.java", "note": "<code>PoseObservation</code> record: pose, timestamp, ambiguity, tag id, <code>stdDevs</code>, method."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/VisionTypes.java", "note": "Team observation records for comparison; the teaching record uses scalar uncertainty for automatic record serialization."},
   {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagIOPhoton.java", "note": "Result processing and rejection checks."},
   {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagAlgorithms.java", "note": "<code>getEstimationStdDevs</code>: the tag-count and distance heuristic quoted here."},
   {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagVision.java", "note": "The <code>VirtualSubsystem</code> that offers observations to <code>BobotState</code> queues."},

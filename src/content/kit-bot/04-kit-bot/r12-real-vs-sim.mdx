@@ -10,15 +10,20 @@ duration: 15 min
 description: "Select real or simulated IO while the program starts, without changing subsystem code or driver bindings."
 ---
 
-R07 and R08 created real and simulated IO classes. The project still constructs only the simulated classes. This lesson adds one decision in `RobotContainer`: use simulation IO on the laptop and real IO on the roboRIO.
+R07 and R08 created real and simulated IO classes. The project still constructs only the simulated
+classes. This lesson adds one decision in `RobotContainer`: use simulation IO on the laptop and real
+IO on the roboRIO.
 
-**Runtime** means while the program is running. WPILib reports the current runtime, and `RobotContainer` uses that result while it creates the subsystems.
+**Runtime** means while the program is running. WPILib reports the current runtime, and
+`RobotContainer` uses that result while it creates the subsystems.
 
 ## Before You Start
 
-Complete [R11 Teleop Drive](/kit-bot/r11-teleop-drive). Build the project and run its teleop checks before changing `RobotContainer.java`.
+Complete [R11 Teleop Drive](/kit-bot/r11-teleop-drive). Build the project and run its teleop checks
+before changing `RobotContainer.java`.
 
-This page uses small edits so you can build after each one. Keep the existing controller field, `configureBindings()` method, teleop gate, and `getAutonomousCommand()` method.
+This page uses small edits so you can build after each one. Keep the existing controller field,
+`configureBindings()` method, teleop gate, and `getAutonomousCommand()` method.
 
 ## Add the Runtime Import
 
@@ -28,11 +33,13 @@ Open `src/main/java/frc/robot/RobotContainer.java`. Add this import with the WPI
 import edu.wpi.first.wpilibj.RobotBase;
 ```
 
-`RobotBase.isReal()` returns `true` when the program runs on a roboRIO. It returns `false` during desktop simulation. `RobotBase.isSimulation()` reports the opposite condition.
+`RobotBase.isReal()` returns `true` when the program runs on a roboRIO. It returns `false` during
+desktop simulation. `RobotBase.isSimulation()` reports the opposite condition.
 
 ## Change the Subsystem Fields
 
-Find the two subsystem fields. They currently create the simulation IO objects where the fields are declared. Replace them with declarations that do not create either implementation yet:
+Find the two subsystem fields. They currently create the simulation IO objects where the fields are
+declared. Replace them with declarations that do not create either implementation yet:
 
 ```java
 private final Drive drive;
@@ -41,7 +48,8 @@ private final Launcher launcher;
 
 `final` still means that each field receives one value. The constructor will assign that value once.
 
-Save the file. A build would fail at this point because the fields have no values. Continue to the constructor before building.
+Save the file. A build would fail at this point because the fields have no values. Continue to the
+constructor before building.
 
 ## Select the IO Implementations
 
@@ -65,9 +73,11 @@ launcher = new Launcher(launcherIO);
 System.out.println("IO: " + (RobotBase.isReal() ? "real" : "sim"));
 ```
 
-The constructor should still call `configureBindings()` after this new block. Do not replace that call.
+The constructor should still call `configureBindings()` after this new block. Do not replace that
+call.
 
-Add any missing imports. VS Code can add an import when you place the cursor on a red class name and press `Ctrl+.` on Windows or Linux, or `Cmd+.` on macOS.
+Add any missing imports. VS Code can add an import when you place the cursor on a red class name and
+press `Ctrl+.` on Windows or Linux, or `Cmd+.` on macOS.
 
 ```java
 import frc.robot.subsystems.drive.DriveIO;
@@ -78,7 +88,9 @@ import frc.robot.subsystems.launcher.LauncherIOReal;
 import frc.robot.subsystems.launcher.LauncherIOSim;
 ```
 
-Save the file. Open the Command Palette and run **WPILib: Build Robot Code**. Fix the first error before continuing. Common causes at this checkpoint are a missing import, a field that still creates `DriveIOSim` or `LauncherIOSim`, or an assignment placed outside the constructor.
+Save the file. Open the Command Palette and run **WPILib: Build Robot Code**. Fix the first error
+before continuing. Common causes at this checkpoint are a missing import, a field that still creates
+`DriveIOSim` or `LauncherIOSim`, or an assignment placed outside the constructor.
 
 ## Keep One Selection Point
 
@@ -97,13 +109,17 @@ Drive and Launcher
 the same commands and bindings
 ```
 
-Neither `Drive` nor `Launcher` asks whether the program is real or simulated. Each subsystem receives an object that implements its IO interface. If you add another mechanism later, add both of its IO choices to this same `if`.
+Neither `Drive` nor `Launcher` asks whether the program is real or simulated. Each subsystem
+receives an object that implements its IO interface. If you add another mechanism later, add both of
+its IO choices to this same `if`.
 
-Do not add a second runtime check inside a subsystem or command. One selection point keeps the two branches visible and gives both branches the same subsystem and binding code.
+Do not add a second runtime check inside a subsystem or command. One selection point keeps the two
+branches visible and gives both branches the same subsystem and binding code.
 
 ## Confirm the Bindings Stayed
 
-Do not replace `configureBindings()` with an older version. It should still contain the R11 teleop gate and all retained controls:
+Do not replace `configureBindings()` with an older version. It should still contain the R11 teleop
+gate and all retained controls:
 
 | Control | Command |
 |---|---|
@@ -117,7 +133,9 @@ Do not replace `configureBindings()` with an older version. It should still cont
 | X | `launcher.characterizeFeedforward()` |
 | B | `drive.stopCommand()` |
 
-Every button trigger in that method remains combined with `teleopEnabled`. Runtime IO selection changes the implementation objects. It does not change command behavior or remove the autonomous safety boundary.
+Every button trigger in that method remains combined with `teleopEnabled`. Runtime IO selection
+changes the implementation objects. It does not change command behavior or remove the autonomous
+safety boundary.
 
 ## Run the Simulation Check
 
@@ -127,14 +145,19 @@ Every button trigger in that method remains combined with `teleopEnabled`. Runti
 4. Find `IO: sim` in the terminal or simulation console.
 5. Enable teleop and check forward, reverse, and turning.
 6. Check the bumpers, A, both D-pad settings, X, Y, and B.
-7. Hold one launcher button and switch to autonomous. Confirm its output request returns to zero and every driver control stays inactive.
+7. Hold one launcher button and switch to autonomous. Confirm its output request returns to zero and
+   every driver control stays inactive.
 8. Return to teleop and confirm the controls work again.
 
-The `IO: sim` line proves that the simulation branch ran. Seeing the real branch in the source proves only that the branch exists. [R12 First Deploy](/kit-bot/r12-first-deploy) checks `IO: real` on inspected hardware after the simulation capstone.
+The `IO: sim` line proves that the simulation branch ran. Seeing the real branch in the source
+proves only that the branch exists. [R12 First Deploy](/kit-bot/r12-first-deploy) checks `IO: real`
+on inspected hardware after the simulation capstone.
 
 ## Optional Simulation Overview
 
-Mechanical Advantage's FRC Championship presentation shows how robot code, a physics model, visualization, and logs fit together. This project does not require AdvantageKit. Watch for the IO boundary between the mechanism code and the real or simulated implementation.
+Mechanical Advantage's FRC Championship presentation shows how robot code, a physics model,
+visualization, and logs fit together. This project does not require AdvantageKit. Watch for the IO
+boundary between the mechanism code and the real or simulated implementation.
 
 <YouTubeEmbed id="BrzPw6ngx4o" title="FRC Log Replay and Simulation (2024) - FRC 6328 FIRST Championship Conference" />
 
@@ -146,7 +169,9 @@ Mechanical Advantage's FRC Championship presentation shows how robot code, a phy
 
 <RulesBox title="Done When">
 
-The project builds, the console reports `IO: sim`, and every retained driver control still works in teleop. Driver controls remain inactive in autonomous. Point to the single runtime `if`, name all four selected IO implementations, and explain that only a roboRIO run can verify the real branch.
+The project builds, the console reports `IO: sim`, and every retained driver control still works in
+teleop. Driver controls remain inactive in autonomous. Point to the single runtime `if`, name all
+four selected IO implementations, and explain that only a roboRIO run can verify the real branch.
 
 </RulesBox>
 

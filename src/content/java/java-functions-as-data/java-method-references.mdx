@@ -19,17 +19,21 @@ Some lambdas do nothing except call an existing method with the values they rece
 names.forEach(name -> System.out.println(name));
 ```
 
-The parameter `name` is passed directly to `println`. A **method reference** can name that existing method without repeating the parameter:
+The parameter `name` is passed directly to `println`. A **method reference** can name that existing
+method without repeating the parameter:
 
 ```java norun
 names.forEach(System.out::println);
 ```
 
-The lambda and method reference can provide equivalent behavior when they target the same compatible functional interface. A method reference is its own expression, however, not an anonymous class or lambda created by a textual rewrite.
+The lambda and method reference can provide equivalent behavior when they target the same compatible
+functional interface. A method reference is its own expression, however, not an anonymous class or
+lambda created by a textual rewrite.
 
 <RulesBox title="The Readability Test">
 
-Use a method reference when it makes the existing method and the data flow easier to recognize. These direct forwarding calls are good candidates:
+Use a method reference when it makes the existing method and the data flow easier to recognize.
+These direct forwarding calls are good candidates:
 
 ```java norun
 value -> Integer.parseInt(value) // Integer::parseInt
@@ -38,7 +42,8 @@ value -> value.length() // String::length
 () -> new ArrayList<>() // ArrayList::new
 ```
 
-Keep the lambda when it adds an argument, changes argument order, combines calls, or performs other work:
+Keep the lambda when it adds an argument, changes argument order, combines calls, or performs other
+work:
 
 ```java norun
 value -> parse(value, 10)
@@ -64,11 +69,13 @@ The shortest form is useful only when it stays clear.
   ]}
 />
 
-The bound and unbound instance forms look similar, but they receive their target objects in different ways.
+The bound and unbound instance forms look similar, but they receive their target objects in
+different ways.
 
 ### Bound and Unbound Instance Methods
 
-A **bound** reference includes the object that will receive the method call. An **unbound** reference receives that object as the functional interface's first argument.
+A **bound** reference includes the object that will receive the method call. An **unbound**
+reference receives that object as the functional interface's first argument.
 
 ```java
 import java.util.List;
@@ -101,13 +108,17 @@ true
 7
 ```
 
-In `prefix::startsWith`, `prefix` is fixed and the predicate supplies the method argument. In `String::length`, the function's argument becomes the object whose `length()` method is called.
+In `prefix::startsWith`, `prefix` is fixed and the predicate supplies the method argument. In
+`String::length`, the function's argument becomes the object whose `length()` method is called.
 
-An unbound instance method can also have its own parameters. In that case, the functional interface's first parameter is the receiver and the remaining parameters become method arguments. For example, `String::startsWith` can target a `BiPredicate<String, String>`.
+An unbound instance method can also have its own parameters. In that case, the functional
+interface's first parameter is the receiver and the remaining parameters become method arguments.
+For example, `String::startsWith` can target a `BiPredicate<String, String>`.
 
 ### Constructor References
 
-A constructor reference describes how to create an object. The target functional interface determines which constructor signature must match.
+A constructor reference describes how to create an object. The target functional interface
+determines which constructor signature must match.
 
 ```java
 import java.util.ArrayList;
@@ -137,7 +148,9 @@ false
 true
 ```
 
-The `Supplier` selects a no-argument constructor. The `Function<Integer, ArrayList<String>>` selects a constructor compatible with one `int` argument. The same `ArrayList::new` text can therefore select different constructors in different target contexts.
+The `Supplier` selects a no-argument constructor. The `Function<Integer, ArrayList<String>>` selects
+a constructor compatible with one `int` argument. The same `ArrayList::new` text can therefore
+select different constructors in different target contexts.
 
 For your own class, the pattern works the same way:
 
@@ -154,7 +167,8 @@ Function<Integer, Motor> motorFactory = Motor::new;
 Motor driveMotor = motorFactory.apply(3);
 ```
 
-If no accessible constructor matches the functional interface's parameter and return types, the reference does not compile.
+If no accessible constructor matches the functional interface's parameter and return types, the
+reference does not compile.
 
 ### Where Method References Read Well
 
@@ -170,21 +184,28 @@ names.removeIf(String::isBlank);
 new Thread(this::periodic).start();
 ```
 
-`this::periodic` is a bound instance reference. The current object is fixed as the receiver, and `Runnable.run()` supplies no arguments.
+`this::periodic` is a bound instance reference. The current object is fixed as the receiver, and
+`Runnable.run()` supplies no arguments.
 
 <RulesBox title="When a Lambda Reads Better">
 
-A method reference helps only when the referenced name communicates the work. If `Helper::process` leaves the reader wondering what is processed, expanding it to `item -> Helper.process(item)` does not solve the naming problem. A clearer method name or a small named method usually does.
+A method reference helps only when the referenced name communicates the work. If `Helper::process`
+leaves the reader wondering what is processed, expanding it to `item -> Helper.process(item)` does
+not solve the naming problem. A clearer method name or a small named method usually does.
 
-Keep a lambda when its parameter names reveal useful roles, when the code performs more than one operation, or when the method reference would make the receiver-and-argument mapping difficult to see.
+Keep a lambda when its parameter names reveal useful roles, when the code performs more than one
+operation, or when the method reference would make the receiver-and-argument mapping difficult to
+see.
 
 </RulesBox>
 
 ### Target Types and Overloads
 
-Like a lambda, a method reference needs a target functional interface. The target supplies parameter and return types that Java uses to select a compatible method or constructor.
+Like a lambda, a method reference needs a target functional interface. The target supplies parameter
+and return types that Java uses to select a compatible method or constructor.
 
-Overloads can make that selection unclear. If the compiler reports an ambiguous method reference, assign it to a specifically typed variable or write an explicitly typed lambda:
+Overloads can make that selection unclear. If the compiler reports an ambiguous method reference,
+assign it to a specifically typed variable or write an explicitly typed lambda:
 
 ```java norun
 Function<String, Integer> parseDecimal = Integer::parseInt;
@@ -196,11 +217,15 @@ Do not add casts until you understand which target type and overload the call sh
 
 <RulesBox title="Common Mistakes">
 
-- **Using `::` when the lambda does extra work.** A reference names one existing method or constructor.
-- **Confusing bound and unbound instance forms.** `object::method` fixes the receiver; `Type::method` receives it as the first argument.
-- **Matching the wrong parameter count or types.** The functional interface and referenced declaration must be compatible.
+- **Using `::` when the lambda does extra work.** A reference names one existing method or
+  constructor.
+- **Confusing bound and unbound instance forms.** `object::method` fixes the receiver;
+  `Type::method` receives it as the first argument.
+- **Matching the wrong parameter count or types.** The functional interface and referenced
+  declaration must be compatible.
 - **Using `Type::new` when no accessible constructor matches.**
-- **Choosing a method reference automatically** even when a lambda would show the data flow more clearly.
+- **Choosing a method reference automatically** even when a lambda would show the data flow more
+  clearly.
 
 </RulesBox>
 
@@ -210,18 +235,24 @@ Do not add casts until you understand which target type and overload the call sh
 
 1. Rewrite `list.forEach(value -> System.out.println(value))` as a method reference.
 2. Convert a `List<String>` of digits into a `List<Integer>` using a method reference.
-3. Sort a list of your own objects by an integer field using `Comparator.comparingInt` and a method reference.
-4. Use a constructor reference to create a `Supplier` that produces empty `ArrayList` objects. Call it twice and confirm that it returns two distinct lists.
-5. Write a lambda that cannot become a method reference, and explain in a comment what extra work prevents the conversion.
+3. Sort a list of your own objects by an integer field using `Comparator.comparingInt` and a method
+   reference.
+4. Use a constructor reference to create a `Supplier` that produces empty `ArrayList` objects. Call
+   it twice and confirm that it returns two distinct lists.
+5. Write a lambda that cannot become a method reference, and explain in a comment what extra work
+   prevents the conversion.
 
 <details>
 <summary>Hints</summary>
 
 1. Use `System.out::println`.
-2. Use `.map(Integer::parseInt)` in a stream pipeline, or call the reference through a `Function<String, Integer>` in a loop.
+2. Use `.map(Integer::parseInt)` in a stream pipeline, or call the reference through a
+   `Function<String, Integer>` in a loop.
 3. `Comparator.comparingInt(Motor::getPort)` works when `getPort()` returns an `int`.
-4. Store `ArrayList::new` in a `Supplier<List<String>>`, call `get()` twice, and compare the references with `==`. The result should be `false`.
-5. Adding a fixed argument, changing argument order, or doing arithmetic around a call keeps the lambda useful. `value -> parse(value, 10)` is one example.
+4. Store `ArrayList::new` in a `Supplier<List<String>>`, call `get()` twice, and compare the
+   references with `==`. The result should be `false`.
+5. Adding a fixed argument, changing argument order, or doing arithmetic around a call keeps the
+   lambda useful. `value -> parse(value, 10)` is one example.
 
 </details>
 

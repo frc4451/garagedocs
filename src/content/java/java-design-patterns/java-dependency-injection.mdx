@@ -31,7 +31,9 @@ public class Shooter {
 
 This works, and it is what most people write first. But three things are now impossible.
 
-You cannot **test** it without real hardware, because constructing a `Shooter` constructs a `Motor` on port 5. You cannot **reuse** it on a robot where the shooter is on a different port. And you cannot **substitute** a different kind of motor without editing the class.
+You cannot **test** it without real hardware, because constructing a `Shooter` constructs a `Motor`
+on port 5. You cannot **reuse** it on a robot where the shooter is on a different port. And you
+cannot **substitute** a different kind of motor without editing the class.
 
 The class made a decision that was not really its business.
 
@@ -58,9 +60,11 @@ Motor shooterMotor = new Motor(5);
 Shooter shooter = new Shooter(shooterMotor);
 ```
 
-The decision about *which* motor moved outward, to the code assembling the robot. `Shooter` now describes behaviour, and something else decides configuration.
+The decision about *which* motor moved outward, to the code assembling the robot. `Shooter` now
+describes behaviour, and something else decides configuration.
 
-That is dependency injection: a class receives what it needs rather than constructing it. The name is grander than the idea.
+That is dependency injection: a class receives what it needs rather than constructing it. The name
+is grander than the idea.
 
 <RulesBox title="Prefer constructor injection">
 
@@ -76,7 +80,8 @@ public void setMotor(Motor motor) { this.motor = motor; }
 // field injection via a framework: hidden, hard to follow
 ```
 
-Constructor injection lets you mark the field `final`, and it makes the object valid the moment it exists. With a setter, there is a window where `motor` is `null` and any method call fails.
+Constructor injection lets you mark the field `final`, and it makes the object valid the moment it
+exists. With a setter, there is a window where `motor` is `null` and any method call fails.
 
 Use a setter only for optional dependencies.
 
@@ -104,7 +109,9 @@ public class Shooter {
 }
 ```
 
-`Shooter` now works with anything satisfying that interface: a vendor's motor class, a simulated one, or a recording one used for diagnostics. It does not know or care, thanks to [runtime polymorphism](/java/fundamentals/runtime-polymorphism#two-kinds-of-type).
+`Shooter` now works with anything satisfying that interface: a vendor's motor class, a simulated
+one, or a recording one used for diagnostics. It does not know or care, thanks to
+[runtime polymorphism](/java/fundamentals/runtime-polymorphism#two-kinds-of-type).
 
 ### Testing becomes possible
 
@@ -131,11 +138,13 @@ shooter.stop();
 System.out.println(fake.stopped);        // true
 ```
 
-This test runs the shooter logic on a laptop. The original version cannot run this test because its constructor tries to communicate with a motor controller that is not connected.
+This test runs the shooter logic on a laptop. The original version cannot run this test because its
+constructor tries to communicate with a motor controller that is not connected.
 
 ### Injecting values and objects
 
-The same reasoning applies to plain values and to [suppliers](/java/fundamentals/functional-interfaces#lazy-and-expensive-work).
+The same reasoning applies to plain values and to
+[suppliers](/java/fundamentals/functional-interfaces#lazy-and-expensive-work).
 
 ```java norun
 public class DriveCommand {
@@ -161,7 +170,9 @@ new DriveCommand(drivetrain,
                  () -> joystick.getRightX());
 ```
 
-Injecting suppliers rather than numbers is what keeps the command reading live inputs. Passing `joystick.getLeftY()` directly would freeze one reading forever, the mistake described in the `Supplier` lesson.
+Injecting suppliers rather than numbers is what keeps the command reading live inputs. Passing
+`joystick.getLeftY()` directly would freeze one reading forever, the mistake described in the
+`Supplier` lesson.
 
 For a test, inject constants:
 
@@ -171,7 +182,8 @@ new DriveCommand(fakeDrive, () -> 0.5, () -> 0.0);
 
 ### Where the wiring goes
 
-If every class receives its dependencies, something must eventually create the real objects. That job collects in one place, often called the composition root.
+If every class receives its dependencies, something must eventually create the real objects. That
+job collects in one place, often called the composition root.
 
 ```java norun
 public class RobotContainer {
@@ -184,11 +196,14 @@ public class RobotContainer {
 }
 ```
 
-All hardware decisions live in this file. Every other class is portable, testable, and free of port numbers. If you have written FRC command-based code, this is exactly what `RobotContainer` is for, and now the reason is visible.
+All hardware decisions live in this file. Every other class is portable, testable, and free of port
+numbers. If you have written FRC command-based code, this is exactly what `RobotContainer` is for,
+and now the reason is visible.
 
 <RulesBox title="You do not need a framework">
 
-Dependency injection is often confused with the frameworks that automate it. Those solve a real problem in very large applications, and they are unnecessary here.
+Dependency injection is often confused with the frameworks that automate it. Those solve a real
+problem in very large applications, and they are unnecessary here.
 
 Passing arguments to constructors *is* dependency injection. Nothing more is required.
 
@@ -206,7 +221,8 @@ Passing arguments to constructors *is* dependency injection. Nothing more is req
   ]}
 />
 
-The last row is the honest cost. Constructors get longer, and wiring code appears. For a small program that trade is not always worth it; for anything you intend to test or reuse, it is.
+The last row is the honest cost. Constructors get longer, and wiring code appears. For a small
+program that trade is not always worth it; for anything you intend to test or reuse, it is.
 
 <RulesBox title="Common mistakes">
 
@@ -226,7 +242,8 @@ The last row is the honest cost. Constructors get longer, and wiring code appear
 1. Rewrite a class that constructs its own dependency so the dependency is passed in.
 2. Define a `MotorController` interface, a real implementation, and a fake one that records calls.
 3. Write a `Shooter` taking a `MotorController` and test it with the fake, with no hardware.
-4. Write a class taking a `DoubleSupplier` and show that it sees updated values when the source changes.
+4. Write a class taking a `DoubleSupplier` and show that it sees updated values when the source
+   changes.
 5. Write a small composition root creating two subsystems and their dependencies in one place.
 
 <details>
@@ -236,7 +253,8 @@ The last row is the honest cost. Constructors get longer, and wiring code appear
 2. The fake stores whatever it is told so the test can inspect it afterwards.
 3. Call a method, then assert against the fake's recorded field.
 4. Back the supplier with a mutable field; change it between calls.
-5. A class whose fields are the real objects, constructed in declaration order. Note that order matters: a dependency must exist before whatever needs it.
+5. A class whose fields are the real objects, constructed in declaration order. Note that order
+   matters: a dependency must exist before whatever needs it.
 
 </details>
 

@@ -13,7 +13,9 @@ description: Describing what you want from a collection instead of looping for i
 
 ### Pipelines, not loops
 
-Most loops over a collection do one of a few things: keep the elements that match, turn each element into something else, add them up, find one. A **stream** lets you say which of those you mean, and chain them, instead of writing the loop each time.
+Most loops over a collection do one of a few things: keep the elements that match, turn each element
+into something else, add them up, find one. A **stream** lets you say which of those you mean, and
+chain them, instead of writing the loop each time.
 
 ```java
 import java.util.List;
@@ -27,9 +29,11 @@ List<Integer> passing = scores.stream()
 System.out.println(passing);   // [88, 61, 73]
 ```
 
-Read it top to bottom: *take the scores, keep the ones at or above 60, give me a list.* The loop version says the same thing in twice the lines and buries the intent in bookkeeping.
+Read it top to bottom: *take the scores, keep the ones at or above 60, give me a list.* The loop
+version says the same thing in twice the lines and buries the intent in bookkeeping.
 
-A stream is not a data structure. It is a description of a computation over one. Nothing runs until the last step asks for a result.
+A stream is not a data structure. It is a description of a computation over one. Nothing runs until
+the last step asks for a result.
 
 <ContentTable
   headers={["Step", "Kind", "What it does"]}
@@ -44,7 +48,9 @@ A stream is not a data structure. It is a description of a computation over one.
   ]}
 />
 
-Intermediate steps return another stream, so they chain. A **terminal** step ends the pipeline and produces a value. A pipeline with no terminal step does nothing at all, a common way to write code that runs and has no effect.
+Intermediate steps return another stream, so they chain. A **terminal** step ends the pipeline and
+produces a value. A pipeline with no terminal step does nothing at all, a common way to write code
+that runs and has no effect.
 
 ### map: one thing becomes another
 
@@ -65,11 +71,15 @@ System.out.println(lengths);   // [9, 12, 15]
 System.out.println(shouted);   // [ROBONAUTS!, CHEESY POOFS!, CITRUS CIRCUITS!]
 ```
 
-`map` takes the function from [Method References](/java/fundamentals/method-references#the-four-forms) or a lambda; either way it is applied to every element and the results flow on. The element type can change: strings in, integers out.
+`map` takes the function from
+[Method References](/java/fundamentals/method-references#the-four-forms) or a lambda; either way it
+is applied to every element and the results flow on. The element type can change: strings in,
+integers out.
 
 ### sorted and limit: top-K
 
-Sorting a stream needs a comparator unless the elements have a natural order. The idiom for *the five best* is `sorted` then `limit`:
+Sorting a stream needs a comparator unless the elements have a natural order. The idiom for *the
+five best* is `sorted` then `limit`:
 
 ```java
 import java.util.Comparator;
@@ -95,7 +105,9 @@ List<String> top2 = teams.stream()
 System.out.println(top2);   // [Cheesy Poofs, Citrus]
 ```
 
-`Comparator.comparingDouble(Team::score)` builds an ascending comparator from a getter; `.reversed()` flips it. This is the same comparator you would hand to `Collections.sort`; streams reuse the sorting you already know.
+`Comparator.comparingDouble(Team::score)` builds an ascending comparator from a getter;
+`.reversed()` flips it. This is the same comparator you would hand to `Collections.sort`; streams
+reuse the sorting you already know.
 
 ### Questions with short answers
 
@@ -116,11 +128,14 @@ System.out.println(passing);                 // 3
 System.out.println(firstLow.orElse(-1));     // 29
 ```
 
-`anyMatch` stops at the first hit; it does not walk the rest of the list. `findFirst` returns an **`Optional`**, because there might be no such element, and the type makes you say what happens then.
+`anyMatch` stops at the first hit; it does not walk the rest of the list. `findFirst` returns an
+**`Optional`**, because there might be no such element, and the type makes you say what happens
+then.
 
 <RulesBox title="Optional is a return type, not a field type">
 
-`Optional<T>` exists so that "maybe there is no answer" is visible in a method's signature instead of hiding as a `null` that surfaces three calls later.
+`Optional<T>` exists so that "maybe there is no answer" is visible in a method's signature instead
+of hiding as a `null` that surfaces three calls later.
 
 ```java
 import java.util.Optional;
@@ -134,13 +149,16 @@ System.out.println(found.map(String::length).orElse(0));  // 5
 found.ifPresent(name -> System.out.println("got " + name));
 ```
 
-Use `orElse`, `map` and `ifPresent`. Calling `get()` without checking `isPresent()` first is the same bug as dereferencing a null, with a longer name. Do not store `Optional` in fields or pass it as a parameter; it is for results.
+Use `orElse`, `map` and `ifPresent`. Calling `get()` without checking `isPresent()` first is the
+same bug as dereferencing a null, with a longer name. Do not store `Optional` in fields or pass it
+as a parameter; it is for results.
 
 </RulesBox>
 
 ### Grouping and averaging
 
-`collect` with a `Collector` turns a stream into a map, a count, an average. `groupingBy` is the one you will reach for: it buckets elements by a key you name.
+`collect` with a `Collector` turns a stream into a map, a count, an average. `groupingBy` is the one
+you will reach for: it buckets elements by a key you name.
 
 ```java
 import java.util.List;
@@ -171,29 +189,37 @@ System.out.println(new TreeMap<>(avgClimb));   // {SWERVE=0.8, TANK=0.5}
 System.out.println(new TreeMap<>(counts));     // {SWERVE=2, TANK=2}
 ```
 
-`groupingBy(key, downstream)`: the first argument says how to bucket, the second says what to do with each bucket. `averagingDouble`, `counting`, `summingInt` and `joining` are the usual downstreams.
+`groupingBy(key, downstream)`: the first argument says how to bucket, the second says what to do
+with each bucket. `averagingDouble`, `counting`, `summingInt` and `joining` are the usual
+downstreams.
 
-The default groupingBy collector does not promise a particular Map implementation or iteration order. The TreeMap wrapper sorts the keys for predictable printed output.
+The default groupingBy collector does not promise a particular Map implementation or iteration
+order. The TreeMap wrapper sorts the keys for predictable printed output.
 
 ### When a loop is better
 
 Streams are for read-only queries. Reach for a loop when:
 
 - **You need an index.** Streams do not have one.
-- **You are modifying things as you go.** A stream that mutates the list it reads is undefined behaviour.
+- **You are modifying things as you go.** A stream that mutates the list it reads is undefined
+  behaviour.
 - **The body is long.** A twelve-line lambda inside `map` reads worse than a twelve-line loop body.
-- **You are in a tight loop on the robot.** Every stream allocates. At 50 Hz on a `periodic()` that is a cost; measure before assuming, but it is real.
+- **You are in a tight loop on the robot.** Every stream allocates. At 50 Hz on a `periodic()` that
+  is a cost; measure before assuming, but it is real.
 
-Neither is "modern" and the other "old". [A26](/java/assignments/a26-stream-filter) has you write five queries both ways for exactly that reason.
+Neither is "modern" and the other "old". [A26](/java/assignments/a26-stream-filter) has you write
+five queries both ways for exactly that reason.
 
 <RulesBox title="Common mistakes">
 
 - **No terminal operation.** `list.stream().filter(...)` with nothing after it does nothing.
-- **Reusing a stream.** A stream is consumed by its terminal step; call `stream()` again for a second pipeline.
+- **Reusing a stream.** A stream is consumed by its terminal step; call `stream()` again for a
+  second pipeline.
 - **Printing a `HashMap` from `groupingBy`** and treating the order as meaningful.
 - **`Optional.get()` without a check.** Use `orElse` or `ifPresent`.
 - **`collect(Collectors.toList())`** where `.toList()` reads better.
-- **Comparing two correct averages with `==`.** `averagingDouble` uses compensated summation; a `+=` loop does not. They can differ in the last bit while both being right.
+- **Comparing two correct averages with `==`.** `averagingDouble` uses compensated summation; a `+=`
+  loop does not. They can differ in the last bit while both being right.
 
 </RulesBox>
 
@@ -203,7 +229,8 @@ Neither is "modern" and the other "old". [A26](/java/assignments/a26-stream-filt
 
 1. From a list of integers, produce the list of even ones, squared.
 2. Given a list of team names, find the first one starting with `"C"`, or print `"none"`.
-3. Count how many strings in a list are longer than five characters, once with `filter().count()` and once with a loop.
+3. Count how many strings in a list are longer than five characters, once with `filter().count()`
+   and once with a loop.
 4. Group a list of words by their length and print the groups in ascending key order.
 5. Take a list of doubles and print the top three, largest first, using `sorted` and `limit`.
 

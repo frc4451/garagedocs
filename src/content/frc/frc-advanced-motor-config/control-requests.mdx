@@ -11,11 +11,17 @@ duration: 40 min
 description: "Every Phoenix 6 control request as a grid of loop type × output type (open-loop, Position, Velocity, Motion Magic, Motion Magic Velocity, Motion Magic Expo, Dynamic), plus followers, neutral modes and the request modifiers; which ones Cobra sends from where, what units the gains take for each, which need a Pro licence, and a decision guide by mechanism."
 ---
 
-Phoenix 6 has more than thirty control request classes, and their names look like a random walk: `VoltageOut`, `PositionVoltage`, `MotionMagicVoltage`, `MotionMagicVelocityTorqueCurrentFOC`, `DynamicMotionMagicDutyCycle`. They are not random. Every name is **what the loop does** followed by **what the output is**, and once you read them that way the whole family fits in one table. This lesson is that table, with FRC 4451's usage and the choices behind it. [Why Motion Magic](/frc/why-motion-magic) is the reasoning; this is the reference.
+Phoenix 6 has more than thirty control request classes, and their names look like a random walk:
+`VoltageOut`, `PositionVoltage`, `MotionMagicVoltage`, `MotionMagicVelocityTorqueCurrentFOC`,
+`DynamicMotionMagicDutyCycle`. They are not random. Every name is **what the loop does** followed by
+**what the output is**, and once you read them that way the whole family fits in one table. This
+lesson is that table, with FRC 4451's usage and the choices behind it.
+[Why Motion Magic](/frc/why-motion-magic) is the reasoning; this is the reference.
 
 ### The grid
 
-A request is a *loop type* (what the controller computes) crossed with an *output type* (what it drives the motor with). Read a class name from the left: the loop, then the output.
+A request is a *loop type* (what the controller computes) crossed with an *output type* (what it
+drives the motor with). Read a class name from the left: the loop, then the output.
 
 <ContentTable
   headers={["Loop type ↓ / Output type →", "DutyCycle", "Voltage", "TorqueCurrentFOC"]}
@@ -30,11 +36,14 @@ A request is a *loop type* (what the controller computes) crossed with an *outpu
   ]}
 />
 
-There is no `MotionMagicPositionVoltage`. The profiled position request is `MotionMagicVoltage`, and the unprofiled position request is `PositionVoltage`. The word "Position" appears only when there is no profile; "Velocity" appears in both the unprofiled and the profiled velocity requests.
+There is no `MotionMagicPositionVoltage`. The profiled position request is `MotionMagicVoltage`, and
+the unprofiled position request is `PositionVoltage`. The word "Position" appears only when there is
+no profile; "Velocity" appears in both the unprofiled and the profiled velocity requests.
 
 ### The output types
 
-The column decides what the number at the end of the pipeline means, and therefore what units every gain takes.
+The column decides what the number at the end of the pipeline means, and therefore what units every
+gain takes.
 
 <ContentTable
   headers={["Output", "The motor receives", "Gains and feedforward are in", "Battery sag", "Needs", "Character"]}
@@ -45,9 +54,14 @@ The column decides what the number at the end of the pipeline means, and therefo
   ]}
 />
 
-The one thing that bites when switching a mechanism between columns: **the gains do not carry over.** A kP of 5 in volts and a kP of 5 in amps are different mechanisms. Cobra's shooter runs kS 16 / kV 0.125 in *amps*; the same wheel on voltage output would be roughly kS 0.2 / kV 0.12 in *volts*. Re-characterise when you change the output type.
+The one thing that bites when switching a mechanism between columns: **the gains do not carry
+over.** A kP of 5 in volts and a kP of 5 in amps are different mechanisms. Cobra's shooter runs kS
+16 / kV 0.125 in *amps*; the same wheel on voltage output would be roughly kS 0.2 / kV 0.12 in
+*volts*. Re-characterise when you change the output type.
 
-`withEnableFOC(true)` on a DutyCycle or Voltage request turns on field-oriented commutation for the motor without changing the output type, for more torque per amp and less heat; it is still Pro-licensed. TorqueCurrentFOC requests are FOC by definition.
+`withEnableFOC(true)` on a DutyCycle or Voltage request turns on field-oriented commutation for the
+motor without changing the output type, for more torque per amp and less heat; it is still
+Pro-licensed. TorqueCurrentFOC requests are FOC by definition.
 
 ### The loop types
 
@@ -64,7 +78,10 @@ The one thing that bites when switching a mechanism between columns: **the gains
   ]}
 />
 
-All closed-loop requests share `.withSlot(n)` to choose which of `Slot0`–`Slot2` supplies the gains. Cobra uses `Slot0` everywhere; a second slot is the tool for a mechanism whose dynamics change with state (an elevator carrying versus empty; an arm holding a piece): configure both, switch slots per command.
+All closed-loop requests share `.withSlot(n)` to choose which of `Slot0`–`Slot2` supplies the gains.
+Cobra uses `Slot0` everywhere; a second slot is the tool for a mechanism whose dynamics change with
+state (an elevator carrying versus empty; an arm holding a piece): configure both, switch slots per
+command.
 
 ### Everything that is not in the grid
 
@@ -82,7 +99,9 @@ All closed-loop requests share `.withSlot(n)` to choose which of `Slot0`–`Slot
 
 ### The modifiers
 
-Every request is an object you build once and mutate per call: `voltageOut.withOutput(volts)`, not `new VoltageOut(volts)` every loop. The object is what Phoenix sends, and allocating one per loop creates garbage the roboRIO cannot afford. The `with…` methods return the same object:
+Every request is an object you build once and mutate per call: `voltageOut.withOutput(volts)`, not
+`new VoltageOut(volts)` every loop. The object is what Phoenix sends, and allocating one per loop
+creates garbage the roboRIO cannot afford. The `with…` methods return the same object:
 
 <ContentTable
   headers={["Modifier", "On", "Effect"]}
@@ -117,7 +136,10 @@ Read from the IO classes, so this is what the robot actually does:
   ]}
 />
 
-Two things in that table are worth a second look, and both are covered in [Why Motion Magic](/frc/why-motion-magic#the-numbers-cobra-runs): the steer motor's Motion Magic configuration is inert because the request sent is `PositionVoltage`, and the shooter pair is profiled while the single-roller velocity path is not.
+Two things in that table are worth a second look, and both are covered in
+[Why Motion Magic](/frc/why-motion-magic#the-numbers-cobra-runs): the steer motor's Motion Magic
+configuration is inert because the request sent is `PositionVoltage`, and the shooter pair is
+profiled while the single-roller velocity path is not.
 
 ### Choosing, by mechanism
 
@@ -138,16 +160,27 @@ Two things in that table are worth a second look, and both are covered in [Why M
 
 ### Licensing, in one place
 
-Anything with `FOC` in the name (`TorqueCurrentFOC` outputs and `withEnableFOC(true)`) needs a **Pro licence** on the device; unlicensed devices fall back and set a fault. **Dynamic Motion Magic** needs Pro and a CANivore. `FusedCANcoder` feedback ([CANcoder](/frc/cancoder-absolute-position#wiring-it-to-the-talonfx)) needs Pro. Everything else in the grid runs on an unlicensed TalonFX. Cobra's mechanisms sit on a CANivore (`susBus`) and use FOC and `FusedCANcoder` throughout, which implies Pro-licensed devices; a Kit Bot on SparkMaxes has none of this and its Voltage-output equivalents are the [Kit Bot R08](/kit-bot/r08-launcher-io) path.
+Anything with `FOC` in the name (`TorqueCurrentFOC` outputs and `withEnableFOC(true)`) needs a **Pro
+licence** on the device; unlicensed devices fall back and set a fault. **Dynamic Motion Magic**
+needs Pro and a CANivore. `FusedCANcoder` feedback
+([CANcoder](/frc/cancoder-absolute-position#wiring-it-to-the-talonfx)) needs Pro. Everything else in
+the grid runs on an unlicensed TalonFX. Cobra's mechanisms sit on a CANivore (`susBus`) and use FOC
+and `FusedCANcoder` throughout, which implies Pro-licensed devices; a Kit Bot on SparkMaxes has none
+of this and its Voltage-output equivalents are the [Kit Bot R08](/kit-bot/r08-launcher-io) path.
 
 <RulesBox title="Common mistakes">
 
 - **<code>new XxxOut()</code> every loop.** Build once, <code>with…()</code> per call.
-- **Switching output type and keeping the gains.** Volts and amps are different numbers. Re-characterise.
-- **Expecting a profile from a <code>Position…</code> request.** Only <code>MotionMagic…</code> requests run the profile, however carefully <code>MotionMagicConfigs</code> is filled in.
-- **A torque request on an unlicensed device.** It faults and does nothing; check the <code>UnlicensedFeatureInUse</code> fault in Tuner X or the logged faults before blaming the code.
-- **<code>withUpdateFreqHz(0)</code> on a request you change often.** Send-once means a lost frame is lost. Use it for set-and-hold outputs only.
-- **Slot gains tuned with the wrong <code>GravityType</code>.** kG is a constant for an elevator and a cosine for an arm; the wrong one tunes gravity into kP.
+- **Switching output type and keeping the gains.** Volts and amps are different numbers.
+  Re-characterise.
+- **Expecting a profile from a <code>Position…</code> request.** Only <code>MotionMagic…</code>
+  requests run the profile, however carefully <code>MotionMagicConfigs</code> is filled in.
+- **A torque request on an unlicensed device.** It faults and does nothing; check the
+  <code>UnlicensedFeatureInUse</code> fault in Tuner X or the logged faults before blaming the code.
+- **<code>withUpdateFreqHz(0)</code> on a request you change often.** Send-once means a lost frame
+  is lost. Use it for set-and-hold outputs only.
+- **Slot gains tuned with the wrong <code>GravityType</code>.** kG is a constant for an elevator and
+  a cosine for an arm; the wrong one tunes gravity into kP.
 
 </RulesBox>
 

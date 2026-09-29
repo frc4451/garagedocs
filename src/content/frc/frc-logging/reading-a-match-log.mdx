@@ -10,9 +10,19 @@ difficulty: intermediate
 duration: 15 min
 description: "The after-the-run half of AdvantageScope: what Cobra logs and where it lands in the tree, naming keys so they stay findable in March, the keys worth having open for every question, and the workflow for pulling a match log off the robot and reading it: git SHA first, then pose, then commanded-versus-measured, then the console."
 ---
-AdvantageScope has two halves. The live half, values arriving as they happen from a robot or the simulator, is [Simulation in AdvantageScope](/frc/simulation-in-advantagescope) in the previous module. This page is the other half, the one you use after a run: a `.wpilog` pulled off the robot after a match, or written by the simulator, or by a [unit test](/frc/unit-tests-in-simulation#watching-a-test-in-advantagescope). The tool is the same. What changes is that you are reading a record, and the record is only as good as what the code chose to log and what it chose to call it.
+AdvantageScope has two halves. The live half, values arriving as they happen from a robot or the
+simulator, is [Simulation in AdvantageScope](/frc/simulation-in-advantagescope) in the previous
+module. This page is the other half, the one you use after a run: a `.wpilog` pulled off the robot
+after a match, or written by the simulator, or by a
+[unit test](/frc/unit-tests-in-simulation#watching-a-test-in-advantagescope). The tool is the same.
+What changes is that you are reading a record, and the record is only as good as what the code chose
+to log and what it chose to call it.
 
-The application itself (connecting, the window, the field tabs, joysticks and console) is taught in the Tools section: [AdvantageScope: Tour](/tools/advantagescope-tour), [AdvantageScope: Poses on the Field](/tools/advantagescope-poses-on-the-field), [AdvantageScope: Controllers and the Console](/tools/advantagescope-controllers-and-the-console). This page is about what Cobra logs and how to read it.
+The application itself (connecting, the window, the field tabs, joysticks and console) is taught in
+the Tools section: [AdvantageScope: Tour](/tools/advantagescope-tour),
+[AdvantageScope: Poses on the Field](/tools/advantagescope-poses-on-the-field),
+[AdvantageScope: Controllers and the Console](/tools/advantagescope-controllers-and-the-console).
+This page is about what Cobra logs and how to read it.
 
 ### Where the record comes from
 
@@ -24,12 +34,23 @@ The application itself (connecting, the window, the field tabs, joysticks and co
   sourceLabel="AdvantageScope navigation documentation"
 />
 
-On the robot, Cobra's `Robot.java` adds a `WPILOGWriter` in `REAL` mode, so every match writes a `.wpilog` to the USB stick at `/U/logs`. **Without a stick there is no log**, which is the first thing to check when a match has no file. In `SIM` mode it publishes to NetworkTables only, unless you add the writer ([recording a simulation](/frc/simulation-in-advantagescope#recording-a-simulation)). Either way the file holds two kinds of thing:
+On the robot, Cobra's `Robot.java` adds a `WPILOGWriter` in `REAL` mode, so every match writes a
+`.wpilog` to the USB stick at `/U/logs`. **Without a stick there is no log**, which is the first
+thing to check when a match has no file. In `SIM` mode it publishes to NetworkTables only, unless
+you add the writer
+([recording a simulation](/frc/simulation-in-advantagescope#recording-a-simulation)). Either way the
+file holds two kinds of thing:
 
-- **Inputs:** everything an IO's `updateInputs` filled in, recorded by `Logger.processInputs` under the subsystem's name: `Elevator/Position`, `Drive/Module0/DrivePositionRad`, `DriverStation/Joystick0/…`. These are what [log replay](/frc/log-replay) plays back.
-- **Outputs:** anything the code chose to `Logger.recordOutput`, under `RealOutputs/…`: the fused pose, the active trajectory, a command's intermediate math, a mechanism's goal. These are what replay recomputes.
+- **Inputs:** everything an IO's `updateInputs` filled in, recorded by `Logger.processInputs` under
+  the subsystem's name: `Elevator/Position`, `Drive/Module0/DrivePositionRad`,
+  `DriverStation/Joystick0/…`. These are what [log replay](/frc/log-replay) plays back.
+- **Outputs:** anything the code chose to `Logger.recordOutput`, under `RealOutputs/…`: the fused
+  pose, the active trajectory, a command's intermediate math, a mechanism's goal. These are what
+  replay recomputes.
 
-Anything with a struct type (`Pose2d`, `Pose3d`, `SwerveModuleState[]`, a `Mechanism2d`) carries that type into the file, so the 2D/3D Field and Swerve tabs know what to do with it ([publishing a pose](/tools/advantagescope-poses-on-the-field#publish-a-pose)).
+Anything with a struct type (`Pose2d`, `Pose3d`, `SwerveModuleState[]`, a `Mechanism2d`) carries
+that type into the file, so the 2D/3D Field and Swerve tabs know what to do with it
+([publishing a pose](/tools/advantagescope-poses-on-the-field#publish-a-pose)).
 
 ```java
 // Outputs Cobra records every loop; each one is a question a match log can answer
@@ -42,10 +63,15 @@ Logger.recordOutput("Elevator/GoalHeightInches", goal.in(Inches));          // c
 
 ### Naming Log Keys
 
-A live editable `/Tuning/...` topic and its recorded AdvantageKit input path have different roles. Inspect the wrapper and the saved log for the selected project; do not assume that `TunableNumbers/*` is a universal path. Badge3RobotBase records its simulation runs, while the Cobra SIM configuration described above is a separate project.
+A live editable `/Tuning/...` topic and its recorded AdvantageKit input path have different roles.
+Inspect the wrapper and the saved log for the selected project; do not assume that
+`TunableNumbers/*` is a universal path. Badge3RobotBase records its simulation runs, while the Cobra
+SIM configuration described above is a separate project.
 
 
-AdvantageScope builds its tree from the slashes in a key, so `Intake/Position` and `Intake/velocity` group together automatically. Start every key with the subsystem name and stay consistent. A key nobody can find during a match may as well not have been recorded.
+AdvantageScope builds its tree from the slashes in a key, so `Intake/Position` and `Intake/velocity`
+group together automatically. Start every key with the subsystem name and stay consistent. A key
+nobody can find during a match may as well not have been recorded.
 
 <ContentTable
   title="Keys worth having open, and what they answer"
@@ -62,17 +88,28 @@ AdvantageScope builds its tree from the slashes in a key, so `Intake/Position` a
   ]}
 />
 
-The single most useful habit is to log **commanded alongside measured**. If your setters return the value they set and carry `@AutoLogOutput` (see [Subsystems](/frc/subsystems#setters-that-return-what-they-set)), both halves are already recorded, and dragging a `target` key and its matching measured key onto one line graph is the standard first move for any tuning question.
+The single most useful habit is to log **commanded alongside measured**. If your setters return the
+value they set and carry `@AutoLogOutput` (see
+[Subsystems](/frc/subsystems#setters-that-return-what-they-set)), both halves are already recorded,
+and dragging a `target` key and its matching measured key onto one line graph is the standard first
+move for any tuning question.
 
 <RulesBox title="Analysis Workflow" subtitle="How to debug effectively:">
 
-- Download the log file from the robot after a run. AdvantageKit writes it to the USB stick at `/U/logs`; without a stick there is no log.
-- Open in AdvantageScope. ([Loading Data Guide](https://docs.advantagescope.org/overview/log-files/))
+- Download the log file from the robot after a run. AdvantageKit writes it to the USB stick at
+  `/U/logs`; without a stick there is no log.
+- Open in AdvantageScope.
+  ([Loading Data Guide](https://docs.advantagescope.org/overview/log-files/))
 - Check `RealMetadata/GitSHA` and `GitDirty` first, so you know what code produced the log.
-- Find the pose key actually recorded by the selected robot, such as Cobra's 'Odometry/Global', and drag it to the '3D Field' tab to inspect location. ([3D Field View Guide](https://docs.advantagescope.org/tab-reference/3d-field/))
-- Drag target vs actual values (e.g. 'Intake/targetPos' vs 'Intake/Position') to a 'Line Graph' to check tuning. ([Graph View Guide](https://docs.advantagescope.org/tab-reference/line-graph/))
-- If investigating a crash/error, look at the 'Console' tab. ([Console View Guide](https://docs.advantagescope.org/tab-reference/console/))
-- Sync match video if available to correlate physical behavior with data. ([Video Sync Guide](https://docs.advantagescope.org/tab-reference/video#automatic-synchronization))
+- Find the pose key actually recorded by the selected robot, such as Cobra's 'Odometry/Global', and
+  drag it to the '3D Field' tab to inspect location.
+  ([3D Field View Guide](https://docs.advantagescope.org/tab-reference/3d-field/))
+- Drag target vs actual values (e.g. 'Intake/targetPos' vs 'Intake/Position') to a 'Line Graph' to
+  check tuning. ([Graph View Guide](https://docs.advantagescope.org/tab-reference/line-graph/))
+- If investigating a crash/error, look at the 'Console' tab.
+  ([Console View Guide](https://docs.advantagescope.org/tab-reference/console/))
+- Sync match video if available to correlate physical behavior with data.
+  ([Video Sync Guide](https://docs.advantagescope.org/tab-reference/video#automatic-synchronization))
 
 </RulesBox>
 

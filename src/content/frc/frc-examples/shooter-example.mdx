@@ -11,20 +11,25 @@ duration: 15 min
 description: "Build a reusable velocity-controlled flywheel and work through gearing, wheel speed, surface speed, feedforward, energy, and simulation."
 ---
 
-A flywheel stores rotational energy and holds a requested speed. Shooter wheels are the common FRC example. The component receives an `AngularVelocity` goal, reports measured speed, and decides whether the wheel is ready to feed.
+A flywheel stores rotational energy and holds a requested speed. Shooter wheels are the common FRC
+example. The component receives an `AngularVelocity` goal, reports measured speed, and decides
+whether the wheel is ready to feed.
 
-This page uses **motor rotations per mechanism rotation** for every gear ratio. A 3:1 reduction means the motor turns three times while the flywheel turns once.
+This page uses **motor rotations per mechanism rotation** for every gear ratio. A 3:1 reduction
+means the motor turns three times while the flywheel turns once.
 
 ### Convert motor speed to wheel speed
 
-Let `G` be the gear reduction, `n_motor` be motor speed in rotations per second (RPS), and `n_wheel` be wheel speed in RPS.
+Let `G` be the gear reduction, `n_motor` be motor speed in rotations per second (RPS), and `n_wheel`
+be wheel speed in RPS.
 
 ```text
 n_wheel = n_motor / G
 n_motor = n_wheel × G
 ```
 
-With a 2:1 reduction and a motor at 100 RPS, `n_wheel = 100 / 2 = 50 RPS`. An overdrive has a ratio below 1 with this convention. If the motor turns once while the wheel turns twice, `G = 0.5`.
+With a 2:1 reduction and a motor at 100 RPS, `n_wheel = 100 / 2 = 50 RPS`. An overdrive has a ratio
+below 1 with this convention. If the motor turns once while the wheel turns twice, `G = 0.5`.
 
 ### Convert wheel speed to surface speed
 
@@ -35,19 +40,26 @@ circumference = 2 × π × r
 surface speed = wheel RPS × 2 × π × r
 ```
 
-A wheel with a 2-inch radius spinning at 75 RPS has a theoretical rim speed of about 942 inches per second, or 78.5 feet per second.
+A wheel with a 2-inch radius spinning at 75 RPS has a theoretical rim speed of about 942 inches per
+second, or 78.5 feet per second.
 
-This is not the game piece's launch speed. Compression, slip, wheel deformation, and contact time change the transfer of speed. Use the calculation to choose a starting wheel speed, then measure the real result.
+This is not the game piece's launch speed. Compression, slip, wheel deformation, and contact time
+change the transfer of speed. Use the calculation to choose a starting wheel speed, then measure the
+real result.
 
 ### Understand acceleration and stored energy
 
-Angular acceleration is the change in angular velocity divided by the change in time. A larger moment of inertia takes more torque to accelerate, but loses a smaller fraction of its speed when a game piece takes energy from it.
+Angular acceleration is the change in angular velocity divided by the change in time. A larger
+moment of inertia takes more torque to accelerate, but loses a smaller fraction of its speed when a
+game piece takes energy from it.
 
 ```text
 rotational energy = 1/2 × moment of inertia × angular velocity²
 ```
 
-Angular velocity in this equation is radians per second. Convert RPS with `ω = 2 × π × RPS`. Doubling speed stores four times as much energy, which is also why high-speed flywheels need careful guarding and hardware checks.
+Angular velocity in this equation is radians per second. Convert RPS with `ω = 2 × π × RPS`.
+Doubling speed stores four times as much energy, which is also why high-speed flywheels need careful
+guarding and hardware checks.
 
 ### Model the required voltage
 
@@ -60,7 +72,8 @@ voltage = kS × sign(velocity) + kV × velocity + kA × acceleration
 - `kA` supplies extra voltage while speed changes.
 - PID feedback corrects the remaining speed error.
 
-Keep one velocity unit throughout the calculation. If `kV` was found with RPS, pass RPS to the feedforward. A gain measured with radians per second has a different numeric value.
+Keep one velocity unit throughout the calculation. If `kV` was found with RPS, pass RPS to the
+feedforward. A gain measured with radians per second has a different numeric value.
 
 ### Define the IO boundary
 
@@ -75,20 +88,33 @@ public interface FlywheelIO {
   }
 
   default void updateInputs(FlywheelIOInputs inputs) {}
+
   default void setVelocity(AngularVelocity goal) {}
+
   default void setVelocity(AngularVelocity goal, Current feedforward) {}
+
   default void setVoltage(Voltage output) {}
+
   default void stop() {}
 }
 ```
 
-The hardware implementation applies the gear ratio so `velocity` and `goal` both describe the flywheel shaft. Rotor RPS stays inside the IO class.
+The hardware implementation applies the gear ratio so `velocity` and `goal` both describe the
+flywheel shaft. Rotor RPS stays inside the IO class.
 
 ### Build the component
 
+Import the shared [numeric validator](/frc/trapezoidal-motion-profiling#validate-numeric-requests)
+as `frc.robot.util.Numbers`. Check a requested speed before changing the current goal.
+
 ```java
 public final class Flywheel {
-  private enum Mode { STOPPED, VOLTAGE, VELOCITY, VELOCITY_WITH_CURRENT }
+  private enum Mode {
+    STOPPED,
+    VOLTAGE,
+    VELOCITY,
+    VELOCITY_WITH_CURRENT
+  }
 
   private final FlywheelIO io;
   private final FlywheelIOInputsAutoLogged inputs = new FlywheelIOInputsAutoLogged();
@@ -117,6 +143,7 @@ public final class Flywheel {
   }
 
   public void setVelocity(AngularVelocity goal) {
+    Numbers.requireFinite("velocity", goal.in(RotationsPerSecond));
     velocityGoal = goal;
     mode = Mode.VELOCITY;
   }
@@ -131,13 +158,17 @@ public final class Flywheel {
 }
 ```
 
-The component stores behavior but does not create commands. Its parent subsystem creates commands, so WPILib has one clear scheduler requirement.
+The component stores behavior but does not create commands. Its parent subsystem creates commands,
+so WPILib has one clear scheduler requirement.
 
 ### Simulate the wheel
 
-`FlywheelSim` needs a motor model, gear reduction, and the rotating assembly's moment of inertia. Each simulation loop passes the applied motor voltage to the model, calls `update()` once with the loop period, and reads angular velocity and current into the IO inputs.
+`FlywheelSim` needs a motor model, gear reduction, and the rotating assembly's moment of inertia.
+Each simulation loop passes the applied motor voltage to the model, calls `update()` once with the
+loop period, and reads angular velocity and current into the IO inputs.
 
-The model can test control logic, spin-up time, readiness, and current draw. It cannot predict game-piece exit speed because it does not model contact with a piece.
+The model can test control logic, spin-up time, readiness, and current draw. It cannot predict
+game-piece exit speed because it does not model contact with a piece.
 
 <RulesBox title="Check your work">
 

@@ -12,31 +12,59 @@ description: "WPILib exponential profile states, CTRE Motion Magic Expo paramete
 ---
 
 
-An exponential profile generates position and velocity setpoints using a model of available effort and speed-dependent behavior. Read [Trapezoidal Motion Profiling](/frc/trapezoidal-motion-profiling) first. Keep the same mechanism model and goals when comparing the profiles, so the experiment isolates the profile choice.
+An exponential profile generates position and velocity setpoints using a model of available effort
+and speed-dependent behavior. Read [Trapezoidal Motion Profiling](/frc/trapezoidal-motion-profiling)
+first. Keep the same mechanism model and goals when comparing the profiles, so the experiment
+isolates the profile choice.
 
 ## Software Profile
 
-WPILib's `ExponentialProfile.calculate` accepts elapsed time, a current profile `State`, and a goal `State`. Each state contains position and velocity. Passing bare position doubles is not the API contract.
+WPILib's `ExponentialProfile.calculate` accepts elapsed time, a current profile `State`, and a goal
+`State`. Each state contains position and velocity. Passing bare position doubles is not the API
+contract.
 
-The mentor's compiled `ExpoExample` uses radians and seconds, creates constraints with `fromCharacteristics(6.0, 2.0, 0.5)`, and advances the previous profile state toward a goal with zero final velocity. Those arguments represent maximum input voltage, kV in volt-seconds per radian, and kA in volt-seconds-squared per radian. The first argument is not maximum velocity. The values describe a teaching model and require validation before use on a mechanism.
+The mentor's compiled `ExpoExample` uses radians and seconds, creates constraints with
+`fromCharacteristics(6.0, 2.0, 0.5)`, and advances the previous profile state toward a goal with
+zero final velocity. Those arguments represent maximum input voltage, kV in volt-seconds per radian,
+and kA in volt-seconds-squared per radian. The first argument is not maximum velocity. The values
+describe a teaching model and require validation before use on a mechanism.
 
-Advance once per control period. Initialize the profile from the measured state when starting or restarting motion, then carry the generated state forward. A separate feedback and feedforward controller converts each setpoint into motor effort. Resetting the profile from noisy measurements every loop changes that intended sequence and needs its own justification.
+Advance once per control period. Initialize the profile from the measured state when starting or
+restarting motion, then carry the generated state forward. A separate feedback and feedforward
+controller converts each setpoint into motor effort. Resetting the profile from noisy measurements
+every loop changes that intended sequence and needs its own justification.
 
 ## Motion Magic Expo
 
-On supported CTRE hardware, Motion Magic Expo generates the profile on the controller. Use the final position goal in the configured mechanism rotation units. Do not feed it intermediate software-profile points as though both profile generators were needed.
+On supported CTRE hardware, Motion Magic Expo generates the profile on the controller. Use the final
+position goal in the configured mechanism rotation units. Do not feed it intermediate
+software-profile points as though both profile generators were needed.
 
-`MotionMagicExpo_kV` and `MotionMagicExpo_kA` configure the profile's model in voltage-based rotation units. They remain distinct from slot feedback and feedforward gains, including current-output slot gains. A cruise-velocity setting can further limit profile speed; acceleration and jerk settings from ordinary Motion Magic do not define Expo's acceleration curve in the same way.
+`MotionMagicExpo_kV` and `MotionMagicExpo_kA` configure the profile's model in voltage-based
+rotation units. They remain distinct from slot feedback and feedforward gains, including
+current-output slot gains. A cruise-velocity setting can further limit profile speed; acceleration
+and jerk settings from ordinary Motion Magic do not define Expo's acceleration curve in the same
+way.
 
-The reference compile checks `MotionMagicExpoVoltage` and `MotionMagicExpoTorqueCurrentFOC` against the pinned Phoenix dependency. The student runs the supported CTRE comparison on the pivot in [Step 7: Pivot Reference, Limits, and Profiles](/badges/badge-3-pivot) and records reference, measurement, output mode and constraints.
+The reference compile checks `MotionMagicExpoVoltage` and `MotionMagicExpoTorqueCurrentFOC` against
+the pinned Phoenix dependency. The student runs the supported CTRE comparison on the pivot in
+[Step 7: Pivot Reference, Limits, and Profiles](/badges/badge-3-pivot) and records reference,
+measurement, output mode and constraints.
 
 ## Compare the Response
 
-Predict the effect of increasing the model's kA under the same available voltage, then run the same start and end goals. Compare generated velocity and acceleration separately from measured tracking. Record overshoot, settling and error against the targets established before tuning.
+Predict the effect of increasing the model's kA under the same available voltage, then run the same
+start and end goals. Compare generated velocity and acceleration separately from measured tracking.
+Record overshoot, settling and error against the targets established before tuning.
 
-The former estimate `kA = kV / time` was dimensionally incorrect. In a first-order velocity model, the time constant relates to kA divided by kV. A motor approaches its asymptotic speed; a loosely observed "time to maximum speed" is not a reliable parameter fit. Use characterization and independent validation instead.
+The former estimate `kA = kV / time` was dimensionally incorrect. In a first-order velocity model,
+the time constant relates to kA divided by kV. A motor approaches its asymptotic speed; a loosely
+observed "time to maximum speed" is not a reliable parameter fit. Use characterization and
+independent validation instead.
 
-A profiled position trace should follow its intermediate reference. An instantaneous square-wave change describes the final goal, not a physically achievable measured position trajectory. Check limit behavior and reference validity before interpreting any fast movement as an improvement.
+A profiled position trace should follow its intermediate reference. An instantaneous square-wave
+change describes the final goal, not a physically achievable measured position trajectory. Check
+limit behavior and reference validity before interpreting any fast movement as an improvement.
 
 <Sources items={[
   {

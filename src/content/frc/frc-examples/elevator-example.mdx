@@ -11,9 +11,11 @@ duration: 20 min
 description: "Build a distance-controlled elevator and calculate carriage travel from motor rotations, gearing, drum radius, and rigging."
 ---
 
-An elevator moves a carriage vertically. The component should accept a `Distance` goal even when the motor controller measures rotor rotations. The IO layer converts between those units.
+An elevator moves a carriage vertically. The component should accept a `Distance` goal even when the
+motor controller measures rotor rotations. The IO layer converts between those units.
 
-This page uses **motor rotations per drum rotation** for gear reduction. A 12:1 reduction means the motor turns 12 times while the drum turns once.
+This page uses **motor rotations per drum rotation** for gear reduction. A 12:1 reduction means the
+motor turns 12 times while the drum turns once.
 
 ### Convert drum rotation to rope travel
 
@@ -49,13 +51,19 @@ distance per motor rotation = (1 / 12) × 2 × π × 1 in
 
 Twenty-four motor rotations move the carriage about 12.57 inches.
 
-`S` describes how the rigging changes carriage travel relative to rope travel. It is 1 for direct rigging. Measure and document the multiplier for a cascading or moving-pulley layout instead of assuming it. The CAD rope path determines both travel and force.
+`S` describes how the rigging changes carriage travel relative to rope travel. It is 1 for direct
+rigging. Measure and document the multiplier for a cascading or moving-pulley layout instead of
+assuming it. The CAD rope path determines both travel and force.
 
 ### Account for changing drum radius
 
-The calculation assumes a constant loaded radius. A rope or strap that builds up in layers increases the effective radius as the elevator moves. Each later drum rotation then moves more rope than an earlier rotation.
+The calculation assumes a constant loaded radius. A rope or strap that builds up in layers increases
+the effective radius as the elevator moves. Each later drum rotation then moves more rope than an
+earlier rotation.
 
-Use a narrow drum that keeps the rope in one layer when practical. Otherwise, measure carriage height against encoder position and use that relationship in the IO layer. A single constant conversion will accumulate error when the effective radius changes.
+Use a narrow drum that keeps the rope in one layer when practical. Otherwise, measure carriage
+height against encoder position and use that relationship in the IO layer. A single constant
+conversion will accumulate error when the effective radius changes.
 
 ### Calculate velocity and load torque
 
@@ -65,13 +73,17 @@ load force = moving mass × gravitational acceleration
 drum torque = load force × S × r
 ```
 
-Here `S` is carriage travel divided by rope travel. A moving-pulley arrangement that moves the carriage half as far as the rope has `S = 0.5`, so it needs half the ideal rope tension and twice as much rope travel. These equations describe ideal rigging. Friction and efficiency increase the motor torque required. The gearbox trades motor speed for torque:
+Here `S` is carriage travel divided by rope travel. A moving-pulley arrangement that moves the
+carriage half as far as the rope has `S = 0.5`, so it needs half the ideal rope tension and twice as
+much rope travel. These equations describe ideal rigging. Friction and efficiency increase the motor
+torque required. The gearbox trades motor speed for torque:
 
 ```text
 output torque ≈ motor torque × G × efficiency
 ```
 
-The holding voltage appears as `kG` in an elevator feedforward. Unlike an arm, the elevator's gravity term stays approximately constant through its travel.
+The holding voltage appears as `kG` in an elevator feedforward. Unlike an arm, the elevator's
+gravity term stays approximately constant through its travel.
 
 ### Define the IO boundary
 
@@ -86,13 +98,19 @@ public interface ElevatorIO {
   }
 
   default void updateInputs(ElevatorIOInputs inputs) {}
+
   default void setPosition(Distance goal) {}
+
   default void setVoltage(Voltage output) {}
+
   default void stop() {}
 }
 ```
 
 ### Build the component
+
+Use the shared [numeric validator](/frc/trapezoidal-motion-profiling#validate-numeric-requests) and
+import `frc.robot.util.Numbers`. The setter checks the request before replacing the stored goal.
 
 ```java
 public final class Elevator {
@@ -105,11 +123,7 @@ public final class Elevator {
   private Distance goal;
 
   public Elevator(
-      ElevatorIO io,
-      String logKey,
-      Distance minHeight,
-      Distance maxHeight,
-      Distance tolerance) {
+      ElevatorIO io, String logKey, Distance minHeight, Distance maxHeight, Distance tolerance) {
     this.io = io;
     this.logKey = logKey;
     this.minHeight = minHeight;
@@ -125,10 +139,9 @@ public final class Elevator {
   }
 
   public void setGoal(Distance requestedGoal) {
-    goal = Meters.of(MathUtil.clamp(
-        requestedGoal.in(Meters),
-        minHeight.in(Meters),
-        maxHeight.in(Meters)));
+    double requested = requestedGoal.in(Meters);
+    Numbers.requireFinite("requested goal", requested);
+    goal = Meters.of(MathUtil.clamp(requested, minHeight.in(Meters), maxHeight.in(Meters)));
   }
 
   public boolean atGoal() {
@@ -141,27 +154,35 @@ public final class Elevator {
 }
 ```
 
-The hardware IO configures motion profiling, travel conversion, and constant gravity compensation. A position sensor still needs a trustworthy zero from a limit switch, absolute sensor, or documented homing procedure.
+The hardware IO configures motion profiling, travel conversion, and constant gravity compensation. A
+position sensor still needs a trustworthy zero from a limit switch, absolute sensor, or documented
+homing procedure.
 
 ### Simulate the elevator
 
-WPILib's `ElevatorSim` constructor accepts the motor model, gearing, moving mass, drum radius, lower and upper travel limits, whether to simulate gravity, and starting height.
+WPILib's `ElevatorSim` constructor accepts the motor model, gearing, moving mass, drum radius, lower
+and upper travel limits, whether to simulate gravity, and starting height.
 
 ```java
-private final ElevatorSim sim = new ElevatorSim(
-    DCMotor.getKrakenX60Foc(1),
-    12.0,                 // motor rotations per drum rotation
-    7.5,                  // moving mass in kilograms
-    Units.inchesToMeters(1.0),
-    Units.inchesToMeters(0.0),
-    Units.inchesToMeters(30.0),
-    true,
-    Units.inchesToMeters(0.0));
+private final ElevatorSim sim =
+    new ElevatorSim(
+        DCMotor.getKrakenX60Foc(1),
+        12.0, // motor rotations per drum rotation
+        7.5, // moving mass in kilograms
+        Units.inchesToMeters(1.0),
+        Units.inchesToMeters(0.0),
+        Units.inchesToMeters(30.0),
+        true,
+        Units.inchesToMeters(0.0));
 ```
 
-Pass the applied voltage to the model, call `update()` once per loop, and read `getPositionMeters()`, `getVelocityMetersPerSecond()`, and `getCurrentDrawAmps()`.
+Pass the applied voltage to the model, call `update()` once per loop, and read
+`getPositionMeters()`, `getVelocityMetersPerSecond()`, and `getCurrentDrawAmps()`.
 
-`ElevatorSim` models a constant drum radius and one linear carriage. Adjust the model or its interpretation if the real rigging has a travel multiplier. Simulation can check goals, limits, gravity behavior, and command sequencing. Hardware still confirms homing, rope behavior, friction, and hard-stop clearance.
+`ElevatorSim` models a constant drum radius and one linear carriage. Adjust the model or its
+interpretation if the real rigging has a travel multiplier. Simulation can check goals, limits,
+gravity behavior, and command sequencing. Hardware still confirms homing, rope behavior, friction,
+and hard-stop clearance.
 
 <RulesBox title="Check your work">
 

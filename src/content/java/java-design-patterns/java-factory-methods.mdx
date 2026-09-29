@@ -13,7 +13,8 @@ description: Using a named method instead of a constructor to create objects, wh
 
 ### What constructors cannot do
 
-A constructor has to be named after its class. That is fine until you need two ways of building the same thing:
+A constructor has to be named after its class. That is fine until you need two ways of building the
+same thing:
 
 ```java norun
 public class Angle {
@@ -24,7 +25,8 @@ public class Angle {
 }
 ```
 
-Both take a `double`, so they have the same signature. Java cannot distinguish them, and no amount of [overloading](/java/fundamentals/overloading#constructor-overloading) helps.
+Both take a `double`, so they have the same signature. Java cannot distinguish them, and no amount
+of [overloading](/java/fundamentals/overloading#constructor-overloading) helps.
 
 A factory method solves it by using a name instead:
 
@@ -53,13 +55,17 @@ Angle a = Angle.ofDegrees(90);
 Angle b = Angle.ofRadians(Math.PI / 2);
 ```
 
-Compare that with `new Angle(90)`, where a reader has to check the constructor to learn which unit is expected. Unit confusion is a real source of robot bugs, and naming the method removes the ambiguity.
+Compare that with `new Angle(90)`, where a reader has to check the constructor to learn which unit
+is expected. Unit confusion is a real source of robot bugs, and naming the method removes the
+ambiguity.
 
 <RulesBox title="Making the constructor private">
 
-Marking the constructor `private` forces everyone through the factory methods. That is what gives you control: you can validate, cache, or change what you return without breaking any caller.
+Marking the constructor `private` forces everyone through the factory methods. That is what gives
+you control: you can validate, cache, or change what you return without breaking any caller.
 
-If you leave the constructor public, both routes exist and the guarantees weaken. Make it private unless you have a reason not to.
+If you leave the constructor public, both routes exist and the guarantees weaken. Make it private
+unless you have a reason not to.
 
 </RulesBox>
 
@@ -69,7 +75,8 @@ Both are called factory methods, and the difference is what they belong to.
 
 A **static factory** belongs to the class being created, as above. `Angle.ofDegrees(90)`.
 
-An **instance factory method** belongs to some other object, and that object's state influences what gets built:
+An **instance factory method** belongs to some other object, and that object's state influences what
+gets built:
 
 ```java norun
 public class MotorFactory {
@@ -97,9 +104,12 @@ Motor left  = driveMotors.create(1);
 Motor right = driveMotors.create(2);
 ```
 
-The shared configuration lives in the factory, so you set it once rather than repeating it at every creation site. Add a third motor later and it is automatically configured the same way.
+The shared configuration lives in the factory, so you set it once rather than repeating it at every
+creation site. Add a third motor later and it is automatically configured the same way.
 
-This is the form that pairs with [dependency injection](/java/fundamentals/dependency-injection#injecting-an-interface): you pass a factory to code that needs to create things without deciding how they are configured.
+This is the form that pairs with
+[dependency injection](/java/fundamentals/dependency-injection#injecting-an-interface): you pass a
+factory to code that needs to create things without deciding how they are configured.
 
 ### Returning a subtype
 
@@ -130,11 +140,14 @@ Drivetrain drive = DrivetrainFactory.forRobot(config);
 drive.drive(0.5, 0.0);            // whichever implementation, same call
 ```
 
-[Runtime polymorphism](/java/fundamentals/runtime-polymorphism#a-worked-example) does the dispatch. The decision about which class to build is made in exactly one place, and every user of `Drivetrain` is unaffected by it.
+[Runtime polymorphism](/java/fundamentals/runtime-polymorphism#a-worked-example) does the dispatch.
+The decision about which class to build is made in exactly one place, and every user of `Drivetrain`
+is unaffected by it.
 
 ### Other things factories can do
 
-**Validate before constructing.** A constructor that throws leaves callers with an awkward failure; a factory can return an `Optional` or a sensible fallback.
+**Validate before constructing.** A constructor that throws leaves callers with an awkward failure;
+a factory can return an `Optional` or a sensible fallback.
 
 ```java norun
 public static Optional<Angle> parse(String text) {
@@ -146,7 +159,8 @@ public static Optional<Angle> parse(String text) {
 }
 ```
 
-**Reuse instances.** A constructor must produce a new object every time. A factory may hand back a cached one:
+**Reuse instances.** A constructor must produce a new object every time. A factory may hand back a
+cached one:
 
 ```java
 public class Angle {
@@ -165,7 +179,8 @@ System.out.println(Angle.ofRadians(0) == Angle.ZERO);      // true: the same obj
 System.out.println(Angle.ofRadians(1.5) == Angle.ZERO);    // false
 ```
 
-This is why `Integer.valueOf(5)` is preferred over `new Integer(5)`: the factory caches small values, and the constructor cannot.
+This is why `Integer.valueOf(5)` is preferred over `new Integer(5)`: the factory caches small
+values, and the constructor cannot.
 
 **Hide generic clutter.**
 
@@ -206,9 +221,11 @@ The standard library is consistent, and following it makes your code predictable
 
 <RulesBox title="Do not overuse it">
 
-A factory adds overhead when a class has one clear constructor. `new Point(3, 4)` already shows what the code creates. Wrapping it in `Point.of(3, 4)` adds another method without clarifying the call.
+A factory adds overhead when a class has one clear constructor. `new Point(3, 4)` already shows what
+the code creates. Wrapping it in `Point.of(3, 4)` adds another method without clarifying the call.
 
-Add a factory when you have a concrete reason from the table above: naming, subtype choice, validation, or reuse. "Factories are good practice" is not a reason.
+Add a factory when you have a concrete reason from the table above: naming, subtype choice,
+validation, or reuse. "Factories are good practice" is not a reason.
 
 </RulesBox>
 
@@ -218,7 +235,8 @@ Add a factory when you have a concrete reason from the table above: naming, subt
 - **Unclear names.** `Angle.make(90)` says nothing that `new Angle(90)` did not.
 - **Forgetting `static`** on a static factory, making it impossible to call without an instance.
 - **A factory returning the concrete type** when the point was to hide it. Return the abstract type.
-- **Mutable cached instances.** Only share objects that cannot be changed after creation, or callers will interfere with each other.
+- **Mutable cached instances.** Only share objects that cannot be changed after creation, or callers
+  will interfere with each other.
 
 </RulesBox>
 
@@ -226,11 +244,15 @@ Add a factory when you have a concrete reason from the table above: naming, subt
 
 <ExerciseBox title="Practice">
 
-1. Write an `Angle` class with a private constructor and `ofDegrees` / `ofRadians` factories, plus a `getDegrees()` method. Confirm both routes agree.
-2. Add a `ZERO` constant and make `ofRadians(0)` return it. Verify with `==` that you get the same object twice.
+1. Write an `Angle` class with a private constructor and `ofDegrees` / `ofRadians` factories, plus a
+   `getDegrees()` method. Confirm both routes agree.
+2. Add a `ZERO` constant and make `ofRadians(0)` return it. Verify with `==` that you get the same
+   object twice.
 3. Write a `Temperature` class with `fromCelsius` and `fromFahrenheit` factories.
-4. Write an abstract `Sensor` with two subclasses, and a static factory choosing between them from a `String`. Confirm the caller only ever sees `Sensor`.
-5. Write a `MotorFactory` holding shared configuration and creating configured `Motor` objects from a port number.
+4. Write an abstract `Sensor` with two subclasses, and a static factory choosing between them from a
+   `String`. Confirm the caller only ever sees `Sensor`.
+5. Write a `MotorFactory` holding shared configuration and creating configured `Motor` objects from
+   a port number.
 
 <details>
 <summary>Hints</summary>
@@ -238,7 +260,8 @@ Add a factory when you have a concrete reason from the table above: naming, subt
 1. Store radians internally; convert on the way in and out.
 2. A `static final` field, returned when the argument is 0.
 3. Same shape as `Angle`. Pick one internal unit and convert at the boundary.
-4. Return the abstract type from the factory. Try calling a subclass-only method on the result and note the compile error; that is the encapsulation working.
+4. Return the abstract type from the factory. Try calling a subclass-only method on the result and
+   note the compile error; that is the encapsulation working.
 5. Constructor takes the configuration; `create(int port)` applies it.
 
 </details>

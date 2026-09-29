@@ -13,7 +13,8 @@ description: Subsystem command factories for single-mechanism actions, and full 
 
 ### Define actions as commands
 
-Commands define robot actions. They use subsystem methods to perform tasks, and the scheduler decides which ones run.
+Commands define robot actions. They use subsystem methods to perform tasks, and the scheduler
+decides which ones run.
 
 <RulesBox title="Command Lifecycle" subtitle="Four key methods:">
 
@@ -26,7 +27,8 @@ Commands define robot actions. They use subsystem methods to perform tasks, and 
 
 ### Subsystem Command Factories
 
-For an action that involves a **single** subsystem, the shortest correct version is a method on that subsystem. `SubsystemBase` provides factory methods that build a command already requiring `this`:
+For an action that involves a **single** subsystem, the shortest correct version is a method on that
+subsystem. `SubsystemBase` provides factory methods that build a command already requiring `this`:
 
 ```java
 public class Intake extends SubsystemBase {
@@ -53,17 +55,24 @@ public class Intake extends SubsystemBase {
   ]}
 />
 
-Which one you want follows from what the hardware needs. A **duty cycle** must be re-commanded every loop or the motor safety watchdog cuts it off, so use `run()`. A **closed-loop setpoint** is held by the motor controller itself, so `runOnce()` is enough; re-sending it 50 times a second achieves nothing.
+Which one you want follows from what the hardware needs. A **duty cycle** must be re-commanded every
+loop or the motor safety watchdog cuts it off, so use `run()`. A **closed-loop setpoint** is held by
+the motor controller itself, so `runOnce()` is enough; re-sending it 50 times a second achieves
+nothing.
 
 <RulesBox title="Requirements come free">
 
-`run` and `runOnce` are instance methods on the subsystem, so the command they return already requires that subsystem. There is no `addRequirements()` call to forget.
+`run` and `runOnce` are instance methods on the subsystem, so the command they return already
+requires that subsystem. There is no `addRequirements()` call to forget.
 
-That matters more than it sounds. A command with no requirements conflicts with nothing, so two of them can drive the same motor at once with no error and no symptom beyond a mechanism that behaves strangely.
+That matters more than it sounds. A command with no requirements conflicts with nothing, so two of
+them can drive the same motor at once with no error and no symptom beyond a mechanism that behaves
+strangely.
 
 </RulesBox>
 
-Because a factory is a method, it can take arguments, so one method covers what would otherwise be several classes:
+Because a factory is a method, it can take arguments, so one method covers what would otherwise be
+several classes:
 
 ```java
 intake.setIntakeCommand(1)      // intake
@@ -71,7 +80,9 @@ intake.setIntakeCommand(-1)     // eject
 intake.setIntakeCommand(0)      // stop
 ```
 
-The alternative is `RunIntakeCommand`, `EjectIntakeCommand`, and `StopIntakeCommand`, all nearly identical. Bindings read better too: `intake.deployAndIntakeCommand()` says what happens once, where `new DeployAndIntakeCommand(intake)` says it twice.
+The alternative is `RunIntakeCommand`, `EjectIntakeCommand`, and `StopIntakeCommand`, all nearly
+identical. Bindings read better too: `intake.deployAndIntakeCommand()` says what happens once, where
+`new DeployAndIntakeCommand(intake)` says it twice.
 
 When a setpoint has a meaning, name the factory after the meaning rather than parameterizing it:
 
@@ -102,13 +113,17 @@ Command stopCmd = Commands.runOnce(() -> intake.setIntakeDutyCycle(0), intake);
 Command untilCmd = intake.setIntakeCommand(0.6).until(intake::hasGamePiece);
 ```
 
-Note the subsystem passed as the second argument. With the static form, requirements are **not** automatic.
+Note the subsystem passed as the second argument. With the static form, requirements are **not**
+automatic.
 
 ### Full Command Classes
 
-Write a class extending `Command` when an action coordinates **several subsystems that must react to each other**, every loop. A factory cannot express that, because `run` and `runOnce` require exactly one subsystem.
+Write a class extending `Command` when an action coordinates **several subsystems that must react to
+each other**, every loop. A factory cannot express that, because `run` and `runOnce` require exactly
+one subsystem.
 
-Shooting while moving is the standard example: the drive pose determines the flywheel speed, the flywheel speed determines whether the feeder may run, and all of it is recomputed continuously.
+Shooting while moving is the standard example: the drive pose determines the flywheel speed, the
+flywheel speed determines whether the feeder may run, and all of it is recomputed continuously.
 
 ```java
 package frc.robot.commands;
@@ -163,23 +178,31 @@ public class SmartShootCommand extends Command {
 
 ### Requirements
 
-Commands declare subsystem requirements to prevent conflicts. The scheduler ensures only one command controls a subsystem at a time; if a new command requires a subsystem in use, it interrupts the current one.
+Commands declare subsystem requirements to prevent conflicts. The scheduler ensures only one command
+controls a subsystem at a time; if a new command requires a subsystem in use, it interrupts the
+current one.
 
 <RulesBox title="Require what you command, not what you read">
 
 Four subsystems are passed into the constructor above. Only three are required.
 
-`drive` is deliberately left out, because the command only reads the drive pose; it never commands the drivetrain. Requiring it would interrupt the joystick drive, and the driver would lose control the instant they pressed the shoot button.
+`drive` is deliberately left out, because the command only reads the drive pose; it never commands
+the drivetrain. Requiring it would interrupt the joystick drive, and the driver would lose control
+the instant they pressed the shoot button.
 
-Over-requiring is the more common mistake and the harder one to debug: the mechanism works, but pressing the button silently cancels something else.
+Over-requiring is the more common mistake and the harder one to debug: the mechanism works, but
+pressing the button silently cancels something else.
 
 </RulesBox>
 
 ### Ending Cleanly
 
-`isFinished()` returning `false` means the command runs until something cancels it, which is correct for a `whileTrue` binding, where the trigger controls its lifetime.
+`isFinished()` returning `false` means the command runs until something cancels it, which is correct
+for a `whileTrue` binding, where the trigger controls its lifetime.
 
-That makes `end()` load-bearing. It runs on interruption as well as normal completion, and it must stop **everything** the command started. Default commands only cover subsystems this command required; anything else left commanded here stays commanded.
+That makes `end()` load-bearing. It runs on interruption as well as normal completion, and it must
+stop **everything** the command started. Default commands only cover subsystems this command
+required; anything else left commanded here stays commanded.
 
 ### Logging From a Command
 
@@ -187,9 +210,11 @@ That makes `end()` load-bearing. It runs on interruption as well as normal compl
 Logger.recordOutput(getName() + "/distance", distance);
 ```
 
-`getName()` returns the command's class name, so keys come out as `SmartShootCommand/distance` and follow the class if it is ever renamed.
+`getName()` returns the command's class name, so keys come out as `SmartShootCommand/distance` and
+follow the class if it is ever renamed.
 
-Log the intermediate values, not just the final output. When a shot misses, `distance` and `setpoint` are what tell you whether the pose estimate was wrong or the shot table was.
+Log the intermediate values, not just the final output. When a shot misses, `distance` and
+`setpoint` are what tell you whether the pose estimate was wrong or the shot table was.
 
 <ContentTable
   title="Which form to use"
@@ -207,8 +232,10 @@ Log the intermediate values, not just the final output. When a shot misses, `dis
 - **A `runOnce()` factory for a duty cycle**, which motor safety will cut off.
 - **Requiring a subsystem you only read from.**
 - **An `end()` that does not stop everything it started.**
-- **State initialised in the constructor instead of `initialize()`.** The constructor runs once at startup; the command may be scheduled hundreds of times.
-- **Blocking loops in `execute()`.** Everything runs on one thread, so a loop that waits freezes the whole robot.
+- **State initialised in the constructor instead of `initialize()`.** The constructor runs once at
+  startup; the command may be scheduled hundreds of times.
+- **Blocking loops in `execute()`.** Everything runs on one thread, so a loop that waits freezes the
+  whole robot.
 - **Reaching for a class too early.** If the action fits one subsystem, it is a factory.
 
 </RulesBox>

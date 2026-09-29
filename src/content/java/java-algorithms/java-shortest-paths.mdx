@@ -13,9 +13,14 @@ description: When edges have different costs, BFS stops being enough. Dijkstra's
 
 ### When BFS is not enough
 
-[Breadth-First Search](/java/fundamentals/breadth-first-search#why-it-finds-shortest-paths) finds the shortest path when every step costs the same. The moment edges carry different **weights** (a longer corridor, a slower surface, a route that passes near a defender), the fewest-edges path and the cheapest path stop being the same thing, and BFS gives the wrong answer with no warning.
+[Breadth-First Search](/java/fundamentals/breadth-first-search#why-it-finds-shortest-paths) finds
+the shortest path when every step costs the same. The moment edges carry different **weights** (a
+longer corridor, a slower surface, a route that passes near a defender), the fewest-edges path and
+the cheapest path stop being the same thing, and BFS gives the wrong answer with no warning.
 
-Picture a set of waypoints on the field with the driving time between each connected pair. The question is "what is the fastest route from here to the loading zone?" That is a shortest-path problem on a weighted graph, and the standard answer is **Dijkstra's algorithm**.
+Picture a set of waypoints on the field with the driving time between each connected pair. The
+question is "what is the fastest route from here to the loading zone?" That is a shortest-path
+problem on a weighted graph, and the standard answer is **Dijkstra's algorithm**.
 
 <ContentTable
   headers={["Situation", "Use", "Cost"]}
@@ -26,15 +31,21 @@ Picture a set of waypoints on the field with the driving time between each conne
   ]}
 />
 
-The first row matters: if all your edges are equal, Dijkstra is overhead. Reach for it only when the weights differ.
+The first row matters: if all your edges are equal, Dijkstra is overhead. Reach for it only when the
+weights differ.
 
 ### The idea
 
-Dijkstra grows a region of nodes whose shortest distance is *settled*. At each step, it picks the closest unsettled node.
+Dijkstra grows a region of nodes whose shortest distance is *settled*. At each step, it picks the
+closest unsettled node.
 
-After settling a node, inspect each of its edges. If going through that node creates a shorter route to a neighbour, record the improvement. This step is called **relaxing** the edge.
+After settling a node, inspect each of its edges. If going through that node creates a shorter route
+to a neighbour, record the improvement. This step is called **relaxing** the edge.
 
-Always taking the closest unsettled node is what makes it correct: with non-negative weights, nothing discovered later can beat a distance that is already the smallest on the frontier. And "always take the smallest" is exactly what a [priority queue](/java/fundamentals/queues#priority-queues) does.
+Always taking the closest unsettled node is what makes it correct: with non-negative weights,
+nothing discovered later can beat a distance that is already the smallest on the frontier. And
+"always take the smallest" is exactly what a
+[priority queue](/java/fundamentals/queues#priority-queues) does.
 
 ### The code
 
@@ -95,7 +106,8 @@ public class Main {
 }
 ```
 
-The direct edge from start to the loading zone via mid-field costs 8; going start → mid-field → wall → loading zone costs 5. BFS would have picked the two-edge route and been wrong by three seconds.
+The direct edge from start to the loading zone via mid-field costs 8; going start → mid-field → wall
+→ loading zone costs 5. BFS would have picked the two-edge route and been wrong by three seconds.
 
 <RulesBox title="The stale-entry check is not optional">
 
@@ -103,21 +115,31 @@ The direct edge from start to the loading zone via mid-field costs 8; going star
 if (d > dist[u]) continue;
 ```
 
-Java's `PriorityQueue` cannot update an entry already inside it. Whenever a distance improves, the code pushes a *new* entry and leaves the old one behind. That line discards each outdated entry when it surfaces.
+Java's `PriorityQueue` cannot update an entry already inside it. Whenever a distance improves, the
+code pushes a *new* entry and leaves the old one behind. That line discards each outdated entry when
+it surfaces.
 
-Without the check, the answer remains correct, but the algorithm may expand each node many times. Dense graphs can then take much longer to process.
+Without the check, the answer remains correct, but the algorithm may expand each node many times.
+Dense graphs can then take much longer to process.
 
 </RulesBox>
 
 Three more details that decide whether it works:
 
-- **Initialise with infinity, and keep it a `double`.** `Double.POSITIVE_INFINITY` plus a weight is still infinity. An `int` sentinel of `Integer.MAX_VALUE` plus a weight overflows to a negative number (see [Math](/java/fundamentals/math#integer-ranges-and-overflow)), and the algorithm quietly picks it as the best route.
-- **Test before assigning.** `if (candidate < dist[to])` first, then write. Writing unconditionally makes the distance worse.
-- **Non-negative weights only.** A negative edge can make a settled node's distance wrong after the fact, and Dijkstra never revisits. Driving time, distance, and energy are never negative, so on a robot this is rarely a constraint, but it is the reason the algorithm works at all.
+- **Initialise with infinity, and keep it a `double`.** `Double.POSITIVE_INFINITY` plus a weight is
+  still infinity. An `int` sentinel of `Integer.MAX_VALUE` plus a weight overflows to a negative
+  number (see [Math](/java/fundamentals/math#integer-ranges-and-overflow)), and the algorithm
+  quietly picks it as the best route.
+- **Test before assigning.** `if (candidate < dist[to])` first, then write. Writing unconditionally
+  makes the distance worse.
+- **Non-negative weights only.** A negative edge can make a settled node's distance wrong after the
+  fact, and Dijkstra never revisits. Driving time, distance, and energy are never negative, so on a
+  robot this is rarely a constraint, but it is the reason the algorithm works at all.
 
 ### Getting the route back
 
-Distances alone rarely answer the question. To know *which way to drive*, record where each improvement came from and walk it backwards from the destination:
+Distances alone rarely answer the question. To know *which way to drive*, record where each
+improvement came from and walk it backwards from the destination:
 
 ```java
 import java.util.ArrayList;
@@ -178,15 +200,23 @@ public class Main {
 }
 ```
 
-`parent[v]` is overwritten every time `v`'s distance improves, so when the algorithm finishes it holds the last, and therefore best, predecessor. Walking it from the target to the source and reversing gives the route.
+`parent[v]` is overwritten every time `v`'s distance improves, so when the algorithm finishes it
+holds the last, and therefore best, predecessor. Walking it from the target to the source and
+reversing gives the route.
 
 ### Where this sits on a real robot
 
-FRC teams usually create autonomous paths in a tool such as [PathPlanner](/frc/pathplanner#paths-autos-and-event-markers) or [BLine](/frc/bline#get-to-point). These tools let you draw continuous curves or point-to-point segments through the field.
+FRC teams usually create autonomous paths in a tool such as
+[PathPlanner](/frc/pathplanner#paths-autos-and-event-markers) or [BLine](/frc/bline#get-to-point).
+These tools let you draw continuous curves or point-to-point segments through the field.
 
-Dijkstra can help one level earlier. It can choose a sequence of zones before a path is drawn, route around a known obstacle on a coarse grid, or search any field model made of places connected by costs.
+Dijkstra can help one level earlier. It can choose a sequence of zones before a path is drawn, route
+around a known obstacle on a coarse grid, or search any field model made of places connected by
+costs.
 
-**A\*** is a common variation of Dijkstra's algorithm. It adds a hint, such as the straight-line distance to the goal, to each priority. That hint directs the search toward the target instead of expanding evenly in every direction. The code needs one additional term in the comparator.
+**A\*** is a common variation of Dijkstra's algorithm. It adds a hint, such as the straight-line
+distance to the goal, to each priority. That hint directs the search toward the target instead of
+expanding evenly in every direction. The code needs one additional term in the comparator.
 
 <RulesBox title="Common mistakes">
 
@@ -203,11 +233,15 @@ Dijkstra can help one level earlier. It can choose a sequence of zones before a 
 
 <ExerciseBox title="Practice">
 
-1. Add a fifth node to the example, connected only to node 3 with cost 1, and confirm its distance is 6.
+1. Add a fifth node to the example, connected only to node 3 with cost 1, and confirm its distance
+   is 6.
 2. Make one edge directed (only from 0 to 2) and see which distances change.
-3. Give the graph a node nothing connects to. Print its distance and decide what your program should say instead of `Infinity`.
-4. Model a 4 × 4 grid where each cell connects to its four neighbours, with a few "slow" cells costing 3 instead of 1. Find the cheapest route corner to corner and print it.
-5. Turn the priority into `distance + straightLineToGoal` and count how many nodes each version expands on the grid from exercise 4.
+3. Give the graph a node nothing connects to. Print its distance and decide what your program should
+   say instead of `Infinity`.
+4. Model a 4 × 4 grid where each cell connects to its four neighbours, with a few "slow" cells
+   costing 3 instead of 1. Find the cheapest route corner to corner and print it.
+5. Turn the priority into `distance + straightLineToGoal` and count how many nodes each version
+   expands on the grid from exercise 4.
 
 <details>
 <summary>Hints</summary>
@@ -215,7 +249,8 @@ Dijkstra can help one level earlier. It can choose a sequence of zones before a 
 1. Add the node to the adjacency list before running; `adj.size()` sets the array sizes.
 2. Only call `adj.get(0).add(...)` for that edge. Node 2 is still reachable via 1.
 3. `Double.isInfinite(dist[v])` is the test.
-4. Number the cells `row * 4 + col`. Build the edges in a double loop; the cost of an edge is the cost of the cell you are entering.
+4. Number the cells `row * 4 + col`. Build the edges in a double loop; the cost of an edge is the
+   cost of the cell you are entering.
 5. That is A\*. On a grid with a clear goal it should settle noticeably fewer nodes.
 
 </details>

@@ -12,15 +12,26 @@ durationFixed: true
 ---
 
 
-The curriculum drivetrain uses four SparkMax controllers in two leader/follower pairs. This lesson builds its IO interface, real implementation, and 2D physics simulation. [DriveIO Part 2](/kit-bot/r07-drive-io-part-2) adds the `Drive` subsystem and gets the robot moving.
+The curriculum drivetrain uses four SparkMax controllers in two leader/follower pairs. This lesson
+builds its IO interface, real implementation, and 2D physics simulation.
+[DriveIO Part 2](/kit-bot/r07-drive-io-part-2) adds the `Drive` subsystem and gets the robot moving.
 
-At the end of Part 1, four drivetrain files compile. Part 2 adds driving. The field display is added in R13.
+At the end of Part 1, four drivetrain files compile. Part 2 adds driving. The field display is added
+in R13.
 
 ## Before You Start
 
-Complete [R00 WPILib Setup](/kit-bot/r00-wpilib-setup), [R01 Project Anatomy](/kit-bot/r01-project-anatomy), [R02 Robot Lifecycle](/kit-bot/r02-robot-lifecycle), [R03 Constants](/kit-bot/r03-constants), [R04 Subsystems](/kit-bot/r04-subsystems), [R05 Commands and Triggers](/kit-bot/r05-commands-and-triggers), and [R06 Motor Controllers](/kit-bot/r06-motor-controllers). Review [Java interfaces](/java/fundamentals/interfaces).
+Complete [R00 WPILib Setup](/kit-bot/r00-wpilib-setup),
+[R01 Project Anatomy](/kit-bot/r01-project-anatomy),
+[R02 Robot Lifecycle](/kit-bot/r02-robot-lifecycle), [R03 Constants](/kit-bot/r03-constants),
+[R04 Subsystems](/kit-bot/r04-subsystems),
+[R05 Commands and Triggers](/kit-bot/r05-commands-and-triggers), and
+[R06 Motor Controllers](/kit-bot/r06-motor-controllers). Review
+[Java interfaces](/java/fundamentals/interfaces).
 
-An IO interface lists the methods shared by the real and simulation implementations. **IO** means input/output: sensor readings come in, and voltage requests go out. You will build on the laptop and run no physical motors in this lesson.
+An IO interface lists the methods shared by the real and simulation implementations. **IO** means
+input/output: sensor readings come in, and voltage requests go out. You will build on the laptop and
+run no physical motors in this lesson.
 
 ---
 
@@ -48,9 +59,14 @@ Left side                  Right side
 └────────────────┘         └────────────────┘
 ```
 
-Two motors sit on each side. Only the leaders take voltage commands; the followers mirror them through SparkMax follower mode, introduced in [R06 Motor Controllers](/kit-bot/r06-motor-controllers). This curriculum starts with the right leader inverted and the right follower set to mirror that leader. The physical motor and encoder signs require mentor-led verification during First Deploy.
+Two motors sit on each side. Only the leaders take voltage commands; the followers mirror them
+through SparkMax follower mode, introduced in
+[R06 Motor Controllers](/kit-bot/r06-motor-controllers). This curriculum starts with the right
+leader inverted and the right follower set to mirror that leader. The physical motor and encoder
+signs require mentor-led verification during First Deploy.
 
-The subsystem calls the IO methods without needing to know which motor-controller objects are behind them.
+The subsystem calls the IO methods without needing to know which motor-controller objects are behind
+them.
 
 ---
 
@@ -93,16 +109,25 @@ public interface DriveIO {
 }
 ```
 
-The interface has one output method, one input method, and one inputs class. Each field uses WPILib's `Measure` API. `updateInputs` gives each field a `Meters.of(...)`, `Volts.of(...)`, or similar value.
+The interface has one output method, one input method, and one inputs class. Each field uses
+WPILib's `Measure` API. `updateInputs` gives each field a `Meters.of(...)`, `Volts.of(...)`, or
+similar value.
 
 Two design choices worth naming:
 
-- **`Distance`/`LinearVelocity`, not rotations.** The IO converts motor rotations → wheel distance internally. Everything above the IO works in real physical units, not motor-shaft rotations. This decision is small; not making it means every consumer has to repeat the conversion, and repeat the chance to get it wrong.
-- **Per-side voltages, not arcade speed.** The IO is intentionally low-level. Arcade-drive math (turn the stick inputs into per-side voltages) lives on the subsystem. Both implementations accept the same voltage requests.
+- **`Distance`/`LinearVelocity`, not rotations.** The IO converts motor rotations → wheel distance
+  internally. Everything above the IO works in real physical units, not motor-shaft rotations. This
+  decision is small; not making it means every consumer has to repeat the conversion, and repeat the
+  chance to get it wrong.
+- **Per-side voltages, not arcade speed.** The IO is intentionally low-level. Arcade-drive math
+  (turn the stick inputs into per-side voltages) lives on the subsystem. Both implementations accept
+  the same voltage requests.
 
 ---
 
-In VS Code, open the Command Palette and run **WPILib: Build Robot Code**. Continue when the terminal ends with `BUILD SUCCESSFUL`. If it fails, start with the first error in `DriveIO.java`, then check the package and imports.
+In VS Code, open the Command Palette and run **WPILib: Build Robot Code**. Continue when the
+terminal ends with `BUILD SUCCESSFUL`. If it fails, start with the first error in `DriveIO.java`,
+then check the package and imports.
 
 ## Confirm the Constants
 
@@ -141,17 +166,25 @@ public final class DriveConstants {
 }
 ```
 
-This is the `DriveConstants` worked example from [R03 Constants](/kit-bot/r03-constants). The CAN IDs, current limit, wheel diameter, gear ratio, and track width are curriculum starter values. Before First Deploy, compare every value with the controller inventory, approved circuit settings, gearbox parts, and measurements from the assembled robot. Do not treat this listing as proof of the physical configuration.
+This is the `DriveConstants` worked example from [R03 Constants](/kit-bot/r03-constants). The CAN
+IDs, current limit, wheel diameter, gear ratio, and track width are curriculum starter values.
+Before First Deploy, compare every value with the controller inventory, approved circuit settings,
+gearbox parts, and measurements from the assembled robot. Do not treat this listing as proof of the
+physical configuration.
 
-The ratio uses **motor rotations per wheel rotation**. With the listed reduction, `(50 / 14) × (48 / 16) = 10.71`. A reading of 10.71 motor rotations therefore represents one wheel rotation. A 6-inch wheel then travels `π × 6 in`, about 18.85 inches, in that rotation.
+The ratio uses **motor rotations per wheel rotation**. With the listed reduction,
+`(50 / 14) × (48 / 16) = 10.71`. A reading of 10.71 motor rotations therefore represents one wheel
+rotation. A 6-inch wheel then travels `π × 6 in`, about 18.85 inches, in that rotation.
 
-Nothing reads `TRACK_WIDTH` yet. `createKitbotSim` below carries its own fixed model, and R13's odometry does not need track width. R15 uses the value for kinematics.
+Nothing reads `TRACK_WIDTH` yet. `createKitbotSim` below carries its own fixed model, and R13's
+odometry does not need track width. R15 uses the value for kinematics.
 
 ---
 
 ## Create the Real Implementation
 
-Create `src/main/java/frc/robot/subsystems/drive/DriveIOReal.java`. This is a **complete file**. It compiles on the laptop, but do not operate real motors yet.
+Create `src/main/java/frc/robot/subsystems/drive/DriveIOReal.java`. This is a **complete file**. It
+compiles on the laptop, but do not operate real motors yet.
 
 ```java
 package frc.robot.subsystems.drive;
@@ -259,18 +292,32 @@ public class DriveIOReal implements DriveIO {
 
 Read these four details:
 
-1. **Configuration helpers** (`leaderConfig` and `followerConfig`) return settings shared by several controllers. This avoids writing the same setup repeatedly.
-2. **Right-side starter configuration.** The leader is `inverted(true)`. The follower uses `follow(leaderCanId, false)` so it follows the leader without an additional relative inversion. Do not flip a sign from a simulation result. During First Deploy, a mentor will check leader direction, follower relation, wiring, and encoder sign separately before any configuration changes.
-3. **Combined current per side.** `leftCurrent` adds the two left motors for a side-total measurement. Each motor still has its own current limit and power circuit.
-4. **Units become measures at the IO boundary.** `motorRotationsToMeters` and `motorRpmToMetersPerSecond` return `double` values because REVLib returns primitive sensor values. `Meters.of(...)` and `MetersPerSecond.of(...)` immediately wrap those results before they leave the IO implementation.
+1. **Configuration helpers** (`leaderConfig` and `followerConfig`) return settings shared by several
+   controllers. This avoids writing the same setup repeatedly.
+2. **Right-side starter configuration.** The leader is `inverted(true)`. The follower uses
+   `follow(leaderCanId, false)` so it follows the leader without an additional relative inversion.
+   Do not flip a sign from a simulation result. During First Deploy, a mentor will check leader
+   direction, follower relation, wiring, and encoder sign separately before any configuration
+   changes.
+3. **Combined current per side.** `leftCurrent` adds the two left motors for a side-total
+   measurement. Each motor still has its own current limit and power circuit.
+4. **Units become measures at the IO boundary.** `motorRotationsToMeters` and
+   `motorRpmToMetersPerSecond` return `double` values because REVLib returns primitive sensor
+   values. `Meters.of(...)` and `MetersPerSecond.of(...)` immediately wrap those results before they
+   leave the IO implementation.
 
 ---
 
-Run **WPILib: Build Robot Code** again. A successful build confirms the API names and types; it does not verify CAN IDs, motor direction, or current-limit suitability.
+Run **WPILib: Build Robot Code** again. A successful build confirms the API names and types; it does
+not verify CAN IDs, motor direction, or current-limit suitability.
 
 ## Create the Simulation Implementation
 
-Create `src/main/java/frc/robot/subsystems/drive/DriveIOSim.java`. This is a **complete file**. WPILib ships a [`DifferentialDrivetrainSim`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html) with a `createKitbotSim` factory that provides a preset drivetrain model. The motor, gearing, and wheel choices below define the simulation used in these lessons.
+Create `src/main/java/frc/robot/subsystems/drive/DriveIOSim.java`. This is a **complete file**.
+WPILib ships a
+[`DifferentialDrivetrainSim`](https://github.wpilib.org/allwpilib/docs/release/java/edu/wpi/first/wpilibj/simulation/DifferentialDrivetrainSim.html)
+with a `createKitbotSim` factory that provides a preset drivetrain model. The motor, gearing, and
+wheel choices below define the simulation used in these lessons.
 
 ```java
 package frc.robot.subsystems.drive;
@@ -324,21 +371,32 @@ public class DriveIOSim implements DriveIO {
 }
 ```
 
-`KitbotMotor.kDoubleNEOPerSide` selects the factory model with two NEO motors on each side. The gearing and wheel enums select the corresponding standard model options. This is useful for code and sign checks, but it does not prove the assembled robot's mass, friction, dimensions, or electrical configuration.
+`KitbotMotor.kDoubleNEOPerSide` selects the factory model with two NEO motors on each side. The
+gearing and wheel enums select the corresponding standard model options. This is useful for code and
+sign checks, but it does not prove the assembled robot's mass, friction, dimensions, or electrical
+configuration.
 
-`setVoltages` limits and applies the requested voltages. `updateInputs` advances the simulation and reads the result. Both implementations follow the same `DriveIO` interface, so the subsystem will not need environment-specific code.
+`setVoltages` limits and applies the requested voltages. `updateInputs` advances the simulation and
+reads the result. Both implementations follow the same `DriveIO` interface, so the subsystem will
+not need environment-specific code.
 
-`DifferentialDrivetrainSim` returns primitive values for position, velocity, and current. The unit factories turn them into measures as they enter `DriveInputs`. `DriveIOReal` uses the same boundary rule with REVLib values.
+`DifferentialDrivetrainSim` returns primitive values for position, velocity, and current. The unit
+factories turn them into measures as they enter `DriveInputs`. `DriveIOReal` uses the same boundary
+rule with REVLib values.
 
 <RulesBox title="Done When">
 
-`DriveConstants`, `DriveIO`, `DriveIOReal`, and `DriveIOSim` build. Point to the method that sends voltage and the method that updates sensor readings. The `Drive` subsystem and running check belong to Part 2.
+`DriveConstants`, `DriveIO`, `DriveIOReal`, and `DriveIOSim` build. Point to the method that sends
+voltage and the method that updates sensor readings. The `Drive` subsystem and running check belong
+to Part 2.
 
 </RulesBox>
 
 ---
 
-The drivetrain IO is complete: interface, constants, real and sim. [DriveIO Part 2](/kit-bot/r07-drive-io-part-2) builds the `Drive` subsystem on it and gets the Kit Bot moving in the simulator.
+The drivetrain IO is complete: interface, constants, real and sim.
+[DriveIO Part 2](/kit-bot/r07-drive-io-part-2) builds the `Drive` subsystem on it and gets the Kit
+Bot moving in the simulator.
 
 <Sources items={[
   {"source": "advantagekit", "path": "data-flow/recording-inputs/io-interfaces/", "label": "AdvantageKit: IO Interfaces", "note": "The IO pattern, applied to a drivetrain."},

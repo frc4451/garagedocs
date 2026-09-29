@@ -1,0 +1,139 @@
+---
+title: "Thrifty Nova Simulation"
+lessonId: thrifty-nova-simulation
+section: frc
+group: frc-advanced-motor-config
+groupLabel: "Advanced Motor Control"
+groupOrder: 10
+order: 7
+difficulty: intermediate
+duration: 15 min
+description: "Run the documented Nova simulation at 50 Hz, inspect its configuration and telemetry, and test logic without mistaking it for PID tuning."
+---
+
+## Decide What to Test
+
+Read [Thrifty Nova Control](/frc/thrifty-nova-control) and
+[Running the Simulator](/frc/running-the-simulator) first. Use a WPILib project and ThriftyLib
+dependency that match each other. The shared
+[2026/2027 documentation source](https://docs.thethriftybot.com/software/thriftylib/latest/overview)
+describes the current `Nova` API; this lesson does not add that API to Cobra's older dependency.
+
+ThriftyLib's built-in simulation lets you inspect configuration, output inversion, forward and
+reverse clamps, soft-limit behavior, and telemetry without a physical controller. Use it to check
+how your robot code handles those states.
+
+**The documented simulator ignores all PID gains.** Changing P, I, or D cannot establish a Nova tune
+here. A successful simulated move also does not establish the real motor's current, heating, load
+response, or mechanical travel. Record exactly which behavior the selected model tests.
+
+## Advance Each Device Once
+
+The vendor requires a call to each device's `simulationPeriodic()` for simulated controls to work.
+Its recommended rate is **50 Hz**, once every **20 ms**. The documentation says changing the call
+rate changes how quickly its internal simulation runs.
+
+This partial lifecycle snippet belongs in your robot's existing simulation callback. It assumes
+`motor` is an already-created current-API `Nova` field. Device construction, configuration, and
+commands are omitted. If an IO implementation owns this update instead, forward the call there and
+remove the duplicate call from the robot class.
+
+```java
+@Override
+public void simulationPeriodic() {
+  motor.simulationPeriodic();
+}
+```
+
+Give each simulated device one update owner. Calling it from both a subsystem and `Robot` advances
+it twice. Do not copy the 5 ms Phoenix notifier from [TalonFX Simulation](/frc/talonfx-simulation)
+into this loop; the documented update contract differs.
+
+## Find the Device
+
+1. Start **WPILib: Simulate Robot Code** and open the simulation GUI.
+2. Under **Hardware**, enable **Other Devices** if it is hidden.
+3. Find the entry for the intended bus and CAN ID. ThriftyLib documents the naming pattern
+   `Thrifty{Device Type}_{busId}_{canId}/{group}`.
+4. Inspect the configuration and controls groups. Confirm inversion, output clamps, and the intended
+   limits before sending a request.
+5. Enable the simulated robot and use a bounded test command. Watch requested output, simulated
+   position, and simulated velocity together.
+
+If output never changes, first check that the command ran and that the device update is called. If
+the device appears under a different bus or ID, check construction before investigating the
+mechanism model.
+
+## Run Repeatable Checks
+
+Use small output requests and limits chosen for a desktop test. Record the initial state, command,
+expected result, and observed result. These are simulation exercises; do not reproduce them on an
+attached mechanism without a separate hardware plan.
+
+| Check | Action in Simulation | Expected Evidence |
+|---|---|---|
+| Direction | Request positive and negative duty cycle, then repeat with inversion changed | Output signs follow the selected inversion; feedback direction is recorded |
+| Output clamps | Set a forward clamp of 0.2 and request 0.5; repeat in reverse with its own positive clamp magnitude | Applied percent output stays within the configured envelope |
+| Internal soft limits | Enable a small position range and request motion beyond each boundary | Output farther into the exceeded boundary becomes zero; a request back into range can recover |
+| External feedback | Use the documented external sensor path and a known simulation ratio | External position and velocity have the expected scale relative to internal motion |
+| Stop and disable | Release the command, interrupt it, and disable the simulated robot | Drive output becomes zero; any continuing motion is explained by the selected model |
+| Completion | Request a target, then test a case where motion is blocked | The command uses measured state and its timeout policy rather than claiming success from the request alone |
+
+The vendor describes internal and external limit handling separately. Test the sensor path your
+control mode uses, including the configured enable and position reference. A GUI field showing a
+limit is not evidence that every request is blocked correctly.
+
+## Model External Feedback
+
+The documented `NovaConfig.simGearRatio(...)` setting scales the motor's external simulated
+feedback. With ten motor turns per external-sensor turn, compare the internal change with the
+expected one-turn external change. Keep this simulation setting separate from the real gearbox
+description and the motion-profile sensor-to-mechanism ratio.
+
+The hub also describes a `MotorSim` bridge with position and velocity suppliers. Its example
+supplies `DCMotorSim.getAngularPositionRotations()` and `getAngularVelocityRPM()`, then attaches the
+bridge to a `CanEncoder` through `CanEncoderConfig.simMotor(...)`. The encoder can also use a native
+Thrifty motor as its simulation source.
+
+That example uses RPM for the velocity supplier, while Nova control targets use rotations per
+second. Preserve the adapter's documented units and check the matching API before writing
+conversions. Attaching an encoder source does not add onboard Nova PID behavior to the simulator.
+
+## Choose a Physics Model When Needed
+
+For an arm falling under gravity, an elevator lifting a load, or a flywheel accelerating, use an
+appropriate WPILib model behind your IO interface.
+[Physics in the IO Layer](/frc/physics-in-the-io-layer) explains `SingleJointedArmSim`,
+`ElevatorSim`, `FlywheelSim`, and `DCMotorSim`.
+
+A software PID controller driving one of those models can test the robot-side algorithm against the
+assumptions you supplied. Its gains are not evidence of a Nova onboard tune. Name the implementation
+in the log so a reviewer can tell whether the run exercised built-in ThriftyLib simulation, a
+separate physics IO class, or recorded inputs in replay.
+
+Use [Simulation in AdvantageScope](/frc/simulation-in-advantagescope) to compare requested and
+measured values over time. Use [Unit Tests in Simulation](/frc/unit-tests-in-simulation) to repeat
+direction, conversion, interruption, and timeout cases. Keep physical current-limit and final gain
+checks in the hardware handoff.
+
+<RulesBox title="Done When">
+
+Your saved evidence identifies the library version, simulation implementation, bus and ID, update
+owner, and tested cases. The configuration and output checks behave as expected, and you can explain
+why this run does not tune Nova PID or verify the physical wiring.
+
+</RulesBox>
+
+<Sources items={[
+  {"source": "thrifty", "path": "software/thriftylib/latest/simulation", "note": "Device naming, GUI groups, 50 Hz updates, limits, simGearRatio, MotorSim/CanEncoder integration and ignored PID values."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/configs", "note": "Configuration options and soft-limit enable behavior."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/control-types", "note": "Control targets use rotations and rotations per second."},
+  {"source":"wpilib","path":"docs/software/wpilib-tools/robot-simulation/physics-sim.html","note":"Separate mechanism physics models and simulation updates."},
+  {"source":"wpilib","path":"docs/software/wpilib-tools/robot-simulation/simulation-gui.html","note":"Desktop simulation GUI and simulated robot operation."}
+]} />
+
+<LinkGrid title="Continue" section="frc" links={[
+  {"label":"Physics in the IO Layer","id":"physics-in-the-io-layer"},
+  {"label":"Unit Tests in Simulation","id":"unit-tests-in-simulation"},
+  {"label":"Nova Hardware Setup","url":"/hardware/thrifty-bot-hardware-and-config"}
+]} />

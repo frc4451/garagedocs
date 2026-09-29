@@ -11,13 +11,20 @@ duration: 30 min
 description: "Composing a robot from configuration instead of constants: identifying which physical robot is running from the roboRIO serial number, putting every hardware constant behind an interface, and making simulation one robot among several rather than a special case."
 ---
 
-Composition has been the theme of this curriculum: a subsystem is built from components, a superstructure from subsystems, a drawing from ligaments. This page applies it one level up, to the robot itself.
+Composition has been the theme of this curriculum: a subsystem is built from components, a
+superstructure from subsystems, a drawing from ligaments. This page applies it one level up, to the
+robot itself.
 
-The problem arrives the first time a team has two robots. The practice bot has different encoder offsets, a camera at a different height, a shooter that needs a different gain. A competition codebase that hardcodes those numbers now has two branches, or a commented-out block, or a constant somebody edits at the field and forgets to revert.
+The problem arrives the first time a team has two robots. The practice bot has different encoder
+offsets, a camera at a different height, a shooter that needs a different gain. A competition
+codebase that hardcodes those numbers now has two branches, or a commented-out block, or a constant
+somebody edits at the field and forgets to revert.
 
 <RulesBox title="Before you start">
 
-[Composing Mechanism Subsystems](/frc/composing-mechanism-subsystems) for the composition this extends, [Cobra Repository Tour](/frc/cobra-repository-tour) for where Cobra's constants live today, and [AdvantageKit](/frc/advantagekit) for the runtime mode this sits beside.
+[Composing Mechanism Subsystems](/frc/composing-mechanism-subsystems) for the composition this
+extends, [Cobra Repository Tour](/frc/cobra-repository-tour) for where Cobra's constants live today,
+and [AdvantageKit](/frc/advantagekit) for the runtime mode this sits beside.
 
 </RulesBox>
 
@@ -33,13 +40,17 @@ public static enum Mode {
 }
 ```
 
-That is the **runtime** axis: is this code driving hardware, a physics model, or a log file. [IO Layers](/frc/io-layers) is built on it.
+That is the **runtime** axis: is this code driving hardware, a physics model, or a log file.
+[IO Layers](/frc/io-layers) is built on it.
 
-The second axis is **which physical robot**, and Cobra has no answer for it. The two are independent: a practice bot and a competition bot both run in `REAL`, and both can be simulated. Conflating them is why "is this the practice bot" often ends up smuggled into a simulation check.
+The second axis is **which physical robot**, and Cobra has no answer for it. The two are
+independent: a practice bot and a competition bot both run in `REAL`, and both can be simulated.
+Conflating them is why "is this the practice bot" often ends up smuggled into a simulation check.
 
 ### Identify the robot from its serial number
 
-Every roboRIO has a serial number the HAL will tell you, so the robot can identify itself. FRC 2910 make it an enum with a lookup:
+Every roboRIO has a serial number the HAL will tell you, so the robot can identify itself. FRC 2910
+make it an enum with a lookup:
 
 ```java
 public enum RobotIdentity {
@@ -60,17 +71,24 @@ public enum RobotIdentity {
 
 Three decisions are worth copying.
 
-**Simulation is an identity, not an exception.** `SIMULATION` sits in the same enum as the real robots, so code that asks "which robot am I" gets one answer in every environment and never needs a second `isSimulation()` branch.
+**Simulation is an identity, not an exception.** `SIMULATION` sits in the same enum as the real
+robots, so code that asks "which robot am I" gets one answer in every environment and never needs a
+second `isSimulation()` branch.
 
-**There is a default.** An unmapped serial number returns a working robot rather than throwing. A roboRIO swapped an hour before a match should produce a robot that drives, not a crash on boot.
+**There is a default.** An unmapped serial number returns a working robot rather than throwing. A
+roboRIO swapped an hour before a match should produce a robot that drives, not a crash on boot.
 
-**The map is data.** Adding a robot is one entry, and the serial number is the only thing you have to look up on the hardware.
+**The map is data.** Adding a robot is one entry, and the serial number is the only thing you have
+to look up on the hardware.
 
-FRC 3847 solve the same problem with a class per robot, named for each one they own. The mechanism differs and the shape does not: something identifies the robot, and that identity picks a set of constants.
+FRC 3847 solve the same problem with a class per robot, named for each one they own. The mechanism
+differs and the shape does not: something identifies the robot, and that identity picks a set of
+constants.
 
 ### Put the constants behind an interface
 
-The identity is only useful if something varies with it. 2910 declare a `RobotConfiguration` interface that hands out every hardware constant a subsystem needs:
+The identity is only useful if something varies with it. 2910 declare a `RobotConfiguration`
+interface that hands out every hardware constant a subsystem needs:
 
 ```java
 public interface RobotConfiguration {
@@ -83,13 +101,18 @@ public interface RobotConfiguration {
 }
 ```
 
-One implementation per robot. A subsystem asks the configuration for its constants and never knows which robot it is on, in exactly the way a subsystem asks an IO for its inputs and never knows whether they came from hardware.
+One implementation per robot. A subsystem asks the configuration for its constants and never knows
+which robot it is on, in exactly the way a subsystem asks an IO for its inputs and never knows
+whether they came from hardware.
 
-That parallel is the point. The IO interface makes a subsystem independent of *where its data comes from*. The configuration interface makes it independent of *which robot it is bolted to*. Both are the same move, and a codebase with one usually wants the other.
+That parallel is the point. The IO interface makes a subsystem independent of *where its data comes
+from*. The configuration interface makes it independent of *which robot it is bolted to*. Both are
+the same move, and a codebase with one usually wants the other.
 
 ### What belongs in it
 
-Not every constant. The test is whether the number could differ between two robots running this code.
+Not every constant. The test is whether the number could differ between two robots running this
+code.
 
 <ContentTable
   headers={["Goes in the configuration", "Stays a constant"]}
@@ -102,36 +125,51 @@ Not every constant. The test is whether the number could differ between two robo
   ]}
 />
 
-Encoder offsets are the clearest case: they are a property of one physical assembly, they change when a module is rebuilt, and getting them from the wrong robot produces a drivetrain that drives sideways.
+Encoder offsets are the clearest case: they are a property of one physical assembly, they change
+when a module is rebuilt, and getting them from the wrong robot produces a drivetrain that drives
+sideways.
 
-Camera transforms are the second clearest, and [From Camera to Field](/frc/from-camera-to-field) explains why: a degree of mount error is centimetres of pose error at range, so a camera bracket that differs between robots has to be a per-robot number.
+Camera transforms are the second clearest, and [From Camera to Field](/frc/from-camera-to-field)
+explains why: a degree of mount error is centimetres of pose error at range, so a camera bracket
+that differs between robots has to be a per-robot number.
 
 ### Applying it to Cobra
 
-Cobra has one robot and one set of constants, spread across `IntakeConstants`, `HoodConstants`, `ShooterConstants`, `FeederConstants` and `TunerConstants`. That is fine while there is one robot, and it is the state most teams are in.
+Cobra has one robot and one set of constants, spread across `IntakeConstants`, `HoodConstants`,
+`ShooterConstants`, `FeederConstants` and `TunerConstants`. That is fine while there is one robot,
+and it is the state most teams are in.
 
 The migration, if a second robot appears, is smaller than it looks:
 
 <StepsBox title="Adding a second robot">
 
-1. Add a `RobotIdentity` enum with the robots you own plus `SIMULATION`, resolved from the serial number with a default.
-2. Declare a configuration interface with one getter per existing constants class. The interface is a list of what already exists, not a redesign.
-3. Make the current constants the first implementation, unchanged. At this point nothing behaves differently and the change is safe to merge.
-4. Resolve the identity once during robot construction and pass the configuration to `RobotContainer`.
+1. Add a `RobotIdentity` enum with the robots you own plus `SIMULATION`, resolved from the serial
+   number with a default.
+2. Declare a configuration interface with one getter per existing constants class. The interface is
+   a list of what already exists, not a redesign.
+3. Make the current constants the first implementation, unchanged. At this point nothing behaves
+   differently and the change is safe to merge.
+4. Resolve the identity once during robot construction and pass the configuration to
+   `RobotContainer`.
 5. Add the second implementation, extending the first and overriding only the values that differ.
-6. Record each robot's serial number somewhere a person can find it, because the map is the only place that knowledge lives.
+6. Record each robot's serial number somewhere a person can find it, because the map is the only
+   place that knowledge lives.
 
 </StepsBox>
 
-Step 3 is what makes this worth doing before you need it. The interface can be introduced while there is still one robot, with no behaviour change and no risk, and then the second robot is one class rather than a refactor during build season.
+Step 3 is what makes this worth doing before you need it. The interface can be introduced while
+there is still one robot, with no behaviour change and no risk, and then the second robot is one
+class rather than a refactor during build season.
 
 <RulesBox title="Common mistakes">
 
 - Keep the runtime mode and the robot identity separate. A practice bot is not a simulation.
-- Default to a real robot when the serial number is unknown, and log which identity was chosen so a wrong guess is visible.
+- Default to a real robot when the serial number is unknown, and log which identity was chosen so a
+  wrong guess is visible.
 - Put only what varies between robots in the configuration. Field geometry is the same for everyone.
 - Resolve the identity once at construction, not repeatedly during the loop.
-- Write the serial numbers down outside the code as well. A roboRIO swap is the moment you need them and the least convenient time to find them.
+- Write the serial numbers down outside the code as well. A roboRIO swap is the moment you need them
+  and the least convenient time to find them.
 
 </RulesBox>
 
