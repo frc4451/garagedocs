@@ -143,24 +143,24 @@ import edu.wpi.first.units.measure.Distance;
 public final class DriveConstants {
 
   // CAN IDs
-  public static final int LEFT_LEADER_CAN_ID = 40;
-  public static final int LEFT_FOLLOWER_CAN_ID = 41;
-  public static final int RIGHT_LEADER_CAN_ID = 50;
-  public static final int RIGHT_FOLLOWER_CAN_ID = 51;
+  public static final int leftLeaderCanId = 40;
+  public static final int leftFollowerCanId = 41;
+  public static final int rightLeaderCanId = 50;
+  public static final int rightFollowerCanId = 51;
 
   // Curriculum starter value; approve against the physical circuit before First Deploy.
-  public static final int SMART_CURRENT_LIMIT_AMPS = 60;
+  public static final int smartCurrentLimitAmps = 60;
 
   // Curriculum starter geometry. Verify against the assembled robot before First Deploy.
-  public static final Distance WHEEL_DIAMETER = Inches.of(6);
-  public static final double GEAR_RATIO =
+  public static final Distance wheelDiameter = Inches.of(6);
+  public static final double gearRatio =
       (50.0 / 14.0) // first stage: driven gear / driver gear
           * (48.0 / 16.0); // second stage: driven gear / driver gear
-  public static final Distance TRACK_WIDTH = Inches.of(22);
+  public static final Distance trackWidth = Inches.of(22);
 
   // Tele driving caps (dimensionless fractions, not units)
-  public static final double MAX_DRIVE_PERCENT = 0.85;
-  public static final double TELEOP_DEADBAND = 0.05;
+  public static final double maxDrivePercent = 0.85;
+  public static final double teleopDeadband = 0.05;
 
   private DriveConstants() {}
 }
@@ -176,7 +176,7 @@ The ratio uses **motor rotations per wheel rotation**. With the listed reduction
 `(50 / 14) × (48 / 16) = 10.71`. A reading of 10.71 motor rotations therefore represents one wheel
 rotation. A 6-inch wheel then travels `π × 6 in`, about 18.85 inches, in that rotation.
 
-Nothing reads `TRACK_WIDTH` yet. `createKitbotSim` below carries its own fixed model, and R13's
+Nothing reads `trackWidth` yet. `createKitbotSim` below carries its own fixed model, and R13's
 odometry does not need track width. R15 uses the value for kinematics.
 
 ---
@@ -210,15 +210,15 @@ public class DriveIOReal implements DriveIO {
   private final SparkMax rightFollower;
 
   public DriveIOReal() {
-    leftLeader = new SparkMax(DriveConstants.LEFT_LEADER_CAN_ID, MotorType.kBrushless);
-    leftFollower = new SparkMax(DriveConstants.LEFT_FOLLOWER_CAN_ID, MotorType.kBrushless);
-    rightLeader = new SparkMax(DriveConstants.RIGHT_LEADER_CAN_ID, MotorType.kBrushless);
-    rightFollower = new SparkMax(DriveConstants.RIGHT_FOLLOWER_CAN_ID, MotorType.kBrushless);
+    leftLeader = new SparkMax(DriveConstants.leftLeaderCanId, MotorType.kBrushless);
+    leftFollower = new SparkMax(DriveConstants.leftFollowerCanId, MotorType.kBrushless);
+    rightLeader = new SparkMax(DriveConstants.rightLeaderCanId, MotorType.kBrushless);
+    rightFollower = new SparkMax(DriveConstants.rightFollowerCanId, MotorType.kBrushless);
 
     SparkMaxConfig leftLeaderCfg = leaderConfig(false);
-    SparkMaxConfig leftFollowerCfg = followerConfig(DriveConstants.LEFT_LEADER_CAN_ID, false);
+    SparkMaxConfig leftFollowerCfg = followerConfig(DriveConstants.leftLeaderCanId, false);
     SparkMaxConfig rightLeaderCfg = leaderConfig(true); // right side inverted
-    SparkMaxConfig rightFollowerCfg = followerConfig(DriveConstants.RIGHT_LEADER_CAN_ID, false);
+    SparkMaxConfig rightFollowerCfg = followerConfig(DriveConstants.rightLeaderCanId, false);
 
     configure(leftLeader, leftLeaderCfg);
     configure(leftFollower, leftFollowerCfg);
@@ -258,7 +258,7 @@ public class DriveIOReal implements DriveIO {
   private static SparkMaxConfig leaderConfig(boolean inverted) {
     SparkMaxConfig cfg = new SparkMaxConfig();
     cfg.idleMode(IdleMode.kBrake)
-        .smartCurrentLimit(DriveConstants.SMART_CURRENT_LIMIT_AMPS)
+        .smartCurrentLimit(DriveConstants.smartCurrentLimitAmps)
         .inverted(inverted);
     return cfg;
   }
@@ -266,7 +266,7 @@ public class DriveIOReal implements DriveIO {
   private static SparkMaxConfig followerConfig(int leaderCanId, boolean invertRelativeToLeader) {
     SparkMaxConfig cfg = new SparkMaxConfig();
     cfg.idleMode(IdleMode.kBrake)
-        .smartCurrentLimit(DriveConstants.SMART_CURRENT_LIMIT_AMPS)
+        .smartCurrentLimit(DriveConstants.smartCurrentLimitAmps)
         .follow(leaderCanId, invertRelativeToLeader);
     return cfg;
   }
@@ -278,14 +278,14 @@ public class DriveIOReal implements DriveIO {
   // The unit is stated in the method name and destination field.
   // These private helpers convert vendor sensor values at the IO boundary.
   private static double motorRotationsToMeters(double motorRotations) {
-    double wheelRotations = motorRotations / DriveConstants.GEAR_RATIO;
-    return wheelRotations * Math.PI * DriveConstants.WHEEL_DIAMETER.in(Meters);
+    double wheelRotations = motorRotations / DriveConstants.gearRatio;
+    return wheelRotations * Math.PI * DriveConstants.wheelDiameter.in(Meters);
   }
 
   private static double motorRpmToMetersPerSecond(double motorRpm) {
-    double wheelRpm = motorRpm / DriveConstants.GEAR_RATIO;
+    double wheelRpm = motorRpm / DriveConstants.gearRatio;
     double wheelRps = wheelRpm / 60.0;
-    return wheelRps * Math.PI * DriveConstants.WHEEL_DIAMETER.in(Meters);
+    return wheelRps * Math.PI * DriveConstants.wheelDiameter.in(Meters);
   }
 }
 ```

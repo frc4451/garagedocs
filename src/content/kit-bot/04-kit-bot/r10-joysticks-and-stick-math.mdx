@@ -160,14 +160,14 @@ drive.setDefaultCommand(
           double speed =
               StickCurve.shape(
                   rawY,
-                  DriveConstants.TELEOP_DEADBAND,
-                  1.0 // full [-1, 1]; arcadeDrive applies MAX_DRIVE_PERCENT
+                  DriveConstants.teleopDeadband,
+                  1.0 // full [-1, 1]; arcadeDrive applies maxDrivePercent
                   );
           double rotation =
               StickCurve.shape(
                   rawRot,
-                  DriveConstants.TELEOP_DEADBAND,
-                  1.0 // full [-1, 1]; arcadeDrive applies MAX_DRIVE_PERCENT
+                  DriveConstants.teleopDeadband,
+                  1.0 // full [-1, 1]; arcadeDrive applies maxDrivePercent
                   );
 
           drive.arcadeDrive(speed, rotation);
@@ -179,12 +179,12 @@ drive.setDefaultCommand(
 What changed from the R07 version:
 
 - Stick reads are conditioned through `StickCurve.shape` before reaching `arcadeDrive`.
-- Deadband comes from `DriveConstants.TELEOP_DEADBAND`. Adjusting the feel is a constants edit, not
+- Deadband comes from `DriveConstants.teleopDeadband`. Adjusting the feel is a constants edit, not
   a code edit.
-- `shape` is called with a max output of `1.0`, not `DriveConstants.MAX_DRIVE_PERCENT`.
+- `shape` is called with a max output of `1.0`, not `DriveConstants.maxDrivePercent`.
   `arcadeDrive`'s own doc comment (R07) says it takes `speed` and `rotation` in the full `[-1, 1]`
-  range, then applies `MAX_DRIVE_PERCENT` itself when it converts that to volts. Capping to
-  `MAX_DRIVE_PERCENT` a second time here, before the value ever reaches `arcadeDrive`, would
+  range, then applies `maxDrivePercent` itself when it converts that to volts. Capping to
+  `maxDrivePercent` a second time here, before the value ever reaches `arcadeDrive`, would
   compound the two caps and leave full stick deflection well under 10.2 V.
 - `drive::stop` clears the stored request when the default command is interrupted, including on
   disable.
@@ -222,7 +222,7 @@ The deadband `0.05` is a curriculum starting value. Inspect the controller’s c
 before changing it. A larger deadband ignores more travel near the center; a smaller one accepts
 more of that travel.
 
-`MAX_DRIVE_PERCENT = 0.85` limits each requested voltage to
+`maxDrivePercent = 0.85` limits each requested voltage to
 <Equation tex="12\times0.85=10.2\;\mathrm{V}" /> inside `Drive.arcadeDrive`. Battery voltage and
 controller limits can make actual applied voltage different. Keep that cap in one place. Changing
 the curve changes the request for intermediate stick positions, not the cap or a measured top speed.

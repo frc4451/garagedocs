@@ -18,6 +18,13 @@ reference or motion check. Read [CANcoder Absolute Position](/frc/cancoder-absol
 [Trapezoidal Motion Profiling](/frc/trapezoidal-motion-profiling), and
 [Exponential Motion Profiling](/frc/exponential-motion-profiling).
 
+Cobra has two absolute-referenced pivots to start from. In the fork, the intake's `endeffector` is a
+`Pivot` on `SingleRollerIOTalonFXWithCANCoder`, and the hood runs on
+`SingleRollerIOTalonFXSWithCANCoder`. Both configure `FusedCANcoder` feedback with the
+rotor-to-sensor and sensor-to-mechanism ratios from their CANcoder configs. The intake adapter
+already holds `MotionMagicVoltage` and `MotionMagicExpoTorqueCurrentFOC` requests; the hood adapter
+uses `MotionMagicVoltage`.
+
 ## Establish Manual Reference
 
 Write a procedure that begins with the mechanism powered off and placed at its known reference.
@@ -30,27 +37,103 @@ number alone does not prove the arm is at the reference mark. The subsystem reje
 position requests until the reference procedure succeeds. Record a refusal reason and preserve a
 separate, mentor-controlled bring-up procedure if manual movement is needed.
 
-The `MechanismRules` example demonstrates the validity gate in isolation. The student connects the
-gate to the real reset status, disabled state, and subsystem requests. A second student follows the
-written procedure after a power cycle and demonstrates repeatable goals. No limit switch is
-required.
+Cobra's `Pivot` has no reference gate: `setGoalPosition` sends every goal to the IO. Its adapters'
+`resetPosition` calls `talon.setPosition(position)` and discards the returned `StatusCode`, so a
+failed write goes unnoticed. Add the gate to the student's pivot: refuse normal requests until an
+explicit reference write succeeds, and check that write's result. Write a test for the refusal and
+the recovery. Connect the gate to the installed controller reset status, disabled state, and
+subsystem requests. A second student
+follows the written procedure after a power cycle and demonstrates repeatable goals. No limit switch
+is required.
 
-## Add Absolute and Fused Feedback
+## Add Absolute Position Reference
 
-The manual-reference task remains separate from the absolute-encoder task. Record sensor placement,
-positive direction, magnet offset, rotor-to-sensor ratio, and sensor-to-mechanism ratio before
-configuring fused CANcoder feedback on supported licensed hardware.
+This is a Badge 3 addition to the motor-relative Badge 2 mechanism library. Keep the
+relative-feedback path available while adding the absolute sensor configuration and IO.
+Complete B3-07.3 with either of these vendor-matched fixtures:
 
-Compare the known physical angle with the reported mechanism angle at more than one position. Test
-startup and recovery from invalid feedback. An absolute reading does not remove the need to validate
-configuration or refuse a goal when the selected feedback is invalid. Retain the
-simulation-versus-hardware distinction when interpreting sensor recovery.
+| Controller | Absolute sensor | Reference implementation |
+| --- | --- | --- |
+| CTRE Talon FX or Talon FXS | CTRE CANcoder | Remote, fused, or synchronized feedback supported by the selected controller and license; demonstrate fused feedback when supported. |
+| Thrifty Nova | Thrifty CAN encoder | Read the CAN encoder, initialize Nova's internal position while disabled, verify readback, then use Nova voltage control. This is startup referencing, not CTRE-style fusion. |
+
+Keep Thrifty electronics with Thrifty electronics and CTRE electronics with CTRE electronics.
+A Thrifty fixture is a valid hardware option for the absolute-reference and repeatability rows.
+The CTRE-specific Motion Magic, torque-current, and Expo simulation comparisons remain separate
+requirements; choosing Thrifty hardware does not require a second physical CTRE fixture.
+
+For both paths, record CAN bus and IDs, sensor placement, positive direction, offset, reduction,
+sensor-to-mechanism ratio, and permitted travel. Compare physical and reported mechanism angles
+at multiple marks before allowing normal motion. A single-turn encoder cannot identify which
+turn a multi-turn mechanism occupies. Keep the permitted travel within one sensor turn or use a
+separately reviewed referencing strategy. Have the IO refuse to reference when the travel exceeds
+one sensor turn, or when the encoder does not share the controller's bus with its own CAN ID, and
+report the reason as its reference status.
+
+### Thrifty CAN Encoder and Nova Startup
+
+Review [Thrifty Nova Control](/frc/thrifty-nova-control) and
+[Thrifty Nova Simulation](/frc/thrifty-nova-simulation) first. Cobra and the Starter pin ThriftyLib
+2026.0.1 (`com.thethriftybot.frc:ThriftyLib-java`), which has no CAN encoder package. Before this
+exercise, replace the fork's ThriftyLib vendordep with the 2026.2.2 release Badge 2 used
+(`com.thrifty.frc:Thrifty-java`, packages `com.thrifty.*`) and rebuild. The new release replaces the
+`ThriftyNova` class with `com.thrifty.nova.Nova` and a new configuration API, so the old Nova
+adapter and its configuration types are replaced, not only re-imported. The student's Badge 2
+`NovaConfigs` and `NovaMotorConfig` already use the 2026.2.2 API. This CAN device is distinct from
+Thrifty's 10-pin encoder; confirm which device the fixture uses before wiring it.
+
+Thrifty's online documentation and Javadoc follow its newest release. The
+[Encoders & Feedback](https://docs.thethriftybot.com/software/thriftylib/latest/encoders) page
+describes pairing a CAN encoder to the Nova with `NovaConfig.canEncoderId` and the CAN feedback
+sensor types; that pairing needs Nova firmware 2027.0.0-beta.4 or newer and is not part of this
+exercise. In the pinned 2026.2.2 API, a `CanEncoder` reads the sensor, its `status()` reports
+`getPositionAbs()`, `getPositionRel()`, `getVelocity()`, and `getDeviceStatus()`, and
+`Nova.setEncoderPosition(rotations, EncoderType.INTERNAL)` seeds the motor's internal position.
+Check method names against the pinned library in the project, not the online pages.
+
+Set the device offset and inversion to zero and false, and apply direction and offset exactly once
+in typed host calibration. Keep the offset in sensor-angle units, before division by the
+sensor-to-mechanism ratio. Convert the encoder's absolute position to a typed mechanism `Angle`.
+Initialize Nova's internal position with that angle times the motor reduction, converted to
+rotations only at `setEncoderPosition(..., EncoderType.INTERNAL)`.
+
+1. Start disabled with normal voltage and position requests refused. Read the encoder and verify
+   its configuration, finite readings, travel range, and stationary mechanism.
+2. Request the absolute reference explicitly. A successful request means the seed was sent, not that
+   it succeeded. The write itself must not command motor motion.
+3. Call the normal periodic input update. Require three agreeing position readbacks while disabled
+   and stationary before the reference becomes valid. A timeout leaves output stopped. Do not
+   re-zero Nova every loop.
+4. Enable and command a bounded goal. Log internal position, absolute position, reference validity,
+   refusal/status text, and applied voltage. Compare both angles with the physical marks.
+5. Test a missing encoder at startup, disconnect after referencing, bad offset/direction/ratio,
+   rejected or ignored seed, restart/reset, and recovery. Faults invalidate the reference and stop
+   output. Restoring communication alone must not re-enable motion; reference again while disabled.
+   Invalidate the reference after a known Nova reset or reconfiguration.
+
+The pinned status view reports the last device status, `getDeviceStatus()`, but no sample timestamp
+or dedicated heartbeat. A successful status is not proof of a fresh reading. Perform the physical
+disconnect check and record when the fault is detected. The software comparison also detects
+disagreement between motor-relative and absolute position, but that does not prove every reset or
+stale-frame case is detected. Hardware evidence must include these limitations.
+
+Write tests for calibration, startup gating, write verification, faults, and recovery. A simulation
+that pairs the Nova voltage approximation with WPILib physics and a separate software
+absolute-sensor model checks the robot code's path, while the Nova and encoder firmware run only on
+hardware, so record physical sensor behavior separately.
 
 ## Bound Travel
 
-Reject nonfinite goals and deliberately reject or clamp out-of-range finite goals. Test both ends in
-simulation. Configure CTRE software limits using the selected feedback units; record their physical
-interpretation on the fixture sheet before enabling hardware.
+Reject nonfinite goals and deliberately reject or clamp out-of-range finite goals. Cobra's
+`Pivot.setGoalPosition` documents clamping to its minimum and maximum angles, but the clamp is
+commented out, so its goals reach the IO unbounded. The Badge 2 library `Pivot` clamps out-of-range
+goals and logs `GoalClamped`, but WPILib's `MathUtil.clamp` is built on `Math.max` and `Math.min`,
+which return NaN when given NaN; check finiteness before the request. Test both ends and a nonfinite
+goal in simulation.
+
+Cobra's `MotorConfigs` default disables both software limits, and the hood adapter applies whatever
+its config supplies. Configure the selected controller's software limits using its feedback units;
+record their physical interpretation on the fixture sheet before enabling hardware.
 
 ## Compare Profiles on the Same Model
 
@@ -63,7 +146,7 @@ setpoints. Position within tolerance while moving quickly is not settled. The st
 position error and speed during the chosen settling interval and checks overshoot over the entire
 move.
 
-## Bound Travel and Compare Expo
+## Compare Expo
 
 With reference validity and travel bounds established, complete the Expo comparison below.
 
@@ -73,28 +156,49 @@ Complete this worksheet before the exponential comparison:
 | --- | --- |
 | What angle and speed units does the selected feedback report? | Show one conversion from degrees to mechanism rotations. |
 | Which object advances the trapezoidal profile, and which advances Motion Magic? | Name the owner and period. |
-| What units do `MotionMagicExpo_kV` and `MotionMagicExpo_kA` use? | Distinguish these profile parameters from current-output slot gains. |
+| What units do `MotionMagicExpo_kV` and `MotionMagicExpo_kA` use? | Distinguish these profile parameters from the Slot 0 voltage gains the comparison uses. |
 | What does a larger Expo kA predict under the same available voltage? | Predict before running. |
 | How will error, settling, overshoot and repeatability be measured? | Give targets and log fields. |
 | Which profile better meets the recorded targets for this model? | Compare traces and state the model's limits. |
 
-Run supported CTRE Expo in simulation against the same initial angle, goal, and model. Physical Expo
-is optional. The mentor checks all worksheet reasoning, then asks for an independent prediction with
-a changed constraint.
+Run supported CTRE Expo in simulation against the same initial angle, goal, and model. Start from
+the `MotionMagicExpoTorqueCurrentFOC` request Cobra's intake adapter already holds. Keep each run's
+settings and saved trace as evidence. Physical Expo is optional. The mentor checks all worksheet
+reasoning, then asks for an independent prediction with a changed constraint.
+
+## Trace the Reference in Cobra
+
+Start with the intake pivot's request in the fork: trace `Intake` to `Pivot.setGoalPosition`, then
+the CANcoder adapter. With the reference gate added, first request an angle with an invalid
+reference and predict refusal. Establish the reference explicitly, repeat the same request, and
+compare goal, measured angle, speed, and refusal. Connect the gate to the actual student subsystem
+before claiming the reference outcome.
 
 ## Badge Check
 
 S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, mentor signature, and date for each row. The mentor asks the
+The student records an evidence link, an explanation in the student's own words, the mentor's
+signature, and the date for each row. The mentor asks the
 student to explain a change and its result before signing.
 
 | Row | Work | Done When |
 | --- | --- | --- |
-| B3-05.2 | Manual reference | S/H/M: Place the powered-off mechanism at its known reference, establish zero explicitly without automatic setup motion, record reference validity, and refuse normal position commands until valid. A second student follows the procedure after a power cycle. No limit switch is required. |
-| B3-05.3 | Absolute and fused reference | S/H/W: Configure the supplied absolute encoder and fused CANcoder feedback on supported licensed hardware. Demonstrate startup and recovery separately from manual zeroing. Explain sensor placement, offsets and ratios. |
-| B3-05.4 | Travel and repeatability | S/H: Reject or bound invalid simulated goals. Configure CTRE software limits and repeat valid physical start/end goals against recorded error, settling, overshoot and repeatability targets. |
-| B3-05.1 | Pivot profiles and units | S/W: Refine voltage and torque-current Motion Magic on Talon FX and voltage Motion Magic on Talon FXS. Explain software-profile versus device-profile ownership, gearing, typed goals, and gain units. |
-| B3-05.5 | Exponential comparison | S/W: Run a supported CTRE exponential-profile comparison on the same pivot; complete the parameter/unit worksheet and explain when each profile is useful. Physical exponential profiling is optional. |
+| B3-07.1 | Pivot profiles and units | S/W: Refine voltage and torque-current Motion Magic on Talon FX and voltage Motion Magic on Talon FXS. Explain software-profile versus device-profile ownership, gearing, typed goals, and gain units. |
+| B3-07.2 | Manual reference | S/H/M: Place the powered-off mechanism at its known reference, establish zero explicitly without automatic setup motion, record reference validity, and refuse normal position commands until valid. A second student follows the procedure after a power cycle. No limit switch is required. |
+| B3-07.3 | Absolute reference by vendor | S/H/W: Use CTRE CANcoder with Talon FX/FXS, or Thrifty CAN encoder with Nova. Demonstrate validated startup, fault refusal, and explicit recovery separately from manual zeroing. For Nova, verify the internal-position seed readback; for CTRE, demonstrate fused feedback when supported. Explain placement, offsets, ratios, and single-turn limits. |
+| B3-07.4 | Travel and repeatability | S/H: Reject or bound invalid simulated goals. Configure the selected controller's software limits and repeat valid physical start/end goals against recorded error, settling, overshoot and repeatability targets. |
+| B3-07.5 | Exponential comparison | S/W: Run a supported CTRE exponential-profile comparison on the same pivot; complete the parameter/unit worksheet and explain when each profile is useful. Physical exponential profiling is optional. |
+
+## For the Mentor
+
+`Badge3MentorSolution` contains the worked pivot exercises. `ReferencedPivot` and `PivotLessonTest`
+show the reference gate and its refusal and recovery; `PIVOT-EXERCISES.md` lists their settings.
+`ThriftyCanEncoderConfig` and `PivotIONovaWithCanEncoder` implement the Nova startup reference with
+`requestAbsoluteReference()`, `isReferenceValid()`, and `invalidateReference(...)`;
+`ThriftyAbsoluteReferenceTest` and `ThriftyAbsoluteSimulationTest` cover it, and
+`THRIFTY-ABSOLUTE-REFERENCE.md` explains it. `ExpoPivotIOSim` and `ExpoComparisonTest` give a
+bounded Motion Magic versus Expo comparison, and `FusedPivotSimulationTest` checks absolute startup
+and fused feedback in mechanism units.
 
 <Sources items={[
   {
@@ -106,7 +210,48 @@ student to explain a change and its result before signing.
     "source": "ctre",
     "path": "docs/api-reference/device-specific/talonfx/remote-sensors.html",
     "note": "Feedback source selection, ratios and fused sensor requirements."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/hardware-reference/cancoder/index.html",
+    "note": "CANcoder placement, magnet offset and absolute range."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/api-reference/api-usage/actuator-limits.html",
+    "note": "Software limit configuration in feedback units."
+  },
+  {"url": "https://docs.thethriftybot.com/software/thriftylib/latest/encoders", "label": "ThriftyLib Encoders & Feedback (latest)", "note": "CAN encoder pairing that needs Nova firmware 2027.0.0-beta.4; contrasted with the pinned 2026.2.2 startup seed."},
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/math/MathUtil.html",
+    "note": "MathUtil.clamp, used by the Badge 2 Pivot's goal clamp."
+  },
+  {
+    "source": "java-api",
+    "path": "java.base/java/lang/Math.html",
+    "note": "Math.max and Math.min return NaN for a NaN argument, so a clamp does not reject NaN."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFXWithCANCoder.java",
+    "note": "The intake pivot's FusedCANcoder feedback, Motion Magic and Expo requests, and resetPosition."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFXSWithCANCoder.java",
+    "note": "The hood's Talon FXS FusedCANcoder feedback and configured software limits."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/pivot/Pivot.java",
+    "note": "setGoalPosition, whose documented clamp is commented out."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java",
+    "note": "The default software limit configuration with both limits disabled."
   }
 ]} />
 
-<LinkGrid title="Continue" section="badges" links={[{"label": "Step 8: Subsystem-Owned States", "id": "badge-3-states"}, {"label": "Badge 3: Advanced FRC", "id": "badge-3"}]} />
+<LinkGrid title="Continue" section="badges" links={[{"label": "Step 8: Logged Mechanism and CAD Visualization", "id": "badge-3-logged-mechanisms"}, {"label": "Badge 3: Advanced FRC", "id": "badge-3"}]} />

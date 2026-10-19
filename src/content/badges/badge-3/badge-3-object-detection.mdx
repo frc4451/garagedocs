@@ -1,27 +1,31 @@
 ---
-title: "Step 9: Object Detection and Acquisition Geometry"
+title: "Step 10: Object Detection and Acquisition Geometry"
 lessonId: badge-3-object-detection
 section: badges
 group: badge-3
 groupLabel: "Badge 3: Advanced FRC"
 groupOrder: 3
-order: 9
+order: 10
 difficulty: advanced
-description: "Detecting a Game Piece work, evidence, and mentor review for the Badge 3 capstone."
+description: "Project timestamped camera bearings, reject invalid observations, and verify acquisition geometry and heading assistance."
 ---
 
 The student builds a camera input path for one stationary game piece and uses observations to choose
 an acquisition pose. Start from the Badge 2 pose and AprilTag work. Observation IO and geometry can
-proceed alongside mechanism refinement; Step 10 requires this module and the subsystem states
-together. Read [Pose Geometry](/frc/pose-geometry), [Vision Simulation](/frc/vision-simulation), and
-Cobra's object-detection IO and tracker linked below.
+proceed alongside mechanism refinement; Step 12 requires this module and the subsystem states
+together. Read [Pose Geometry](/frc/pose-geometry), [PhotonVision](/frc/photonvision),
+[Vision Simulation](/frc/vision-simulation), and Cobra's object-detection IO and tracker linked
+below.
 
 ## Build the IO Boundary
 
-Create `ObjectDetectionIO`, `ObjectDetectionIOReal`, and `ObjectDetectionIOSim`. The simulated
-implementation extends the real implementation and supplies a `PhotonCameraSim`, following the same
-pattern used for AprilTags. Both modes consume PhotonVision results through the real parsing path.
-REPLAY reads recorded inputs without constructing cameras or field physics.
+Start from Cobra's `ObjectDetectionIO`, `ObjectDetectionIOPhoton`, and `ObjectDetectionIOPhotonSim`
+in the fork. `ObjectDetectionIOPhoton` already reads `getAllUnreadResults()` and stamps each
+observation with its result timestamp, and `FuelTracker` forgets observations older than a tunable
+tracking memory. The simulated implementation extends the real implementation and supplies a
+`PhotonCameraSim`, following the same pattern used for AprilTags. Both modes consume PhotonVision
+results through the real parsing path. REPLAY reads recorded inputs without constructing cameras or
+field physics.
 
 The input record contains connection state, observation timestamps, target yaw and pitch, available
 class/confidence information, and rejection reasons. Process unread results once. An empty result
@@ -52,14 +56,14 @@ selection logic sees only the estimate.
 ## Prepare for Moving Observations
 
 The stationary physical camera check establishes geometry without demonstrating motion compensation.
-Before Step 10, the student documents how observations are related to robot pose during the
+Before Step 12, the student documents how observations are related to robot pose during the
 simulated approach. Use pose history at capture time when available, or stop and obtain a fresh
 stationary observation before calculating a field target. State the permitted observation age and
 motion conditions; reject frames outside them. A current-pose calculation on a moving robot requires
 a quantified latency-error bound and a justified acceptance limit.
 
 Test a delayed frame during simulated motion and show the compensation or rejection decision in the
-log. This bridge belongs to the observation evidence in B3-08.2. The target remains a stationary
+log. This bridge belongs to the observation evidence in B3-10.2. The target remains a stationary
 piece; the robot may move.
 
 ## Select an Acquisition Pose
@@ -81,28 +85,85 @@ calculated positions with tape measurements. Record lighting, pipeline, target t
 timestamp behavior and limitations. This demonstration does not require autonomous motion on
 hardware.
 
+## Replace Cobra's Distance Estimate
+
+Cobra's `ObjectDetectionIOPhoton` estimates distance from the target's pitch with
+`PhotonUtils.calculateDistanceToTargetMeters`, divides by the cosine of yaw, and places the result
+from the current robot pose. Replace that with a ray intersection: transform the full camera ray
+into the field with the capture-time planar robot pose and the configured camera translation and
+rotation, then intersect the fuel-center plane. FuelSim's fuel radius is 0.075 m (about 3 in), so a
+grounded fuel's center sits that high. Bound the accepted distance, for example to 10 m (about 33
+ft). Reject nonfinite values, an invalid camera height, bearings at or beyond 89 degrees, nearly
+parallel rays, backward intersections, excessive range, and points outside the field. A plausible
+but inaccurate mounting transform can still produce a plausible wrong answer; known-location
+measurements are needed to detect it.
+
+Log each frame's timestamp, sequence number and reason, and each observation's raw bearings,
+class/confidence, frame index and reason. Use -1 for an unavailable class or confidence. Keep three
+frame cases distinct: no new frame, a received image with no targets, and a frame without
+capture-pose history. The last is a rejection, not a target at a placeholder zero pose. Test the
+parser with recorded packets and check that the raw inputs round-trip through the log.
+
+Normal REPLAY uses saved projected inputs. To investigate a projection change, recompute from the
+saved raw bearings, frame-indexed capture pose, camera transform, height, and range in a separate
+diagnostic comparison. Older logs without these fields cannot support that raw-bearing analysis.
+
+## Heading Assistance Checkpoint
+
+After single-piece tracking, start from Cobra's driver controller A-button binding (port 0). It runs
+`DriveCommands.joystickDriveAtAngle` toward `BobotState.getFuelClusterVARC().getRotationTarget()`
+while the driver keeps translation control. Find what that target is when no cluster is observed.
+Keep driver translation active while heading turns toward the selected observed group, document the
+selection rule and its tie-break, and demonstrate selection, loss fallback, and release stop. Save
+the comparison with B3-10.2. This checkpoint requires heading assistance; driving automatically to a
+cluster is outside the required work.
+
+## Model the Camera in Simulation
+
+Start the camera model with grounded fuel only. Airborne fuel is excluded because the projection
+assumes a fuel center 0.075 m (about 3 in) above the floor. This is a simulation simplification, not
+a robot-side height classifier. Captured images keep their original scene and timestamp while
+waiting for delivery. Motion or collection after capture cannot rewrite an older image.
+
+Test moving fuel and robot poses through PhotonCamera, the ordinary object-detection IO, and the
+normal Drive estimator history. Test the A-button binding for heading alignment, driver translation,
+and target loss. Approximate spatial tracks can merge close balls; their count is not a proven ball
+count.
+
 ## Badge Check
 
 S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, mentor signature, and date for each row. The mentor asks the
+The student records an evidence link, an explanation in the student's own words, the mentor's
+signature, and the date for each row. The mentor asks the
 student to explain a change and its result before signing.
 
 | Row | Work | Done When |
 | --- | --- | --- |
-| B3-08.1 | Object-detection IO | S/W: Build `ObjectDetectionIO`, `ObjectDetectionIOReal`, and `ObjectDetectionIOSim` extending the real implementation, following the Badge 2 AprilTag pattern. A separate vision subsystem is allowed. |
-| B3-08.2 | Observations and target selection | S/W: Process camera observations, convert coordinate frames, track the one stationary piece, select a target, calculate an acquisition pose, and handle stale or missing observations. Explain the robot-to-piece acquisition offset and demonstrate the timestamp/motion rule with a delayed frame before autonomous integration. |
-| B3-08.3 | Physical camera | H/M: Use the provided Orange Pi 5 or Rubik Pi 3 with working PhotonVision and color camera. Measure/configure mounting transform and compare stationary observations at known locations. Installation and model preparation are supplied setup. |
+| B3-10.1 | Object-detection IO | S/W: Build the object-detection IO contract and real/sim adapters (Cobra's `ObjectDetectionIOPhoton` and `ObjectDetectionIOPhotonSim`), with SIM extending the real implementation, following the Badge 2 AprilTag pattern. A separate vision subsystem is allowed. |
+| B3-10.2 | Observations and target selection | S/W: Process camera observations, convert coordinate frames, track the one stationary piece, select a target, calculate an acquisition pose, and handle stale or missing observations. Explain the robot-to-piece acquisition offset and demonstrate the timestamp/motion rule with a delayed frame before autonomous integration. |
+| B3-10.3 | Physical camera | H/M: Use the provided Orange Pi 5 or Rubik Pi 3 with working PhotonVision and color camera. Measure/configure mounting transform and compare stationary observations at known locations. Installation and model preparation are supplied setup. |
+
+## For the Mentor
+
+`Badge3MentorSolution` replaces Cobra's distance estimate with `FuelProjection`, and
+`CAMERA-PROJECTION.md` explains it. Its IO logs `frameTimestamps`, `frameSequences`, `frameReasons`,
+`observationFrameIndexes`, and `observationReasons`, with the frame reasons `EMPTY_FRAME` and
+`NO_CAPTURE_POSE`. `ProjectionContractTest` checks the parser and log round trip,
+`MovingCameraProjectionTest` exercises the camera queue and capture-pose history, and
+`DriverAssistSimulationTest` operates the A-button binding. `CLUSTER-ASSIST.md` documents the
+nearest-group tie-break and switching margin. The legacy `curriculum-reference` names its adapters
+`ObjectDetectionIOReal` and `ObjectDetectionIOSim`; these are the same roles.
 
 <Sources items={[
   {
     "source": "advantagekit",
     "path": "data-flow/recording-inputs/io-interfaces/",
-    "note": "IO boundaries and recorded inputs used in these exercises."
+    "note": "Logged camera inputs, so REPLAY reuses the recorded observations instead of fresh camera data."
   },
   {
     "source": "cobra",
     "path": "src/main/java/frc/robot/subsystems/vision/ObjectDetectionIOPhoton.java",
-    "note": "Reading unread observations and projecting object detections."
+    "note": "Cobra's adapter reads unread results and places detections from the current pose with a PhotonUtils distance; the student replaces that with a capture-time ray intersection."
   },
   {
     "source": "cobra",
@@ -112,8 +173,34 @@ student to explain a change and its result before signing.
   {
     "source": "cobra",
     "path": "src/main/java/frc/robot/subsystems/vision/FuelTracker.java",
-    "note": "Tracking reference to inspect and adapt."
-  }
+    "note": "Tracking reference to inspect and adapt, with its tunable tracking memory."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/bobot_state/varc/FuelClusterVARC.java",
+    "note": "The cluster rotation target the A-button heading assist turns toward."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/commands/DriveCommands.java",
+    "note": "joystickDriveAtAngle, which keeps driver translation while controlling heading."
+  },
+  {
+    "source": "photonvision",
+    "path": "docs/objectDetection/about-object-detection.html",
+    "note": "PhotonVision object detection and the class and confidence it reports."
+  },
+  {
+    "source": "photonvision",
+    "path": "docs/programming/photonlib/getting-target-data.html",
+    "note": "Reading unread results, target yaw and pitch, and result timestamps."
+  },
+  {
+    "source": "photonvision",
+    "path": "docs/simulation/simulation-java.html",
+    "note": "PhotonCameraSim and simulated targets for the camera model."
+  },
+  {"url": "https://github.com/hammerheads5000/FuelSim/blob/37eff8936e55fa4964b0c094ffd1093dff9a4519/FuelSim.java", "label": "FuelSim.java at commit 37eff89", "note": "The 0.075 m fuel radius behind the fuel-center plane height."}
 ]} />
 
-<LinkGrid title="Continue" section="badges" links={[{"label": "Step 10: One-Piece Autonomous", "id": "badge-3-acquisition"}, {"label": "Badge 3: Advanced FRC", "id": "badge-3"}]} />
+<LinkGrid title="Continue" section="badges" links={[{"label": "Step 11: Combined Simulation with maple-sim", "id": "badge-3-maple"}, {"label": "Badge 3: Advanced FRC", "id": "badge-3"}]} />

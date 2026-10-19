@@ -70,7 +70,7 @@ the shape of it.
    upright, cameras unobstructed. Every bit of flex in the mount is error in the pose. The
    [mounting page](https://questnav.gg/docs/getting-started/mounting) has the constraints.
 5. **Measure the offset** from the robot's centre to the headset (forward, left, up, and the yaw it
-   is turned by) in the robot's frame (+X forward, +Y left, +Z up). This becomes `ROBOT_TO_QUEST`
+   is turned by) in the robot's frame (+X forward, +Y left, +Z up). This becomes `robotToQuest`
    below.
 
 </StepsBox>
@@ -130,20 +130,20 @@ the robot, and the docs are emphatic about which way round each goes:
 
 ```java
 // RobotToQuest: the headset, from the robot centre, in Robot axes: 30 cm forward, on centre, 50 cm up, facing forward
-public static final Transform3d ROBOT_TO_QUEST =
+public static final Transform3d robotToQuest =
     new Transform3d(0.30, 0.0, 0.50, new Rotation3d());
 
 // FieldToQuest + QuestToRobot = FieldToRobot: the inverse flips RobotToQuest into QuestToRobot
-Pose3d fieldToRobot = fieldToQuest.transformBy(ROBOT_TO_QUEST.inverse());
+Pose3d fieldToRobot = fieldToQuest.transformBy(robotToQuest.inverse());
 
 // FieldToRobot + RobotToQuest = FieldToQuest, for seeding: the arrow as mounted, NOT the inverse
-questNav.setPose(fieldToRobot.transformBy(ROBOT_TO_QUEST));
+questNav.setPose(fieldToRobot.transformBy(robotToQuest));
 ```
 
 Measure the transform to QuestNav's reported **third-eye pose**, the point centered between the two
 lenses on the lens plane. This is not the center or front face of the housing. QuestNav's mounting
 guide also documents a 7° lens-plane tilt on Quest 3 hardware. Account for that angle in the
-physical mount or in `ROBOT_TO_QUEST`.
+physical mount or in `robotToQuest`.
 
 And the loop that feeds the estimator, straight from the
 [docs](https://questnav.gg/docs/getting-started/robot-code):
@@ -154,7 +154,7 @@ private static final Matrix<N3, N1> QUESTNAV_STD_DEVS =
 
 for (PoseFrame frame : questNav.getAllUnreadPoseFrames()) {
   if (!frame.isTracking()) continue;
-  Pose3d fieldToRobot = frame.questPose3d().transformBy(ROBOT_TO_QUEST.inverse());   // FieldToQuest + QuestToRobot
+  Pose3d fieldToRobot = frame.questPose3d().transformBy(robotToQuest.inverse());   // FieldToQuest + QuestToRobot
   if (shouldReject(fieldToRobot)) continue;              // off the field → a bad frame
   poseEstimator.addVisionMeasurement(fieldToRobot.toPose2d(), frame.dataTimestamp(), QUESTNAV_STD_DEVS);
 }
@@ -202,7 +202,7 @@ ideas. Write `QuestIOReal` against `gg.questnav.questnav.QuestNav`.
 
 ### Calibrating the offset
 
-Measuring `ROBOT_TO_QUEST` by hand is what the
+Measuring `robotToQuest` by hand is what the
 [calibration page](https://questnav.gg/docs/getting-started/calibration) currently asks for, and a
 tape measure gets you within a centimetre or two. Verifying it is easy, and Riptide's
 `QuestCalibration` automated the correction:
@@ -227,7 +227,7 @@ double y = ((−sin θ) · dx + (cos θ − 1) · dy) / (2 (1 − cos θ));
 
 averaged over the spin and logged as `QuestCalibration/CalculatedOffset`. It ran from the auto
 chooser as *Quest Offset Calibration*. The comment in the file is the practical warning: the result
-is in the headset's frame, so if your mount has a non-zero yaw in `ROBOT_TO_QUEST` you may need to
+is in the headset's frame, so if your mount has a non-zero yaw in `robotToQuest` you may need to
 swap x and y or their signs; compare against the tape measure. Port it to the new API as a command
 that reads `questPose3d()` relative to the first frame; the math does not change.
 
@@ -238,7 +238,7 @@ you have the same two options as [vision](/frc/fused-pose-estimation):
 
 - **From the autonomous start pose.** The selected auto knows where the robot begins: Choreo's
   `trajectory.resetOdometry()`, or PathPlanner's starting pose. Wherever the code resets the
-  drivetrain's pose, also call `questNav.setPose(robotPose.transformBy(ROBOT_TO_QUEST))`. Riptide
+  drivetrain's pose, also call `questNav.setPose(robotPose.transformBy(robotToQuest))`. Riptide
   did this inside `Quest.resetRobotPose`, which `Drive.setPose` called.
 - **From AprilTags.** Once the estimator has a confident tag-based pose, seed the headset from it.
   Do this at the start of the match (in disabled, with a tag in view) rather than continuously;
@@ -279,7 +279,7 @@ blocks.
 <RulesBox title="Common mistakes">
 
 - **No <code>commandPeriodic()</code>.** <code>setPose</code> silently does nothing.
-- **<code>ROBOT_TO_QUEST.inverse()</code> in <code>setPose</code>.** The docs say it in bold:
+- **<code>robotToQuest.inverse()</code> in <code>setPose</code>.** The docs say it in bold:
   seeding applies the transform, reading applies the inverse.
 - **Using it before validation.** Log it as a ghost pose and compare it with an independent estimate
   before allowing it to affect control.
@@ -296,7 +296,7 @@ blocks.
   {"source": "questnav", "path": "docs/getting-started/mounting", "note": "Third-eye pose origin, the Quest 3 lens-plane tilt, mounting constraints."},
   {"source": "questnav", "path": "docs/getting-started/wiring", "note": "Power and Ethernet to the robot network."},
   {"source": "questnav", "path": "docs/getting-started/robot-code", "note": "<code>QuestNav</code>, <code>PoseFrame</code>, <code>getAllUnreadPoseFrames()</code>, <code>commandPeriodic()</code>, <code>setPose</code>, the standard-deviation defaults."},
-  {"source": "questnav", "path": "docs/getting-started/calibration", "note": "Measuring and checking <code>ROBOT_TO_QUEST</code>."},
+  {"source": "questnav", "path": "docs/getting-started/calibration", "note": "Measuring and checking <code>robotToQuest</code>."},
   {"source": "questnav", "path": "docs/getting-started/simulation", "note": "Running without a headset."},
   {"source": "questnav", "path": "docs/getting-started/pre-match-checklist", "note": "Before-match steps."},
   {"source": "questnav", "path": "docs/getting-started/post-match-checklist", "note": "After-match steps."},

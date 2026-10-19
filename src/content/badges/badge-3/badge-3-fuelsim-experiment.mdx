@@ -13,14 +13,122 @@ description: "Required measured-speed FuelSim experiment following flywheel char
 The student connects a measured flywheel response to one simulated shot. Complete this required step
 after [Step 5: Flywheel Characterization and Tuning](/badges/badge-3-flywheel). Its fixed-pitch
 experiment can run alongside the pivot module; both are needed for final autonomous integration. The
-launch model and controlled experiment provide the evidence for rows B3-04.3 and B3-04.4 in the
-assessment table below. Use the mentor-supplied `curriculum-reference` with its pinned dependencies
-and preserved FuelSim licence. The source record identifies the copied upstream revision; an
-unrecorded replacement from `main` is a dependency change.
+launch model and controlled experiment provide the evidence for rows B3-06.1 and B3-06.2 in the
+assessment table below. Read [FuelSim](/frc/fuelsim) first.
 
-## Run the Reference
+## Add FuelSim to the Fork
 
-Open the reference project outside OneDrive. Run the focused test from its root:
+Cobra has no fuel simulation. FuelSim is a single file: copy `FuelSim.java` from the pinned upstream
+revision, commit `37eff89`, into the fork as its README directs, edit the package line to match its
+new folder, and keep the MIT license notice with it. Record the commit in the student README.
+Copying a newer version from `main` later is a dependency change that needs a rebuild and repeated
+experiments.
+
+FuelSim works in meters and meters per second. `launchFuel(launchVelocity, hoodAngle, turretYaw,
+launchHeight)` takes a hood angle where 0 is a horizontal launch, and it refuses to launch until a
+robot is registered with `registerRobot`. `Hub.BLUE_HUB.getScore()` reports the blue hub's score.
+`stepSim()` advances the physics once; a robot loop that calls `updateSim()` must call `start()`
+first.
+
+## Work the Launch Numbers First
+
+Take a worked example before writing code. A flywheel at a measured 22 rotations per second turns at
+approximately 138.23 radians per second. With a 2 in wheel radius and a slip factor of 0.85, the
+launch speed is approximately 138.23 × 2 in × 0.85 ≈ 235 inches per second (19.6 ft/s). Changing
+only the slip factor to 0.50 gives approximately 138 inches per second (11.5 ft/s) from the same
+measured motor speed. These are simulation experiment values, not hardware recommendations.
+
+In the pinned model, that 235 in/s launch from field position (2.00 m, 4.02 m), heading zero, at
+60 degrees and a 32 in release height scores in the blue hub, and the 138 in/s launch misses. Field
+positions stay in meters because WPILib's field frame is metric. Check the change in the hub's score
+rather than assuming every launch scores; another model or geometry may produce a different result.
+
+## Own the Fuel World
+
+Write a small adapter around FuelSim. To read fuel positions, extend the copied class in the same
+package; its fuel list is `protected`. Give the adapter one launch method that checks possession
+and readiness, uses the measured flywheel speed, and consumes the held piece only after launching.
+Calling it again with no held piece produces no projectile.
+
+Register the robot's dimensions, a true-pose supplier for physics, and field-relative speeds. Robot
+control still uses the estimator. Update the world once per 20 ms simulation period; FuelSim owns
+its internal subticks. In a unit test, call `stepSim()` directly.
+
+FuelSim publishes its state to NetworkTables, which is live only. For saved evidence, have the
+simulation owner mirror fuel positions, possession, launch count and score into the AdvantageKit
+log, and record launch speed and pitch at each launch event. FuelSim's launch speed is in meters per
+second, so the 235 in/s scoring shot logs as about 5.97. For replay, consume the saved robot inputs
+and inspect the original recorded world outputs. Running a fresh physics world is a new experiment,
+and its outputs are new results rather than reconstructed evidence.
+
+## Apply Cobra's Hood and Table Conventions
+
+Keep the small scoring experiment separate from the Cobra calibration record. Cobra's hood is zeroed
+at a launch elevation of 28 degrees above horizontal, and Cobra's code was written with that offset
+in mind without stating it. In the fork, `Hood` sets its DOWN, MID and UP presets to 0, 17 and 22
+degrees of displacement from that zero, while `HoodConstants` (28 through 50 degrees, starting at
+28) and `HubInterpolator` (a fixed 28 degrees) are written as launch elevation. Make the offset
+explicit: name each quantity as displacement or elevation, and add the 28 degrees once when
+converting, giving 45 degrees at MID and 50 degrees at UP. Log both values. Check DOWN and UP
+because MID alone does not reveal a reversed conversion.
+
+Preserve the supplied hub table entries. They were collected manually with stationary robot-center
+to hub-center distances from fused odometry, at a fixed hood setting. An offset shooter position
+still matters for aiming and release, but it must not change that table's stationary range
+convention. Compare direct-table and automatic outputs at table entries and an intermediate range,
+with several robot headings and zero velocity.
+
+Cobra's `ShooterConstants.robotToShooter` is a two-dimensional `Transform2d`. Build the
+three-dimensional release transform from it and a measured release height, and use measured
+mechanism states. Record which geometry is established and which transfer, drag, or timing
+parameters remain estimates. Declare physical fitting cases and reserved validation cases before
+adjusting the model. Retain misses and repeatability results; do not edit a working table merely to
+make a simulated shot score.
+
+## Check an Impossible Launch First
+
+At each launch, calculate the peak height without drag from the measured launch state: the release
+height plus the upward speed squared divided by twice the gravitational acceleration. If that
+optimistic peak is below the modeled hub rim, inspect release height, wheel-speed conversion,
+contact radius, and wheel-to-fuel speed transfer before adjusting drag. Passing the height check
+does not establish horizontal aim, a descending entry, or a score.
+
+Measure the contact radius independently: wheel speed and exit speed alone identify only the product
+of radius and speed transfer. Declare fitting and reserved validation cases before changing model
+parameters, retain misses, and compare repeatability as well as score.
+
+## Make the Student Adaptation
+
+1. Reproduce the worked scoring shot and controlled miss in a FuelSim test in the fork. Record the
+   model version, initial state, measured speed, radius, slip, angle, height, and score change.
+2. Connect the launch method to the student's measured flywheel input and one explicit launch event.
+   Keep a fixed angle and height for this first experiment. Confirm that a goal change does not
+   instantly become the launch speed.
+3. Predict the effect of one changed parameter. Repeat from the same initial conditions, save the
+   trace, and compare the prediction with the result.
+4. Demonstrate that not-ready and empty requests do not launch. Cancel while preparing and confirm
+   that the feeder stops.
+5. Write reproduction instructions for another member. Step 12 later replaces the fixed pitch with
+   measured pivot angle and connects the same world to collection and PhotonVision.
+
+The student explains model assumptions separately from controller performance. A successful
+simulated shot does not calibrate slip, drag or contact behavior for a physical shooter.
+
+## Badge Check
+
+S means simulation and W means written reasoning. The student records an evidence link, an
+explanation in the student's own words, the mentor's signature, and the date for each row.
+
+| Row | Work | Done When |
+| --- | --- | --- |
+| B3-06.1 | FuelSim launch model | S/W: Pin the source and preserve its license; adapt an integration using measured simulated flywheel speed, wheel radius and an explicit slip/model assumption. A fixed documented angle and height are allowed for this first experiment. |
+| B3-06.2 | Controlled shot experiment | S/W: Predict and vary one parameter from a repeatable initial state. Show a scoring shot and controlled miss, log the launch and model outcome, and distinguish controller tuning from launch-model fitting. |
+
+## For the Mentor
+
+The worked shot comes from `fuelMeasuredSpeedScoresAndControlledMissDoesNot` in
+`curriculum-reference`, which runs its general flywheel model to the measured 22 rotations per
+second and launches through the `BadgeFuelWorld` adapter. Run it from that project's folder:
 
 <CodeTabs>
 <CodeTab label="PowerShell">
@@ -39,73 +147,37 @@ Open the reference project outside OneDrive. Run the focused test from its root:
 </CodeTab>
 </CodeTabs>
 
-Find `fuelMeasuredSpeedScoresAndControlledMissDoesNot` in the test report. Read the test beside
-`BadgeFuelWorld`. The test runs the general flywheel model to a measured 22 rotations per second,
-then launches from field position (2.00 m, 4.02 m), heading zero, at 60 degrees and 0.80 m height.
-The wheel radius is 0.05 m and the first slip factor is 0.85. These are simulation experiment
-values, not hardware recommendations.
-
-The measured angular speed is approximately 138.23 radians per second, so the launch speed is
-approximately 5.87 metres per second. The reference checks the change in FuelSim's blue-hub score
-rather than assuming every launch scores. The controlled miss changes only the slip factor to 0.50,
-producing approximately 3.46 metres per second from the same measured motor speed. The scoring test
-passed for the pinned model; another model or geometry may produce a different result.
-
-## Trace the Ownership
-
-`BadgeFuelWorld` extends the copied FuelSim class in the same package so it can expose the upstream
-protected fuel positions. Preserve that package relationship if using this adapter. Its `fire`
-method checks possession and readiness, uses measured speed, and consumes the held piece only after
-launching. Calling it again with no held piece produces no projectile.
-
-The world registers robot dimensions, a true-pose supplier for physics, and field-relative speeds.
-Robot control still uses the estimator. The world is updated once per 20 ms simulation period;
-FuelSim owns its internal subticks. `stepSim()` advances physics directly in the test. A robot loop
-using `updateSim()` must call `start()` first.
-
-FuelSim's own NetworkTables publishing does not establish saved AdvantageKit evidence. Call the
-adapter's `record()` from the simulation owner to mirror positions, possession, launch count and
-score. Record launch speed and pitch at the event. For replay, consume the saved robot inputs and
-inspect the original recorded world outputs; do not run a fresh physics world and describe it as
-reconstructed input evidence.
-
-## Make the Student Adaptation
-
-1. Reproduce the supplied scoring shot and controlled miss. Record the model version, initial state,
-   measured speed, radius, slip, angle, height, and score delta.
-2. Connect `fire` to the student's measured flywheel input and one explicit launch event. Keep fixed
-   angle and height for this first experiment. Confirm that a goal change does not instantly become
-   the launch speed.
-3. Predict the effect of one changed parameter. Repeat from the same initial conditions, save the
-   trace, and compare the prediction with the result.
-4. Demonstrate that not-ready and empty requests do not launch. Cancel while preparing and confirm
-   that the feeder stops.
-5. Write reproduction instructions for another member. Step 10 later replaces the fixed pitch with
-   measured pivot angle and connects the same world to collection and PhotonVision.
-
-The student explains model assumptions separately from controller performance. A successful
-simulated shot does not calibrate slip, drag or contact behavior for a physical shooter.
-
-## Badge Check
-
-S means simulation and W means written reasoning. The student records an evidence link, mentor
-signature, and date for each row.
-
-| Row | Work | Done When |
-| --- | --- | --- |
-| B3-04.3 | FuelSim launch model | S/W: Pin the source and preserve its licence; adapt an integration using measured simulated flywheel speed, wheel radius and an explicit slip/model assumption. A fixed documented angle and height are allowed for this first experiment. |
-| B3-04.4 | Controlled shot experiment | S/W: Predict and vary one parameter from a repeatable initial state. Show a scoring shot and controlled miss, log the launch and model outcome, and distinguish controller tuning from launch-model fitting. |
+In `Badge3MentorSolution`, `RobotFuelSimulation` logs the launch speed as `Fuel/LaunchSpeedMps` and
+the drag-free height check under `FuelSim/ShotCheck`, and `ShotGeometry` applies the 28-degree hood
+convention. `SHOT-CALIBRATION.md` provides the calibration worksheet and trial record.
 
 <Sources items={[
-  {
-    "source": "fuelsim",
-    "path": "FuelSim.java",
-    "note": "Launch units, intake callbacks, field-relative speeds and hub scoring."
-  },
+  {"url": "https://github.com/hammerheads5000/FuelSim/blob/37eff8936e55fa4964b0c094ffd1093dff9a4519/FuelSim.java", "label": "FuelSim.java at commit 37eff89", "note": "The pinned revision students copy into the fork: launchFuel units, registration, hub scoring and the protected fuel list."},
+  {"url": "https://github.com/hammerheads5000/FuelSim/blob/37eff8936e55fa4964b0c094ffd1093dff9a4519/README.md", "label": "FuelSim README at commit 37eff89", "note": "Installation by copying FuelSim.java, robot registration, start and updateSim."},
   {
     "source": "advantagekit",
     "path": "data-flow/recording-outputs/",
     "note": "Explicit saved outputs for world and launch evidence."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/hood/Hood.java",
+    "note": "The DOWN, MID and UP presets at 0, 17 and 22 degrees of displacement from the 28 degree zero."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/hood/HoodConstants.java",
+    "note": "The hood pivot limits and starting angle written as launch elevation (28 through 50 degrees)."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/bobot_state/interpolation/HubInterpolator.java",
+    "note": "The hub table built at a fixed 28 degree hood setting."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/shooter/ShooterConstants.java",
+    "note": "The two-dimensional robotToShooter transform the release transform starts from."
   }
 ]} />
 

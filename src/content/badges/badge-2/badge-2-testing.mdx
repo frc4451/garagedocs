@@ -10,10 +10,10 @@ difficulty: beginner
 description: "Add a pure-Java configuration rule and meaningful JUnit tests to Badge2Bench, then build the student's controller subclass and test its inputs."
 ---
 
-Step 6 adds the first automated tests to `Badge2Bench`, the project where every mechanism is built.
-These tests exercise pure Java configuration and decision logic, so a failure points to one rule and
-runs without a simulated motor controller. The step then builds the student's controller class in
-the same project and tests its inputs. Mechanism and HAL simulation tests come later in
+Step 6 adds the first automated tests to `Badge2Bench`, the project where individual mechanisms are
+built. These tests exercise pure Java configuration and decision logic, so a failure points to one
+rule and runs without a simulated motor controller. The step then builds the student's controller
+class in the same project and tests its inputs. Mechanism and HAL simulation tests come later in
 [Unit Tests in Simulation](/frc/unit-tests-in-simulation).
 
 ## Verify the Test Setup
@@ -42,20 +42,12 @@ match the package declaration.
 package frc.robot.config;
 
 public record MechanismLimits(double minPosition, double maxPosition) {
-  public MechanismLimits {
-    if (!Double.isFinite(minPosition) || !Double.isFinite(maxPosition)) {
-      throw new IllegalArgumentException("limits must be finite");
-    }
-    if (minPosition >= maxPosition) {
-      throw new IllegalArgumentException("minPosition must be less than maxPosition");
-    }
+  public double clamp(double requestedPosition) {
+    return Math.max(this.minPosition, Math.min(this.maxPosition, requestedPosition));
   }
 
-  public double clamp(double requestedPosition) {
-    if (!Double.isFinite(requestedPosition)) {
-      throw new IllegalArgumentException("requestedPosition must be finite");
-    }
-    return Math.max(minPosition, Math.min(maxPosition, requestedPosition));
+  public boolean contains(double position) {
+    return position >= this.minPosition && position <= this.maxPosition;
   }
 }
 ```
@@ -66,7 +58,8 @@ public record MechanismLimits(double minPosition, double maxPosition) {
 package frc.robot.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -87,30 +80,32 @@ public class MechanismLimitsTest {
   }
 
   @Test
-  public void rejectsReversedAndEqualRanges() {
-    assertThrows(IllegalArgumentException.class, () -> new MechanismLimits(2.0, 1.0));
-    assertThrows(IllegalArgumentException.class, () -> new MechanismLimits(1.0, 1.0));
+  public void containsAValueInTheMiddle() {
+    assertTrue(new MechanismLimits(0.2, 1.4).contains(0.8));
   }
 
   @Test
-  public void rejectsNonFiniteValues() {
+  public void containsBothExactLimits() {
     MechanismLimits limits = new MechanismLimits(0.2, 1.4);
+    assertTrue(limits.contains(0.2));
+    assertTrue(limits.contains(1.4));
+  }
 
-    assertThrows(IllegalArgumentException.class, () -> limits.clamp(Double.NaN));
-    assertThrows(
-        IllegalArgumentException.class, () -> new MechanismLimits(Double.NEGATIVE_INFINITY, 1.0));
+  @Test
+  public void excludesAValueAboveTheMaximum() {
+    assertFalse(new MechanismLimits(0.2, 1.4).contains(1.41));
   }
 }
 ```
 
 `@Test` marks a method for JUnit to run. `assertEquals(expected, actual, tolerance)` checks a
 floating-point result: the expected value comes first, the value returned by the code comes second,
-and the tolerance permits a small rounding difference. `assertThrows` passes a lambda containing the
-operation that should fail; the assertion passes only when that operation throws the named
-exception.
+and the tolerance permits a small rounding difference. `assertTrue` and `assertFalse` check
+boolean results. These methods use finite values and an ordered range, which configuration tests
+verify separately. The robot-callable record clamps requests without throwing exceptions.
 
 Run the tests, then run the build and open `build/reports/tests/test/index.html`. The report should
-list four passing tests.
+list five passing tests.
 
 <CodeTabs>
 <CodeTab label="PowerShell">
@@ -131,9 +126,9 @@ list four passing tests.
 </CodeTab>
 </CodeTabs>
 
-These tests cover a normal result, both boundary directions, invalid configuration, and non-finite
-input. They check behavior that could change during a refactor; they do not repeat the
-implementation line by line.
+These tests cover a normal result, both clamp directions, inclusive limits and an outside value.
+They check behavior that could change during a refactor; they do not repeat the implementation line
+by line.
 
 ## Cobra2026 Connection
 
@@ -162,17 +157,24 @@ terminals, use `./gradlew test`.
 Apply the guided assertion patterns to the
 [motor configuration record from Step 5](/badges/badge-2-io-and-generated-code#guided-lombok-example).
 These tests construct records and builders without constructing an IO implementation or motor
-controller. They replace the separate exercise of adding another method to `MechanismLimits`.
+controller. Extend the guided `contains()` checks with a below-minimum case before testing the real
+configuration values.
 
 Write tests that prove:
 
 - Direct and builder construction preserve the same valid settings and produce equal records.
-- Missing required selections and an omitted device ID are rejected; documented optional defaults
-  produce the intended values.
-- Reduction rejects zero, negative values, `NaN`, and infinity.
-- Each current limit accepts its documented boundaries and rejects values outside the fixture's
-  approved range, including non-finite input. A permitted lower current limit remains unchanged.
-- The independent setting added in Step 5 follows its documented validation and omission behavior.
+- Generated `@NonNull` checks reject missing required reference values where annotated; optional
+  defaults produce the documented values.
+- The configured device ID matches the fixture and is in range. Do not expect a primitive ID to
+  distinguish an omitted builder argument from zero.
+- Configured reductions are finite and positive, and current limits are finite, positive and within
+  the fixture's approved bounds. Test the records after any default handling.
+- The independent setting from Step 5 is preserved and consumed as documented.
+
+Follow the solution's `ConfigurationBoundaryTest`: assertions inspect the actual constants before
+deployment. A deliberately invalid configuration should fail a test, not throw from robot runtime
+code. Use `assertThrows` only for generated null checks here. Step 2's standalone Java validation
+exercise remains separate.
 
 Use expected values taken from the written configuration contract. Give each test a name that states
 the behavior it checks. The student explains why a passing record test establishes valid
@@ -190,13 +192,13 @@ test. Review [Inheritance](/java/fundamentals/inheritance),
 
 Cobra's class extends `CommandXboxController`, overrides stick getters to apply a deadband, adds
 sign-preserving squared getters and stick-motion triggers, changes the default trigger threshold,
-and supplies rumble commands. The student builds a smaller `BadgeCommandXboxController` in the
+and supplies rumble commands. The student builds a smaller `GarageCommandXboxController` in the
 project's own utility package, with the three processed stick axes the drivetrains use: left X, left
 Y and right X. On swerve, the left stick commands translation and right X commands rotation; on the
 Kit Bot, the template's `arcadeDrive` uses left Y for forward and backward and right X for turning.
 [Step 7](/badges/badge-2-first-mechanism#extend-the-controller-bindings) adds command bindings and a
 configured analog-trigger threshold, and
-[Step 11](/badges/badge-2-path-following#bring-the-mechanisms-into-badge2swerve) copies the class
+[Step 9](/badges/badge-2-mechanism-composition) copies the class
 into `Badge2Swerve` to drive the chassis. Timed rumble is an optional extension. Right Y and
 repeating rumble are also optional.
 
@@ -247,7 +249,7 @@ README.
 ## Test the Controller Inputs
 
 Turn the controller demonstration into automated tests. The class under test is the student's
-`BadgeCommandXboxController` from the section above. These tests read inputs; they do not need
+`GarageCommandXboxController` from the section above. These tests read inputs; they do not need
 command scheduling or a mechanism model.
 
 `getHID()` returns the `XboxController` the class reads from, and `XboxControllerSim` sets that
@@ -269,40 +271,40 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class BadgeCommandXboxControllerTest {
+public class GarageCommandXboxControllerTest {
   // Simulated axes are stored as float, so exact decimals differ by about 1e-8.
   private static final double TOLERANCE = 1e-6;
 
-  private BadgeCommandXboxController controller;
+  private GarageCommandXboxController controller;
   private XboxControllerSim sim;
 
   @BeforeEach
   public void setup() {
     assertTrue(HAL.initialize(500, 0));
-    controller = new BadgeCommandXboxController(0);
-    sim = new XboxControllerSim(controller.getHID());
+    this.controller = new GarageCommandXboxController(0);
+    this.sim = new XboxControllerSim(this.controller.getHID());
   }
 
   @AfterEach
   public void teardown() {
-    sim.setLeftX(0.0);
-    sim.notifyNewData();
+    this.sim.setLeftX(0.0);
+    this.sim.notifyNewData();
   }
 
   @Test
   public void leftXAppliesDeadbandThenSignedSquare() {
-    sim.setLeftX(-0.55);
-    sim.notifyNewData();
+    this.sim.setLeftX(-0.55);
+    this.sim.notifyNewData();
 
-    assertEquals(-0.50, controller.getLeftX(), TOLERANCE);
-    assertEquals(-0.25, controller.getLeftXSquared(), TOLERANCE);
+    assertEquals(-0.50, this.controller.getLeftX(), TOLERANCE);
+    assertEquals(-0.25, this.controller.getLeftXSquared(), TOLERANCE);
   }
 
   @Test
   public void parentTypedReferenceRunsTheOverride() {
-    CommandXboxController asParent = controller;
-    sim.setLeftX(0.55);
-    sim.notifyNewData();
+    CommandXboxController asParent = this.controller;
+    this.sim.setLeftX(0.55);
+    this.sim.notifyNewData();
 
     assertEquals(0.50, asParent.getLeftX(), TOLERANCE);
   }
@@ -324,8 +326,8 @@ subsystem to operate.
 | # | Work | Done when |
 |---|---|---|
 | 5.1 | Verify JUnit setup | The evidence table records the JUnit Jupiter dependency and version from the preserved template; `useJUnitPlatform()` and `wpi.java.configureTestTasks(test)` remain present |
-| 5.2 | Add pure configuration logic | `MechanismLimits.java` contains the complete validation and clamp behavior; it imports no WPILib or vendor class |
-| 5.3 | Test normal and edge behavior | The four supplied tests and the motor configuration tests pass, covering direct/builder equivalence, missing values, reduction, current limits, and the independent setting |
+| 5.2 | Add pure configuration logic | `MechanismLimits.java` contains the clamp and inclusive `contains` behavior; it imports no WPILib or vendor class |
+| 5.3 | Test normal and edge behavior | The five supplied tests and the motor configuration tests pass, covering direct/builder equivalence, missing values, reduction, current limits, and the independent setting; numeric bounds are asserted in tests |
 | 5.4 | Read a failure and restore it | The student shows the temporary failed result, explains expected versus actual, restores the correct assertion, and shows a passing rerun |
 | 5.5 | Keep the build healthy | The PowerShell or Terminal commands shown above pass for both `test` and `build`; the HTML report is linked from the evidence table or its location is recorded |
 | 3.6 | Build the controller subclass | Left X, left Y and right X apply deadband and signed squaring; the student adds left Y and right X independently, shows simulated values, and explains inheritance, private helpers, overriding, and dispatch through a parent-typed reference |

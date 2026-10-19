@@ -18,8 +18,8 @@ action intent for the 2026 field. BLine is carried forward to Badge 3.
 
 The mechanism actions on the Kit Bot come from the template's `Superstructure`; on the swerve robot
 they come from the composed subsystems of
-[Step 9: Mechanism Composition](/badges/badge-2-mechanism-composition), built in `Badge2Bench` and
-copied into `Badge2Swerve` below, which is why composition comes first.
+[Step 9: Mechanism Composition](/badges/badge-2-mechanism-composition), built directly in
+`Badge2Swerve`, which is why composition comes first.
 
 Before moving from the Kit Bot to swerve, work through
 [Drivetrain Fundamentals](/frc/tank-and-swerve), ending with
@@ -111,30 +111,22 @@ the path that demonstrates heading independent of travel.
 
 ### Bring the Mechanisms Into Badge2Swerve
 
-The mechanisms were built and tested in `Badge2Bench`. The swerve routines need them in
-`Badge2Swerve`, so the student copies them across before drawing a swerve path. Keep package names
-unchanged, and copy:
+The composed parents were built and tested directly in `Badge2Swerve` in Step 9. Reuse the same
+CobraIntake, EmberSuperStructure and RiptideSuperStructure commands for autonomous actions; do not
+copy another set of parent subsystems from Bench. Run their interlock and controller tests before
+adding path events.
 
-- the Step 9 parent subsystems, their components, IO interfaces, `@AutoLog` inputs, general
-  simulation IO and configuration records, with their tests;
-- shared helpers they use, such as the `SimBattery` owner, each model's load registration, and the
-  `SimBattery.update()` call in `Robot.simulationPeriodic()`;
-- the controller class from Step 6, and the Step 7 and Step 9 bindings for the composed parents;
-- the Lombok plugin line in `build.gradle`.
+The reusable components originated in Step 8's `Badge2Bench`. Keep their package names and
+configuration contracts aligned when making fixes, and rerun affected tests in both projects.
+`Badge2Swerve` uses general simulation IO in `SIM` and empty IO in `REPLAY`. Physical vendor IO,
+fixture configuration and deployment remain in `Badge2Bench`; Badge 2 Swerve is simulation-only.
 
-Leave the physical IO and ThriftyLib in `Badge2Bench`; `Badge2Swerve` never runs the fixture and
-keeps its template's own Phoenix dependency. In `Badge2Swerve`'s `RobotContainer`, construct each
-mechanism's general simulation IO in `SIM` and its empty IO in `REPLAY`. Only `Badge2Bench` runs in
-`REAL`; all physical hardware work happens on the bench, and `Badge2Swerve` is never deployed in
-Badge 2. The copied mechanisms therefore need no `REAL` IO in this project. Record the `Badge2Bench`
-revision that was copied in the README. A later mechanism change is made in `Badge2Bench` first,
-tested there, and copied again, so the two copies do not drift apart. Run the copied tests in
-`Badge2Swerve` before continuing.
-
-The battery exercise covers the copied mechanism models. Register each load once and update the
-supply once per simulation loop. The supplied swerve `ModuleIOSim` uses fixed-voltage inputs;
-drivetrain battery sag is outside Badge 2. Scheduler-only tests call the battery update themselves
-because they do not run `Robot.simulationPeriodic()`.
+The solution registers all eight mechanism models and the drivetrain current draw with one
+shared battery. Register each load once and update supply once in `Robot.simulationPeriodic()`.
+Its `ModuleIOSim` bounds applied voltage by the simulated battery supply. Scheduler-only tests
+must call the battery update themselves. Compare logged supply and applied voltage when motion
+stalls; the simplified motor models are not a calibrated power model. An execution log alone does
+not prove the required path accuracy or successful completion.
 
 ### Drive With the Controller
 
@@ -146,17 +138,17 @@ would deadband and square the same input twice.
 
 All input shaping moves into the student's controller class:
 
-1. Replace the template's `CommandXboxController` field with a `BadgeCommandXboxController` on the
+1. Replace the template's `CommandXboxController` field with a `GarageCommandXboxController` on the
    same port.
 2. In `getLinearVelocityFromJoysticks`, remove the `MathUtil.applyDeadband` call and the squaring
    line, so the method only converts the two stick values into a direction and magnitude.
 3. In `joystickDrive`, remove the rotation deadband and the signed-squaring line, so `omega` is the
    supplied value.
-4. Pass `() -> -controller.getLeftYSquared()` and `() -> -controller.getLeftXSquared()` where the
-   template passed `getLeftY()` and `getLeftX()`, in both the `joystickDrive` default command and
-   the `joystickDriveAtAngle` binding, and `() -> -controller.getRightXSquared()` where
-   `joystickDrive` received `getRightX()`. The minus signs stay; they convert the stick's axes to
-   the field's and make pushing right X to the right turn the robot clockwise.
+4. Pass `() -> -this.controller.getLeftYSquared()` and `() -> -this.controller.getLeftXSquared()`
+   where the template passed `getLeftY()` and `getLeftX()`, in both the `joystickDrive` default
+   command and the `joystickDriveAtAngle` binding, and `() -> -this.controller.getRightXSquared()`
+   where `joystickDrive` received `getRightX()`. The minus signs stay; they convert the stick's axes
+   to the field's and make pushing right X to the right turn the robot clockwise.
 
 The template shaped the stick's magnitude; the controller class shapes each axis separately. On a
 diagonal, each axis crosses the deadband on its own, so a small diagonal push can move the robot
@@ -165,7 +157,7 @@ record what changed.
 
 | # | Work | Lesson | Done when |
 |---|---|---|---|
-| 10.30 | Mechanisms in swerve | [Step 9: Mechanism Composition](/badges/badge-2-mechanism-composition) | The Step 9 parents, their components and general simulation IO, the controller class and its bindings build in `Badge2Swerve`; the copied tests pass; the README records the copied `Badge2Bench` revision |
+| 10.30 | Mechanisms in swerve | [Step 9: Mechanism Composition](/badges/badge-2-mechanism-composition) | The Step 9 parents, their components and general simulation IO, the controller class and its bindings build in `Badge2Swerve`; the Step 9 tests pass; the README records the Step 8 component revision brought from `Badge2Bench` |
 | 10.31 | Drive with the controller | [Step 6: Testing Fundamentals](/badges/badge-2-testing#build-a-robot-controller-class) | The template's drive shaping is removed, the three processed axes drive the simulated chassis, and the student explains the difference between the template's magnitude deadband and the per-axis deadband |
 
 ### PathPlanner on Swerve

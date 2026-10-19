@@ -82,9 +82,9 @@ the camera-world setup separately.
 
 Four classes and a plain Java observation family:
 
-- `AprilTagVision`: the vision subsystem. It owns one IO per camera, calls `updateInputs` and
-  `Logger.processInputs` for each, and passes the accepted observations on. It extends
-  `VirtualSubsystem`, as Cobra's does; the next section explains why.
+- `AprilTagVision`: the vision subsystem, named and organized as in Cobra. It owns one IO per
+  camera, calls `updateInputs` and `Logger.processInputs` for each, and passes the accepted
+  observations on. It extends `VirtualSubsystem`, as Cobra's does; the next section explains why.
 - `AprilTagIO`: the data contract. Its `@AutoLog` inputs carry `Observation[]` and
   `RejectedObservation[]` arrays produced during that loop. `Logger.processInputs` records those
   arrays on the robot and restores them from the log during replay. The interface's default
@@ -96,12 +96,28 @@ Four classes and a plain Java observation family:
   the robot uses; only the source of pixels changes. This is the
   [vendor-sim-state pattern](/frc/physics-in-the-io-layer#the-vendor-sim-state-pattern) from Step 7,
   applied to a camera.
-- Plain Java observation records with the timestamp, pose candidate, tag count, ambiguity, and
+- Plain Java observation records nested in `VisionConstants`, alongside camera configuration and
+  rejection enums, with the timestamp, pose candidate, tag count, ambiguity, and
   uncertainty the estimator needs. A rejected observation uses an enum for its first failed
   predicate. AdvantageKit serializes custom record arrays as structs when every record component is
   a primitive, enum, struct-compatible WPILib type, or another compatible record. Array-valued
   record components are not supported, so tag IDs or other repeated values use a separate top-level
   array.
+
+Group each camera's IO, `AprilTagIOInputsAutoLogged`, configuration, and disconnect alert in an
+`AprilTagCamera` record inside `AprilTagVision`, as Cobra does. Iterate a single list of these
+records; do not keep separate arrays connected by matching indices. Keep the simple `CameraConfig`
+record in `VisionConstants`: camera name and mounting transform. Both example cameras use the shared
+`sim*` constants for resolution, field of view, frame rate, calibration error, and latency. Set
+`VisionConstants.simStreamsEnabled` directly to compare rendering costs. The named predicates read
+acceptance limits directly from `VisionConstants`.
+
+In this badge, `RobotContainer` explicitly constructs the REAL, SIM, or REPLAY IO, wraps it in an
+`AprilTagCamera`, and passes the camera list to `AprilTagVision`. Pass `BobotState::getFieldToRobot`
+as the pose supplier and `BobotState::offerVisionObservation` as the observation consumer. Cobra
+constructs IO inside its vision constructor; keeping that selection in `RobotContainer` here matches
+the other Badge 2 subsystems. Keep the badge's single observation queue; Cobra's additional
+estimation modes are outside this exercise.
 
 `AprilTagIOPhoton` reads every unread result once per loop with `getAllUnreadResults()`. For each
 result, `PhotonPoseEstimator` returns an `Optional<EstimatedRobotPose>`: empty when no pose could be
@@ -115,15 +131,16 @@ passes each value to a `Consumer<Observation>`. This ordering makes the same obs
 the estimator during replay. The consumer does not drain anything; it offers the observation to a
 queue.
 
-As in Cobra, `BobotState` owns that queue. Create the small `BobotState` interface needed now: a
-private observation queue, an offer method such as `BobotState.offerVisionObservation(observation)`,
-a drain method used only by the drivetrain, and an initialized pose with a getter and a
-drivetrain-only update method; the vision subsystem receives `BobotState::offerVisionObservation` as
-its `Consumer<Observation>`. [Step 13](/badges/badge-2-robot-state) adds the rest of the class. The
-drivetrain is the only class that drains the queue: in its `periodic()`, after the odometry update,
-it polls each observation, calls `addVisionMeasurement` once per observation, and then writes its
-estimated pose back into `BobotState`. The
-[swerve example](/frc/swerve-pose-estimation-example#apply-accepted-observations) shows the drain.
+As in Cobra, construct `BobotState` with no arguments and use its static accessors. It owns that
+queue. Create the small `BobotState` interface needed now: a private observation queue, an offer
+method such as `BobotState.offerVisionObservation(observation)`, a drain method used only by the
+drivetrain, and an initialized pose with a getter and a drivetrain-only update method; the vision
+subsystem receives `BobotState::offerVisionObservation` as its `Consumer<Observation>`.
+[Step 13](/badges/badge-2-robot-state) adds the rest of the class. The drivetrain is the only class
+that drains the queue: in its `periodic()`, after the odometry update, it polls each observation,
+calls `addVisionMeasurement` once per observation, and then writes its estimated pose back into
+`BobotState`. The [swerve example](/frc/swerve-pose-estimation-example#apply-accepted-observations)
+shows the drain.
 
 ### Run Vision Before the Drivetrain
 
@@ -133,13 +150,19 @@ cameras. A [`VirtualSubsystem`](/frc/virtual-subsystem#the-class) gives it a `pe
 without registering it with the command scheduler.
 
 1. Write the `VirtualSubsystem` base class from [the lesson](/frc/virtual-subsystem#writing-one):
-   its constructor adds the instance to a static list, and a static `runPeriodically()` calls each
+   its constructor adds the instance to a static list, and a static `periodicAll()` calls each
    one's `periodic()`.
-2. In `Robot.robotPeriodic()`, call `VirtualSubsystem.runPeriodically()` before
+2. In `Robot.robotPeriodic()`, call `VirtualSubsystem.periodicAll()` before
    `CommandScheduler.getInstance().run()`. Every virtual subsystem then runs before any scheduler
    subsystem, including the drivetrain.
 3. Make `AprilTagVision` extend `VirtualSubsystem` instead of `SubsystemBase`, and construct it once
    in `RobotContainer`.
+
+The Badge2Swerve solution names its virtual loop methods `periodicAll()` and
+`simulationPeriodicAll()`. These serve the same purpose as Cobra's `runPeriodically()` and
+simulation runner. `Robot.simulationInit()` adds the field tags once; `Robot.simulationPeriodic()`
+calls the virtual simulation runner, and `AprilTagVision.simulationPeriodic()` advances the shared
+camera world with the pose supplied by `BobotState`.
 
 The drivetrain's `periodic()` runs later in the same loop and drains the observations vision just
 offered. [Step 13](/badges/badge-2-robot-state) makes `BobotState` a `VirtualSubsystem` too.
@@ -236,7 +259,7 @@ transform. Keep each camera's inputs and logs separate while both offer observat
 | 11.9 | The world moves | [Vision Simulation](/frc/vision-simulation#what-to-watch) | `VisionSystemSim.update` receives the estimated pose from `BobotState` every loop; the tag layout is added once at startup; the student explains why this simulation cannot show a wrong estimate being corrected |
 | 11.10 | Low-resource option | [Vision Simulation](/frc/vision-simulation#what-to-watch) | With streams disabled, the simulated camera still reports tags and poses; a recorded repeatable run shows `LoggedRobot/FullCycleMS` against the 20 ms target |
 | 11.11 | Two cameras | [Pose Estimation Calibration](/frc/pose-estimation-calibration#5-measure-robottocamera) | Two `AprilTagIOPhotonSim` instances with different names and transforms, each logged under its own path |
-| 11.12 | Vision runs first | [VirtualSubsystem](/frc/virtual-subsystem#writing-one) | `AprilTagVision extends VirtualSubsystem`; `Robot.robotPeriodic()` calls `VirtualSubsystem.runPeriodically()` before the command scheduler; the student explains why the drivetrain now applies each observation in the loop it was offered |
+| 11.12 | Vision runs first | [VirtualSubsystem](/frc/virtual-subsystem#writing-one) | `AprilTagVision extends VirtualSubsystem`; `Robot.robotPeriodic()` calls `VirtualSubsystem.periodicAll()` before the command scheduler; the student explains why the drivetrain now applies each observation in the loop it was offered |
 
 ## Badge Check
 
@@ -252,13 +275,13 @@ transform. Keep each camera's inputs and logs separate while both offer observat
    estimate to a wrong pose would not produce a correction in this simulation.
 3. The student opens the log and shows rejected observations with their reasons, then changes one
    filter limit and shows a different predicate rejecting.
-4. Before the check, the mentor plants a wrong `robotToCamera` (a swapped sign, or the inverse
-   transform). The student finds it on the 3D field, where the camera is drawn in the wrong place or
-   facing the wrong way, corrects it, and shows the camera back at the documented mounting position.
-   The student explains why the pose observations stayed on the robot in simulation: the same
-   transform places the simulated camera and tells the estimator where the camera is, so the two
-   errors cancel. On the robot, the camera is where it is bolted, and the same wrong transform moves
-   the observations off the robot.
+4. Before the check, the mentor changes a camera's `robotToCamera` in `VisionConstants` (a
+   swapped sign or an inverse transform). The student compares its simulated position and direction
+   against the documented mounting, corrects the transform, and shows the camera back in place.
+   Explain why this error can be hidden in pose observations: the same transform places the
+   simulated camera and tells the estimator where it is, so the two errors cancel. On the robot,
+   the physical camera does not move when a constant changes. Do not use this simulation to claim
+   that vision corrects an independently wrong drivetrain estimate.
 5. The student explains why `AprilTagIOPhotonSim` extends the real implementation instead of copying
    it, and what would go wrong if the simulation had its own filter.
 

@@ -53,48 +53,48 @@ class RingBuffer<T> {
   // TODO fields: an Object[] holding the values, plus the index of the oldest
   //      element and the current count. No shifting, no copying on add.
 
-  RingBuffer(int capacity) {
+  public RingBuffer(int capacity) {
     // TODO reject capacity < 1 with IllegalArgumentException
   }
 
   // TODO append; when the buffer is full, overwrite the oldest instead of growing
-  void add(T value) {}
+  public void add(T value) {}
 
   // TODO the oldest element, or NoSuchElementException when empty
-  T oldest() {
+  public T oldest() {
     return null;
   }
 
   // TODO the newest element, or NoSuchElementException when empty
-  T newest() {
+  public T newest() {
     return null;
   }
 
-  int size() {
+  public int size() {
     return 0;
   }
 
-  int capacity() {
+  public int capacity() {
     return 0;
   }
 
-  boolean isEmpty() {
+  public boolean isEmpty() {
     return true;
   }
 
-  boolean isFull() {
+  public boolean isFull() {
     return false;
   }
 
-  void clear() {}
+  public void clear() {}
 
   // TODO walk oldest -> newest
-  Iterable<T> oldestFirst() {
+  public Iterable<T> oldestFirst() {
     return List.of();
   }
 
   // TODO walk newest -> oldest
-  Iterable<T> newestFirst() {
+  public Iterable<T> newestFirst() {
     return List.of();
   }
 
@@ -163,7 +163,7 @@ public class RingBufferDemo {
     System.out.println("empty newest rejected: " + rejectsEmptyNewest());
   }
 
-  static String rejectsCapacity(int capacity) {
+  private static String rejectsCapacity(int capacity) {
     try {
       new RingBuffer<Double>(capacity);
       return "no";
@@ -172,7 +172,7 @@ public class RingBufferDemo {
     }
   }
 
-  static String rejectsEmptyOldest() {
+  private static String rejectsEmptyOldest() {
     try {
       new RingBuffer<Double>(5).oldest();
       return "no";
@@ -181,7 +181,7 @@ public class RingBufferDemo {
     }
   }
 
-  static String rejectsEmptyNewest() {
+  private static String rejectsEmptyNewest() {
     try {
       new RingBuffer<Double>(5).newest();
       return "no";
@@ -287,7 +287,7 @@ record TeamEntry(
   //      drivetrain one of TANK / MECANUM / SWERVE / OTHER, avgPoints >= 0
 
   // TODO avgPoints, plus 25.0 when the team climbs high
-  double pickScore() {
+  public double pickScore() {
     return 0.0;
   }
 }
@@ -296,41 +296,41 @@ class ScoutingDatabase {
 
   // TODO one private final ArrayList<TeamEntry> field
 
-  void add(TeamEntry entry) {}
+  public void add(TeamEntry entry) {}
 
   // TODO true when something was removed. removeIf tells you this already.
-  boolean removeByTeamNumber(int teamNumber) {
+  public boolean removeByTeamNumber(int teamNumber) {
     return false;
   }
 
   // TODO Optional.empty() when absent — never null
-  Optional<TeamEntry> findByTeamNumber(int teamNumber) {
+  public Optional<TeamEntry> findByTeamNumber(int teamNumber) {
     return Optional.empty();
   }
 
   // TODO the entries the predicate accepts, in insertion order
-  List<TeamEntry> filter(Predicate<TeamEntry> test) {
+  public List<TeamEntry> filter(Predicate<TeamEntry> test) {
     return List.of();
   }
 
   // TODO express this with filter rather than a second loop
-  List<TeamEntry> filterByDrivetrain(String drivetrain) {
+  public List<TeamEntry> filterByDrivetrain(String drivetrain) {
     return List.of();
   }
 
   // TODO a sorted copy, highest pick score first. Must not reorder the database.
-  List<TeamEntry> sortedByPickScore() {
+  public List<TeamEntry> sortedByPickScore() {
     return List.of();
   }
 
-  int size() {
+  public int size() {
     return 0;
   }
 
-  void clear() {}
+  public void clear() {}
 
   // TODO a read-only view of the entries — callers must not be able to mutate it
-  List<TeamEntry> all() {
+  public List<TeamEntry> all() {
     return List.of();
   }
 }
@@ -382,7 +382,7 @@ public class ScoutingCLI {
     in.close();
   }
 
-  static List<TeamEntry> seed() {
+  private static List<TeamEntry> seed() {
     return List.of(
         new TeamEntry(1234, "Example Robotics", "SWERVE", 45.5, true),
         new TeamEntry(2468, "Gear Grinders", "TANK", 38.0, false),
@@ -392,7 +392,7 @@ public class ScoutingCLI {
         new TeamEntry(5190, "Green Machine", "TANK", 47.0, false));
   }
 
-  static String show(TeamEntry t) {
+  private static String show(TeamEntry t) {
     return t.teamNumber()
         + " "
         + t.teamName()
@@ -403,14 +403,14 @@ public class ScoutingCLI {
         + (t.climbsHigh() ? " climb" : "");
   }
 
-  static void print(String label, List<TeamEntry> entries) {
+  private static void print(String label, List<TeamEntry> entries) {
     System.out.println(label + " (" + entries.size() + ")");
     for (TeamEntry t : entries) {
       System.out.println("  " + show(t));
     }
   }
 
-  static String addFrom(ScoutingDatabase db, String csv) {
+  private static String addFrom(ScoutingDatabase db, String csv) {
     String[] parts = csv.split(",");
     try {
       TeamEntry entry =
@@ -427,7 +427,7 @@ public class ScoutingCLI {
     }
   }
 
-  static String unmodifiable(ScoutingDatabase db) {
+  private static String unmodifiable(ScoutingDatabase db) {
     try {
       db.all().add(new TeamEntry(9999, "Intruder", "OTHER", 1.0, false));
       return "no";
@@ -549,31 +549,31 @@ class AllianceData {
   // TODO three private final maps — by team number, by drivetrain, by MatchKey
 
   // TODO update teamsByNumber AND append to the right drivetrain list
-  void addTeam(TeamEntry t) {}
+  public void addTeam(TeamEntry t) {}
 
   // TODO build a MatchKey and store the outcome under it
-  void recordOutcome(int matchNumber, String alliance, int score, boolean won) {}
+  public void recordOutcome(int matchNumber, String alliance, int score, boolean won) {}
 
-  Optional<TeamEntry> getTeam(int number) {
+  public Optional<TeamEntry> getTeam(int number) {
     return Optional.empty();
   }
 
   // TODO the teams with that drivetrain, in the order they were added
-  List<TeamEntry> teamsWith(String drivetrain) {
+  public List<TeamEntry> teamsWith(String drivetrain) {
     return List.of();
   }
 
-  Optional<MatchOutcome> outcomeFor(int matchNumber, String alliance) {
+  public Optional<MatchOutcome> outcomeFor(int matchNumber, String alliance) {
     return Optional.empty();
   }
 
   // TODO a fresh map: drivetrain -> how many teams run it
-  Map<String, Integer> countByDrivetrain() {
+  public Map<String, Integer> countByDrivetrain() {
     return Map.of();
   }
 
   // TODO the mean of every recorded score, or 0.0 when there are none
-  double averageScore() {
+  public double averageScore() {
     return 0.0;
   }
 }
@@ -631,7 +631,7 @@ public class MapLookupDemo {
     System.out.println("bad alliance rejected: " + rejectsAlliance("GREEN"));
   }
 
-  static List<Integer> numbersOf(List<TeamEntry> teams) {
+  private static List<Integer> numbersOf(List<TeamEntry> teams) {
     List<Integer> numbers = new ArrayList<>();
     for (TeamEntry t : teams) {
       numbers.add(t.teamNumber());
@@ -639,7 +639,7 @@ public class MapLookupDemo {
     return numbers;
   }
 
-  static String rejectsAlliance(String alliance) {
+  private static String rejectsAlliance(String alliance) {
     try {
       new MatchKey(1, alliance);
       return "no";
@@ -731,8 +731,8 @@ import java.util.stream.Collectors;
 
 record TeamEntry(
     int teamNumber, String teamName, String drivetrain, double avgPoints, double climbRate) {
-  double pickScore() {
-    return avgPoints + climbRate * 25.0;
+  public double pickScore() {
+    return this.avgPoints + this.climbRate * 25.0;
   }
 }
 
@@ -741,47 +741,49 @@ public class StreamQueries {
   // ---- the five queries, twice each -------------------------------------
 
   // TODO one expression: filter, then toList
-  static List<TeamEntry> swerveTeamsStream(List<TeamEntry> teams) {
+  public static List<TeamEntry> swerveTeamsStream(List<TeamEntry> teams) {
     return List.of();
   }
 
-  static List<TeamEntry> swerveTeamsLoop(List<TeamEntry> teams) {
+  public static List<TeamEntry> swerveTeamsLoop(List<TeamEntry> teams) {
     return List.of();
   }
 
   // TODO one expression: sorted by pick score descending, then limit, then toList
-  static List<TeamEntry> topKByPickScoreStream(List<TeamEntry> teams, int k) {
+  public static List<TeamEntry> topKByPickScoreStream(List<TeamEntry> teams, int k) {
     return List.of();
   }
 
-  static List<TeamEntry> topKByPickScoreLoop(List<TeamEntry> teams, int k) {
+  public static List<TeamEntry> topKByPickScoreLoop(List<TeamEntry> teams, int k) {
     return List.of();
   }
 
   // TODO one expression: Collectors.groupingBy with an averaging downstream
-  static Map<String, Double> avgClimbByDrivetrainStream(List<TeamEntry> teams) {
+  public static Map<String, Double> avgClimbByDrivetrainStream(List<TeamEntry> teams) {
     return Map.of();
   }
 
-  static Map<String, Double> avgClimbByDrivetrainLoop(List<TeamEntry> teams) {
+  public static Map<String, Double> avgClimbByDrivetrainLoop(List<TeamEntry> teams) {
     return Map.of();
   }
 
   // TODO one expression, and it must stop at the first match — so must the loop
-  static boolean anyTeamOverStream(List<TeamEntry> teams, double threshold) {
+  public static boolean anyTeamOverStream(List<TeamEntry> teams, double threshold) {
     return false;
   }
 
-  static boolean anyTeamOverLoop(List<TeamEntry> teams, double threshold) {
+  public static boolean anyTeamOverLoop(List<TeamEntry> teams, double threshold) {
     return false;
   }
 
   // TODO one expression ending in findFirst. The loop returns Optional too.
-  static Optional<TeamEntry> firstMatchingStream(List<TeamEntry> teams, Predicate<TeamEntry> test) {
+  public static Optional<TeamEntry> firstMatchingStream(
+      List<TeamEntry> teams, Predicate<TeamEntry> test) {
     return Optional.empty();
   }
 
-  static Optional<TeamEntry> firstMatchingLoop(List<TeamEntry> teams, Predicate<TeamEntry> test) {
+  public static Optional<TeamEntry> firstMatchingLoop(
+      List<TeamEntry> teams, Predicate<TeamEntry> test) {
     return Optional.empty();
   }
 
@@ -851,7 +853,7 @@ public class StreamQueries {
             + numberOr(firstMatchingLoop(teams, impossible)));
   }
 
-  static List<TeamEntry> sample() {
+  private static List<TeamEntry> sample() {
     return List.of(
         new TeamEntry(1234, "Example Robotics", "SWERVE", 45.5, 0.80),
         new TeamEntry(2468, "Gear Grinders", "TANK", 38.0, 0.40),
@@ -867,7 +869,7 @@ public class StreamQueries {
         new TeamEntry(2056, "OP Robotics", "SWERVE", 85.0, 0.90));
   }
 
-  static List<Integer> numbersOf(List<TeamEntry> teams) {
+  private static List<Integer> numbersOf(List<TeamEntry> teams) {
     List<Integer> numbers = new ArrayList<>();
     for (TeamEntry t : teams) {
       numbers.add(t.teamNumber());
@@ -875,12 +877,12 @@ public class StreamQueries {
     return numbers;
   }
 
-  static String numberOr(Optional<TeamEntry> found) {
+  private static String numberOr(Optional<TeamEntry> found) {
     return found.map(t -> String.valueOf(t.teamNumber())).orElse("empty");
   }
 
   /** Averages are compared at three decimals: 6.0 / 7 is not a literal to check. */
-  static Map<String, Double> rounded(Map<String, Double> raw) {
+  private static Map<String, Double> rounded(Map<String, Double> raw) {
     Map<String, Double> out = new TreeMap<>();
     for (Map.Entry<String, Double> e : raw.entrySet()) {
       out.put(e.getKey(), Math.round(e.getValue() * 1000.0) / 1000.0);
@@ -956,40 +958,40 @@ whole reason powerFast exists.`,
 
 public class RecursionWarmups {
 
-  static int slowCalls = 0;
-  static int fastCalls = 0;
+  private static int slowCalls = 0;
+  private static int fastCalls = 0;
 
   // TODO base case n <= 1 returns 1; reject n < 0
-  static long factorial(int n) {
+  public static long factorial(int n) {
     return 0;
   }
 
   // TODO base case from == arr.length returns 0
-  static int sum(int[] arr, int from) {
+  public static int sum(int[] arr, int from) {
     return 0;
   }
 
   // TODO base case "" returns ""; peel off the first character and trust the rest
-  static String reverse(String s) {
+  public static String reverse(String s) {
     return "";
   }
 
   // TODO count the call, then base case exp == 0 returns 1; reject exp < 0
-  static double powerSlow(double base, int exp) {
+  public static double powerSlow(double base, int exp) {
     return 0.0;
   }
 
   // TODO count the call, then halve the exponent when it is even
-  static double powerFast(double base, int exp) {
+  public static double powerFast(double base, int exp) {
     return 0.0;
   }
 
   // TODO two base cases: low > high returns -1, arr[mid] == target returns mid
-  static int binarySearch(int[] sorted, int target, int low, int high) {
+  public static int binarySearch(int[] sorted, int target, int low, int high) {
     return -1;
   }
 
-  static int binarySearch(int[] sorted, int target) {
+  public static int binarySearch(int[] sorted, int target) {
     return binarySearch(sorted, target, 0, sorted.length - 1);
   }
 
@@ -1037,7 +1039,7 @@ public class RecursionWarmups {
     System.out.println("binarySearch single miss = " + binarySearch(new int[] {7}, 9));
   }
 
-  static boolean powersAgree() {
+  private static boolean powersAgree() {
     double[][] pairs = {
       {2.0, 0}, {2.0, 1}, {2.0, 10}, {3.0, 5}, {1.5, 4}, {10.0, 3}, {0.5, 6}, {7.0, 2}, {2.0, 15}
     };
@@ -1050,7 +1052,7 @@ public class RecursionWarmups {
     return true;
   }
 
-  static String rejectsFactorial(int n) {
+  private static String rejectsFactorial(int n) {
     try {
       factorial(n);
       return "no";
@@ -1059,7 +1061,7 @@ public class RecursionWarmups {
     }
   }
 
-  static String rejectsPower(int exp) {
+  private static String rejectsPower(int exp) {
     try {
       powerSlow(2.0, exp);
       return "no";
@@ -1158,37 +1160,49 @@ public class BigOReading {
   // of reasoning, and whether best / average / worst differ.
 
   // TAG:
-  static int a(int[] arr) {
+  public static int a(int[] arr) {
     return arr[0] + arr[arr.length - 1];
   }
 
   // TAG:
-  static int b(int[] arr) {
+  public static int b(int[] arr) {
     int sum = 0;
-    for (int x : arr) sum += x;
+    for (int x : arr) {
+      sum += x;
+    }
     return sum;
   }
 
   // TAG:
-  static int c(int[] arr, int target) {
+  public static int c(int[] arr, int target) {
     for (int x : arr) {
-      if (x == target) return x;
+      if (x == target) {
+        return x;
+      }
     }
     return -1;
   }
 
   // TAG:
-  static void d(int[] arr) {
-    for (int i = 0; i < arr.length; i++) for (int j = 0; j < arr.length; j++) arr[i] += arr[j];
+  public static void d(int[] arr) {
+    for (int i = 0; i < arr.length; i++) {
+      for (int j = 0; j < arr.length; j++) {
+        arr[i] += arr[j];
+      }
+    }
   }
 
   // TAG:
-  static void e(int[] arr) {
-    for (int i = 0; i < arr.length; i++) for (int j = i + 1; j < arr.length; j++) arr[i] += arr[j];
+  public static void e(int[] arr) {
+    for (int i = 0; i < arr.length; i++) {
+      for (int j = i + 1; j < arr.length; j++) {
+        arr[i] += arr[j];
+      }
+    }
   }
 
   // TAG:
-  static int f(int n) {
+  public static int f(int n) {
     int count = 0;
     while (n > 1) {
       n /= 2;
@@ -1198,35 +1212,48 @@ public class BigOReading {
   }
 
   // TAG:
-  static int g(int[] sorted, int target) {
+  public static int g(int[] sorted, int target) {
     int lo = 0, hi = sorted.length - 1;
     while (lo <= hi) {
       int mid = lo + (hi - lo) / 2;
-      if (sorted[mid] == target) return mid;
-      if (sorted[mid] < target) lo = mid + 1;
-      else hi = mid - 1;
+      if (sorted[mid] == target) {
+        return mid;
+      }
+      if (sorted[mid] < target) {
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
     }
     return -1;
   }
 
   // TAG:
-  static int h(int n) {
-    if (n <= 1) return n;
+  public static int h(int n) {
+    if (n <= 1) {
+      return n;
+    }
     return h(n - 1) + h(n - 2);
   }
 
   // TAG:
-  static int i(int n) {
+  public static int i(int n) {
     int total = 0;
-    for (int k = 0; k < n; k++) for (int j = 1; j < n; j *= 2) total++;
+    for (int k = 0; k < n; k++) {
+      for (int j = 1; j < n; j *= 2) {
+        total++;
+      }
+    }
     return total;
   }
 
   // TAG:
-  static List<Integer> j(int[] arr) {
+  public static List<Integer> j(int[] arr) {
     List<Integer> result = new ArrayList<>();
     for (int x : arr) {
-      if (!result.contains(x)) result.add(x);
+      if (!result.contains(x)) {
+        result.add(x);
+      }
     }
     return result;
   }
@@ -1235,13 +1262,13 @@ public class BigOReading {
 
   // TODO the same answer as j, in the same order, with a HashSet doing the
   //      membership test so the whole thing is linear
-  static List<Integer> jFast(int[] arr) {
+  public static List<Integer> jFast(int[] arr) {
     return List.of();
   }
 
   // TODO the median of samples. Even count: the mean of the middle two.
   //      Sort a copy — the caller's array must come back untouched.
-  static long median(long[] samples) {
+  public static long median(long[] samples) {
     return 0;
   }
 
@@ -1286,7 +1313,7 @@ public class BigOReading {
   }
 
   /** Plenty of repeats, so the membership test in j and jFast has work to do. */
-  static int[] ramp(int n) {
+  private static int[] ramp(int n) {
     int[] data = new int[n];
     for (int k = 0; k < n; k++) {
       data[k] = k % (n / 4 + 1);
@@ -1294,10 +1321,14 @@ public class BigOReading {
     return data;
   }
 
-  static void runSnippet(String name, int[] data) {
-    if (name.equals("b")) b(data);
-    else if (name.equals("e")) e(data);
-    else jFast(data);
+  private static void runSnippet(String name, int[] data) {
+    if (name.equals("b")) {
+      b(data);
+    } else if (name.equals("e")) {
+      e(data);
+    } else {
+      jFast(data);
+    }
   }
 }
 `,

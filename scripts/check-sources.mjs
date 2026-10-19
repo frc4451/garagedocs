@@ -79,6 +79,7 @@ const MAX_RETRY_DELAY_MS = 30_000;
 const RETRYABLE_STATUS = new Set([403, 408, 425, 429]);
 
 function shouldRetry(status) {
+  if (status === 'CHALLENGE') return false;
   return (
     typeof status !== 'number' ||
     RETRYABLE_STATUS.has(status) ||
@@ -103,6 +104,12 @@ async function checkOnce(url) {
         headers,
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
+    }
+    // Cloudflare answers automated requests to some documentation hosts with a bot challenge
+    // instead of the page. That says nothing about whether the page exists, so report it apart
+    // from real failures and leave it to a person with a browser.
+    if (res.status === 403 && res.headers.get('cf-mitigated') === 'challenge') {
+      return { status: 'CHALLENGE', retryAfterMs: null };
     }
     return {
       status: res.status,
@@ -142,6 +149,7 @@ async function check(url) {
 }
 
 const failures = [];
+const challenged = [];
 const entries = [...urls.entries()];
 // Keep enough parallelism for a full-site check without sending large bursts to
 // GitHub, WPILib, Oracle, and the other documentation hosts.
@@ -153,7 +161,8 @@ await Promise.all(
       const [url, pages] = entries[index++];
       const status = await check(url);
       const ok = typeof status === 'number' && status >= 200 && status < 400;
-      if (!ok) failures.push({ url, status, pages });
+      if (status === 'CHALLENGE') challenged.push({ url, pages });
+      else if (!ok) failures.push({ url, status, pages });
       else if (!quiet) console.log(`${status}  ${url}`);
     }
   }),
@@ -162,6 +171,10 @@ await Promise.all(
 console.log(`\n${urls.size} unique source URLs checked, ${failures.length} failing`);
 for (const f of failures) {
   console.log(`  ${f.status}  ${f.url}  <- ${f.pages.join(', ')}`);
+}
+if (challenged.length) {
+  console.log(`\n${challenged.length} blocked by bot protection (not failures; verify in a browser):`);
+  for (const c of challenged) console.log(`  ${c.url}  <- ${c.pages.join(', ')}`);
 }
 if (missing.length) {
   console.log(`\n${missing.length} ${REQUIRED_SECTIONS.join('/')} pages without a <Sources> block:`);

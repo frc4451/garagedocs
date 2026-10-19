@@ -1,33 +1,50 @@
 ---
-title: "Optional: Exploring maple-sim"
+title: "Step 11: Combined Simulation with maple-sim"
 lessonId: badge-3-maple
 section: badges
 group: badge-3
 groupLabel: "Badge 3: Advanced FRC"
 groupOrder: 3
-order: 15
+order: 11
 difficulty: advanced
-description: "Optional drivetrain contact experiments with maple-sim, explicit physics ownership, and separate truth and estimated pose."
+description: "Required drivetrain contact experiments with maple-sim, explicit physics ownership, and separate truth and estimated pose."
 ---
 
-This optional specialization investigates how drivetrain contact changes a simulated path. Rows
-B3-10.1–B3-10.4 are extension evidence and do not gate Badge 3 completion. Start after Step 10. Read
-[maple-sim](/frc/maple-sim) and [Physics in the IO Layer](/frc/physics-in-the-io-layer). A separate
-simulation configuration is acceptable; this step does not require another complete scoring
-implementation.
+This step investigates how drivetrain contact changes a simulated path. Complete rows
+B3-11.1–B3-11.3 before the final Step 12 autonomous runs; the B3-11.4 reproduction by another member
+can follow with the Step 15 handoff. Read
+[maple-sim](/frc/maple-sim) and [Physics in the IO Layer](/frc/physics-in-the-io-layer). Use one
+combined configuration: maple-sim for chassis motion and contact, FuelSim for fuel and scoring,
+and PhotonVision for observations of the same fuel world.
 
 ## Pin and Inspect the Dependency
 
-The curriculum reference uses maple-sim `0.4.0-beta` and dyn4j `5.0.2` with the base project's
-WPILib dependencies. During this authoring pass, the public vendordep pointed to
-`0.4.0-beta-obstacles-fix`, whose Maven artifact could not be resolved. Preserve the verified
-vendordep supplied with the reference and record its hash. Treat a later version as a deliberate
+Add maple-sim `0.4.0-beta` and dyn4j `5.0.2` to the fork, beside the Starter's WPILib dependencies.
+When this badge pinned maple-sim on September 27, 2026, the public vendordep pointed to
+`0.4.0-beta-obstacles-fix`, whose Maven artifact could not be resolved, so declare both in
+`build.gradle` with maple-sim's Maven repository:
+
+```groovy
+repositories {
+    mavenCentral()
+    maven { url = uri("https://shenzhen-robotics-alliance.github.io/maple-sim/vendordep/repos/releases") }
+}
+
+dependencies {
+    implementation "org.ironmaple:maplesim-java:0.4.0-beta"
+    implementation "org.dyn4j:dyn4j:5.0.2"
+}
+```
+
+Record the versions and the file's hash in the student README. Treat a later version as a deliberate
 dependency change that needs a rebuild and repeated experiments.
 
-Select the AdvantageKit Talon swerve template as the architectural reference because it matches the
-base's drive IO structure. Explain how its module and gyro simulation differ from the supplied
-`DCMotorSim` implementations. The focused `MapleExperiment` is a smaller independent physics
-example; copying it does not complete integration into the student's drive subsystem.
+Start from Cobra's simulated drive. In the fork's SIM mode, `RobotContainer` builds `Drive` from an
+empty `GyroIO` and four `ModuleIOSim` instances, each modeling its module's drive and turn motors
+with `DCMotorSim`, so the simulated robot has no gyro, wheel slip, or field contact. Select the
+AdvantageKit Talon swerve template as the architectural reference because it matches that drive IO
+structure, and explain how maple-sim's module and gyro simulation differ from `ModuleIOSim`. Keep
+`ModuleIOSim` in the fork so the two drivetrain models can be compared in simulation.
 
 ## Assign One Update Owner
 
@@ -53,29 +70,46 @@ trajectories after contact.
 
 Change one parameter or initial condition, such as approach speed or initial lateral position. Keep
 the remaining conditions fixed. Explain what changed, what the logs support, and which contact or
-friction assumptions would require hardware measurements. Do not treat one simulated collision as
-proof of a physical robot's behavior.
+friction assumptions would need hardware measurements before they describe a physical robot.
 
 ## Reproduce Both Simulators
 
-For this extension, give another member the FuelSim and maple-sim instructions, pinned versions,
+Give another member the FuelSim and maple-sim instructions, pinned versions,
 expected observations, and log locations. The member repeats a scoring shot, controlled miss,
 open-space path, and contact experiment. FuelSim reproduction already completed for the required
 handoff can be credited here. Record where instructions needed correction. The mentor checks the
 student's explanation of model ownership and truth-versus-estimate separation.
 
+## Check Contact Before the Paths
+
+Before the path experiments, write a short test that drives the maple-sim chassis into a field wall
+with direct voltage and compares true motion with what the commanded voltage alone would produce.
+This establishes chassis contact behavior; it does not establish normal-estimator path behavior. For
+B3-11.2–11.3, run the combined-world route and the parameter experiment using the normal estimator
+for control and truth only for comparison. Preserve both runs.
+
 ## Badge Check
 
 S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, mentor signature, and date for each row. The mentor asks the
+The student records an evidence link, an explanation in the student's own words, the mentor's
+signature, and the date for each row. The mentor asks the
 student to explain a change and its result before signing.
 
 | Row | Work | Done When |
 | --- | --- | --- |
-| B3-10.1 | Plan maple-sim integration | W: Identify pinned version and matching template, explain IO changes and update ownership, and predict an experimental result before running it. |
-| B3-10.2 | Motion and contact | S: Run a known BLine path in open space and a controlled field-contact experiment. Vary one parameter or initial condition and explain the observed response. |
-| B3-10.3 | Truth and estimate | S/W: Log true and estimated pose separately; control uses the normal estimated pose. Explain what the model adds and cannot establish about hardware. |
-| B3-10.4 | Reproduce the explorations | S/M: Another member reproduces FuelSim and maple-sim experiments from instructions. Separate configurations or branches are acceptable; a second full scoring implementation is not required. |
+| B3-11.1 | Plan maple-sim integration | W: Identify pinned version and matching template, explain IO changes and update ownership, and predict an experimental result before running it. |
+| B3-11.2 | Motion and contact | S: Run a known BLine path in open space and a controlled field-contact experiment. Vary one parameter or initial condition and explain the observed response. |
+| B3-11.3 | Truth and estimate | S/W: Log true and estimated pose separately; control uses the normal estimated pose. Explain what the model adds and cannot establish about hardware. |
+| B3-11.4 | Reproduce the explorations | S/M: Another member reproduces FuelSim and maple-sim experiments from instructions. Use the combined world and identify its physics, camera, battery, and reset owners. |
+
+## For the Mentor
+
+`curriculum-reference` adds maple-sim through `vendordeps/maple-sim.json` and contains the focused
+`MapleExperiment` and `MapleVisionTest`, a smaller independent physics example.
+`Badge3MentorSolution` declares the same versions in `build.gradle`, drives SIM through
+`ModuleIOMapleSim` while keeping the template `ModuleIOSim` for comparison, and includes
+`FieldContactSimulationTest` and `CombinedSimulationTest`. `EXPERIMENTS.md` lists the combined-world
+route and parameter experiment.
 
 <Sources items={[
   {
@@ -92,7 +126,27 @@ student to explain a change and its result before signing.
     "source": "maple-sim",
     "path": "using-the-simulated-arena/",
     "note": "Arena update ownership."
+  },
+  {
+    "source": "maple-sim",
+    "path": "installing-maple-sim/",
+    "note": "Adding maple-sim to a project; this badge pins 0.4.0-beta through build.gradle."
+  },
+  {
+    "source": "advantagekit",
+    "path": "getting-started/template-projects/talonfx-swerve-template",
+    "note": "The Talon swerve template chosen as the architectural reference for the drive IO."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/drive/ModuleIOSim.java",
+    "note": "The DCMotorSim module model the SIM drive starts from."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/RobotContainer.java",
+    "note": "SIM mode building Drive from an empty GyroIO and four ModuleIOSim instances."
   }
 ]} />
 
-<LinkGrid title="Continue" section="badges" links={[{"label":"Step 12: Diagnosis, Review, and Teaching","id":"badge-3-review"},{"label":"Badge 3: Advanced FRC","id":"badge-3"}]} />
+<LinkGrid title="Continue" section="badges" links={[{"label":"Step 12: One-Piece Autonomous","id":"badge-3-acquisition"},{"label":"Badge 3: Advanced FRC","id":"badge-3"}]} />

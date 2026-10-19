@@ -18,27 +18,34 @@ physical fixture preparation before hardware characterization. Read [Feedforward
 
 ## Characterize Before Refining Feedback
 
-Adapt Cobra's `SingleRoller.quasistaticCharacterization` into a bounded command owned by the parent
-subsystem. A quasistatic test slowly increases effort so acceleration contributes less to the
-measured response. A slow ramp still needs checking; it does not guarantee a steady-state
-measurement.
+Cobra's `Shooter.quasistaticCharacterization` delegates to its `FlywheelFollower`, which extends
+`FollowRollers`; the routine itself is `FollowRollers.quasistaticCharacterization`. Adapt it into a
+bounded command owned by the parent subsystem. A quasistatic test slowly increases effort so
+acceleration contributes less to the measured response. Check the samples anyway: a slow ramp
+reduces the acceleration term, but some can remain in the data.
 
 Capture configuration when the command starts. Define a maximum effort, maximum duration, speed
 bound, and cancellation action before running it. On every exit, command zero effort and restore the
-saved configuration in unconditional cleanup. Cobra's referenced routine is a starting point to
-inspect: its restoration follows a continuous command, so copying that sequence does not guarantee
-restoration after cancellation.
+saved configuration in unconditional cleanup. Read Cobra's routine for three problems to fix:
+
+1. It reads the configuration snapshot when the command object is built, not when the command
+   starts, so a change made between binding and running is lost.
+2. It zeroes the gains, then collects samples in a `Commands.run(...)` that only ends when it is
+   cancelled. The restoration is chained after it with `.andThen(...)`, and cancelling the sequence
+   skips that step, so the zeroed gains stay applied.
+3. Its fit checks the sample count but not a near-zero regression denominator.
+
+Its `finallyDo` does stop the motor on every exit; keep that part.
 
 Collect timestamp, requested and measured effort, speed, direction, and output mode. Exclude
 stationary samples from a moving-region fit and inspect acceleration and saturation. Fit voltage or
 current against speed using consistent units, require at least two distinct speeds, and reject a
-zero or near-zero regression denominator. A fitted slope from nearly identical speeds is not useful
-evidence. Save the samples and the method used to select them.
+zero or near-zero regression denominator. Save the samples and the method used to select them.
 
 Validate the resulting gain choice on a separate run, then tune feedback against the agreed speed
 error and settling targets. Compare Talon FX voltage and torque-current control and Talon FXS
-voltage control. Keep the gain units beside every value. SysId is encouraged exploration; it does
-not replace the required Cobra adaptation.
+voltage control. Keep the gain units beside every value. SysId is encouraged as extra exploration
+alongside the required Cobra adaptation.
 
 ## Connect Measured Speed to a Shot
 
@@ -54,16 +61,50 @@ settling and steady speed, repeats from the same initial conditions, and explain
 response. Keep the controller configuration, fitted data and independent validation run for the
 launch experiment.
 
+## Configure the Experiment Before Enabling It
+
+Give the characterization command a limits record that holds the maximum effort, ramp rate,
+duration, maximum mechanism speed and direction, with no default values: the student supplies every
+fixture value. Refuse limits that are not finite and positive, or a direction other than +1 or -1,
+with a logged reason before any output. Cobra's entry points to wrap are
+`Shooter.quasistaticCharacterization`, the feeder and intake roller characterizations, and the
+intake pivot's `Intake.endeffectorFeedForwardCharacterization`. Have each entry take a
+fixture-permission supplier, combined with the subsystem's connection check. For the pivot, that
+supplier checks reference validity, finite measured position, and travel margin.
+
+The command checks feedback and permission before each output, stops on invalid speed or a limit,
+and stops on cancellation. An experiment that changes configuration records and restores it
+separately, including interruption paths. Choose the physical limits with
+the mentor and record them before using the actual fixture; software tests cannot choose them.
+
+## Trace the Flywheel in Cobra
+
+In the fork, trace a `Shooter` command to `FlywheelFollower`, then the `FollowRollersIO` contract
+and its `FollowRollersIOTalonFX` and `FollowRollersIOSimTalonFX` adapters. A requested speed starts
+the experiment; measured speed determines the result. Change one controller mode or gain, run each
+comparison from the same initial state for the same duration and goal, predict rise time and error,
+and compare saved traces. Keep profile/goal, measurement, and output on separate traces.
+
 ## Badge Check
 
 S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, mentor signature, and date for each row. The mentor asks the
+The student records an evidence link, an explanation in the student's own words, the mentor's
+signature, and the date for each row. The mentor asks the
 student to explain a change and its result before signing.
 
 | Row | Work | Done When |
 | --- | --- | --- |
-| B3-04.1 | Flywheel speed control | S: Compare Talon FX voltage and torque-current speed control and Talon FXS voltage control with typed angular velocity, separate mode-appropriate gains, tolerances and response logs. |
-| B3-04.2 | Characterize and validate | S/H/W: Adapt Cobra's quasistatic characterization, record units and stopping conditions, derive or justify gains, then validate them on a separate run. SysId remains encouraged exploration. |
+| B3-05.1 | Flywheel speed control | S: Compare Talon FX voltage and torque-current speed control and Talon FXS voltage control with typed angular velocity, separate mode-appropriate gains, tolerances and response logs. |
+| B3-05.2 | Characterize and validate | S/H/W: Adapt Cobra's quasistatic characterization, record units and stopping conditions, derive or justify gains, then validate them on a separate run. SysId remains encouraged exploration. |
+
+## For the Mentor
+
+`Badge3MentorSolution` replaces Cobra's routine with `CharacterizationCommands`: a bounded ramp, an
+unconditional stop on every exit, refusal of invalid limits with the reason `INVALID_LIMITS`, and
+cancellation tests. It does not change or restore controller configuration; `CHARACTERIZATION.md`
+explains its limits and entry methods. The legacy `QuasistaticExample` in `curriculum-reference`
+shows configuration capture and restoration, and `EXPERIMENTS.md` lists matched comparison
+conditions. Compare them with the student's command after the student has designed their own.
 
 <Sources items={[
   {
@@ -72,14 +113,29 @@ student to explain a change and its result before signing.
     "note": "Output types and closed-loop units."
   },
   {
-    "source": "fuelsim",
-    "path": "FuelSim.java",
-    "note": "Launch units, intake callbacks, field-relative speeds and hub scoring."
+    "source": "wpilib",
+    "path": "docs/software/advanced-controls/controllers/feedforward.html",
+    "note": "The kS and kV feedforward terms the quasistatic fit estimates."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/advanced-controls/system-identification/introduction.html",
+    "note": "SysId as encouraged exploration beside the required Cobra adaptation."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/api-reference/wpilib-integration/sysid-integration/index.html",
+    "note": "Running SysId with Phoenix 6 devices."
   },
   {
     "source": "cobra",
-    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java",
-    "note": "The quasistatic routine students adapt and inspect for cleanup and regression limits."
+    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollers.java",
+    "note": "The quasistatic routine students adapt: build-time snapshot, restoration skipped on cancel, and the unguarded fit."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java",
+    "note": "The shooter's characterization entry points, delegating to FlywheelFollower."
   }
 ]} />
 

@@ -187,6 +187,20 @@ new Thread(this::periodic).start();
 `this::periodic` is a bound instance reference. The current object is fixed as the receiver, and
 `Runnable.run()` supplies no arguments.
 
+Robot code uses the same forms. One line closes every motor in a list, and a stream collects a value
+from each motor:
+
+```java norun
+followers.forEach(TalonFX::close);
+
+List<Integer> followerIds = followers.stream().map(TalonFX::getDeviceID).toList();
+```
+
+`TalonFX::close` is an unbound instance reference: `forEach` passes each motor in the list, and that
+motor becomes the receiver of `close()`. `forEach` is a method on the list itself, so it needs no
+stream. Call `stream()` when the work is a pipeline, such as the `map` step that turns each motor
+into its CAN ID.
+
 <RulesBox title="When a Lambda Reads Better">
 
 A method reference helps only when the referenced name communicates the work. If `Helper::process`
@@ -264,7 +278,10 @@ Do not add casts until you understand which target type and overload the call sh
   {"source": "jls", "path": "jls-15.html", "note": "Method reference expressions, target types, and run-time evaluation (section 15.13)."},
   {"source": "java-api", "path": "java.base/java/util/function/Function.html", "note": "The target type used by several examples."},
   {"source": "java-api", "path": "java.base/java/util/function/Supplier.html", "note": "The no-argument target used by constructor references."},
-  {"source": "java-api", "path": "java.base/java/util/Comparator.html", "note": "Comparator factories that accept key-extractor functions."}
+  {"source": "java-api", "path": "java.base/java/util/Comparator.html", "note": "Comparator factories that accept key-extractor functions."},
+  {"source": "java-api", "path": "java.base/java/lang/Iterable.html", "note": "<code>forEach</code> on a collection, used without a stream in the robot example."},
+  {"source": "ctre-javadoc", "path": "com/ctre/phoenix6/hardware/TalonFX.html", "note": "<code>close</code>, declared by <code>TalonFX</code> as an <code>AutoCloseable</code>."},
+  {"source": "ctre-javadoc", "path": "com/ctre/phoenix6/hardware/ParentDevice.html", "note": "<code>getDeviceID</code>, shared by every Phoenix 6 device."}
 ]} />
 
 <LinkGrid

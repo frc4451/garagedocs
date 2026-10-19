@@ -146,7 +146,7 @@ Use "robot," "drivetrain," "roboRIO," "Driver Station," "autonomous," and "simul
 
 Do not rotate through synonyms for variety. Distinguish terms that could be confused: a driver controller, a motor controller, and a feedback controller are different things.
 
-Use one page title, followed by logically nested headings. Use sentence case for headings. Use numbered lists for ordered steps, bullets for unordered items, and backticks for code identifiers. Reserve bold for information readers need to find quickly.
+Use one page title, followed by logically nested headings. Use Title Case for titles and headings, with the lowercase minor words listed in the Mentor Voice Prose Guide (articles, short conjunctions, common prepositions, and the joiners "that," "then," "this," "these," and "those"). Use numbered lists for ordered steps, bullets for unordered items, and backticks for code identifiers. Reserve bold for information readers need to find quickly.
 
 Use the same name for the same concept across prose, diagrams, exercises, and code. State units and coordinate conventions wherever an omitted assumption could change the result.
 

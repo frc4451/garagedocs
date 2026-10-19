@@ -156,6 +156,8 @@ export default defineConfig({
     '/assignments/a16-subsystem-fleet': withBase('/java/assignments/a16-subsystem-family'),
     '/assignments/a19-sort-roster': withBase('/java/assignments/a19-sorting-a-scouting-roster'),
     '/assignments/a23-ring-buffer': withBase('/java/assignments/a23-generic-ring-buffer'),
+    // Badge 3's controller preparation page was folded into Step 13 when the steps were numbered.
+    '/badges/badge-3-hardware-preparation': withBase('/badges/badge-3-hardware'),
   },
   // GitHub Pages normalizes `/foo` -> `/foo/` for directory-style output, so let
   // the host decide rather than enforcing a form Astro cannot redirect to.

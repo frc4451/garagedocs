@@ -1,18 +1,19 @@
 ---
-title: "Step 10: One-Piece Autonomous"
+title: "Step 12: One-Piece Autonomous"
 lessonId: badge-3-acquisition
 section: badges
 group: badge-3
 groupLabel: "Badge 3: Advanced FRC"
 groupOrder: 3
-order: 10
+order: 12
 difficulty: advanced
-description: "One-Piece Autonomous work, evidence, and mentor review for the Badge 3 capstone."
+description: "Collect and score one piece in simulation with BLine, owned states and camera observations, then prove each required failure case."
 ---
 
 The student integrates one simulated collection and scoring attempt using BLine, the state-owned
-subsystem, and camera observations. Start after Steps 8 and 9, including the delayed-observation
-check, and the required FuelSim experiment in Step 6. Read [BLine](/frc/bline) and
+subsystem, and camera observations. Start after Steps 9 and 10, including the delayed-observation
+check, the required FuelSim experiment in Step 6, and the
+[Step 11 maple-sim integration](/badges/badge-3-maple). Read [BLine](/frc/bline) and
 [Autonomous Simulation](/frc/autonomous-simulation). The task is simulation-only.
 
 ## Establish the Sequence
@@ -54,6 +55,25 @@ slip assumption, launch height, and field-relative robot velocity. Keep a scored
 held state and launch count. Mirror relevant world state into the saved log so another student can
 reconstruct the event.
 
+## Start from Cobra's Autonomous
+
+In the fork, `AutonomousManager` builds Cobra's routines from fixed BLine paths, intake deploy and
+stow commands that wait until the pivot is near its goal, and timed shooting segments such as
+`handleInterpolateShooterToHub` from Step 1. `BLineManager` shows how Cobra constructs the BLine
+follower and its PID controllers. No routine reads camera observations, and nothing confirms
+possession: collection is assumed from the path and the clock.
+
+The one-piece sequence replaces that assumption with observed states. Write down, for each state,
+the measurements that permit its transition. Route normal forward-feed requests through the
+readiness policy from Step 9. Keep the mechanism library to four explicit families, with commands
+owned by parent subsystems.
+
+Build seven integrated runs: one launch, the four failure conditions below, and interruption at two
+points. Save each run as a named WPILOG. Inspect state, refusal, camera and possession inputs,
+measured mechanism values, estimate, inventory, launch count, and score together. A passing launch
+test does not establish that the projectile scored or that the physical robot is tuned. Preserve
+misses while calibrating the model against physical observations.
+
 ## Required Failure Runs
 
 | Case | Injection | Evidence |
@@ -75,38 +95,81 @@ predicts the acquisition pose, runs the full sequence, and explains any differen
 observations, path error, possession, readiness, and score. Save the failure logs alongside the
 successful run.
 
+## Score Under Declared Assumptions
+
+B3-12.1 and B3-12.7 close only when the integrated run demonstrates a score under declared geometry
+and model assumptions; collection and a launch alone do not complete them. Use the shot calibration
+and the commissioning record to reconcile measured release speed, geometry, and the preserved
+empirical tables. Keep held-out validation shots separate from fitting.
+The legacy Step 6 scoring experiment and dropped-ball scoring fixtures remain useful scoped tests;
+neither establishes Cobra's shot calibration. Other coursework may continue while this evidence is
+pending. Do not change empirical table values solely to turn a simulation assertion green.
+
+## Keep Arrival and Visibility Checks Consistent
+
+Give the follower a small translation tolerance to reach the intake pickup region; 3 in works in
+simulation. Within a short distance and heading of the pickup goal, such as 6 in and 8 degrees,
+acquisition can finish the bounded final approach using estimated pose while the intake hides the
+target. Arrival alone never confirms possession. Repeat the collection-timeout and launch runs with
+added loop delay, for example 10 ms: the timeout must still occur when possession never arrives, and
+one confirmed launch must still occur when it does. Keep the lost-target test separate. Each failure
+test checks for the terminal reason of the condition it demonstrates.
+
 ## Badge Check
 
 S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, mentor signature, and date for each row. The mentor asks the
+The student records an evidence link, an explanation in the student's own words, the mentor's
+signature, and the date for each row. The mentor asks the
 student to explain a change and its result before signing.
 
 | Row | Work | Done When |
 | --- | --- | --- |
-| B3-09.1 | Baseline one-piece sequence | S: Start at a specified pose, travel to a search region, detect through PhotonVision, approach using BLine, confirm collection through simulated inputs, return, wait for readiness and execute scoring. Log explicit available/held/scored state. |
-| B3-09.2 | No visible piece | S: Record a bounded failed attempt and defined stopped or recovery state without inventing possession. |
-| B3-09.3 | Target lost | S: Lose the observation before collection; apply the documented stale-target rule and log the outcome. |
-| B3-09.4 | Collection timeout | S: Reach the attempted collection without confirming possession; timeout without marking a piece held or scored. |
-| B3-09.5 | Never ready | S: Hold a mechanism outside readiness; terminate or recover within a stated bound, without launching. |
-| B3-09.6 | Interruption | S: Interrupt during driving and during scoring; verify documented safe outputs and consistent piece state. |
-| B3-09.7 | Integrate FuelSim | S/W: Reuse the flywheel experiment with measured pivot position. One field model owns the piece; adapt its representation into PhotonVision and possession IO. Consume one held piece once and use the simulator's scoring result. Recheck failure cases affected by the integration. |
+| B3-12.1 | Baseline one-piece sequence | S: Start at a specified pose, travel to a search region, detect through PhotonVision, approach using BLine, confirm collection through simulated inputs, return, wait for readiness and execute scoring. Log explicit available/held/scored state. |
+| B3-12.2 | No visible piece | S: Record a bounded failed attempt and defined stopped or recovery state without inventing possession. |
+| B3-12.3 | Target lost | S: Lose the observation before collection; apply the documented stale-target rule and log the outcome. |
+| B3-12.4 | Collection timeout | S: Reach the attempted collection without confirming possession; timeout without marking a piece held or scored. |
+| B3-12.5 | Never ready | S: Hold a mechanism outside readiness; terminate or recover within a stated bound, without launching. |
+| B3-12.6 | Interruption | S: Interrupt during driving and during scoring; verify documented safe outputs and consistent piece state. |
+| B3-12.7 | Integrate FuelSim | S/W: Reuse the flywheel experiment with measured pivot position. One field model owns the piece; adapt its representation into PhotonVision and possession IO. Consume one held piece once and use the simulator's scoring result. Recheck failure cases affected by the integration. |
+
+## For the Mentor
+
+`Badge3MentorSolution` maps its states in `frc/robot/subsystems/acquisition/Acquisition.java` to
+their measurements in `ONE-PIECE.md`. `OnePieceScenario` runs the seven cases (`SUCCESS`,
+`NO_PIECE`, `TARGET_LOST`, `COLLECTION_TIMEOUT`, `NEVER_READY`, `CANCEL_DRIVE`, and `CANCEL_FEED`)
+and saves their logs under `build/evidence`; `SlowCollectionSimulationTest` and
+`SlowSuccessSimulationTest` repeat two of them with 10 ms of added loop delay. The reference's
+`SUCCESS` run and its slow variant establish collection and launch with one launch and zero scores,
+so the reference itself has not yet demonstrated a score. `SHOT-CALIBRATION.md` holds the
+calibration worksheet.
 
 <Sources items={[
-  {
-    "source": "fuelsim",
-    "path": "FuelSim.java",
-    "note": "Launch units, intake callbacks, field-relative speeds and hub scoring."
-  },
+  {"url": "https://github.com/hammerheads5000/FuelSim/blob/37eff8936e55fa4964b0c094ffd1093dff9a4519/FuelSim.java", "label": "FuelSim.java at commit 37eff89", "note": "Launch units, intake callbacks, field-relative speeds and hub scoring."},
   {
     "source": "wpilib",
     "path": "docs/software/commandbased/subsystems.html",
-    "note": "Subsystem ownership and command requirements."
+    "note": "Drive and feeder requirements that the one-piece sequence and its interruption runs rely on."
   },
   {
     "source": "bline",
     "path": "concepts/path-elements/",
     "note": "The path follower used for the acquisition sequence."
+  },
+  {
+    "source": "photonvision",
+    "path": "docs/simulation/simulation-java.html",
+    "note": "Simulated targets that the adapter updates from the fuel world."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/autonomous/AutonomousManager.java",
+    "note": "Cobra's fixed-path routines with time-based collection and shooting segments."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/autonomous/bline/BLineManager.java",
+    "note": "How Cobra constructs the BLine follower and its PID controllers."
   }
 ]} />
 
-<LinkGrid title="Continue" section="badges" links={[{"label": "Step 11: Hardware Evidence Completion", "id": "badge-3-hardware"}, {"label": "Badge 3: Advanced FRC", "id": "badge-3"}]} />
+<LinkGrid title="Continue" section="badges" links={[{"label": "Step 13: Hardware Evidence Completion", "id": "badge-3-hardware"}, {"label": "Badge 3: Advanced FRC", "id": "badge-3"}]} />

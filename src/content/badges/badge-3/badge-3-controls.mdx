@@ -7,7 +7,7 @@ groupLabel: "Badge 3: Advanced FRC"
 groupOrder: 3
 order: 3
 difficulty: advanced
-description: "Bridge from the Badge 2 controller to typed FX output capabilities, explicit configuration, and owned simulation updates."
+description: "Trace typed voltage and current requests, identify supported controller modes, and compare their measured behavior."
 ---
 
 The student prepares the library for current-based control while preserving the voltage baseline.
@@ -23,10 +23,19 @@ The student begins with Badge 2's tested configuration record, builder, general 
 selected physical roller. Compare the supplied FX and FXS adapters with the roller paths built in
 Badge 2 before the advanced comparisons. Trace a configuration field, a request and a measurement
 through each unfamiliar adapter; distinguish supplied code from the student's changes. Additional
-vendor implementations in the base are teaching assets, not evidence of prior mastery.
+vendor implementations in the base are teaching assets to read.
 
-Keep controller-specific capability and gain records explicit. Constructor validation and builder
-tests still apply; inspect the vendor configuration result before using the device. The required
+Start in the fork's `SingleRollerIO`. Its `runTorqueCurrent(Current)` is a default method that does
+nothing. Only the two Talon FX adapters, `SingleRollerIOTalonFX` and
+`SingleRollerIOTalonFXWithCANCoder`, override it to send `TorqueCurrentFOC`. The Talon FXS, Nova and
+simulation adapters inherit the empty default, so a torque-current request on them returns normally
+and changes nothing. Then open `Feeder.runFeederCurrent()`: it passes the tower's voltage setting,
+`towerVoltage`, into `Amps.of(...)`, so the number tuned in volts is sent as amperes. These two
+findings are the starting point for this step.
+
+Keep controller-specific capability and gain records explicit. Tests of the configured values and
+of each builder still apply, as in Badge 2; inspect the vendor configuration result before using the
+device. The required
 FX/FXS comparisons cover roller, flywheel and pivot. Linear rail and additional elevator ports
 remain extensions.
 
@@ -37,19 +46,22 @@ requested quantity, expressed in amperes. A current request cannot be implemente
 same number into a voltage method. Keep `Voltage`, `Current`, `AngularVelocity`, and `Angle` in the
 mechanism-facing API, then convert at the vendor boundary.
 
-Read [IO Layers](/frc/io-layers), [Current Limiting](/frc/current-limiting), and
+Read [IO Layers](/frc/io-layers), [Current Limiting](/frc/current-limiting),
+[TalonFX Simulation](/frc/talonfx-simulation), and
 [Manual Tuning: Introduction](/frc/manual-tuning-introduction). Draw the route from a subsystem goal
 to the vendor request and back through logged measurements. Identify the units at every conversion.
 
-The guided change is a separate torque-current capability for Talon FX. The mentor's
-`TorqueFXExample` shows the 2026 request classes against the pinned base dependencies. The student
-adds a typed current method to their own design, rejects nonfinite values, and records the selected
-output mode. Talon FXS remains voltage-controlled. Unsupported current operation must fail visibly
-at configuration or request time; a no-op that appears successful does not meet the row.
+The guided change is a separate torque-current capability for Talon FX, built from the
+`TorqueCurrentFOC` request that `SingleRollerIOTalonFX` already sends. The student adds a typed
+current method to their own design, refuses nonfinite values, and records the selected output mode.
+Talon FXS remains voltage-controlled: in the pinned Phoenix 6 release, `TalonFXS` has no
+`TorqueCurrentFOC` request. An unsupported current request must
+be refused visibly, at configuration or at request time, so the log shows why nothing moved. A
+silent no-op fails the row.
 
 Use separate gain sets for voltage and torque-current control. A voltage-mode proportional gain
 produces volts per unit of error; the corresponding current-mode gain produces amperes per unit of
-error. Copying the numeric gain between them does not preserve the controller.
+error. Copying the number from one mode to the other produces a different controller.
 
 ## Preserve Simulation Ownership
 
@@ -70,27 +82,76 @@ capability, demonstrates the result, and explains how the type or runtime check 
 unsupported request. The student also traces a recorded input through replay and identifies an
 output recomputed by the robot code.
 
+## Trace Both Requests in Cobra
+
+In the fork, trace `Feeder.runFeederVoltage()` and `Feeder.runFeederCurrent()` from the command to
+the adapter, writing the unit at each step. Fix the units in the current path and decide what a
+Talon FXS or Nova tower should do when asked for current. Change the student configuration for one
+supported mode, predict the output trace, and demonstrate that an unsupported request is refused
+visibly. Run each comparison from the same initial state for the same duration, and keep the
+voltage and current input magnitudes as separate choices.
+
 ## Badge Check
 
 S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, mentor signature, and date for each row. The mentor asks the
+The student records an evidence link, an explanation in the student's own words, the mentor's
+signature, and the date for each row. The mentor asks the
 student to explain a change and its result before signing.
 
 | Row | Work | Done When |
 | --- | --- | --- |
-| B3-02.2 | Typed output capabilities | S/W: Keep voltage and current distinct; preserve typed speed and angle goals. Unsupported current requests cannot silently become voltage requests. |
-| B3-02.3 | Configuration and simulation ownership | S/M: Select general simulation, CTRE simulation, hardware and replay deliberately. Explain model-update ownership, conversions and the no-hardware replay path. |
+| B3-03.1 | Typed output capabilities | S/W: Keep voltage and current distinct; preserve typed speed and angle goals. Unsupported current requests cannot silently become voltage requests. |
+| B3-03.2 | Configuration and simulation ownership | S/M: Select general simulation, CTRE simulation, hardware and replay deliberately. Explain model-update ownership, conversions and the no-hardware replay path. |
+
+## For the Mentor
+
+`TorqueFXExample` and `ControllerModesTest` in `curriculum-reference` show the 2026 request classes
+against that project's own pinned dependencies; the two projects' dependency sets are separate. In
+`Badge3MentorSolution`, the family IO contracts declare `supportsTorqueCurrent()` and
+`setTorqueOut(Current)`, and adapters that cannot honor torque current refuse it explicitly.
+`EXPERIMENTS.md` lists the matched comparison conditions. Compare these with the student's design
+after the student has made their own decisions.
 
 <Sources items={[
   {
     "source": "advantagekit",
     "path": "data-flow/recording-inputs/io-interfaces/",
-    "note": "IO boundaries and recorded inputs used in these exercises."
+    "note": "The IO contract where typed requests meet the vendor boundary, and the REPLAY path with no hardware."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/api-reference/device-specific/talonfx/open-loop-requests.html",
+    "note": "VoltageOut and the FOC-only request naming used for TorqueCurrentFOC."
   },
   {
     "source": "ctre",
     "path": "docs/api-reference/device-specific/talonfx/closed-loop-requests.html",
-    "note": "Output types and closed-loop units."
+    "note": "Closed-loop output types and units behind the typed speed and angle goals."
+  },
+  {
+    "source": "ctre-javadoc",
+    "path": "com/ctre/phoenix6/hardware/core/CoreTalonFXS.html",
+    "note": "TalonFXS control requests: VoltageOut is available and TorqueCurrentFOC is not."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/basic-programming/java-units.html",
+    "note": "Typed Voltage, Current, AngularVelocity and Angle measures kept in the mechanism-facing API."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIO.java",
+    "note": "runTorqueCurrent as an empty default method that unsupported adapters inherit."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFX.java",
+    "note": "The TorqueCurrentFOC request the guided change starts from."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/feeder/Feeder.java",
+    "note": "runFeederVoltage and runFeederCurrent, including the voltage setting passed as amperes."
   }
 ]} />
 

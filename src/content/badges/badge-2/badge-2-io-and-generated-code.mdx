@@ -7,12 +7,12 @@ groupLabel: "Badge 2: Intermediate FRC"
 groupOrder: 2
 order: 5
 difficulty: beginner
-description: "Separate mechanism behavior from device IO, trace real/sim/replay, and build validated motor configuration records with Lombok."
+description: "Separate mechanism behavior from device IO, trace real/sim/replay, and build motor configuration records with Lombok and verify their settings in tests."
 ---
 
 Step 5 traces how the robot selects its IO and prepares a motor configuration for the roller. The
-student starts with a validated record, then uses Lombok to generate a builder with named settings.
-The mode-selection code chooses the IO implementation, and that implementation applies the
+student starts with a configuration record, then uses Lombok to generate a builder with named
+settings. The mode-selection code chooses the IO implementation, and that implementation applies the
 configuration. AdvantageKit generates the input logging and replay support through a separate
 annotation processor.
 
@@ -89,12 +89,13 @@ Before Step 7 needs it, the student adds:
   choose an IO implementation. Step 7 fills it with the roller.
 - **Lombok**, added in the [Guided Lombok Example](#guided-lombok-example) below.
 
-Every mechanism in Badge 2 is written and tested in this project: the configuration record in this
-step, the tests in Step 6, the roller in Step 7, the library in Step 8 and the composed subsystems
-in Step 9. Compare the fixture's CAN ID and controller type with the Step 4 setup sheet, and keep
-them in one named constant. Keep the swerve template's shipped device IDs and constants in
-`Badge2Swerve`; they do not describe the bench. This step builds the project without devices;
-powered robot-code checks follow in Step 7 after simulation and tests.
+Individual mechanisms are written and tested in this project: configuration in this step, tests in
+Step 6, the roller in Step 7 and the library in Step 8. Step 9 reuses that library to build the
+three composed parent subsystems directly in `Badge2Swerve`. Compare the fixture's CAN ID and
+controller type with the Step 4 setup sheet, and keep them in one named constant. Keep the swerve
+template's shipped device IDs and constants in `Badge2Swerve`; they do not describe the bench. This
+step builds the project without devices; powered robot-code checks follow in Step 7 after simulation
+and tests.
 
 ## Keep the Boundary Explicit
 
@@ -173,11 +174,18 @@ Open the replay result in AdvantageScope. Confirm that the original input table 
 step. This exercise proves the template path with a known log; the student records their own
 mechanism logs after Step 7 adds a mechanism.
 
+### Replay in the Finished Solutions
+
+The template exercise above uses `Constants.simMode`. The finished Bench solution keeps that
+switch. KitBot and Swerve instead select replay when `BADGE_REPLAY_LOG` contains an absolute
+`.wpilog` path. Set it in the terminal that launches simulation, then remove it before returning
+to SIM. Follow the solution README for the project being run; do not edit a nonexistent `simMode`.
+
 ## Extend the Mode Selection
 
 The mechanism components use the same typed interface in every mode. One construction point in
-`RobotContainer` or a factory selects the implementation. The student records the selected model or
-controller in run metadata.
+`RobotContainer` selects the implementation explicitly in its mode switch. The student records the
+selected model or controller in run metadata.
 
 | Mode | Required Mechanism Implementation | Evidence |
 | --- | --- | --- |
@@ -185,11 +193,13 @@ controller in run metadata.
 | `SIM` | General WPILib physics for all four families; required FX and FXS roller device simulations; one CTRE pivot profile comparison | Model configuration, tests, and saved logs in `Badge2Bench`. |
 | `REPLAY` | Empty implementation of the same IO interface | Recorded inputs restored by AdvantageKit; no motor, model, or notifier constructed. |
 
-The student also traces `Badge2Bench`'s mode selection and logger setup and names where its
-`RobotContainer` will construct the roller IO in each mode. An unavailable physical mechanism has no
-REAL configuration to select. A startup check reports that unsupported choice instead of silently
-substituting replay IO. The general simulation is a mechanism model; it is not a claim to emulate
-Nova firmware.
+The student also traces `Badge2Bench`'s mode selection and logger setup. In REAL, select
+`Constants.benchType` and `Constants.benchMechanism`, then deploy. The REAL branch constructs one
+motor IO for that selected role; unselected components receive empty IO. Changing roles requires
+redeployment, not reconfiguring the motor every time a button is pressed. A bare motor may represent
+the selected mechanism through its encoder conversion; this does not prove the position of an
+unattached assembly. SIM constructs four independent general models. REPLAY uses empty IO for all
+components. The general Nova simulation does not emulate Nova firmware.
 
 Before Step 7, the student opens a template inputs class annotated with `@AutoLog`, builds, and
 locates its generated `InputsAutoLogged` class under the build output. The student identifies how
@@ -203,35 +213,34 @@ The task is to describe the provided roller's motor setup in one record and pass
 constructor. The record states the requested configuration; constructing it does not contact or
 configure a motor. The IO implementation owns the vendor calls that apply it.
 
-Bring the plain `RollerConfig` practice from Step 2 into `Badge2Bench`. Use it as the starting point
-for one controller-specific record, with the proposed name `TalonFXConfig`, `TalonFXSConfig` or
-`ThriftyNovaConfig`, matching the fixture chosen in Step 4. Keep the original practice file as
-evidence. First construct the new record directly and explain each argument. Start with the provided
-controller's record. In Step 7, add the corresponding FX and FXS records needed for the two CTRE
-simulations, reusing shared value records only where meanings and units agree.
+Use the plain `RollerConfig` practice from Step 2 to explain record construction, then separate
+mechanism geometry from motor setup in the robot project. The solutions use `RollerConfig` for
+mechanism values, `CtreMotorConfig` for FX/FXS setup and `NovaMotorConfig` for Nova setup. Keep
+separate `benchTalonFXConfig` and `benchTalonFXSConfig` instances because their motor settings
+differ.
 
-Use named components for the device ID, reduction, direction, neutral behavior, and the approved
-current limits the adapter will apply. Define reduction as motor revolutions per mechanism
-revolution. Distinguish supply current from stator current wherever both are used. Add the feedback
-selection and, for FXS, motor arrangement required by the fixture. Use explicit units in component
-names or the project's immutable unit values. Required settings are explicit; each optional setting
-has a documented default and meaning. Device identity and required selections must not silently
-inherit an omitted builder value. A boxed ID with a non-null check can distinguish an omitted ID
-from a valid zero ID; validate its range against the selected controller's documentation.
+CAN identity, direction, neutral behavior, current limits and the FXS motor arrangement belong to
+the motor record. Reduction belongs to the mechanism record and means motor revolutions per
+mechanism revolution. Use typed measurements where supported and distinguish supply from stator
+current. Construct records without creating or configuring a device; the IO owns vendor calls.
 
-Keep the record constructor free of hardware creation and vendor calls. It validates required
-values, finite positive reduction, and the fixture's approved current-limit bounds. Reject an
-invalid value with a useful message instead of silently increasing a requested current limit. The
-record contains configuration values; it does not own a motor, mutable control request, or running
-controller. A record containing a mutable object still shares that object's state, so use small
-value components for this exercise.
+Keep configuration assertions in tests. Check finite positive reduction, CAN identity and the
+fixture's approved current limits before deployment. Do not add handwritten throwing guards to
+robot-callable constructors or setters. Lombok `@NonNull` checks on required record components
+are allowed. Type safety does not by itself exclude null, `NaN` or infinity.
+
+Read the actual defaults before using a builder. Primitive fields otherwise start at zero or
+`false`; a primitive CAN ID cannot distinguish omission from an explicit zero. Supply the intended
+ID explicitly and assert it in tests. `NovaMotorConfig` defaults nonpositive current limits to
+40 A, so supply positive mentor-approved limits explicitly and test the resulting record values.
+Do not treat a default as approval for the physical fixture.
 
 As the constructor gains arguments, add named construction methods with Lombok. Follow
 [Lombok: Adding It to a Project](/frc/lombok#adding-it-to-a-project) and use the plugin version
 supported by the recorded template release. Add the `io.freefair.lombok` plugin to `Badge2Bench`,
 refresh the Java project, and build before adding `@Builder` to the motor configuration record.
 Replace one direct constructor call with a builder call that supplies the same values. Both
-constructions must pass through the record's validation and produce equal values.
+constructions must produce equal values, including the documented defaults.
 
 Lombok's ordinary builder leaves unspecified values at zero, `false`, or `null`. The student
 identifies what happens if each required setting is omitted and defines defaults only where omission
@@ -240,9 +249,9 @@ separate class made only to demonstrate `@Getter`. Do not add `@Data` or generat
 mechanism state.
 
 Build the project and use `builder()`, a named setting method, and `build()` in a construction call.
-Lombok supplies those methods during compilation; the student writes the record's validation. Show
-that direct and builder construction produce equal valid records and reject the same invalid
-settings. Badge 2 does not require expanding Lombok into a separate source file.
+Lombok supplies those methods during compilation. Show that direct and builder construction produce
+equal records. Test generated `@NonNull` checks where present, and assert numeric configuration
+bounds in the test source. Badge 2 does not require expanding Lombok into a separate source file.
 
 The record and builder are prepared here without creating hardware. In
 [Step 7: One Complete Mechanism](/badges/badge-2-first-mechanism#configuration-to-hardware), the
@@ -283,7 +292,7 @@ field alone does not change motor behavior.
 | 4.2 | Trace swerve modes | The student repeats the trace for `Badge2Swerve`, including `ModuleIOTalonFX`, `ModuleIOSim`, and replay's empty IO; the student also traces `Badge2Bench`'s mode selection and names where its roller IO will be constructed |
 | 4.3 | Complete replay and restore simulation | The supplied or logging-only simulation `.wpilog` runs to completion in `REPLAY`; the generated `_sim` file contains the original inputs and `ReplayOutputs`; `simMode` is restored to `SIM` afterward |
 | 4.4 | Add Lombok | The plugin line is in `Badge2Bench`'s `build.gradle`; the project still builds; VS Code resolves the motor configuration builder |
-| 4.5 | Explain builder construction | The project builds; the student uses builder creation, a named setting and `build()`, and demonstrates the same validation through direct and builder construction |
+| 4.5 | Explain builder construction | The project builds; the student uses builder creation, a named setting and `build()`, and demonstrates equal direct/builder values, documented defaults and applicable generated null checks |
 | 4.6 | Use Lombok on purpose | The selected motor configuration works through direct and builder construction; required values and omission behavior are explained; no mechanism state receives generated setters |
 | 4.7 | Read generated inputs | After building, the student locates a template `InputsAutoLogged` class and explains its recording/replay purpose separately from Lombok. |
 
@@ -299,8 +308,9 @@ field alone does not change motor behavior.
    the whole log, and shows the generated `_sim` file with the original inputs and `ReplayOutputs`.
    Replay success is required; a source-code explanation alone does not complete this row.
 4. The student constructs equal motor configurations directly and through the builder, then
-   demonstrates a rejected setting through each construction route and explains that both use the
-   record constructor. The student explains why neither construction contacts hardware.
+   demonstrates an applicable generated null check through each construction route and identifies
+   the separate tests that check numeric settings before deployment. The student explains why
+   neither construction contacts hardware.
 5. The mentor names one field on a Badge 2 class. The student says whether another class should
    receive a getter, a setter, or a named operation, and explains who owns the field.
 

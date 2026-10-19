@@ -43,6 +43,46 @@ commands and logging helpers. A **callback** is code supplied now for another me
 A **method reference**, such as `System.out::println`, names an existing method that can serve as
 that callback.
 
+## Method References on a List and in a Stream
+
+The Badge 2 mechanism library closes every follower motor with one line:
+
+```java
+this.followers.forEach(TalonFX::close);
+```
+
+`forEach` is a method on the list itself, so this line needs no stream. `TalonFX::close` is the
+unbound form described in
+[Method References](/java/fundamentals/method-references#bound-and-unbound-instance-methods): it
+names a method of the class, and `forEach` passes each motor in the list as the object that
+`close()` runs on. The equivalent lambda shows the same work with a parameter name:
+
+```java
+this.followers.forEach((TalonFX follower) -> follower.close());
+```
+
+A stream adds steps between the list and a result, and each step accepts a method reference the
+same way. These two lines illustrate the pattern; they are not taken from the solutions:
+
+```java
+List<Integer> followerIds = this.followers.stream().map(TalonFX::getDeviceID).toList();
+boolean allFollowersConnected = this.followers.stream().allMatch(TalonFX::isConnected);
+```
+
+`map` turns each motor into its CAN ID, and `allMatch` reports whether every motor answers that it
+is connected. Phoenix 6 defines both methods on every CTRE device.
+
+Cobra uses the same pattern when it logs AprilTag IDs. FRC 4451's `AprilTagIOPhoton` collects the
+accepted IDs in a `List<Integer>`, then converts them to the `int[]` field that AdvantageKit logs:
+
+```java
+inputs.validIds = validIds.stream().mapToInt(Integer::intValue).toArray();
+```
+
+`Integer::intValue` unboxes each `Integer` into an `int`. A plain loop would also work; the stream
+states the conversion in one line. A loop reads better when the work has several steps or needs to
+stop early, as [Streams](/java/fundamentals/streams#when-a-loop-is-better) explains.
+
 The required programs must compile for Java 17 because that is the shared baseline for this practice
 and the 2026 robot project. Follow [Java Setup](/java/fundamentals/setup) if `javac` is unavailable.
 A Java 17 JDK can compile the files directly. If `javac --version` reports Java 25, the
@@ -65,39 +105,40 @@ Understanding those directions is enough here; implementing the path follower be
 
 ## Guided Example
 
-Create a folder named `Badge2JavaPractice`. Save this complete program as `ConfigPractice.java`:
+Create `Badge2JavaPractice/config-practice/`. Save this complete program there as
+`ConfigPractice.java`:
 
 ```java
 import java.util.function.Consumer;
 
 public class ConfigPractice {
-    public record RollerConfig(String name, double reduction) {
-        public RollerConfig {
-            if (name == null || name.trim().isEmpty()) {
-                throw new IllegalArgumentException("name must not be blank");
-            }
-            if (!Double.isFinite(reduction) || reduction <= 0.0) {
-                throw new IllegalArgumentException("reduction must be finite and positive");
-            }
-            name = name.trim();
-        }
+  public record RollerConfig(String name, double reduction) {
+    public RollerConfig {
+      if (name == null || name.trim().isEmpty()) {
+        throw new IllegalArgumentException("name must not be blank");
+      }
+      if (!Double.isFinite(reduction) || reduction <= 0.0) {
+        throw new IllegalArgumentException("reduction must be finite and positive");
+      }
+      name = name.trim();
     }
+  }
 
-    public static void report(RollerConfig config, Consumer<RollerConfig> callback) {
-        callback.accept(config);
-    }
+  public static void report(RollerConfig config, Consumer<RollerConfig> callback) {
+    callback.accept(config);
+  }
 
-    public static void main(String[] args) {
-        RollerConfig first = new RollerConfig("  intake  ", 3.0);
-        RollerConfig alias = first;
-        RollerConfig equalValue = new RollerConfig("intake", 3.0);
+  public static void main(String[] args) {
+    RollerConfig first = new RollerConfig("  intake  ", 3.0);
+    RollerConfig alias = first;
+    RollerConfig equalValue = new RollerConfig("intake", 3.0);
 
-        System.out.println(first.name());
-        System.out.println(first == alias);
-        System.out.println(first == equalValue);
-        System.out.println(first.equals(equalValue));
-        report(first, System.out::println);
-    }
+    System.out.println(first.name());
+    System.out.println(first == alias);
+    System.out.println(first == equalValue);
+    System.out.println(first.equals(equalValue));
+    report(first, System.out::println);
+  }
 }
 ```
 
@@ -202,5 +243,10 @@ changing the design.
   {"url": "https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html#jls-4.3.1", "label": "Java SE 17 JLS §4.3.1: Objects", "note": "Objects, reference values, and null in the language version required by this step."},
   {"url": "https://docs.oracle.com/javase/specs/jls/se17/html/jls-8.html#jls-8.10", "label": "Java SE 17 JLS §8.10: Record Classes", "note": "Record components, generated members, and compact constructors in Java 17."},
   {"url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Record.html", "label": "Java SE 17 Record API", "note": "The value-based contract and generated members shared by record classes."},
-  {"url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/function/Consumer.html", "label": "Java SE 17 Consumer API", "note": "The one-argument callback type used by <code>report</code>."}
+  {"url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/function/Consumer.html", "label": "Java SE 17 Consumer API", "note": "The one-argument callback type used by <code>report</code>."},
+  {"url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Iterable.html", "label": "Java SE 17 Iterable API", "note": "<code>forEach</code> is defined on the collection itself, so closing each follower needs no stream."},
+  {"url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Stream.html", "label": "Java SE 17 Stream API", "note": "<code>map</code>, <code>allMatch</code>, <code>mapToInt</code> and <code>toList</code> in the stream examples."},
+  {"source": "ctre-javadoc", "path": "com/ctre/phoenix6/hardware/TalonFX.html", "note": "<code>close</code>, declared by <code>TalonFX</code> as an <code>AutoCloseable</code>."},
+  {"source": "ctre-javadoc", "path": "com/ctre/phoenix6/hardware/ParentDevice.html", "note": "<code>getDeviceID</code> and <code>isConnected</code>, shared by every Phoenix 6 device."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/vision/AprilTagIOPhoton.java", "note": "The quoted <code>validIds</code> stream that converts accepted tag IDs to a logged <code>int[]</code>."}
 ]} />

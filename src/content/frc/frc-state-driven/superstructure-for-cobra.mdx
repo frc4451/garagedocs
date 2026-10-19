@@ -30,14 +30,29 @@ Every page in this group, plus [VirtualSubsystem](/frc/virtual-subsystem),
 Cobra's `Robot.robotPeriodic()` runs `VirtualSubsystem.runPeriodically()` first and
 `CommandScheduler.getInstance().run()` second. Virtual subsystems run in construction order;
 `BobotState` is constructed in `RobotContainer` and updates its VARCs in its `periodic()`. The
-scheduler then polls triggers, runs commands, and calls every `SubsystemBase.periodic()`.
+scheduler first calls registered subsystem periodic methods (and simulation periodic methods in
+simulation), then polls triggers, executes and finishes scheduled commands, and schedules defaults.
 
 That fixes the superstructure's place: a `VirtualSubsystem` constructed *after* `BobotState`. Each
 loop it then runs after the VARCs are fresh and before any subsystem's `periodic()`, so the wanted
 states it sets are applied by the subsystems in the same loop. The one lag to know about: the
 readiness it reads (`isNearHubVelocity`, `isNearGoal`) comes from inputs the subsystems updated in
-the *previous* loop's `periodic()`. Twenty milliseconds, the same lag every trigger on the robot
-already has.
+the *previous* loop's `periodic()`. At the nominal loop period this is about 20 ms. Triggers polled
+inside the scheduler run after subsystem inputs are refreshed, so they do not share that same
+blanket input delay.
+
+| Phase | Observation and Request Timing |
+| --- | --- |
+| Pre-scheduler VirtualSubsystem pass | BobotState and the proposed superstructure read the subsystem inputs left by the previous loop. |
+| Registered subsystem periodic methods | Read current IO; subsystem-owned output logic applies the wanted state available at this point. |
+| Trigger polling | Conditions can see refreshed inputs; a newly scheduled command may initialize here. |
+| Scheduled command execution | A command can change a wanted state. If outputs are applied only in periodic, that request is applied on the next periodic pass. |
+| Default scheduling | A free subsystem receives its default command for subsequent execution. |
+
+For a trace, label loops N and N+1. If speed first reaches tolerance during subsystem periodic in N,
+a later trigger can see that sample in N. A pre-scheduler superstructure sees it in N+1. Record the
+particular consumer and the actual output owner before claiming a one-loop delay. This design
+exercise concerns the original Cobra source; the migrated acquisition subsystem has its own order.
 
 ```java
 // RobotContainer constructor, in this order
@@ -162,6 +177,7 @@ migration order with the proof for each step; and one sentence per subsystem say
 converts and why. That document, not the code, is the deliverable of this group.
 
 <Sources items={[
+  {"source": "wpilib", "path": "docs/software/commandbased/command-scheduler.html", "note": "Scheduler phases: subsystem periodic, trigger polling, command execution, then default scheduling."},
   {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "robotPeriodic: VirtualSubsystem.runPeriodically() before CommandScheduler.run()."},
   {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/util/VirtualSubsystem.java", "note": "Construction-order registration and runPeriodically."},
   {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "new BobotState(), the hood zone bindings, the shot and feed bindings the design absorbs."},

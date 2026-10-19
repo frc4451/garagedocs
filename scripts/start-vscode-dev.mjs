@@ -96,7 +96,34 @@ server.on('error', (error) => {
   process.exitCode = 1;
 });
 
-server.on('exit', (code, signal) => {
+server.on('close', async (code, signal) => {
+  // Astro refuses to start a second server for this project. Reopen the one it reports.
+  if (/Another astro dev server is already running\.|Dev server already running at/i.test(serverOutput)) {
+    const match = serverOutput.match(/(?:URL:\s+|Dev server already running at\s+)(https?:\/\/[^\s"\\]+)/i);
+    if (match) {
+      try {
+        const url = new URL(match[1]);
+        if (!['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) {
+          throw new Error('The existing server URL is not local.');
+        }
+        const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        await response.body?.cancel();
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        console.log(`Reusing GarageDocs at ${url.href}`);
+        if (!browserOpened) {
+          browserOpened = true;
+          openInDevelopmentBrowser(url.href);
+        }
+        process.exitCode = 0;
+        return;
+      } catch (error) {
+        console.error(`The existing GarageDocs server is not ready: ${error.message}`);
+        console.error('Run npx astro dev stop, then run this task again.');
+        process.exitCode = 1;
+        return;
+      }
+    }
+  }
   if (signal) console.log(`GarageDocs stopped by ${signal}.`);
   process.exitCode = code ?? 0;
 });

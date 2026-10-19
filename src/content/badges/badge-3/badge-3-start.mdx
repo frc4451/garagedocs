@@ -10,47 +10,60 @@ difficulty: advanced
 description: "Preserve and explain the supplied base, record the diagnostic, and plan hardware, technical and leadership evidence."
 ---
 
-The student starts with the mentor-supplied `Badge3RobotBase`, preserves that copy, and makes the
-assessed changes in a separate `Badge3Robot` folder. Everyone begins from the same working robot so
-the review can focus on what the student changed and why.
+The student starts with the mentor-supplied `Badge3Starter`, preserves that baseline, and completes
+the full migration in an individual fork. Collaborate on review and experiments while retaining
+individual ownership of every required change. Everyone begins from the same recorded source.
 
 Badge 2 or mentor-verified equivalent work is the prerequisite. Badge 2 supplies four general
 simulated mechanism families, including an elevator, one provided-controller roller, FX and FXS
-roller device simulations, configuration records and builders, a CTRE pivot profile comparison,
-composition, two-camera AprilTag IO, paths, tests, and replay. The supplied base may also contain
-linear rail, extra assemblies, and additional vendor adapters. Those are supplied assets, not
-evidence that the student implemented them or additional Badge 2 prerequisites. Its simulation
-constants describe a teaching model. They are not physical fixture settings.
+roller device simulations, a Nova roller approximation, configuration records and builders, 2D
+mechanism drawings, a CTRE pivot profile comparison, composition, two-camera AprilTag IO, robot
+state, paths, tests, and replay. The supplied Cobra base may also contain other assemblies and
+vendor adapters. The student explains the parts each step uses; supplied code is neither student
+evidence nor an extra Badge 2 prerequisite. Its simulation constants describe a teaching model, and
+each physical fixture gets its own measured settings.
 
 ## Start with the Diagnostic
 
 The mentor administers [Written Checks](/badges/badge-3-written-checks) before instruction. The
 initial result identifies topics to practice. Keep the correction record open while the student
 learns the assessed topics. Complete the independent equivalent mastery attempt at 100% after the
-relevant instruction, before the separate 100% final in Step 13. Neither corrected attempt is an
-entry gate for the technical lessons. A mistake does not erase practical rows already completed.
+relevant instruction, before the separate 100% final in Step 15. The technical lessons start without
+waiting for either attempt. A mistake does not erase practical rows already completed.
 
 ## Establish the Baseline
 
-1. Obtain the base source archive and its `SOURCE-MANIFEST.json` from the mentor. Record the
-   release, Java version, WPILib version, and vendordeps in the student's README. Use a local folder
-   outside OneDrive because GradleRIO rejects projects inside it.
-2. Open the base folder in VS Code using the installed WPILib environment. Follow its README to run
-   `gradlew.bat build` on Windows or `./gradlew build` in a terminal. Save the result. Explain one
-   mechanism test and one subsystem interlock test.
-3. Run the saved baseline autonomous routines. Find the requested path, estimated pose, measured
-   mechanism position, and mechanism goal in the log. Explain which IO implementation the selected
-   mode constructs.
-4. Copy the project to `Badge3Robot`. Change its project name, preserve the original version record,
-   and establish a new evidence directory. Keep baseline logs so later changes can be compared.
+1. Obtain `Badge3Starter` from the mentor. Record the release, Java version, WPILib version, and
+   vendordeps in the student's README. Use a local folder outside OneDrive, as the Starter README
+   directs.
+2. Open `Badge3Starter/README.md` and `BASELINE.md`. The working copy keeps the pre-migration API
+   and robot logic; the README lists its dated revisions. `WORKING-SOURCE-MANIFEST.json` records
+   its current hashes; `SOURCE-MANIFEST.json` is the historical record of the original files. Run
+   the verification command in the README. It tests the working copy with explicitly non-release
+   build metadata and runs 50 disabled simulation loops. Save its test report and log.
+3. Inspect the baseline log and record its exact scope. A disabled startup check shows that the
+   code starts; it says nothing about an autonomous path. Before comparing an autonomous change,
+   record the selected routine, mode, initial pose, enabled duration, outcome, and requested versus
+   measured traces in the student fork. Keep that enabled baseline pending until it has been
+   observed.
+4. Create the student fork and working copy. Change its project name, preserve the original version
+   record, and establish an evidence directory. Keep baseline logs for later comparisons.
 
 Make one bounded independent change to a core mechanism configuration or interlock in the student
 copy. Predict its effect, run the related test or simulation, and save a comparison with the
-unchanged baseline. Do not use a supplied extension as a hidden prerequisite.
+unchanged baseline. Choose a change the student can explain from the core code alone.
 
-The mentor also has a separate `curriculum-reference` project. Its focused examples support
-instruction; they are not completed student evidence. The mentor provides an example when its module
-begins, then checks an independent adaptation.
+The completed `Badge2MechanismReference`, supplied by the mentor, remains available for comparison
+throughout the migration.
+
+Move active reusable code to `org.robotzgarage.frc2027`. Keep drivetrain and robot-specific shooting
+policy in the robot project. Begin with one roller: in the fork, follow
+`Feeder.runFeederVoltage()` into the tower. Cobra builds the tower as a `Flywheel`, which extends
+`SingleRoller`, so `runVolts()` is the inherited `SingleRoller.runVolts()`. Continue to the
+`SingleRollerIO` contract, then `SingleRollerIOTalonFX`, which `RobotContainer` constructs from
+`FeederConstants.towerConfig`. A class named `Flywheel` that only receives effort requests is still
+a roller. Keep each family explicit and place commands in its parent subsystem. Add abstractions
+only when they make that path easier to explain.
 
 ## Plan the Work
 
@@ -64,41 +77,120 @@ and the two CTRE roller simulation paths belong to Badge 2. Review the student's
 controller and saved baseline at entry. Before each advanced physical demonstration, complete the
 [fixture-specific preparation](/badges/badge-3-hardware#complete-the-setup-sheet) and relevant
 simulation checks. Reuse a matching physical FX voltage baseline or establish one on the actual
-fixture before current-control comparisons. The hardware evidence review is not a reason to postpone
-those checks.
+fixture before current-control comparisons. Do these checks as each mechanism is ready; Step 13
+reviews them at the end.
 
 Open the [leadership requirements](/badges/badge-3-review) now. Plan opportunities to diagnose a
 saved run, review code, and help a Badge 1 or 2 student. Record evidence as those opportunities
 occur.
 
-Compare `SOURCE-MANIFEST.json` and the supplied README with the current site requirements. Record
-which files are supplied, which the student changes, and which belong to optional extensions.
-Preserve the original archive and manifest. If its README still lists linear rail or maple-sim as
-required, attach the [site revision record](/badges/badge-3-sign-off#curriculum-revision-record);
-the current required outcomes govern completion.
+Compare `WORKING-SOURCE-MANIFEST.json` and the Starter README with the current site
+requirements. Record which files are supplied, which the
+student changes, and which belong to optional extensions. Preserve both manifests. Where an older
+packet disagrees with the site, attach the
+[site revision record](/badges/badge-3-sign-off#curriculum-revision-record); the current required
+outcomes govern completion.
+
+## First Readiness Experiment
+
+Before the mechanism steps, find out how Cobra decides it is ready to feed. In the fork, open
+`RobotContainer.java` and find the A-button binding. It runs `feeder.runFeederVoltage()` whenever
+`BobotState.shouldStopFeedingFuelToShooter()` is false. Read that condition in
+`bobot_state/BobotState.java`: it checks the field zone and the shooter's position near the hub.
+Teleop feeding never reads the measured flywheel speed or hood angle.
+
+Then open `autonomous/AutonomousManager.java` and read `handleInterpolateShooterToHub`. Autonomous
+waits until the robot is far enough from the hub and `Shooter.isNearHubVelocity` reports the
+flywheel within 2 rotations per second of its interpolated speed, then feeds until the shot's time
+runs out. It checks once: a speed drop after feeding starts does not stop the feeder.
+
+Record, for each path, which measurements permit feeding and which are ignored. Predict what happens
+when the operator holds A before the flywheel reaches speed, and when the flywheel slows during an
+autonomous shot. Once the enabled baseline above is recorded, check one prediction in simulation by
+comparing the logged feeder output with the measured flywheel speed. These are observations of the
+supplied code, not hardware settings.
+
+The independent change adds one readiness condition to a copy of one path, such as a settling time
+before the autonomous wait ends, and predicts the new feed time before running it. Save this
+exercise under B3-01.2. Step 9 turns the same question into subsystem-owned states with refusal
+reasons, and that evidence extends into B3-09.2.
 
 ## Badge Check
 
 S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, mentor signature, and date for each row. The mentor asks the
+The student records an evidence link, an explanation in the student's own words, the mentor's
+signature, and the date for each row. The mentor asks the
 student to explain a change and its result before signing.
 
 | Row | Work | Done When |
 | --- | --- | --- |
 | B3-01.1 | Diagnostic and correction | W/M: Record the initial diagnostic at entry; correct reasoning through instruction and complete an independent equivalent 100% mastery attempt after the assessed topics. This row closes before the separate final, not before Step 2. |
-| B3-01.2 | Preserve and explain the base | S/M: Build the supplied release, run its baseline checks, explain configuration and ownership, and record the starting version before creating `Badge3Robot`. Predict and demonstrate one independent core change in the student copy. |
+| B3-01.2 | Preserve and explain the base | S/M: Build the supplied release, run its baseline checks, explain configuration and ownership, and record the starting version before starting the individual migration. Predict and demonstrate one independent core change in the student copy. |
 | B3-01.3 | Plan the work | W/M: Identify supplied behavior, assessed changes, equipment, performance targets, dependencies and evidence locations. |
+
+## For the Mentor
+
+The Starter has no migrated test suite. The mentor solution, `Badge3MentorSolution`, is the worked
+answer to this badge; `TRAINING-MATERIALS.md` maps each step to its reference file and test, and the
+focused `curriculum-reference` examples stay mentor-side.
+
+The readiness gap above is what the mentor's `frc.robot.subsystems.feeder.FeedPolicy` closes. To
+show where the student's design can lead after they have recorded their own predictions, run
+`FeedPolicyTest` from the mentor solution's folder:
+
+<CodeTabs>
+<CodeTab label="PowerShell">
+
+```powershell
+.\gradlew.bat test --tests "*FeedPolicyTest"
+```
+
+</CodeTab>
+<CodeTab label="Terminal">
+
+```sh
+./gradlew test --tests "*FeedPolicyTest"
+```
+
+</CodeTab>
+</CodeTabs>
+
+With possession, reference, clearance, mode and goals valid and the measured angle within 1 degree
+of its goal, the default policy uses a 2 rotation per second speed tolerance, a 0.12 second settling
+dwell, and a 3 second timeout from the request. A requested 40 rotations per second against a
+measured 30 refuses with `SPEED`; raising the measurement to 40 gives `SETTLING`, then `READY` after
+the dwell; holding `SPEED` for 3 seconds latches `TIMEOUT`; removing possession refuses at once.
 
 <Sources items={[
   {
     "source": "advantagekit",
     "path": "data-flow/recording-inputs/io-interfaces/",
-    "note": "IO boundaries and recorded inputs used in these exercises."
+    "note": "Recorded inputs and replay behind the baseline log and its later comparison."
   },
   {
     "source": "wpilib",
     "path": "docs/software/commandbased/subsystems.html",
-    "note": "Subsystem ownership and command requirements."
+    "note": "Subsystem and command ownership traced in the first roller exercise."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/commandbased/binding-commands-to-triggers.html",
+    "note": "Trigger composition with and() and negate(), as in Cobra's feed binding and autonomous wait."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/RobotContainer.java",
+    "note": "The A-button feed binding gated only by shouldStopFeedingFuelToShooter, and the tower IO construction."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/bobot_state/BobotState.java",
+    "note": "shouldStopFeedingFuelToShooter: the field-zone and hub-position feed condition."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/autonomous/AutonomousManager.java",
+    "note": "handleInterpolateShooterToHub: the single 2 rotation per second speed check before autonomous feeding."
   }
 ]} />
 

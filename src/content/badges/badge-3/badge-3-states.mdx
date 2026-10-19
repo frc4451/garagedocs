@@ -1,19 +1,20 @@
 ---
-title: "Step 8: Subsystem-Owned States"
+title: "Step 9: Subsystem-Owned States"
 lessonId: badge-3-states
 section: badges
 group: badge-3
 groupLabel: "Badge 3: Advanced FRC"
 groupOrder: 3
-order: 8
+order: 9
 difficulty: advanced
-description: "Subsystem-Owned States work, evidence, and mentor review for the Badge 3 capstone."
+description: "Build guarded subsystem transitions and explain readiness, refusal, interruption, and recovery from measured inputs."
 ---
 
 The student combines the refined mechanisms into behavior owned by a subsystem. Start after the
-roller, flywheel and pivot simulation checks in Steps 4, 5 and 7. FuelSim is needed for the later
-integrated launch, not for the first state-transition tests. Hardware demonstrations may be
-scheduled separately. Read [Why State Machines](/frc/why-state-machines),
+roller, flywheel and pivot simulation checks in Steps 4, 5 and 7, and the drawing work in Step 8.
+FuelSim is needed for the later integrated launch, not for the first state-transition tests.
+Hardware demonstrations may be scheduled separately. Read
+[Why State Machines](/frc/why-state-machines),
 [Subsystem State Machines](/frc/subsystem-state-machines),
 [States, Commands and Triggers](/frc/states-commands-and-triggers), and
 [Transition Graphs](/frc/transition-graphs).
@@ -29,9 +30,17 @@ stopped until possession is confirmed, pivot reference is valid, and measured sp
 satisfy readiness for the required interval. A requested goal is not evidence that the mechanism
 reached it.
 
-Retain relevant clearance rules from the supplied composed subsystem. Moving the rule into a state
-machine does not make the physical conflict disappear. Identify which measured conditions permit a
-transition and which faults require an explicit recovery action.
+Retain relevant clearance rules from the supplied code. The physical conflict is still there after
+the rule moves into a state machine, so the rule moves with it. Identify which measured conditions
+permit a transition and which faults require an explicit recovery action.
+
+Cobra's rules are triggers in `RobotContainer`'s operator bindings. While the right bumper is held,
+the field zone picks the hood preset: DOWN near the alliance hub, UP in the neutral zone, MID in the
+far zone. The hood drops to DOWN near the trench, when the intake is down, or when the bumper is
+released. A separate right-bumper binding picks the shooter's table: the hub table near the alliance
+hub and the dropoff table elsewhere, without the trench check. `RobotContainer` also defines
+`configureHoodBindings` with a different automatic mapping, but nothing calls it. Write these rules
+into the transition table before replacing them.
 
 ## Connect Commands to Requests
 
@@ -39,10 +48,9 @@ Commands request behavior from the subsystem and declare its requirement. The su
 guards and owns actuator outputs. Avoid one command writing the roller while another subsystem loop
 writes a different roller output in the same cycle.
 
-The `Acquisition` teaching example is a deterministic transition policy used later in Step 10. It
-deliberately receives observations as arguments. The student adapts the approach into a subsystem,
-connects logged IO, and defines outputs for every state, including failure and interruption. The
-policy example alone is not a working autonomous robot.
+Write the transition policy first as a class that receives observations as arguments, so a test can
+drive it deterministically without motors or a field. Then adapt it into the subsystem, connect
+logged IO, and define outputs for every state, including failure and interruption.
 
 ## Exercise the Refusals
 
@@ -56,28 +64,77 @@ observation. The student predicts the refusal or timeout and proves it with the 
 mentor reviews the transition table alongside the code to check that both describe the same
 behavior.
 
+## Trace the Integrated Behavior
+
+In the fork, trace the behavior the states replace: the right-bumper shooting bindings, the
+A-button feed binding from Step 1, and the trench and intake triggers that drop the hood. Record
+which measured inputs reach each decision from Drive, Intake, Feeder, Shooter, and Hood. Then change
+one transition guard in the student's state machine, predict the refusal, and compare a normal run
+with the corresponding failure run.
+
+## Keep the Shot Setup Together
+
+Because Cobra chooses the shooter's table and the hood preset in separate bindings, a trench
+crossing can leave the dropoff table running with the hood at DOWN. Name the table and its required
+hood preset together in one place, keeping Cobra's pairing: near uses the hub table with DOWN,
+neutral uses the dropoff table with UP, and far uses the dropoff table with MID. Aiming, operator
+speed requests, hood selection, and readiness use that choice. Clearance can request DOWN; it does
+not make a dropoff table valid at DOWN. A mismatch refuses feeding, and a changed mode starts a new
+settling interval. Log the selected mode, hood goal and measurement, flywheel goal and measurement,
+and the refusal reason together.
+
+Test the shooting binding across zone changes and a trench-clearance condition, and test mismatch
+refusal and recovery dwell separately. These checks preserve the shared dropoff table; they do not
+establish its physical passing accuracy.
+
 ## Badge Check
 
 S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, mentor signature, and date for each row. The mentor asks the
+The student records an evidence link, an explanation in the student's own words, the mentor's
+signature, and the date for each row. The mentor asks the
 student to explain a change and its result before signing.
 
 | Row | Work | Done When |
 | --- | --- | --- |
-| B3-07.1 | Subsystem-owned states | S/W: Integrate roller, flywheel and pivot with current/requested state and guarded transitions, following the state-driven FRC reference. Commands request behavior; the subsystem owns transitions and actuators. |
-| B3-07.2 | State failure behavior | S: Test valid and refused transitions, readiness failure, timeout, interruption and explicit recovery. Preserve the earlier clearance rules where relevant. |
+| B3-09.1 | Subsystem-owned states | S/W: Integrate roller, flywheel and pivot with current/requested state and guarded transitions, following the state-driven FRC reference. Commands request behavior; the subsystem owns transitions and actuators. |
+| B3-09.2 | State failure behavior | S: Test valid and refused transitions, readiness failure, timeout, interruption and explicit recovery. Preserve the earlier clearance rules where relevant. |
+
+## For the Mentor
+
+`curriculum-reference` contains an isolated transition policy, `frc.robot.curriculum.Acquisition`,
+that receives observations as arguments. In `Badge3MentorSolution`, the integrated
+`frc.robot.subsystems.acquisition.Acquisition` coordinates Drive, Intake, Feeder, Shooter, Hood, and
+Possession; `ShotMode` pairs each table with its hood preset; and `ShotModeSimulationTest` and
+`FeedPolicyTest` cover the zone, trench, mismatch and dwell cases. The log shows them as
+`ShotSelection` and `Feeder/Refusal`. Compare them with the student's design after the student has
+built their own.
 
 <Sources items={[
   {
     "source": "wpilib",
     "path": "docs/software/commandbased/subsystems.html",
-    "note": "Subsystem ownership and command requirements."
+    "note": "Command requirements and subsystem ownership behind owned transitions."
   },
   {
     "source": "advantagekit",
     "path": "data-flow/recording-inputs/io-interfaces/",
-    "note": "IO boundaries and recorded inputs used in these exercises."
+    "note": "Logged IO inputs that the transition guards read, so a refusal can be replayed."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/commandbased/binding-commands-to-triggers.html",
+    "note": "Trigger composition in the zone, trench and bumper bindings the states replace."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/RobotContainer.java",
+    "note": "The operator hood and shooter bindings, the unused configureHoodBindings, and the feed binding."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/bobot_state/BobotState.java",
+    "note": "The field-zone and trench triggers the bindings read."
   }
 ]} />
 
-<LinkGrid title="Continue" section="badges" links={[{"label": "Step 9: Object Detection and Acquisition Geometry", "id": "badge-3-object-detection"}, {"label": "Badge 3: Advanced FRC", "id": "badge-3"}]} />
+<LinkGrid title="Continue" section="badges" links={[{"label": "Step 10: Object Detection and Acquisition Geometry", "id": "badge-3-object-detection"}, {"label": "Badge 3: Advanced FRC", "id": "badge-3"}]} />

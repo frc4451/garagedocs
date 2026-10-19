@@ -42,7 +42,7 @@ rules that matter most, because they are the ones generated text breaks:
   that confirms it.
 - **"Must" only for real requirements** (rules, inspection, safety, API contracts). Advice
   is written as advice with its reason.
-- **Sentence-case headings** inside pages; **Title Case titles** in frontmatter, without
+- **Title Case headings and titles**, following the later shared Mentor Voice Prose Guide, without
   taglines (a series is "Series: Item", as in "Manual Tuning: Flywheel").
 - **Plain, direct, conversational without a persona.** One idea per paragraph, concrete
   subjects, active verbs, the practical idea before the terminology, and the useful result
@@ -144,7 +144,7 @@ September 2026 as out of scope. Do not resurrect either or add links to them.
   `/java/fundamentals`, Part 2 Practice Assignments at `/java/assignments`), kit-bot, frc,
   badges; then the Resources and References apps.
 - Badges are the Automation Team's year-by-year sign-off paths, rendered as flat lists rather
-  than collapsible groups. Badge 1 (Kit Bot) is written; Badges 2 and 3 are placeholders.
+  than collapsible groups. Badges 1, 2, and 3 have authored learning paths; open validation status is recorded in their handoffs.
   Badge pages carry no durations and no answer key.
 - The Java playground runs real Java in the browser via CheerpJ + ECJ
   (`src/lib/java-playground/`, ported from
