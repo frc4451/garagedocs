@@ -195,7 +195,7 @@ export const sourceRegistry = {
   'maple-sim': {
     name: 'maple-sim docs',
     base: 'https://shenzhen-robotics-alliance.github.io/maple-sim/',
-    version: 'maplesim 0.4.0-beta-obstacles-fix, frcYear 2026',
+    version: 'maplesim 0.4.0-beta, frcYear 2026',
   },
   'maple-sim-source': {
     name: 'maple-sim source',
