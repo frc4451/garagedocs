@@ -13,7 +13,27 @@ description: "Review physical evidence collected after each mechanism simulation
 The student and mentor review physical evidence collected throughout the badge. Controller setup and
 use begin in [Badge 2 Hardware Setup and Utilization](/badges/badge-2-hardware). Each advanced
 demonstration follows its mechanism's simulation checks and the actual fixture preparation below.
-The physical work happens alongside each mechanism; this step reviews it.
+The physical work happens alongside each mechanism; this step reviews it. Steps 4, 5, 7 and 10 link
+here before their hardware rows, so read the setup sheet and first-enable sections before the first
+powered check.
+
+## Hardware Resources
+
+| Lesson | What to Review |
+| --- | --- |
+| [Hardware Bring-Up Checklist](/hardware/hardware-bring-up-checklist) | The order for commissioning a device: identity, firmware, licenses, faults, then motion. |
+| [CTRE and Phoenix Tuner X](/hardware/ctre-hardware-setup) | Tuner X as the hardware client, CAN bus bring-up and checking license state. |
+| [Control Requests](/frc/control-requests#licensing-in-one-place) | Which requests need a Phoenix Pro license and what an unlicensed device does instead. |
+| [CANcoder Absolute Position](/frc/cancoder-absolute-position) | Magnet offset, placement and fused feedback for the pivot reference. |
+| [Thrifty Bot and Thrifty Config](/hardware/thrifty-bot-hardware-and-config) and [Thrifty Nova Control](/frc/thrifty-nova-control) | Nova identity, CAN ID and the control API for a Nova route. |
+| [Tunable Constants and Characterization](/frc/tunable-constants-and-characterization) | Bounded characterization runs and recording gains with their units. |
+
+| Resource | What to Review |
+| --- | --- |
+| [Phoenix Tuner X](https://v6.docs.ctr-electronics.com/en/stable/docs/tuner/index.html) and [Controlling Devices](https://v6.docs.ctr-electronics.com/en/stable/docs/tuner/controlling-devices.html) | Inspecting devices and bounded operation with the Driver Station enabled. |
+| [What Is Licensing](https://v6.docs.ctr-electronics.com/en/stable/docs/licensing/what-is-licensing.html) and [Control Types](https://v6.docs.ctr-electronics.com/en/stable/docs/api-reference/device-specific/talonfx/talonfx-control-intro.html) | Pro features, simulation without a license, and the unlicensed behavior of `TorqueCurrentFOC`. |
+| [Tuning CANrange](https://v6.docs.ctr-electronics.com/en/stable/docs/hardware-reference/canrange/tuning-canrange.html) | Proximity thresholds from signal strength and distance for the possession sensor. |
+| [Thrifty Config](https://docs.thethriftybot.com/software/thrifty-config) | The configuration application for a Nova fixture. |
 
 ## Complete the Setup Sheet
 
@@ -23,11 +43,20 @@ gearing, current/output bounds, license requirements, reference procedure, permi
 support/clearance. Add the selected output mode, gain units, profile constraints, and error,
 settling, overshoot and repeatability targets for the advanced experiment.
 
-Keep a commissioning record beside the setup sheet: installed CANrange identity, occupied and empty
-distance ranges, signal freshness, pivot references, and output-mode gains. Leave the possession
-sensor's installed values unset in code until the physical checks are reviewed, and make sure that
-with them unset, disconnected or invalid inputs refuse normal forward-feed permission. SIM evidence
-does not supply those installed values.
+Keep a commissioning record beside the setup sheet. Record distances in inches and note the
+sensor's meter reading beside each one, since the CANrange reports meters.
+
+| Item | Record |
+| --- | --- |
+| Possession sensor | CANrange CAN ID and bus, mounting location, and what a detection proves about the game piece. |
+| Thresholds | Occupied and empty distance ranges, signal strength in each state, and the band between them. |
+| Health and freshness | Measurement health when empty and occupied, update rate, sample age, and a disconnect and reconnect log. |
+| Pivot references | Manual reference procedure, absolute sensor offset, and the repeatability result. |
+| Gains | Each output mode's gains with their units. |
+
+SIM evidence does not supply these installed values. Until they are reviewed and entered, check that
+the robot treats possession as unknown on hardware: a disconnected or invalid sensor reading must
+stop the Step 9 readiness policy from allowing a feed.
 
 ## First Enable
 
@@ -45,20 +74,31 @@ and demonstrate cancellation cleanup.
 
 ## Required Demonstrations
 
-Talon FX requires physical torque-current roller, flywheel and pivot demonstrations. On at least one
-mechanism, compare voltage and torque-current control using a verified matching Badge 2 FX baseline
-or a new matched voltage run. Record separate gain units and comparable conditions. Complete bounded
-physical characterization with cancellation cleanup and the pivot's manual reference, absolute/fused
-reference, travel and repeatability checks.
+`TorqueCurrentFOC` and `FusedCANcoder` feedback need a Phoenix Pro license on the device or on its
+CANivore; simulation needs none. A request that passed every simulation row can produce no motion on
+an unlicensed Talon FX: CTRE documents that the device disables its output, sets the
+`UnlicensedFeatureInUse` fault and blinks its unlicensed pattern. Confirm license state in Phoenix
+Tuner X before the appointment, and check that fault first when a torque request does nothing.
 
-Badge 2 introduced all three controllers. Review its selected physical route as prior evidence. If
-that route was FXS or Nova, matching evidence may be recorded under B3-13.2 or B3-13.3. Neither
-additional physical port is required for a student who used FX; mark unselected routes as
-extensions. The required advanced FX demonstrations remain B3-13.1. The FX/FXS roller, flywheel and
+Run each demonstration through the student's own IO on the deployed robot code, not through Tuner X
+controls, and make each log identify the active request type and its gain units. Before the voltage
+and torque-current comparison, predict how measured speed and supply current change in each mode
+when the same load is added, then compare the prediction with the log.
+
+Row B3-13.1 requires physical torque-current roller, flywheel and pivot demonstrations. On at least
+one mechanism, compare voltage and torque-current control using a verified matching Badge 2 FX
+baseline or a new matched voltage run. Record separate gain units and comparable conditions.
+Complete bounded physical characterization with cancellation cleanup and the pivot's manual
+reference, absolute/fused reference, travel and repeatability checks.
+
+Badge 2 introduced all three controllers. Review its selected physical route as prior evidence under
+B3-13.2 or B3-13.3; the rows below say when each is an extension. The FX/FXS roller, flywheel and
 pivot simulation comparisons remain required and extend the earlier voltage work.
 
 For a Nova route or extension, use the [controller introduction](/hardware/thrifty-nova-and-motors),
-the actual pinned library and a documented motor/feedback arrangement. Retain configuration,
+the ThriftyLib version the project pins (the Starter pins 2026.0.1, `com.thethriftybot`; Step 7's
+Nova absolute-reference path moves to 2026.2.2, `com.thrifty`) and a documented motor/feedback
+arrangement. Retain configuration,
 conversion, output-boundary, status and stop evidence. A general WPILib model does not emulate Nova
 firmware. Cobra's `SingleRollerIONova` is a design reference to inspect, not a fixture prescription;
 verify its assumptions against the selected device.
@@ -71,7 +111,8 @@ intentional jams, and injected electrical faults are not required.
 
 A second student follows the written setup and reference procedure with the mentor present. The
 author observes and answers questions after the attempt. Correct unclear instructions and repeat the
-affected action. A required hardware row remains open until its demonstration is complete. Reuse
+affected action. The handoff supports B3-07.2, B3-13.4 and B3-15.1. A required hardware row remains
+open until its demonstration is complete. Reuse
 this observed handoff in Step 15 when it meets that requirement; repeat only missing or changed
 actions.
 
@@ -97,8 +138,28 @@ until reviewed installation values are entered.
 
 <Sources items={[
   {"url":"https://docs.home.thethriftybot.com/javadoc/com/thethriftybot/devices/ThriftyNova.html", "label":"ThriftyLib API (com.thethriftybot, pinned at 2026.0.1 in Cobra and the Starter)", "note":"Motor selection and configuration methods; verify the chosen fixture separately."},
-  {"url":"https://software.thethriftybot.com/javadoc/latest/com/thrifty/canEncoder/package-summary.html", "label":"Thrifty API (com.thrifty, pinned at 2026.2.2 in Badge2MechanismReference and the mentor solution)", "note":"Newer package used by the mentor's Nova and CAN encoder adapters."},
+  {"url":"https://software.thethriftybot.com/javadoc/latest/com/thrifty/canEncoder/package-summary.html", "label":"Thrifty API (com.thrifty, the 2026.2.2 release Step 7's Nova absolute-reference path pins)", "note":"Newer package with the Nova and CAN encoder classes."},
   {"url":"https://www.thethriftybot.com/products/thrifty-nova", "label":"Thrifty Nova", "note":"Published NEO and NEO 550 compatibility."},
+  {
+    "source": "ctre",
+    "path": "docs/api-reference/device-specific/talonfx/talonfx-control-intro.html",
+    "note": "TorqueCurrentFOC and FOC need a Pro license; an unlicensed device disables output for requests that require FOC and sets UnlicensedFeatureInUse."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/licensing/what-is-licensing.html",
+    "note": "Pro features and simulation without a license."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/hardware-reference/canrange/tuning-canrange.html",
+    "note": "Signal strength and distance thresholds for the commissioning record."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/tuner/controlling-devices.html",
+    "note": "Bounded operation with Tuner X and the Driver Station enable requirement."
+  },
   {
     "source": "ctre",
     "path": "docs/api-reference/api-usage/configuration.html",

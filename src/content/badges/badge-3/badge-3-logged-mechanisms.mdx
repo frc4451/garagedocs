@@ -29,7 +29,8 @@ Badge 2 used these objects for all four mechanism families. Review
 | `LoggedMechanismRoot2d` | Anchors a drawing at a position on that canvas. | Identify the pivot or fixed base. |
 | `LoggedMechanismLigament2d` | Draws a segment attached to a root or another segment. | Identify its length and its angle relative to its parent. |
 
-Use meters for the drawing's lengths and root positions. A root-mounted ligament at 0 degrees
+Give the drawing's lengths and root positions as typed `Distance` values, as the Badge 2 constants
+do, and convert to meters at the drawing API. A root-mounted ligament at 0 degrees
 points right; positive rotation turns toward up. Child angles are relative to their parent, so
 attaching a segment to an already rotated segment changes its displayed direction. Start with a
 single fixed root for the intake pivot. Moving roots and full robot drawings are extensions after
@@ -45,24 +46,38 @@ Start with two distinguishable ligaments attached to the same root: a thin measu
 goal arm. Give them different names and colors. Use an `Angle` for each value until the drawing API
 requires a numeric angle.
 
-Start from what Cobra already has. In the fork, `IntakeConstants` defines
-`measuredPivotMechanismConfig`, `setpointPivotMechanismConfig`, and `goalPivotMechanismConfig` for
-Cobra's `PivotMechanism` helper, each a 12 in arm with its own name and color, but nothing builds or
-logs them: `Intake` logs only whether the pivot is near its goal. Cobra's helper wraps a single
-ligament whose `update(Angle)` sets its angle. Reuse it, or the `PivotMechanism` helper from the
-student's Badge 2 library, after explaining how it wraps a ligament.
+Start from your Badge 2 `CobraIntakeMechanism` from
+[Badge 2 Step 9](/badges/badge-2-mechanism-composition#build-the-composed-2d-mechanisms). That
+visualizer composed the Badge 2 `PivotMechanism` helper and recorded its own output as
+`Intake/Pivot/Mechanism2d`. In Badge 3, Cobra's `Intake` subsystem owns the drawing and records it
+as `Intake/Mechanism2d`. Read
+[Badge 2: Keep the Visualizer Beside Its Parent](/frc/mechanisms-per-subsystem#badge-2-keep-the-visualizer-beside-its-parent)
+and [Naming the Key](/frc/mechanisms-per-subsystem#naming-the-key), then explain in your notes what
+moved: the log key, and which object records it.
+
+Then read what Cobra already has. In the fork, `IntakeConstants` defines `rootMechanismConfig` for a
+canvas and root, and `measuredPivotMechanismConfig`, `setpointPivotMechanismConfig`, and
+`goalPivotMechanismConfig` for Cobra's `PivotMechanism` helper, each a 12 in arm. Nothing builds or
+logs them yet: `Intake` logs only whether the pivot is near its goal. Cobra's helper wraps a single
+ligament whose `update(Angle)` sets its angle, and it has no method to hide a ligament. The three
+arm configs share a width of 10 and use three similar greens, so change them to meet the thin
+measured, wide goal, different-color requirement, and add a way to hide the goal arm. Starting from
+`rootMechanismConfig` for the canvas is one option.
 
 Choose a canvas that contains the motion. The arm lengths are schematic display dimensions, not
 physics parameters. The schematic uses 0 degrees to the right and 90 degrees up. The separate robot
 CAD view has its own mounting transform; these two views need not face the same direction on screen.
 
-The subsystem owns the drawing and updates it immediately after its normal input-processing call.
-In this illustrative snippet from `Intake.periodic()`, `mechanismDrawing` is the student's drawing
-object:
+The subsystem owns the drawing and updates it immediately after its normal input-processing call. In
+this illustrative snippet from `Intake.periodic()`, `mechanismDrawing` is the student's drawing
+object, and its method names are placeholders for your own: Badge 2's helper, for example, exposes
+its canvas as `getMechanism()`. Cobra's `Pivot.getGoalPosition()` returns a plain `Angle` even when
+no goal is active, so first give the pivot a `getGoal()` that returns `Optional<Angle>`, as Badge
+2's `PivotMechanism.update` expects:
 
 ```java
 this.endeffector.periodic();
-this.mechanismDrawing.update(this.endeffector.getPosition(), this.endeffector.getGoalPosition());
+this.mechanismDrawing.update(this.endeffector.getPosition(), this.endeffector.getGoal());
 Logger.recordOutput("Intake/Mechanism2d", this.mechanismDrawing.getDrawing());
 ```
 
@@ -73,6 +88,10 @@ on the robot thread even when the selected vendor simulation advances its physic
 Drive the measured arm from the processed IO measurement in REAL, SIM, and REPLAY. Drive the goal
 arm from the requested goal, and hide it when no goal exists. A stopped pivot can still have a
 measured position. Do not substitute a goal or the simulator's private state for that measurement.
+
+Decide whether `getGoal()` should be empty after the robot disables, and write down why. Then read
+`SingleRoller.stop()` and `SingleRoller.periodic()` in the fork and predict what Cobra's pivot
+reports as its goal after a disable. Make your migrated pivot match the decision you wrote.
 If feedback is invalid, retain the corresponding validity/status trace and explain that the last
 displayed position is not proof of current physical position.
 
@@ -98,15 +117,19 @@ exercise; the student also saves a log and demonstrates the timeline comparison.
 
 ## Review in AdvantageScope
 
-Open the saved WPILOG in AdvantageScope, add a Mechanism tab, and drag
-`RealOutputs/Intake/Mechanism2d` into its control pane. Use the same timeline timestamp in a line
-graph of the pivot's position and goal. Save the log, a screenshot with that timestamp, and enough
-layout instructions for another student to reproduce the view.
+Review [The Mechanism Tab](/frc/simulation-in-advantagescope#the-mechanism-tab) and
+[The Line Graph](/frc/simulation-in-advantagescope#the-line-graph-commanded-versus-measured). Open
+the saved WPILOG in AdvantageScope, add a Mechanism tab, and drag `RealOutputs/Intake/Mechanism2d`
+into its control pane. Use the same timeline timestamp in a line graph of the pivot's position and
+goal. Save the log, a screenshot with that timestamp, and enough layout instructions for another
+student to reproduce the view.
 
-For an AdvantageKit replay, compare the regenerated `ReplayOutputs/Intake/Mechanism2d` with the
+For an AdvantageKit replay, follow [Replaying a Match](/frc/log-replay#replaying-a-match). The
+Starter's `Robot` reads the selected log and writes the replay beside it with a `_sim` suffix, as
+`<log>_sim.wpilog`. Compare the regenerated `ReplayOutputs/Intake/Mechanism2d` in that file with the
 original output and recorded inputs. Explain the difference between playing back a log in
-AdvantageScope and rerunning robot code with replayed inputs. Reuse the badge's existing replay
-procedure; the drawing requires no new physics or hardware in REPLAY.
+AdvantageScope and rerunning robot code with replayed inputs. The drawing requires no new physics or
+hardware in REPLAY.
 
 ## Import and Animate the Intake CAD
 
@@ -118,12 +141,16 @@ record units, align its origin and hinge, and animate the measured intake pose. 
 for this exercise. Compare known lengths and the 0, 20, and 90 degree poses before interpreting a
 saved log.
 
-Cobra logs no component poses, so add one: log the intake's pose array, for example as
-`Intake/ComponentPoses`, from the measured angle, and attach it in AdvantageScope's 3D field view.
-Log fuel positions from the Step 6 fuel world beside it. Record the asset version, component order,
-transforms, and log with B3-08.2, and include the reproduction steps in the B3-15.1 handoff. The 2D
-drawing and 3D CAD articulation are separate evidence, and neither replaces the physical reference
-and repeatability checks in B3-07.2–B3-07.4.
+Cobra logs no component poses, so add one. Read
+[Component Poses](/frc/mechanisms-in-3d#component-poses) first, and
+[Mounts and Moving Roots](/frc/mounts-and-moving-roots) if you later move the root. Log the
+component pose array, for example as `Intake/ComponentPoses`, and attach it in AdvantageScope's 3D
+field view. The asset README orders the array as `[intake, hood]`: the intake entry comes from the
+measured angle, and the hood entry is an identity pose that keeps the static hood where it was
+exported. Log fuel positions from the Step 6 fuel world beside it. Record the asset version,
+component order, transforms, and log with B3-08.2, and include the reproduction steps in the B3-15.1
+handoff. The 2D drawing and 3D CAD articulation are separate evidence, and neither replaces the
+physical reference and repeatability checks in B3-07.2–B3-07.4.
 
 ## Badge Check
 
@@ -138,20 +165,25 @@ link, student explanation, mentor signature, and date for every row.
 
 ## For the Mentor
 
-`Badge3MentorSolution` contains a complete small example: `IntakeMechanismDrawing`, with a 1 m
-canvas and a 0.4 m arm, and `IntakeMechanismDrawingTest`, which checks the serialized drawing angles
-and goal visibility. Its `Intake` logs `Intake/Mechanism2d` and `Intake/ComponentPoses`, and its
-Badge 3 library keeps the drawing helper in a `visualization` package (Badge 2's is
-`visualizations`). The student copy of the CAD asset, with a student README, is in the solutions
-repository at `badge_03/starters/advantagescope-assets`; the mentor solution keeps its own copy,
-which its `IntakeVisualizationTest` and render script use.
+`Badge3MentorSolution` contains a complete small example: `IntakeMechanismDrawing`, with a 39.4 in
+(1 m) canvas and a 15.7 in (0.4 m) arm, and `IntakeMechanismDrawingTest`, which checks the
+serialized drawing angles and goal visibility. Its `Intake` logs `Intake/Mechanism2d` and
+`Intake/ComponentPoses`. Its Badge 3 library moves the drawing helper to a `visualization` package
+(Badge 2's is `visualizations`) and changes its API: Badge 2's `PivotMechanism` owns a canvas and
+exposes `update(Angle, Optional<Angle>)` and `getMechanism()`, while the Badge 3 helper wraps one
+ligament built from a `Config` and exposes `getLigament()`, `setVisible(boolean)`, and
+`update(Angle)`, so the drawing class owns the canvas and root. The student copy of the CAD asset,
+with a student README, is in the solutions repository at `badge_03/starters/advantagescope-assets`;
+the mentor solution keeps its own copy, which its `IntakeVisualizationTest` and render script use.
 
 <Sources items={[
   {"source": "advantagescope", "path": "tab-reference/mechanism/", "note": "Adding drawings and recording updated mechanism output each loop."},
   {"source": "advantagescope", "path": "tab-reference/3d-field/", "note": "Attaching a component pose array to a robot model for the intake CAD animation."},
   {"source": "advantagescope", "path": "more-features/custom-assets/", "note": "Exporting a robot asset with separate components and aligning each component's origin."},
   {"source": "advantagekit", "path": "data-flow/recording-outputs/", "note": "Calculated output logging and the RealOutputs and ReplayOutputs tables."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/IntakeConstants.java", "note": "The measured, setpoint and goal PivotMechanismConfig records that nothing yet builds or logs."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/IntakeConstants.java", "note": "rootMechanismConfig and the measured, setpoint and goal PivotMechanismConfig records, all width 10 in three greens, that nothing yet builds or logs."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "stop() and the disabled branch of periodic(), read for the goal-after-disable prediction."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/Robot.java", "note": "The REPLAY branch that writes the replayed log with a <code>_sim</code> suffix."},
   {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/pivot/PivotMechanism.java", "note": "Cobra's single-ligament drawing helper and its update(Angle)."},
   {"source": "wpilib", "path": "docs/software/dashboards/glass/mech2d-widget.html", "note": "Ligament angles relative to the parent; a root ligament at zero points right and positive angles turn counterclockwise."}
 ]} />

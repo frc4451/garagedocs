@@ -17,30 +17,59 @@ Hardware demonstrations may be scheduled separately. Read
 [Why State Machines](/frc/why-state-machines),
 [Subsystem State Machines](/frc/subsystem-state-machines),
 [States, Commands and Triggers](/frc/states-commands-and-triggers), and
-[Transition Graphs](/frc/transition-graphs).
+[Transition Graphs](/frc/transition-graphs). The state-driven FRC reference that B3-09.1 names is
+the State-Driven Robot Code group: those four lessons, [The Superstructure](/frc/superstructure),
+[A Superstructure for Cobra](/frc/superstructure-for-cobra), and
+[Debugging State Machines](/frc/debugging-state-machines). A Superstructure for Cobra chooses the
+hood state from distance, while Cobra's bindings choose it by field zone; keep the zone rule unless
+you record a reason to change it. Review
+[BobotState](/frc/bobot-state#zones-and-game-logic-as-triggers) and
+[Composing Triggers](/frc/robot-container-and-bindings#composing-triggers) before reading Cobra's
+bindings.
 
 ## Write the Transition Table First
 
 Choose states that describe observable behavior, such as stowed, collecting, holding, preparing to
-score, scoring, and faulted. Keep current state separate from requested state. For each transition,
-record the request, required observations, outputs while waiting, time bound, and refusal reason.
+score, scoring, and faulted. Record the request and the resulting state in the log, so a refusal
+shows what was asked for and what the robot did. For each transition, record the request, required
+observations, outputs while waiting, time bound, and refusal reason.
+
+A readiness check holds each guarded transition: for example, a feed policy that receives logged
+observations and decides whether the feeder may run. A selection with no guard of its own, such as
+the hood preset a zone asks for, can stay a trigger in `RobotContainer` if the readiness check
+verifies the result.
 
 For example, a request to score while the flywheel is slow moves to preparation. The feeder remains
 stopped until possession is confirmed, pivot reference is valid, and measured speed and angle
 satisfy readiness for the required interval. A requested goal is not evidence that the mechanism
-reached it.
+reached it. At this step, possession is a policy argument or a stub your tests set. The CANrange
+possession IO from [Step 4](/badges/badge-3-roller#add-canrange-io) supplies it once connected, and
+[Step 13](/badges/badge-3-hardware#complete-the-setup-sheet) commissions it on hardware.
 
 Retain relevant clearance rules from the supplied code. The physical conflict is still there after
-the rule moves into a state machine, so the rule moves with it. Identify which measured conditions
+the rule moves into a state machine, so the rule moves with it.
+`BobotState.shouldStopFeedingFuelToShooter()` is one to preserve: outside the near alliance zone, it
+stops feeding near a trench or where the hub blocks the shot. Identify which measured conditions
 permit a transition and which faults require an explicit recovery action.
 
-Cobra's rules are triggers in `RobotContainer`'s operator bindings. While the right bumper is held,
-the field zone picks the hood preset: DOWN near the alliance hub, UP in the neutral zone, MID in the
-far zone. The hood drops to DOWN near the trench, when the intake is down, or when the bumper is
-released. A separate right-bumper binding picks the shooter's table: the hub table near the alliance
-hub and the dropoff table elsewhere, without the trench check. `RobotContainer` also defines
-`configureHoodBindings` with a different automatic mapping, but nothing calls it. Write these rules
-into the transition table before replacing them.
+Cobra's rules are triggers in `RobotContainer.configureOperatorBindings`, on the operator controller
+(port 1). The right bumper, the field zone, the trench, and an intake-position trigger choose the
+hood preset, and separate right-bumper bindings choose the shooter's table. `RobotContainer` also
+defines `configureHoodBindings` with a different automatic mapping, but nothing calls it. Fill in
+this table from `configureOperatorBindings` before replacing the rules:
+
+| Condition | Hood Preset Requested | Shooter Table Requested | Guards That Apply |
+| --- | --- | --- | --- |
+| Right bumper held, near alliance zone | | | |
+| Right bumper held, neutral zone | | | |
+| Right bumper held, far alliance zone | | | |
+| Right bumper held, near a trench | | | |
+| Right bumper held, `intakeDown` true | | | |
+| Right bumper released | | | |
+
+The `intakeDown` trigger is `intake.isNearGoal(Degrees.of(90), Degrees.of(10))`. Before filling its
+row, compare 90 degrees with the `endeffectorStart` and `endeffectorDeploy` angles in `Intake` and
+predict which intake position drops the hood. Check the prediction in simulation.
 
 ## Connect Commands to Requests
 
@@ -66,22 +95,33 @@ behavior.
 
 ## Trace the Integrated Behavior
 
-In the fork, trace the behavior the states replace: the right-bumper shooting bindings, the
-A-button feed binding from Step 1, and the trench and intake triggers that drop the hood. Record
-which measured inputs reach each decision from Drive, Intake, Feeder, Shooter, and Hood. Then change
-one transition guard in the student's state machine, predict the refusal, and compare a normal run
-with the corresponding failure run.
+In the fork, trace the behavior the states replace: the right-bumper shooting bindings, the operator
+controller's (port 1) A-button feed binding from Step 1, and the trench and intake triggers that
+drop the hood. Record which measured inputs reach each decision from Drive, Intake, Feeder, Shooter,
+and Hood.
+
+Trace what `Feeder.runFeederVoltage()` leaves running when it is interrupted. Read the command
+factory for an end action, then check which binding stops the tower and the spindexer, and what
+happens when `feeder.stopSpindexer()` interrupts it. Define the state machine's output for the same
+interruption.
+
+Then change one transition guard in your state machine, predict the refusal, and compare a normal
+run with the corresponding failure run.
+[Debugging State Machines](/frc/debugging-state-machines#log-both-layers-every-loop) describes what
+to log so the two runs can be compared.
 
 ## Keep the Shot Setup Together
 
-Because Cobra chooses the shooter's table and the hood preset in separate bindings, a trench
-crossing can leave the dropoff table running with the hood at DOWN. Name the table and its required
-hood preset together in one place, keeping Cobra's pairing: near uses the hub table with DOWN,
-neutral uses the dropoff table with UP, and far uses the dropoff table with MID. Aiming, operator
-speed requests, hood selection, and readiness use that choice. Clearance can request DOWN; it does
-not make a dropoff table valid at DOWN. A mismatch refuses feeding, and a changed mode starts a new
-settling interval. Log the selected mode, hood goal and measurement, flywheel goal and measurement,
-and the refusal reason together.
+Because Cobra chooses the shooter's table and the hood preset in separate bindings, a condition that
+changes only the hood binding leaves the two out of step. For example, in the neutral zone, when
+`intakeDown` becomes true the hood binding requests DOWN while the shooter binding keeps the zone's
+table, and `shouldStopFeedingFuelToShooter()` does not read the intake. Find the other conditions in
+your filled-in table that produce a mismatch. Name the table and its required hood preset together
+in one place, keeping the pairing your table records for each zone. Aiming, operator speed requests,
+hood selection, and readiness use that choice. Clearance can request DOWN; it does not make a
+dropoff table valid at DOWN. A mismatch refuses feeding, and a changed mode starts a new settling
+interval. Log the selected mode, hood goal and measurement, flywheel goal and measurement, and the
+refusal reason together.
 
 Test the shooting binding across zone changes and a trench-clearance condition, and test mismatch
 refusal and recovery dwell separately. These checks preserve the shared dropoff table; they do not
@@ -96,7 +136,7 @@ student to explain a change and its result before signing.
 
 | Row | Work | Done When |
 | --- | --- | --- |
-| B3-09.1 | Subsystem-owned states | S/W: Integrate roller, flywheel and pivot with current/requested state and guarded transitions, following the state-driven FRC reference. Commands request behavior; the subsystem owns transitions and actuators. |
+| B3-09.1 | Subsystem-owned states | S/W: Integrate roller, flywheel and pivot with logged requests and resulting states and guarded transitions, following the State-Driven Robot Code lessons. Commands request behavior; the subsystem owns transitions and actuators. |
 | B3-09.2 | State failure behavior | S: Test valid and refused transitions, readiness failure, timeout, interruption and explicit recovery. Preserve the earlier clearance rules where relevant. |
 
 ## For the Mentor
@@ -108,6 +148,13 @@ Possession; `ShotMode` pairs each table with its hood preset; and `ShotModeSimul
 `FeedPolicyTest` cover the zone, trench, mismatch and dwell cases. The log shows them as
 `ShotSelection` and `Feeder/Refusal`. Compare them with the student's design after the student has
 built their own.
+
+Cobra's pairing, which the student's binding table should reproduce, is the hub table with DOWN in
+the near alliance zone, the dropoff table with UP in the neutral zone, and the dropoff table with
+MID in the far alliance zone. The `intakeDown` trigger is true near 90 degrees, the stowed
+`endeffectorStart` angle. The mentor solution keeps hood selection as `RobotContainer` triggers over
+`ShotMode` in `configureHood()`, and `FeedPolicy` holds the guarded feed transition, including the
+check that the requested table and hood match the selected mode.
 
 <Sources items={[
   {
@@ -133,7 +180,17 @@ built their own.
   {
     "source": "cobra",
     "path": "src/main/java/frc/robot/bobot_state/BobotState.java",
-    "note": "The field-zone and trench triggers the bindings read."
+    "note": "The field-zone and trench triggers the bindings read, and shouldStopFeedingFuelToShooter()."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/intake/Intake.java",
+    "note": "isNearGoal(angle, tolerance) behind the intakeDown trigger, and the endeffector preset angles."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/feeder/Feeder.java",
+    "note": "runFeederVoltage(), stop() and stopSpindexer(), traced for interruption behavior."
   }
 ]} />
 

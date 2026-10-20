@@ -207,6 +207,11 @@ export const sourceRegistry = {
     base: 'https://github.com/hammerheads5000/FuelSim/blob/main/',
     version: 'main, MIT',
   },
+  'fuelsim-37eff89': {
+    name: 'FRC 5000 FuelSim',
+    base: 'https://github.com/hammerheads5000/FuelSim/blob/37eff8936e55fa4964b0c094ffd1093dff9a4519/',
+    version: 'commit 37eff89, MIT',
+  },
   'java-api': {
     name: 'Java SE 25 API',
     base: 'https://docs.oracle.com/en/java/javase/25/docs/api/',

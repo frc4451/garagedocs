@@ -11,10 +11,17 @@ description: "Required measured-speed FuelSim experiment following flywheel char
 ---
 
 The student connects a measured flywheel response to one simulated shot. Complete this required step
-after [Step 5: Flywheel Characterization and Tuning](/badges/badge-3-flywheel). Its fixed-pitch
-experiment can run alongside the pivot module; both are needed for final autonomous integration. The
-launch model and controlled experiment provide the evidence for rows B3-06.1 and B3-06.2 in the
-assessment table below. Read [FuelSim](/frc/fuelsim) first.
+after [Step 5: Flywheel Characterization and Tuning](/badges/badge-3-flywheel), in the Badge3Starter
+fork. Its fixed-pitch experiment can run alongside the pivot module; both are needed for final
+autonomous integration. The launch model and controlled experiment provide the evidence for rows
+B3-06.1 and B3-06.2 in the assessment table below.
+
+Research these first:
+
+- [FuelSim](/frc/fuelsim), for installing, registering and launching.
+- [Shooter Example](/frc/shooter-example), for converting wheel speed to surface speed.
+- [Pose Geometry](/frc/pose-geometry), for `RobotToShooter` arrow naming, and its
+  [3D section](/frc/pose-geometry#the-3d-versions) for `Transform3d`.
 
 ## Add FuelSim to the Fork
 
@@ -25,10 +32,12 @@ Copying a newer version from `main` later is a dependency change that needs a re
 experiments.
 
 FuelSim works in meters and meters per second. `launchFuel(launchVelocity, hoodAngle, turretYaw,
-launchHeight)` takes a hood angle where 0 is a horizontal launch, and it refuses to launch until a
-robot is registered with `registerRobot`. `Hub.BLUE_HUB.getScore()` reports the blue hub's score.
-`stepSim()` advances the physics once; a robot loop that calls `updateSim()` must call `start()`
-first.
+launchHeight)` takes a hood angle where 0 is a horizontal launch, and it throws an
+`IllegalStateException` if no robot has been registered with `registerRobot`. It always releases the
+fuel at the registered robot's center, raised by `launchHeight`. For a release offset from the robot
+center, compute the release position and velocity yourself and call `spawnFuel(position, velocity)`.
+`Hub.BLUE_HUB.getScore()` reports the blue hub's score. `stepSim()` advances the physics once; a
+robot loop that calls `updateSim()` must call `start()` first.
 
 ## Work the Launch Numbers First
 
@@ -38,49 +47,70 @@ launch speed is approximately 138.23 × 2 in × 0.85 ≈ 235 inches per second (
 only the slip factor to 0.50 gives approximately 138 inches per second (11.5 ft/s) from the same
 measured motor speed. These are simulation experiment values, not hardware recommendations.
 
-In the pinned model, that 235 in/s launch from field position (2.00 m, 4.02 m), heading zero, at
-60 degrees and a 32 in release height scores in the blue hub, and the 138 in/s launch misses. Field
-positions stay in meters because WPILib's field frame is metric. Check the change in the hub's score
-rather than assuming every launch scores; another model or geometry may produce a different result.
+The 2 in radius and the 32 in release height used below are teaching values, not Cobra's. Find
+Cobra's own values in `ShooterConstants`: the wheel radius in `shooterFlywheelConfig`, and the
+release height in the builder that produces `robotToShooter`. Record both, and note what
+`getTransform2d()` discards from that builder.
+
+The worked shots launch from field position (2.00 m, 4.02 m), heading zero, at 60 degrees and a 32
+in release height. Field positions stay in meters because WPILib's field frame is metric. Before
+running them, calculate the drag-free peak height of each launch and compare it with the hub's entry
+height, `Hub.ENTRY_HEIGHT` in the pinned file (1.83 m, about 72 in). Predict which launch can score
+and which cannot, then run both and check the change in the hub's score. Another model or geometry
+may produce a different result, so check the score change rather than assuming every launch scores.
 
 ## Own the Fuel World
 
-Write a small adapter around FuelSim. To read fuel positions, extend the copied class in the same
-package; its fuel list is `protected`. Give the adapter one launch method that checks possession
-and readiness, uses the measured flywheel speed, and consumes the held piece only after launching.
-Calling it again with no held piece produces no projectile.
+Write a small adapter around FuelSim. Its fuel list and physics constants are `protected`, which
+Java makes visible to any class in the same package, so an adapter placed in FuelSim's package can
+read fuel positions without subclassing; extend the class only if the design needs it. Give the
+adapter one launch method that checks possession and readiness, uses the measured flywheel speed,
+and consumes the held piece only after launching. Calling it again with no held piece produces no
+projectile.
 
-Register the robot's dimensions, a true-pose supplier for physics, and field-relative speeds. Robot
-control still uses the estimator. Update the world once per 20 ms simulation period; FuelSim owns
-its internal subticks. In a unit test, call `stepSim()` directly.
+Register the robot's dimensions, a pose supplier for physics, and field-relative speeds. The Starter
+has no true-pose source, so in this step register a fixed test pose, as the worked test does. Step
+11 adds maple-sim's true pose. Never pass the pose estimator as the physics truth: robot control
+uses the estimator, and the physics world needs a pose the estimator cannot influence. Update the
+world once per 20 ms simulation period; FuelSim owns its internal subticks. In a unit test, call
+`stepSim()` directly.
 
 FuelSim publishes its state to NetworkTables, which is live only. For saved evidence, have the
 simulation owner mirror fuel positions, possession, launch count and score into the AdvantageKit
 log, and record launch speed and pitch at each launch event. FuelSim's launch speed is in meters per
-second, so the 235 in/s scoring shot logs as about 5.97. For replay, consume the saved robot inputs
-and inspect the original recorded world outputs. Running a fresh physics world is a new experiment,
-and its outputs are new results rather than reconstructed evidence.
+second: convert the scoring shot's 235 in/s and check that the logged value matches. For replay,
+consume the saved robot inputs and inspect the original recorded world outputs. Running a fresh
+physics world is a new experiment, and its outputs are new results rather than reconstructed
+evidence.
 
 ## Apply Cobra's Hood and Table Conventions
 
 Keep the small scoring experiment separate from the Cobra calibration record. Cobra's hood is zeroed
 at a launch elevation of 28 degrees above horizontal, and Cobra's code was written with that offset
-in mind without stating it. In the fork, `Hood` sets its DOWN, MID and UP presets to 0, 17 and 22
-degrees of displacement from that zero, while `HoodConstants` (28 through 50 degrees, starting at
-28) and `HubInterpolator` (a fixed 28 degrees) are written as launch elevation. Make the offset
-explicit: name each quantity as displacement or elevation, and add the 28 degrees once when
-converting, giving 45 degrees at MID and 50 degrees at UP. Log both values. Check DOWN and UP
-because MID alone does not reveal a reversed conversion.
+in mind without stating it. In the fork, find the commented `.plus(Degrees.of(28.0))` on the
+CANcoder magnet offset in `HoodConstants`; it is the only trace of that offset in the hood code.
+`Hood` sets its DOWN, MID and UP presets to 0, 17 and 22 degrees of displacement from that zero.
+`HoodConstants.pivotConfig` (28 through 50 degrees, starting at 28) and `HubInterpolator` (a fixed
+28 degrees) are written as launch elevation instead.
+
+Make the offset explicit: name each quantity as displacement or elevation, and add the offset once
+when converting. Calculate the launch elevation for MID and UP and log both values. Then explain why
+the conversion test checks DOWN and UP as well as MID, and which mistake a MID-only check would
+miss.
 
 Preserve the supplied hub table entries. They were collected manually with stationary robot-center
 to hub-center distances from fused odometry, at a fixed hood setting. An offset shooter position
 still matters for aiming and release, but it must not change that table's stationary range
-convention. Compare direct-table and automatic outputs at table entries and an intermediate range,
-with several robot headings and zero velocity.
+convention. The automatic outputs are the speed and pitch that `TargetInterpolator.update()`
+calculates each loop for the interpolator `BobotState.getShooterInterpolator()` returns, which is
+`HubInterpolator` while the robot is in the `NEAR_ALLIANCE` field zone; `ShootOnTheMoveCommand`
+reads the same interpolator. Compare direct-table and automatic outputs at table entries and an
+intermediate range, with several robot headings and zero velocity. Before running the comparison,
+read `update()` and predict which distance it looks up at zero velocity.
 
 Cobra's `ShooterConstants.robotToShooter` is a two-dimensional `Transform2d`. Build the
-three-dimensional release transform from it and a measured release height, and use measured
-mechanism states. Record which geometry is established and which transfer, drag, or timing
+three-dimensional `RobotToShooter` release transform from it and a measured release height, and use
+measured mechanism states. Record which geometry is established and which transfer, drag, or timing
 parameters remain estimates. Declare physical fitting cases and reserved validation cases before
 adjusting the model. Retain misses and repeatability results; do not edit a working table merely to
 make a simulated shot score.
@@ -147,13 +177,15 @@ second and launches through the `BadgeFuelWorld` adapter. Run it from that proje
 </CodeTab>
 </CodeTabs>
 
-In `Badge3MentorSolution`, `RobotFuelSimulation` logs the launch speed as `Fuel/LaunchSpeedMps` and
-the drag-free height check under `FuelSim/ShotCheck`, and `ShotGeometry` applies the 28-degree hood
-convention. `SHOT-CALIBRATION.md` provides the calibration worksheet and trial record.
+In `Badge3MentorSolution`, `RobotFuelSimulation` logs the field-relative launch velocity as
+`FuelSim/LaunchVelocity` and the drag-free height check under `FuelSim/ShotCheck`, and
+`ShotGeometry` applies the 28-degree hood convention. `SHOT-CALIBRATION.md` provides the calibration
+worksheet and trial record, and `MIGRATION.md` records the interpolator's stationary range
+convention.
 
 <Sources items={[
-  {"url": "https://github.com/hammerheads5000/FuelSim/blob/37eff8936e55fa4964b0c094ffd1093dff9a4519/FuelSim.java", "label": "FuelSim.java at commit 37eff89", "note": "The pinned revision students copy into the fork: launchFuel units, registration, hub scoring and the protected fuel list."},
-  {"url": "https://github.com/hammerheads5000/FuelSim/blob/37eff8936e55fa4964b0c094ffd1093dff9a4519/README.md", "label": "FuelSim README at commit 37eff89", "note": "Installation by copying FuelSim.java, robot registration, start and updateSim."},
+  {"source": "fuelsim-37eff89", "path": "FuelSim.java", "note": "The pinned revision students copy into the fork: launchFuel units and its IllegalStateException, the robot-center release, spawnFuel, registration, Hub.ENTRY_HEIGHT and scoring, and the protected fuel list."},
+  {"source": "fuelsim-37eff89", "path": "README.md", "note": "Installation by copying FuelSim.java and editing the package line, robot registration, start and updateSim."},
   {
     "source": "advantagekit",
     "path": "data-flow/recording-outputs/",
@@ -162,12 +194,12 @@ convention. `SHOT-CALIBRATION.md` provides the calibration worksheet and trial r
   {
     "source": "cobra",
     "path": "src/main/java/frc/robot/subsystems/hood/Hood.java",
-    "note": "The DOWN, MID and UP presets at 0, 17 and 22 degrees of displacement from the 28 degree zero."
+    "note": "The DOWN, MID and UP preset tunables at 0, 17 and 22 degrees."
   },
   {
     "source": "cobra",
     "path": "src/main/java/frc/robot/subsystems/hood/HoodConstants.java",
-    "note": "The hood pivot limits and starting angle written as launch elevation (28 through 50 degrees)."
+    "note": "The commented <code>.plus(Degrees.of(28.0))</code> on the CANcoder magnet offset, the only trace of the 28 degree zero; pivotConfig limits and starting angle written as launch elevation (28 through 50 degrees)."
   },
   {
     "source": "cobra",
@@ -176,8 +208,23 @@ convention. `SHOT-CALIBRATION.md` provides the calibration worksheet and trial r
   },
   {
     "source": "cobra",
+    "path": "src/main/java/org/robotzgarage/frc2026/math/interpolation/TargetInterpolator.java",
+    "note": "update(), which looks up the table from a lookahead distance each loop: the automatic outputs."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/bobot_state/BobotState.java",
+    "note": "getShooterInterpolator() choosing HubInterpolator in the NEAR_ALLIANCE field zone."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/commands/ShootOnTheMoveCommand.java",
+    "note": "The command that reads the shooter interpolator."
+  },
+  {
+    "source": "cobra",
     "path": "src/main/java/frc/robot/subsystems/shooter/ShooterConstants.java",
-    "note": "The two-dimensional robotToShooter transform the release transform starts from."
+    "note": "The two-dimensional robotToShooter transform built from a builder whose up component is Cobra's release height, and shooterFlywheelConfig's wheel radius."
   }
 ]} />
 

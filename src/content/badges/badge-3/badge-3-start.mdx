@@ -49,21 +49,35 @@ waiting for either attempt. A mistake does not erase practical rows already comp
 4. Create the student fork and working copy. Change its project name, preserve the original version
    record, and establish an evidence directory. Keep baseline logs for later comparisons.
 
-Make one bounded independent change to a core mechanism configuration or interlock in the student
-copy. Predict its effect, run the related test or simulation, and save a comparison with the
-unchanged baseline. Choose a change the student can explain from the core code alone.
+The independent change for B3-01.2 is the readiness condition in
+[First Readiness Experiment](/badges/badge-3-start#first-readiness-experiment) below: one bounded
+change to an interlock in the student copy. Make only that one change. Predict its effect, run the
+related test or simulation, and save a comparison with the unchanged baseline.
 
-The completed `Badge2MechanismReference`, supplied by the mentor, remains available for comparison
-throughout the migration.
+`Badge2MechanismReference`, supplied by the mentor, is the finished Badge 2 bench solution, and it
+remains available for comparison throughout the migration. Its `RobotContainer` shows the target
+wiring: it chooses each mechanism's configuration record once, from the robot mode, and passes that
+record to both the IO adapter and the subsystem, as in `ElevatorSubsystem(ElevatorConfig,
+ElevatorIO)`. [Bench Integration](/badges/badge-2-mechanism-library#bench-integration) describes
+that project's layout.
 
-Move active reusable code to `org.robotzgarage.frc2027`. Keep drivetrain and robot-specific shooting
-policy in the robot project. Begin with one roller: in the fork, follow
-`Feeder.runFeederVoltage()` into the tower. Cobra builds the tower as a `Flywheel`, which extends
-`SingleRoller`, so `runVolts()` is the inherited `SingleRoller.runVolts()`. Continue to the
-`SingleRollerIO` contract, then `SingleRollerIOTalonFX`, which `RobotContainer` constructs from
-`FeederConstants.towerConfig`. A class named `Flywheel` that only receives effort requests is still
-a roller. Keep each family explicit and place commands in its parent subsystem. Add abstractions
-only when they make that path easier to explain.
+The Starter's reusable code is in Cobra's `org.robotzgarage.frc2026` package;
+[The Two Packages](/frc/cobra-repository-tour#the-two-packages) explains the split. Move active
+reusable code to the ROBOTZ Garage library's new package, `org.robotzgarage.frc2027`. Keep
+drivetrain and robot-specific shooting policy in the robot project.
+
+Begin with one roller, using
+[One Mechanism, End to End](/frc/cobra-repository-tour#one-mechanism-end-to-end) as the reading
+guide. In the fork, follow `Feeder.runFeederVoltage()` into the tower. Cobra builds the tower as a
+`Flywheel`, which extends `SingleRoller`, so `runVolts()` is the inherited
+`SingleRoller.runVolts()`. Continue to the `SingleRollerIO` contract and the two tower adapters that
+`RobotContainer` constructs. In REAL it builds `SingleRollerIOTalonFX` from
+`FeederConstants.towerConfig`; in SIM it builds `SingleRollerIOSimTalonFX` from
+`FeederConstants.towerConfigSim`, a record made from `towerConfig` plus the motor model and moment
+of inertia. [Constructing Subsystems](/frc/robot-container-and-bindings#constructing-subsystems)
+explains that `switch`. A class named `Flywheel` that only receives effort requests is still a
+roller. Keep each family explicit and place commands in its parent subsystem. Add abstractions only
+when they make that path easier to explain.
 
 ## Plan the Work
 
@@ -94,26 +108,42 @@ outcomes govern completion.
 ## First Readiness Experiment
 
 Before the mechanism steps, find out how Cobra decides it is ready to feed. In the fork, open
-`RobotContainer.java` and find the A-button binding. It runs `feeder.runFeederVoltage()` whenever
-`BobotState.shouldStopFeedingFuelToShooter()` is false. Read that condition in
-`bobot_state/BobotState.java`: it checks the field zone and the shooter's position near the hub.
-Teleop feeding never reads the measured flywheel speed or hood angle.
+`RobotContainer.java` and find the operator controller's (port 1) A-button binding.
+[Composing Triggers](/frc/robot-container-and-bindings#composing-triggers) explains its form:
+holding A starts `feeder.runFeederVoltage()` while `BobotState.shouldStopFeedingFuelToShooter()` is
+false, and `onFalse` stops the feeder when either condition changes. Read that condition in
+`bobot_state/BobotState.java`, with
+[Zones and Game Logic as Triggers](/frc/bobot-state#zones-and-game-logic-as-triggers) beside it. It
+checks the field zone, the shooter's position relative to the hub, and trench proximity
+(`isNearTrench`). Teleop feeding never reads the measured flywheel speed or hood angle.
 
-Then open `autonomous/AutonomousManager.java` and read `handleInterpolateShooterToHub`. Autonomous
-waits until the robot is far enough from the hub and `Shooter.isNearHubVelocity` reports the
-flywheel within 2 rotations per second of its interpolated speed, then feeds until the shot's time
-runs out. It checks once: a speed drop after feeding starts does not stop the feeder.
+Then open `autonomous/AutonomousManager.java` and read `handleInterpolateShooterToHub`, using
+[Waiting Without Blocking](/frc/command-groups#waiting-without-blocking) for its
+`Commands.waitUntil`. Autonomous waits until the robot is far enough from the hub and
+`Shooter.isNearHubVelocity` reports the flywheel within 2 rotations per second of its interpolated
+speed, then feeds until the shot's time runs out. It checks once: a speed drop after feeding starts
+does not stop the feeder.
 
 Record, for each path, which measurements permit feeding and which are ignored. Predict what happens
 when the operator holds A before the flywheel reaches speed, and when the flywheel slows during an
-autonomous shot. Once the enabled baseline above is recorded, check one prediction in simulation by
-comparing the logged feeder output with the measured flywheel speed. These are observations of the
-supplied code, not hardware settings.
+autonomous shot. Once the enabled baseline above is recorded, check one prediction in simulation,
+following [Autonomous Simulation](/frc/autonomous-simulation) for the autonomous run. Graph these
+Starter log keys on one time axis, written as they appear in the Starter's own baseline log:
 
-The independent change adds one readiness condition to a copy of one path, such as a settling time
-before the autonomous wait ends, and predicts the new feed time before running it. Save this
-exercise under B3-01.2. Step 9 turns the same question into subsystem-owned states with refusal
-reasons, and that evidence extends into B3-09.2.
+- `//Feeder/Tower/AppliedVoltage`: the tower's applied voltage, an input logged by
+  `SingleRoller.periodic()`.
+- `/RealOutputs//Shooter/Shooter/Leader/VelocityRPS` and
+  `/RealOutputs//Shooter/Shooter/VelocitySetpointRPS`: the measured and requested flywheel speed in
+  rotations per second, recorded by `FlywheelFollower.periodic()`.
+- `/RealOutputs/BobotState/Zoning/ShouldStopFeeding`: the teleop feed condition.
+
+The doubled slash comes from the leading slash in Cobra's subsystem names, such as `"/Feeder"`.
+These are observations of the supplied code, not hardware settings.
+
+This readiness condition is the B3-01.2 independent change. Add one readiness condition to a copy of
+one path, such as a settling time before the autonomous wait ends, and predict the new feed time
+before running it. Step 9 turns the same question into subsystem-owned states with refusal reasons,
+and that evidence extends into B3-09.2.
 
 ## Badge Check
 
@@ -134,9 +164,10 @@ The Starter has no migrated test suite. The mentor solution, `Badge3MentorSoluti
 answer to this badge; `TRAINING-MATERIALS.md` maps each step to its reference file and test, and the
 focused `curriculum-reference` examples stay mentor-side.
 
-The readiness gap above is what the mentor's `frc.robot.subsystems.feeder.FeedPolicy` closes. To
-show where the student's design can lead after they have recorded their own predictions, run
-`FeedPolicyTest` from the mentor solution's folder:
+After the student records their own readiness design and predictions, compare it with
+`frc.robot.subsystems.feeder.FeedPolicy` and `FeedPolicyTest` in `Badge3MentorSolution`.
+`TRAINING-MATERIALS.md` maps this experiment to those files; the test holds the policy's cases and
+expected outcomes. Run it from the mentor solution's folder:
 
 <CodeTabs>
 <CodeTab label="PowerShell">
@@ -154,12 +185,6 @@ show where the student's design can lead after they have recorded their own pred
 
 </CodeTab>
 </CodeTabs>
-
-With possession, reference, clearance, mode and goals valid and the measured angle within 1 degree
-of its goal, the default policy uses a 2 rotation per second speed tolerance, a 0.12 second settling
-dwell, and a 3 second timeout from the request. A requested 40 rotations per second against a
-measured 30 refuses with `SPEED`; raising the measurement to 40 gives `SETTLING`, then `READY` after
-the dwell; holding `SPEED` for 3 seconds latches `TIMEOUT`; removing possession refuses at once.
 
 <Sources items={[
   {
@@ -180,12 +205,32 @@ the dwell; holding `SPEED` for 3 seconds latches `TIMEOUT`; removing possession 
   {
     "source": "cobra",
     "path": "src/main/java/frc/robot/RobotContainer.java",
-    "note": "The A-button feed binding gated only by shouldStopFeedingFuelToShooter, and the tower IO construction."
+    "note": "The A-button feed binding gated only by shouldStopFeedingFuelToShooter, and the tower IO construction: SingleRollerIOTalonFX in REAL, SingleRollerIOSimTalonFX from towerConfigSim in SIM."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/feeder/FeederConstants.java",
+    "note": "towerConfig and towerConfigSim, the record built from towerConfig plus the motor model and moment of inertia."
   },
   {
     "source": "cobra",
     "path": "src/main/java/frc/robot/bobot_state/BobotState.java",
-    "note": "shouldStopFeedingFuelToShooter: the field-zone and hub-position feed condition."
+    "note": "shouldStopFeedingFuelToShooter: the field-zone, shooter-to-hub position and isNearTrench feed condition, and the ShouldStopFeeding output under BobotState/Zoning."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java",
+    "note": "processInputs under the component name, which logs the tower's AppliedVoltage input."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/flywheel/FlywheelFollower.java",
+    "note": "The Leader/VelocityRPS and VelocitySetpointRPS outputs graphed in the readiness check."
+  },
+  {
+    "source": "advantagekit",
+    "path": "data-flow/recording-outputs/",
+    "note": "Recorded outputs stored under RealOutputs, beside the logged inputs."
   },
   {
     "source": "cobra",

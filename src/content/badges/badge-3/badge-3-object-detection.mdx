@@ -11,11 +11,12 @@ description: "Project timestamped camera bearings, reject invalid observations, 
 ---
 
 The student builds a camera input path for one stationary game piece and uses observations to choose
-an acquisition pose. Start from the Badge 2 pose and AprilTag work. Observation IO and geometry can
-proceed alongside mechanism refinement; Step 12 requires this module and the subsystem states
-together. Read [Pose Geometry](/frc/pose-geometry), [PhotonVision](/frc/photonvision),
-[Vision Simulation](/frc/vision-simulation), and Cobra's object-detection IO and tracker linked
-below.
+an acquisition pose. Start from the vision package in your Badge3Starter fork and from your Badge 2
+pose and AprilTag work. Observation IO and geometry can proceed alongside mechanism refinement; Step
+12 requires this module and the subsystem states together. Read [Pose Geometry](/frc/pose-geometry),
+[From Camera to Field](/frc/from-camera-to-field), [PhotonVision](/frc/photonvision),
+[Vision Subsystem](/frc/vision-subsystem), [Vision Simulation](/frc/vision-simulation), and Cobra's
+object-detection IO and tracker linked below.
 
 ## Build the IO Boundary
 
@@ -27,10 +28,28 @@ tracking memory. The simulated implementation extends the real implementation an
 results through the real parsing path. REPLAY reads recorded inputs without constructing cameras or
 field physics.
 
-The input record contains connection state, observation timestamps, target yaw and pitch, available
-class/confidence information, and rejection reasons. Process unread results once. An empty result
-means no target in that frame; no new frame means the age of the previous observation continues
-increasing. Clear or expire targets deliberately rather than treating an old result as current.
+Choose the object-detection IO and the SIM camera world in `RobotContainer`, as Badge 2 did for
+AprilTags in [Architecture](/badges/badge-2-photonvision#architecture), and pass both to
+`ObjectDetectionVision`. The fork's `ObjectDetectionVision` currently picks its IO inside its own
+constructor and updates the shared `VisionConstants.objectDetectionSim` from
+`BobotState.getGlobalPose()`, the estimated pose. Badge 2's
+[simulated camera world](/badges/badge-2-photonvision#simulation) was rendered from the estimate,
+which is why it could not show vision correcting a wrong estimate. Step 11 adds a true simulated
+pose. Before Step 11, write down what the object-detection camera could reveal if it rendered the
+field from that true pose instead.
+
+Extend the input record so it contains connection state, observation timestamps, target yaw and
+pitch, available class/confidence information, and rejection reasons. The fork's
+`ObjectDetectionIOInputs` holds connection state, an object count, projected poses and target areas,
+and none of the rest. Find what PhotonLib reports for class and confidence when the pipeline has no
+detection model, and log that value unchanged rather than an invented label.
+
+Follow [Process Unread Results Once](/frc/vision-subsystem#process-unread-results-once). An empty
+result means no target in that frame; no new frame means the age of the previous observation
+continues increasing. Clear or expire targets deliberately rather than treating an old result as
+current. Plan a seam that a test can reach without a camera: for example, a method that takes a list
+of `PhotonPipelineResult` packets and fills the inputs, so recorded packets can drive it directly.
+[A Pure Logic Test](/frc/unit-tests-in-simulation#a-pure-logic-test) shows the test shape.
 
 The provided coprocessor and color camera already run PhotonVision with a working pipeline.
 Installation and model training are supplied setup. The student owns the robot-side IO, transform
@@ -40,18 +59,27 @@ configuration, validity rules, tracking and selection.
 
 A camera bearing identifies a ray, not a complete three-dimensional position. For the stationary
 floor-piece exercise, a known target-center height provides the missing constraint. Intersect the
-transformed camera ray with that height plane, reject nearly parallel or backward intersections, and
-bound the accepted distance. Record the assumptions that make the estimate possible.
+transformed camera ray with that height plane, reject intersections that cannot describe a floor
+piece, and bound the accepted distance. Record the assumptions that make the estimate possible.
 
-Use `FieldToRobot`, `RobotToCamera`, and `CameraToPiece` names when drawing the transforms. Use the
-robot pose at the observation timestamp when history is available. If the exercise uses a stationary
-robot to avoid motion compensation, state that limitation. The same calculation with the current
-pose on a moving robot needs a latency-error analysis.
+Use `FieldToRobot`, `RobotToCamera`, and `CameraToPiece` names when drawing the transforms, as in
+[From Camera to Field](/frc/from-camera-to-field). Use the robot pose at the observation timestamp
+when history is available. If the exercise uses a stationary robot to avoid motion compensation,
+state that limitation. The same calculation with the current pose on a moving robot needs a
+latency-error analysis.
 
-The guided example checks a known target ahead of the camera, then moves it to the side. The student
-predicts the sign of yaw, verifies the library's yaw convention, and compares estimated field
-position with the configured simulation position. Log the estimate and truth separately. The
-selection logic sees only the estimate.
+Check the geometry with a known target. Place one simulated target straight ahead of the camera,
+then move it to one side. Predict the sign of yaw before running it, verify the library's yaw
+convention, and compare the estimated field position with the configured simulation position. Log
+the estimate and truth separately. The selection logic sees only the estimate.
+
+Before trusting that comparison, find the height of the fork's simulated fuel.
+`Robot.simulationInit` adds ten placeholder `VisionTargetSim` fuel targets to
+`VisionConstants.objectDetectionSim`, each a `TargetModel` cuboid whose pose has `z = 0`. Read the
+`TargetModel` cuboid constructor to find where the target's center sits relative to that pose.
+Predict the range error your intersection makes when it assumes a plane about 3 in (FuelSim's 0.075
+m radius) above the floor, run the check, and compare. Then move the targets so their centers sit at
+the fuel radius.
 
 ## Prepare for Moving Observations
 
@@ -61,6 +89,13 @@ simulated approach. Use pose history at capture time when available, or stop and
 stationary observation before calculating a field target. State the permitted observation age and
 motion conditions; reject frames outside them. A current-pose calculation on a moving robot requires
 a quantified latency-error bound and a justified acceptance limit.
+
+The history already exists. `Drive`'s `globalPoseEstimator` is a `SwerveDrivePoseEstimator`, and
+WPILib's `PoseEstimator.sampleAt` returns the estimated pose at a past timestamp from that
+estimator's buffer. Read [Fused Pose Estimation](/frc/fused-pose-estimation) for how the estimator
+is advanced and corrected, then add a `Drive` method that samples it for the camera IO. Choose a
+maximum sample age, justify it from the camera latency and the robot's speed during the approach,
+and decide what happens to a frame captured before a pose reset.
 
 Test a delayed frame during simulated motion and show the compensation or rejection decision in the
 log. This bridge belongs to the observation evidence in B3-10.2. The target remains a stationary
@@ -73,17 +108,26 @@ rule. Calculate a robot goal that puts the intake at the piece, including the ro
 and desired heading. Driving the robot center onto the piece is not equivalent to aligning the
 intake.
 
+Find which face of the robot the intake is on. `VisionConstants` mounts the intake camera,
+`DangerCam`, with a yaw of 180 degrees, and `FuelClusterVARC` adds 180 degrees to its rotation
+target. Explain what each of those means, then state the robot heading that points the intake at a
+piece and check it against a drawing of the robot on the field.
+
 Test no target, stale target, out-of-bounds position, near-horizontal ray, and a deliberately wrong
 mounting transform. Save both accepted and rejected observations. The mentor chooses a different
 camera transform for an independent prediction and correction.
 
 ## Physical Camera Check
 
+Before the check, record the coprocessor, camera and measured mounting transform on the
+[Step 13 setup sheet](/badges/badge-3-hardware#complete-the-setup-sheet). If the robot is enabled
+during the check, follow [First Enable](/badges/badge-3-hardware#first-enable) first.
+
 Use the provided Orange Pi 5 or Rubik Pi 3 and camera with the mentor present. Measure the mounting
-transform and place the stationary target at several known locations. Compare observations and
-calculated positions with tape measurements. Record lighting, pipeline, target type, distances,
-timestamp behavior and limitations. This demonstration does not require autonomous motion on
-hardware.
+transform as in [Measure robotToCamera](/frc/pose-estimation-calibration#5-measure-robottocamera)
+and place the stationary target at several known locations. Compare observations and calculated
+positions with tape measurements. Record lighting, pipeline, target type, distances, timestamp
+behavior and limitations. This demonstration does not require autonomous motion on hardware.
 
 ## Replace Cobra's Distance Estimate
 
@@ -92,38 +136,58 @@ Cobra's `ObjectDetectionIOPhoton` estimates distance from the target's pitch wit
 from the current robot pose. Replace that with a ray intersection: transform the full camera ray
 into the field with the capture-time planar robot pose and the configured camera translation and
 rotation, then intersect the fuel-center plane. FuelSim's fuel radius is 0.075 m (about 3 in), so a
-grounded fuel's center sits that high. Bound the accepted distance, for example to 10 m (about 33
-ft). Reject nonfinite values, an invalid camera height, bearings at or beyond 89 degrees, nearly
-parallel rays, backward intersections, excessive range, and points outside the field. A plausible
-but inaccurate mounting transform can still produce a plausible wrong answer; known-location
-measurements are needed to detect it.
+grounded fuel's center sits that high.
 
-Log each frame's timestamp, sequence number and reason, and each observation's raw bearings,
-class/confidence, frame index and reason. Use -1 for an unavailable class or confidence. Keep three
-frame cases distinct: no new frame, a received image with no targets, and a frame without
-capture-pose history. The last is a rejection, not a target at a placeholder zero pose. Test the
-parser with recorded packets and check that the raw inputs round-trip through the log.
+List the geometric cases where an intersection is meaningless and give each a logged reason. Include
+values that are not finite numbers, camera and plane heights that make an intersection impossible,
+rays that never reach the plane in front of the camera, and points the field cannot contain. Choose
+a range limit from the distances your camera check supports, and log it. Read
+[Reject Measurements for Stated Reasons](/frc/vision-subsystem#reject-measurements-for-stated-reasons)
+for the AprilTag version of this rule. A plausible but inaccurate mounting transform can still
+produce a plausible wrong answer; known-location measurements are needed to detect it.
 
-Normal REPLAY uses saved projected inputs. To investigate a projection change, recompute from the
-saved raw bearings, frame-indexed capture pose, camera transform, height, and range in a separate
-diagnostic comparison. Older logs without these fields cannot support that raw-bearing analysis.
+Log each frame's timestamp, sequence number, reason and capture-time robot pose, and each
+observation's raw bearings, class/confidence, frame index and reason. Log the camera transform,
+target height and range limit the projection used. Keep three frame cases distinct: no new frame, a
+received image with no targets, and a frame without capture-pose history. The last is a rejection,
+not a target at a placeholder zero pose. Test the parser with recorded packets and check that the
+raw inputs round-trip through the log.
+
+Normal REPLAY uses saved projected inputs, as in
+[Check the Replay Boundary](/frc/vision-subsystem#check-the-replay-boundary). To investigate a
+projection change, recompute from the saved raw bearings, frame-indexed capture pose, camera
+transform, height, and range in a separate diagnostic comparison. Older logs without these fields
+cannot support that raw-bearing analysis.
 
 ## Heading Assistance Checkpoint
 
 After single-piece tracking, start from Cobra's driver controller A-button binding (port 0). It runs
 `DriveCommands.joystickDriveAtAngle` toward `BobotState.getFuelClusterVARC().getRotationTarget()`
-while the driver keeps translation control. Find what that target is when no cluster is observed.
+while the driver keeps translation control. Read [VARC](/frc/varc) for how that target is updated,
+then answer three questions from the code:
+
+- What is the rotation target when no cluster is observed?
+- What happens when A and the right bumper are both held?
+- `FuelClusterVARC` sorts clusters largest first. What does that rule do with two clusters of equal
+  size?
+
 Keep driver translation active while heading turns toward the selected observed group, document the
 selection rule and its tie-break, and demonstrate selection, loss fallback, and release stop. Save
-the comparison with B3-10.2. This checkpoint requires heading assistance; driving automatically to a
-cluster is outside the required work.
+the heading-assist log with the B3-10.2 evidence, together with a short comparison of your selection
+rule against Cobra's largest-cluster rule on the same scene. This checkpoint requires heading
+assistance; driving automatically to a cluster is outside the required work.
 
 ## Model the Camera in Simulation
 
-Start the camera model with grounded fuel only. Airborne fuel is excluded because the projection
-assumes a fuel center 0.075 m (about 3 in) above the floor. This is a simulation simplification, not
-a robot-side height classifier. Captured images keep their original scene and timestamp while
-waiting for delivery. Motion or collection after capture cannot rewrite an older image.
+After Step 6's FuelSim world exists, connect the camera model to it. Start with grounded fuel only.
+Airborne fuel is excluded because the projection assumes a fuel center 0.075 m (about 3 in) above
+the floor. This is a simulation simplification, not a robot-side height classifier.
+
+A captured image must keep its original scene and timestamp while it waits for delivery, so motion
+or collection after capture cannot rewrite an older image. Read `VisionSystemSim.update` in
+PhotonLib v2026.1.1, linked below. Find which robot pose and which target list it uses when it
+renders a delayed frame. Then decide what your camera world must change so that a piece collected
+after capture still appears in the older image and nowhere later.
 
 Test moving fuel and robot poses through PhotonCamera, the ordinary object-detection IO, and the
 normal Drive estimator history. Test the A-button binding for heading alignment, driver translation,
@@ -146,12 +210,16 @@ student to explain a change and its result before signing.
 ## For the Mentor
 
 `Badge3MentorSolution` replaces Cobra's distance estimate with `FuelProjection`, and
-`CAMERA-PROJECTION.md` explains it. Its IO logs `frameTimestamps`, `frameSequences`, `frameReasons`,
-`observationFrameIndexes`, and `observationReasons`, with the frame reasons `EMPTY_FRAME` and
-`NO_CAPTURE_POSE`. `ProjectionContractTest` checks the parser and log round trip,
-`MovingCameraProjectionTest` exercises the camera queue and capture-pose history, and
-`DriverAssistSimulationTest` operates the A-button binding. `CLUSTER-ASSIST.md` documents the
-nearest-group tie-break and switching margin. The legacy `curriculum-reference` names its adapters
+`CAMERA-PROJECTION.md` explains the ray, its rejection cases and numeric bounds (89 degrees, a 10 m
+range, about 33 ft), the log schema, and the -1 class and confidence PhotonLib reports without a
+detection model. `RobotContainer`'s SIM case builds the camera worlds and passes them to
+`ObjectDetectionVision(ObjectDetectionIO, Optional<FuelVisionSimulation>, Supplier<Pose2d>)`; the
+supplier is the true simulated pose. `Drive.sampleGlobalPoseAt` rejects samples older than 0.25 s or
+before the last pose reset. `FuelVisionSimulation` captures the scene at capture time and queues the
+image. `ProjectionContractTest` checks the parser and log round trip, `MovingCameraProjectionTest`
+exercises the camera queue and capture-pose history, and `DriverAssistSimulationTest` operates the
+A-button binding. `CLUSTER-ASSIST.md` documents the nearest-group tie-break and switching margin
+that replace Cobra's largest-cluster rule. The legacy `curriculum-reference` names its adapters
 `ObjectDetectionIOReal` and `ObjectDetectionIOSim`; these are the same roles.
 
 <Sources items={[
@@ -159,6 +227,11 @@ nearest-group tie-break and switching margin. The legacy `curriculum-reference` 
     "source": "advantagekit",
     "path": "data-flow/recording-inputs/io-interfaces/",
     "note": "Logged camera inputs, so REPLAY reuses the recorded observations instead of fresh camera data."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/vision/ObjectDetectionIO.java",
+    "note": "The starting input record: connection, object count, projected poses and target areas."
   },
   {
     "source": "cobra",
@@ -172,18 +245,48 @@ nearest-group tie-break and switching margin. The legacy `curriculum-reference` 
   },
   {
     "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/vision/ObjectDetectionVision.java",
+    "note": "IO chosen inside the constructor by mode, and <code>objectDetectionSim.update(BobotState.getGlobalPose())</code>: the camera world follows the estimate."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/vision/VisionConstants.java",
+    "note": "<code>DangerCam</code> mounted with a 180-degree yaw, the shared <code>objectDetectionSim</code>, and the fuel height and radius constants."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/Robot.java",
+    "note": "<code>simulationInit</code> adds ten placeholder fuel targets with their poses at <code>z = 0</code>."
+  },
+  {
+    "source": "cobra",
     "path": "src/main/java/frc/robot/subsystems/vision/FuelTracker.java",
     "note": "Tracking reference to inspect and adapt, with its tunable tracking memory."
   },
   {
     "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/drive/Drive.java",
+    "note": "<code>globalPoseEstimator</code>, the <code>SwerveDrivePoseEstimator</code> whose history supplies the capture-time pose."
+  },
+  {
+    "source": "cobra",
     "path": "src/main/java/frc/robot/bobot_state/varc/FuelClusterVARC.java",
-    "note": "The cluster rotation target the A-button heading assist turns toward."
+    "note": "The cluster rotation target the A-button heading assist turns toward: bearing clusters, largest first, plus 180 degrees for the intake."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/RobotContainer.java",
+    "note": "The driver controller's A binding and the A plus right bumper binding."
   },
   {
     "source": "cobra",
     "path": "src/main/java/frc/robot/commands/DriveCommands.java",
     "note": "joystickDriveAtAngle, which keeps driver translation while controlling heading."
+  },
+  {
+    "source": "wpilib-javadoc",
+    "path": "edu/wpi/first/math/estimator/PoseEstimator.html",
+    "note": "<code>sampleAt(double)</code>, the estimated pose at a past timestamp."
   },
   {
     "source": "photonvision",
@@ -200,7 +303,9 @@ nearest-group tie-break and switching margin. The legacy `curriculum-reference` 
     "path": "docs/simulation/simulation-java.html",
     "note": "PhotonCameraSim and simulated targets for the camera model."
   },
-  {"url": "https://github.com/hammerheads5000/FuelSim/blob/37eff8936e55fa4964b0c094ffd1093dff9a4519/FuelSim.java", "label": "FuelSim.java at commit 37eff89", "note": "The 0.075 m fuel radius behind the fuel-center plane height."}
+  {"url": "https://github.com/PhotonVision/photonvision/blob/v2026.1.1/photon-lib/src/main/java/org/photonvision/simulation/VisionSystemSim.java", "label": "PhotonLib VisionSystemSim.java at v2026.1.1", "note": "<code>update</code> renders a delayed frame from the capture-time robot pose and the current target list."},
+  {"url": "https://github.com/PhotonVision/photonvision/blob/v2026.1.1/photon-targeting/src/main/java/org/photonvision/estimation/TargetModel.java", "label": "PhotonLib TargetModel.java at v2026.1.1", "note": "The cuboid constructor's vertices, centered on the target pose."},
+  {"source": "fuelsim-37eff89", "path": "FuelSim.java", "note": "The 0.075 m fuel radius behind the fuel-center plane height."}
 ]} />
 
 <LinkGrid title="Continue" section="badges" links={[{"label": "Step 11: Combined Simulation with maple-sim", "id": "badge-3-maple"}, {"label": "Badge 3: Advanced FRC", "id": "badge-3"}]} />

@@ -166,9 +166,6 @@ LoggedTunableNumber.ifChanged(
 The first argument is an id used to track "changed since last check" per caller. `hashCode()` is the
 usual choice, so two objects watching the same tunable do not interfere with each other.
 
-For the bounded Cobra quasistatic adaptation, including cancellation cleanup and regression checks,
-follow [Badge 3 Flywheel Tuning](/badges/badge-3-flywheel).
-
 ### The Tuning Loop
 
 <StepsBox title="Tuning a mechanism">
@@ -241,6 +238,55 @@ autoChooser.addOption(
 Run them first, put the measured numbers in as defaults, and reserve tunables for the feedback gains
 that remain. Guessing at `kV` when a routine will measure it in two minutes wastes practice time.
 
+### Fitting kS and kV by Least Squares
+
+Cobra's `quasistaticCharacterization` and `steadyStateCharacterization` (in `SingleRoller` and
+`FollowRollers`) fit the same model to their samples. For motion in one direction, the output each
+sample needed is
+
+<Equation display tex="u=k_S+k_V v" />
+
+where <Equation tex="u" /> is the applied voltage (or torque current) and <Equation tex="v" /> is
+the measured mechanism speed in rotations per second. The intercept is `kS` and the slope is `kV`,
+so the fit is a straight line. The least-squares line through <Equation tex="n" /> samples
+<Equation tex="(v_i,u_i)" /> is
+
+<Equation display tex="k_V=\frac{n\sum v_i u_i-\sum v_i\sum u_i}{D},\qquad k_S=\frac{\sum u_i\sum v_i^2-\sum v_i\sum v_i u_i}{D}" />
+
+with the shared denominator
+
+<Equation display tex="D=n\sum v_i^2-\left(\sum v_i\right)^2=n\sum\left(v_i-\bar{v}\right)^2" />
+
+where <Equation tex="\bar{v}" /> is the mean speed of the samples. These are the expressions in
+Cobra's code, with speed as `sumX` and `sumX2` and output as `sumY`.
+
+The second form of <Equation tex="D" /> shows what it measures: how far the sampled speeds spread
+from their mean. It is zero when every sample has the same speed and small when the speeds cover a
+narrow range. A small denominator makes `kV` a small difference divided by a small number, so noise
+in the measured speed decides the result. A sample-count check does not catch this: two samples at
+the same speed pass `n >= 2` and still give <Equation tex="D=0" />, a division by zero.
+
+<StepsBox title="Before trusting a fit">
+
+1. **Drop samples from before the mechanism moved.** Cobra skips samples below 0.1 rotations per
+   second. Stationary samples pull `kS` up and flatten `kV`; WPILib's SysId diagnostics page shows
+   the same problem in a quasistatic plot.
+2. **Fit one direction at a time.** The friction term changes sign with direction.
+3. **Check the spread.** Require at least two distinct speeds, and reject a fit whose
+   <Equation tex="D" /> is below a minimum chosen from the speed range the test was meant to cover.
+   Log <Equation tex="D" /> beside `kS` and `kV`.
+4. **Keep the units.** Volts and volts per rotation per second, or amps and amps per rotation per
+   second; the two are not interchangeable ([Feedforward](/frc/feedforward)).
+5. **Plot the line over the samples.** A curve or a cluster at one end means the model or the data
+   needs checking before the gains are used.
+6. **Validate on a separate run.** Command a speed with the fitted feedforward and no feedback, and
+   compare measured speed with the goal.
+
+</StepsBox>
+
+Badge 3's [Step 5](/badges/badge-3-flywheel) adapts Cobra's quasistatic routine with these checks
+and with cleanup that runs when the command is cancelled.
+
 <RulesBox title="Run characterization safely">
 
 These routines drive the mechanism with no human in the loop. The dynamic tests accelerate hard.
@@ -303,7 +349,11 @@ for an absurd flywheel speed.
   {"source": "ctre", "path": "docs/api-reference/wpilib-integration/sysid-integration/index.html", "note": "SysId with Phoenix signal logging."},
   {"source": "ctre", "path": "docs/api-reference/api-usage/signal-logging.html", "note": "The hoot log SysId reads."},
   {"source": "cobra", "path": "src/main/java/frc/robot/Constants.java", "note": "<code>tuningMode</code>."},
-  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "Gains published as tunables and re-applied on change; the steady-state characterization command."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/system-identification/introduction.html", "note": "The feedforward model and the least-squares regression SysId fits to it."},
+  {"source": "wpilib", "path": "docs/software/advanced-controls/system-identification/viewing-diagnostics.html", "note": "A quasistatic plot should be close to linear; pre-motion samples from too low a velocity threshold distort it."},
+  {"url": "https://openstax.org/books/introductory-statistics-2e/pages/12-3-the-regression-equation", "label": "OpenStax Introductory Statistics 2e: The Regression Equation", "note": "The least-squares line, its slope and intercept, behind the kS and kV expressions."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java", "note": "Gains published as tunables and re-applied on change; the steady-state and quasistatic characterization commands, their 0.1 rot/s motion threshold, and the least-squares sums."},
+  {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollers.java", "note": "The same fit in the follow-roller routines, which checks the sample count but not the denominator."},
   {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "The drivetrain <code>SysIdRoutine</code>."},
   {"source": "cobra", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "SysId and characterization commands on the auto chooser."},
   {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/intake/Intake.java", "note": "A subsystem reading tunables in <code>periodic()</code>."},

@@ -129,6 +129,13 @@ The dimensions are illustrative. Measure the frame and the bumpers, because a bu
 too low lets fuel pass under the robot and one that is too high catches fuel the real robot would
 drive over.
 
+`BobotState.getGlobalPose()` is the robot's estimated pose. Registering it makes the physics follow
+the estimator, so a pose-estimation error moves the fuel too and cannot show up as a miss. When the
+simulation has its own true pose, such as maple-sim's simulated drivetrain
+([maple-sim](/frc/maple-sim)), register that pose and its field-relative speeds instead, and keep
+the estimator for robot control. [Step 6](/badges/badge-3-fuelsim-experiment) of Badge 3 registers a
+fixed test pose until Step 11 adds maple-sim.
+
 Only one robot can be registered. The suppliers and dimensions are plain fields rather than a list,
 so a second `registerRobot` call replaces the first instead of adding a second robot.
 
@@ -171,11 +178,17 @@ public void launchFuel(
     Distance launchHeight)
 ```
 
-Four details decide whether this works.
+Five details decide whether this works.
 
-**The hood angle convention matches Cobra's.** Zero is horizontal and 90 degrees is straight up,
-which is the same sense as `HoodConstants.pivotConfig`, whose range runs from 28 to 50 degrees. The
-hood angle goes in directly.
+**The hood angle is a launch elevation.** Zero is horizontal and 90 degrees is straight up. Cobra's
+hood code mixes two quantities. `HoodConstants.pivotConfig` (28 to 50 degrees, starting at 28) and
+`HubInterpolator` (a fixed 28 degrees) are written as launch elevation. `Hood`'s DOWN, MID and UP
+presets (0, 17 and 22 degrees) are displacement from the hood's zero, which sits at a 28 degree
+launch elevation; the only trace of that offset in the code is a commented `.plus(Degrees.of(28.0))`
+on the CANcoder magnet offset in `HoodConstants`. Convert a preset to elevation before passing it to
+`launchFuel`.
+[Step 6: FuelSim Launch Experiment](/badges/badge-3-fuelsim-experiment#apply-cobras-hood-and-table-conventions)
+works through the conversion.
 
 **The turret yaw is robot-relative.** Cobra has no turret: it aims by rotating the chassis, and
 `launchFuel` already adds the robot's heading internally. Pass `Degrees.zero()` and let the
@@ -184,6 +197,13 @@ drivetrain do the aiming.
 **The launch height has to clear the bumpers.** The Javadoc says so: a launch height below the
 registered bumper height spawns the fuel inside your own robot, which then collides with it
 immediately. The symptom is fuel that appears and instantly squirts sideways.
+
+**The release point is the robot's center.** `launchFuel` places the fuel at the registered pose,
+raised by `launchHeight`, with no forward or sideways offset. Cobra's shooter sits off center
+(`ShooterConstants.robotToShooter`), so a launch from `launchFuel` starts a few inches from where
+the real fuel leaves. When that offset matters, compute the field-relative release position and
+velocity yourself and call `spawnFuel(position, velocity)`, which `launchFuel` itself calls after
+its own calculation.
 
 **The velocity is a surface speed, not a flywheel speed.** Convert with the wheel radius before the
 call: a flywheel at `ω` rad/s with radius `r` throws at `ω × r` m/s, minus whatever slip the real
@@ -219,9 +239,14 @@ public void launchFuel(AngularVelocity flywheelSpeed, Angle hoodAngle) {
       MetersPerSecond.of(flywheelSpeed.in(RadiansPerSecond) * FLYWHEEL_RADIUS.in(Meters)),
       hoodAngle,
       Degrees.zero(),          // Cobra aims with the chassis
-      ROBOT_TO_SHOOTER.getMeasureZ());
+      RELEASE_HEIGHT);         // measured; Cobra's Transform2d has no Z
 }
 ```
+
+`ShooterConstants.robotToShooter` is a `Transform2d`, so it carries no height. Cobra's release
+height is the `upPositive` value in the builder that produces it (13.99 in, from CAD), and
+`getTransform2d()` drops it. Keep the height as its own measured constant, here `RELEASE_HEIGHT`,
+and the wheel radius from `ShooterConstants.shooterFlywheelConfig` (1.5 in) as `FLYWHEEL_RADIUS`.
 
 The stored count is what makes the intake and the shooter agree: the intake callback increments it,
 the launch decrements it, and `canIntake()` stops the robot hoovering up the whole field.
@@ -253,8 +278,9 @@ positions are live only. They are not in the `.wpilog`, and they do not come bac
 [replay](/frc/log-replay). Replaying a simulated match gives you every input and output the robot
 recorded and an empty field.
 
-If the fuel needs to be in the log, mirror it yourself. `fuels` is a `protected` field, so a small
-subclass in the same package can reach it:
+If the fuel needs to be in the log, mirror it yourself. `fuels` is a `protected` field, which Java
+makes visible to any class in the same package and to subclasses. A small subclass is one way to
+reach it; an adapter class in FuelSim's package is another:
 
 ```java
 // Proposed. Not part of FuelSim.
@@ -275,6 +301,8 @@ whether replayable fuel is worth that, and write the decision down next to the c
 - Call `start()`, or `updateSim()` will do nothing and the field will look frozen.
 - Set a launch height above the registered bumper height.
 - Convert flywheel angular velocity to surface speed before launching.
+- Convert Cobra's hood presets, which are displacement from a 28 degree zero, to launch elevation.
+- Register a true pose for physics when one exists, and keep the estimator for control.
 - Gate each intake with a `BooleanSupplier` so a stowed intake collects nothing.
 - Keep `launchFuel` in the sim IO, never in a subsystem the real robot runs.
 - Record the commit you copied, since there is no vendordep to tell you the version.
@@ -282,12 +310,15 @@ whether replayable fuel is worth that, and write the decision down next to the c
 </RulesBox>
 
 <Sources items={[
-  {"source": "fuelsim", "path": "FuelSim.java", "note": "The whole API: the constructors and their default <code>/Fuel Simulation</code> key, <code>registerRobot</code> and its field-relative speeds parameter, the <code>registerIntake</code> overloads, <code>launchFuel</code> with its angle conventions and <code>IllegalStateException</code>, <code>setSubticks</code>, <code>setLoggingFrequency</code>, the <code>Hub</code> score accessors, and the <code>StructArrayPublisher</code> that publishes to NetworkTables rather than AdvantageKit."},
+  {"source": "fuelsim", "path": "FuelSim.java", "note": "The whole API: the constructors and their default <code>/Fuel Simulation</code> key, <code>registerRobot</code> and its field-relative speeds parameter, the <code>registerIntake</code> overloads, <code>launchFuel</code> with its angle conventions, robot-center release and <code>IllegalStateException</code>, <code>spawnFuel</code>, <code>setSubticks</code>, <code>setLoggingFrequency</code>, the <code>Hub</code> score accessors, and the <code>StructArrayPublisher</code> that publishes to NetworkTables rather than AdvantageKit."},
   {"source": "fuelsim", "path": "README.md", "note": "Installation by copying the file, the package-name note, and the setup and usage examples this lesson adapts."},
   {"source": "fuelsim", "path": "LICENSE.md", "note": "MIT licence, copyright 2026, which the copied file has to keep."},
   {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/drive/Drive.java", "note": "<code>getChassisSpeeds()</code> is robot-relative; <code>periodic()</code> converts it with <code>ChassisSpeeds.fromRobotRelativeSpeeds</code> before storing it."},
   {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/BobotState.java", "note": "<code>getGlobalPose()</code> and <code>getRobotVelocity()</code>, the field-relative pair FuelSim should be given."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/HoodConstants.java", "note": "The 28 to 50 degree hood range that matches FuelSim's hood angle convention."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/HoodConstants.java", "note": "The 28 to 50 degree pivot range written as launch elevation, and the commented <code>.plus(Degrees.of(28.0))</code> on the CANcoder magnet offset."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/Hood.java", "note": "The DOWN, MID and UP presets at 0, 17 and 22 degrees, displacement from the hood's zero."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/bobot_state/interpolation/HubInterpolator.java", "note": "The fixed 28 degree pitch, written as launch elevation."},
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/ShooterConstants.java", "note": "<code>robotToShooter</code>, a <code>Transform2d</code> whose builder's 13.99 in up component is dropped by <code>getTransform2d()</code>, and the 1.5 in radius in <code>shooterFlywheelConfig</code>."},
   {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/shooter/Shooter.java", "note": "The velocity-controlled flywheel whose surface speed becomes the launch velocity."},
   {"source": "wpilib-javadoc", "path": "edu/wpi/first/math/kinematics/ChassisSpeeds.html", "note": "<code>fromRobotRelativeSpeeds</code> and the difference between the two frames."},
   {"source": "advantagescope", "path": "tab-reference/3d-field/", "note": "Adding a <code>Translation3d</code> array as game pieces."},

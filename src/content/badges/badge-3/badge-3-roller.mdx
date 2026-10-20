@@ -11,16 +11,35 @@ description: "Compare roller output modes, add CANrange presence sensing, and la
 ---
 
 The student refines the roller from an output command into a mechanism that can distinguish
-collection, invalid sensing, and a sustained jam. Start after Step 3. Complete the relevant fixture
-sheet and voltage baseline before powered physical checks; the scripted sensing and jam experiments
-run first in simulation. Read [Current Limiting](/frc/current-limiting),
-[IO Layers](/frc/io-layers), and the linked CTRE CANrange documentation before changing the sensor
-IO.
+collection, invalid sensing, and a sustained jam. Start after Step 3, in the Badge3Starter fork.
+Read the Cobra classes named on this page in the preserved Starter; implement each change in your
+migrated `RollerIO` in the ROBOTZ Garage library (`org.robotzgarage.frc2027`, from Step 1). The
+scripted sensing and jam experiments run first in simulation.
+
+Research these before changing the roller IO:
+
+- [Roller Example](/frc/roller-example), for the roller IO shape and the voltage versus
+  torque-current choice.
+- [Control Requests](/frc/control-requests), for `VoltageOut` and `TorqueCurrentFOC`.
+- [Current Limiting](/frc/current-limiting), for stator, supply and torque current.
+- [IO Layers](/frc/io-layers), for where a scripted IO fits.
+- [Unit Tests in Simulation](/frc/unit-tests-in-simulation), for driving a rule and a command
+  without a robot.
+- The CTRE
+  [CANrange documentation](https://v6.docs.ctr-electronics.com/en/latest/docs/hardware-reference/canrange/index.html)
+  and
+  [Tuning CANrange](https://v6.docs.ctr-electronics.com/en/latest/docs/hardware-reference/canrange/tuning-canrange.html).
+
+Before any powered physical check, complete the
+[setup sheet](/badges/badge-3-hardware#complete-the-setup-sheet) and the
+[first enable](/badges/badge-3-hardware#first-enable) from Step 13, and save the voltage baseline.
 
 ## Compare Output Modes
 
 Begin with the saved voltage baseline. Run positive, reverse, and zero effort on Talon FX and Talon
-FXS simulation. Then add Talon FX `TorqueCurrentFOC` through the typed current capability. Log
+FXS simulation. For the Talon FXS, start from Cobra's `SingleRollerIOSimTalonFXS` and the
+`MotorConfigs.TalonFXSConfigSim` record; `HoodConstants.hoodConfigSim` is the one place Cobra builds
+that record. Then add Talon FX `TorqueCurrentFOC` through the typed current capability. Log
 requested mode and effort, applied voltage, torque current, supply current, measured speed, and
 configured limits. Supply current is not a replacement for the torque-current measurement in a jam
 rule.
@@ -29,6 +48,12 @@ Use the same model, initial state, and duration for comparisons. Describe the in
 separate choices in volts and amps, not equivalent values. Show the configured limit changing the
 response. A current request also needs a bounded operating range; current limiting alone does not
 detect a trapped game piece.
+
+Cobra's intake already collects in torque-current mode: `Intake.runRollersTorqueCurrent()` requests
+the `intakeAmps` tunable, 50 A by default, and the voltage command beside it is commented out. Run
+normal collection in voltage mode and in torque-current mode, and save torque current and measured
+speed for each. Before looking at a jam, predict which of the two measurements separates a jam from
+normal running in each mode, and explain why from what each request holds constant.
 
 ## Add CANrange IO
 
@@ -39,11 +64,23 @@ input record needs connection/status information, measurement validity, distance
 detection result, and sample time or age. Keep three outcomes distinct: present, absent, and
 invalid. An invalid reading does not prove absence.
 
+`getIsDetected()` is computed on the device from its `ProximityParamsConfigs`: `ProximityThreshold`,
+`ProximityHysteresis`, and `MinSignalStrengthForValidMeasurement`. If the IO uses that signal, those
+configured values are the detection rule; if it compares `getDistance()` in software instead, the
+IO owns the threshold and hysteresis. Decide which one the rule uses and record why. The CANrange
+reports distance in meters, so convert at the IO boundary and record thresholds in inches beside the
+meter values. `getMeasurementTime()` is on the device's own clock, which is not synchronized to the
+robot's, so compute sample age from each `StatusSignal`'s timestamp rather than from that value.
+
 In simulation, first supply scripted input sequences through the same interface: absent to present,
 present to absent, disconnected, and stale. On hardware, move the selected object into and out of
 the configured range under mentor supervision. Record the selected threshold, hysteresis or
 debounce, the observed distances, and the subsystem response. Choose those values from the fixture
 and the game piece in front of it.
+
+Until the CANrange is commissioned in [Step 13](/badges/badge-3-hardware), the REAL possession
+reading should report invalid, so that the readiness policy in
+[Step 9](/badges/badge-3-states) refuses to feed.
 
 The student explains why a detection may be valid while a particular distance is unsuitable for the
 intended decision. Check the pinned CANrange API and the device's reported health instead of
@@ -53,21 +90,28 @@ reducing validity to a single distance comparison.
 
 Cobra has no jam rule, but its rollers already log what one needs. The `SingleRollerIO` inputs
 include `torqueCurrentAmps` and `velocity`, and `SingleRollerIOTalonFX` fills both from the motor.
-Cobra's general `SingleRollerIOSim` fills `velocity` and supply current but leaves
-`torqueCurrentAmps` at zero, so a torque-current rule could never latch in that simulation.
+In SIM, Cobra's rollers run on `SingleRollerIOSimTalonFX`, which reports both from an unloaded
+`DCMotorSim`. Nothing in that model loads or stalls the roller, so a jam rule never sees a jam in
+Cobra's simulation.
 
-Write the rule as a small class that receives the collection request, sensor validity, measured
-torque current, and measured speed, so a unit test can drive it without a motor. The rule requires
-collecting, valid observations, substantial measured torque current, and low measured speed for a
-continuous interval. Values such as 15 A, 1 rotation per second, and 0.2 seconds make a reasonable
-first test; the student selects and justifies values for the actual mechanism.
+Write the rule as a small class that receives the collection request, the roller IO's validity,
+measured torque current, and measured speed, so a unit test can drive it without a motor. In this
+section, valid means the roller motor's observations: the `connected` field of the roller inputs and
+finite measurements. It is separate from CANrange possession. The rule requires collecting, valid
+observations, substantial measured torque current, and low measured speed for a continuous interval.
+
+Derive the thresholds instead of copying them. Record torque current and speed during normal
+collection and during startup, choose a current threshold and a speed threshold that sit outside
+those recordings with a stated margin, and choose a dwell longer than the startup transient. Write
+the margin and the recording it came from beside each value. Then decide whether the rule should
+latch while the roller is running in reverse, and justify the answer.
 
 To watch the rule in simulation, give a roller a scripted IO that implements the roller IO contract
-and reports a chosen torque current and speed, with controls to inject and clear a stall and to
-invalidate the sensor. Start collection, inject a stall, and confirm that the owner stops the roller
-when the rule latches. Clearing the simulated stall must not clear the latch: stop the collection
-command, reset the latch explicitly, then start a new command. Refuse a reset while collection is
-still requested. Keep this scripted roller separate from Cobra's physical feeder.
+and reports a chosen torque current and speed. Add controls to inject and clear a stall and to mark
+the roller observations invalid. Start collection, inject a stall, and confirm that the owner stops
+the roller when the rule latches. Clearing the simulated stall must not clear the latch: stop the
+collection command, reset the latch explicitly, then start a new command. Refuse a reset while
+collection is still requested. Keep this scripted roller separate from Cobra's physical feeder.
 
 Reset the timer when any required condition stops holding. Latch the jam once the interval expires.
 Stop the roller, or use a justified limited hold with an explicit ending condition. Require an
@@ -87,7 +131,7 @@ jam detection receive separate evidence because they answer different questions.
 
 In the fork, trace the intake roller from `Intake` to its selected IO adapter and find where
 `SingleRollerIOTalonFX.updateInputs` fills `torqueCurrentAmps` and `velocity`. Then hold the
-collection request and sensor validity fixed while the scripted IO changes measured speed and
+collection request and roller validity fixed while the scripted IO changes measured speed and
 current. Predict when the dwell starts, when the jam latches, and why the roller stays stopped after
 the request ends until an explicit reset. Save the before/after traces and the independent change.
 
@@ -109,9 +153,10 @@ student to explain a change and its result before signing.
 `Badge3MentorSolution` contains a worked jam exercise: `JamRule`, `JamExerciseIO`, `JamExercise`,
 `JamRuleTest`, and `JAM-EXERCISE.md`, read in that order. Its simulation-only roller runs from a
 gamepad on Driver Station port 4 in Teleop: hold A to collect, B to stop, X and Y to inject and
-clear a stall, the bumpers to invalidate and restore the sensor, and Start to reset the latch. Use
-it to demonstrate the latch and reset behavior after the student has written their own rule and
-predictions.
+clear a stall, the bumpers to invalidate and restore the roller observations, and Start to reset the
+latch. Use it to demonstrate the latch and reset behavior after the student has written their own
+rule and predictions. Its possession IO is `PossessionIOCANrange`, selected in REAL only when
+`PossessionConstants.hardware` is filled in.
 
 <Sources items={[
   {
@@ -125,14 +170,34 @@ predictions.
     "note": "CANrange sensing and configuration."
   },
   {
+    "source": "ctre",
+    "path": "docs/hardware-reference/canrange/tuning-canrange.html",
+    "note": "Choosing the proximity threshold, hysteresis and minimum signal strength for a fixture."
+  },
+  {
     "source": "ctre-javadoc",
     "path": "com/ctre/phoenix6/hardware/core/CoreCANrange.html",
-    "note": "The detection, distance, signal-strength, health and measurement-time signals the presence IO reads."
+    "note": "The detection, distance, signal-strength, health and measurement-time signals the presence IO reads; getIsDetected uses the configured proximity parameters, and getMeasurementTime is not synchronized to any other clock."
+  },
+  {
+    "source": "ctre-javadoc",
+    "path": "com/ctre/phoenix6/configs/ProximityParamsConfigs.html",
+    "note": "ProximityThreshold, ProximityHysteresis and MinSignalStrengthForValidMeasurement, the device-side detection settings."
   },
   {
     "source": "ctre",
     "path": "docs/api-reference/api-usage/status-signals.html",
-    "note": "Refreshing signals together and checking each signal's status."
+    "note": "Refreshing signals together, checking each signal's status, and the signal timestamps used for sample age."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/intake/Intake.java",
+    "note": "runRollersTorqueCurrent and the intakeAmps tunable (50 A default); the voltage command is commented out."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIO.java",
+    "note": "The connected, torqueCurrentAmps and velocity inputs the jam rule reads."
   },
   {
     "source": "cobra",
@@ -141,8 +206,18 @@ predictions.
   },
   {
     "source": "cobra",
-    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSim.java",
-    "note": "The general simulation leaves torqueCurrentAmps unset, which is why a scripted IO is needed."
+    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFX.java",
+    "note": "The SIM roller adapter's unloaded DCMotorSim, which never stalls; the reason a scripted IO is needed."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFXS.java",
+    "note": "The Talon FXS simulation adapter the Talon FXS comparison starts from."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/hood/HoodConstants.java",
+    "note": "hoodConfigSim, Cobra's only TalonFXSConfigSim."
   },
   {
     "source": "ctre",

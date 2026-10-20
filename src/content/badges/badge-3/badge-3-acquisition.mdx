@@ -13,8 +13,9 @@ description: "Collect and score one piece in simulation with BLine, owned states
 The student integrates one simulated collection and scoring attempt using BLine, the state-owned
 subsystem, and camera observations. Start after Steps 9 and 10, including the delayed-observation
 check, the required FuelSim experiment in Step 6, and the
-[Step 11 maple-sim integration](/badges/badge-3-maple). Read [BLine](/frc/bline) and
-[Autonomous Simulation](/frc/autonomous-simulation). The task is simulation-only.
+[Step 11 maple-sim integration](/badges/badge-3-maple). Work in your Badge3Starter fork. Read
+[BLine](/frc/bline), [Autonomous Simulation](/frc/autonomous-simulation), [FuelSim](/frc/fuelsim),
+and [Subsystem State Machines](/frc/subsystem-state-machines). The task is simulation-only.
 
 ## Establish the Sequence
 
@@ -38,6 +39,16 @@ Give the path commands drive requirements and bounded execution. Distinguish suc
 a timeout; command completion alone cannot authorize collection or scoring. On interruption, stop
 drive and feeder outputs and preserve a consistent piece state.
 
+Ordinary command composition of the BLine path is acceptable: a sequence or deadline group that
+runs the follower and the intake request, as in
+[Autonomous Routines](/frc/command-groups#autonomous-routines), meets the requirement when the
+transitions still come from measurements. A state-owned coordinator that runs the follower as a
+child command is also acceptable.
+
+Add the routine to the fork's existing `LoggedDashboardChooser` in
+`RobotContainer.configureAutonomousRoutines`, beside Cobra's routines, so it can be selected from
+the dashboard in SIM. If you select it another way, record in your README how to select and run it.
+
 ## Connect One Field Model
 
 One world owns the piece. Its available field positions feed PhotonVision's simulated targets. Its
@@ -46,9 +57,14 @@ projectile. The robot state machine reads camera and possession inputs; it does 
 world's exact piece location to decide where to drive.
 
 FuelSim does not synchronize PhotonVision targets automatically. The student writes that adapter and
-updates it from the same world after each physics step. Remove collected targets and do not leave a
+updates it from the same world after each physics step. The fork's `Robot.simulationInit` adds ten
+static placeholder fuel targets to `VisionConstants.objectDetectionSim`, a second fuel world that
+FuelSim does not know about. The adapter replaces them. Remove collected targets and do not leave a
 duplicate piece visible after acquisition. A missed projectile may return to the field according to
 the model; it is not automatically held again.
+[Registering Intakes](/frc/fuelsim#registering-intakes),
+[Launching Fuel](/frc/fuelsim#launching-fuel), and
+[Reading the Result](/frc/fuelsim#reading-the-result) cover the FuelSim calls.
 
 Use measured flywheel speed and measured pivot angle at launch. Record the pitch convention, radius,
 slip assumption, launch height, and field-relative robot velocity. Keep a scored count distinct from
@@ -59,34 +75,43 @@ reconstruct the event.
 
 In the fork, `AutonomousManager` builds Cobra's routines from fixed BLine paths, intake deploy and
 stow commands that wait until the pivot is near its goal, and timed shooting segments such as
-`handleInterpolateShooterToHub` from Step 1. `BLineManager` shows how Cobra constructs the BLine
-follower and its PID controllers. No routine reads camera observations, and nothing confirms
-possession: collection is assumed from the path and the clock.
+`handleInterpolateShooterToHub` from Step 1. Each path command comes from `drive.getBLineBuilder()`,
+the builder `Drive` configures in its constructor. `BLineManager` constructs a separate builder with
+its own PID controllers, but nothing in the fork constructs `BLineManager`. No routine reads camera
+observations, and nothing confirms possession: collection is assumed from the path and the clock.
+
+`Drive`'s builder adds `.withDefaultShouldFlip()` and, in SIM only, `.withPoseReset(this::setPose)`.
+Before reusing it for the approach, find what each option does in SIM, using
+[Wiring It to the Drivetrain](/frc/bline#wiring-it-to-the-drivetrain) and BLine's FollowPath
+builder options linked below. Explain why a path to an observed goal, already expressed in field
+coordinates from the estimated pose, needs neither.
 
 The one-piece sequence replaces that assumption with observed states. Write down, for each state,
 the measurements that permit its transition. Route normal forward-feed requests through the
 readiness policy from Step 9. Keep the mechanism library to four explicit families, with commands
 owned by parent subsystems.
 
-Build seven integrated runs: one launch, the four failure conditions below, and interruption at two
-points. Save each run as a named WPILOG. Inspect state, refusal, camera and possession inputs,
-measured mechanism values, estimate, inventory, launch count, and score together. A passing launch
-test does not establish that the projectile scored or that the physical robot is tuned. Preserve
-misses while calibrating the model against physical observations.
+Build seven integrated runs: one successful attempt, one run for each of the first four failure
+cases below, and two interruption runs, one during driving and one during scoring. Save each run as
+a named WPILOG. Inspect state, refusal, camera and possession inputs, measured mechanism values,
+estimate, inventory, launch count, and score together. A passing launch test does not establish that
+the projectile scored or that the physical robot is tuned. Preserve misses while calibrating the
+model against physical observations.
 
 ## Required Failure Runs
 
 | Case | Injection | Evidence |
 | --- | --- | --- |
 | No visible piece | Remove or hide the piece before the search. | Search ends within its bound; no possession or launch is invented. |
-| Target Lost | Stop observations before collection. | The stale-target rule is visible and the attempt stops or recovers as documented. |
-| Collection Timeout | Prevent possession confirmation at the attempted pickup. | The bounded attempt fails; held and scored remain false. |
-| Never Ready | Keep measured speed or angle outside tolerance. | The feeder stays stopped and readiness times out. |
+| Target lost | Stop observations before collection. | The stale-target rule is visible and the attempt stops or recovers as documented. |
+| Collection timeout | Prevent possession confirmation at the attempted pickup. | The bounded attempt fails; held and scored remain false. |
+| Never ready | Keep measured speed or angle outside tolerance. | The feeder stays stopped and readiness times out. |
 | Interruption | Cancel once during driving and once during scoring. | Drive and feeder stop; the piece is neither duplicated nor consumed twice. |
 
 The mentor's transition-policy tests illustrate these cases; the student demonstrates them through
-the integrated robot and actual IO path. Repeat any failure runs affected when FuelSim replaces the
-initial field stand-in.
+the integrated robot and actual IO path. [Unit Tests in Simulation](/frc/unit-tests-in-simulation)
+shows how to run each case as a repeatable test that saves its log. Repeat any failure runs affected
+when FuelSim replaces the initial field stand-in.
 
 ## Independent Change
 
@@ -98,12 +123,14 @@ successful run.
 ## Score Under Declared Assumptions
 
 B3-12.1 and B3-12.7 close only when the integrated run demonstrates a score under declared geometry
-and model assumptions; collection and a launch alone do not complete them. Use the shot calibration
-and the commissioning record to reconcile measured release speed, geometry, and the preserved
-empirical tables. Keep held-out validation shots separate from fitting.
-The legacy Step 6 scoring experiment and dropped-ball scoring fixtures remain useful scoped tests;
-neither establishes Cobra's shot calibration. Other coursework may continue while this evidence is
-pending. Do not change empirical table values solely to turn a simulation assertion green.
+and model assumptions; collection and a launch alone do not complete them. They also stay open until
+the [Step 13 commissioning record](/badges/badge-3-hardware#complete-the-setup-sheet) exists. Use
+[Step 6's hood and table conventions](/badges/badge-3-fuelsim-experiment#apply-cobras-hood-and-table-conventions)
+and that commissioning record to reconcile measured release speed, geometry, and the preserved
+empirical tables. Keep held-out validation shots separate from fitting. The legacy Step 6 scoring
+experiment and dropped-ball scoring fixtures remain useful scoped tests; neither establishes Cobra's
+shot calibration. Other coursework may continue while this evidence is pending. Do not change
+empirical table values solely to turn a simulation assertion green.
 
 ## Keep Arrival and Visibility Checks Consistent
 
@@ -135,16 +162,20 @@ student to explain a change and its result before signing.
 ## For the Mentor
 
 `Badge3MentorSolution` maps its states in `frc/robot/subsystems/acquisition/Acquisition.java` to
-their measurements in `ONE-PIECE.md`. `OnePieceScenario` runs the seven cases (`SUCCESS`,
-`NO_PIECE`, `TARGET_LOST`, `COLLECTION_TIMEOUT`, `NEVER_READY`, `CANCEL_DRIVE`, and `CANCEL_FEED`)
-and saves their logs under `build/evidence`; `SlowCollectionSimulationTest` and
+their measurements in `ONE-PIECE.md`. `Acquisition` runs its BLine paths as child commands built by
+`Drive.pathToObservedPose`, a separate runtime builder with `withShouldFlip(() -> false)`, no
+mirror and no pose reset. `FuelCameraTargets` replaces the static `simulationInit` targets with
+FuelSim's grounded fuel. The reference selects the routine through `Constants.autonomousRoutine`
+(`ONE_PIECE`) rather than the dashboard chooser. `OnePieceScenario` runs the seven cases
+(`SUCCESS`, `NO_PIECE`, `TARGET_LOST`, `COLLECTION_TIMEOUT`, `NEVER_READY`, `CANCEL_DRIVE`, and
+`CANCEL_FEED`) and saves their logs under `build/evidence`; `SlowCollectionSimulationTest` and
 `SlowSuccessSimulationTest` repeat two of them with 10 ms of added loop delay. The reference's
 `SUCCESS` run and its slow variant establish collection and launch with one launch and zero scores,
 so the reference itself has not yet demonstrated a score. `SHOT-CALIBRATION.md` holds the
 calibration worksheet.
 
 <Sources items={[
-  {"url": "https://github.com/hammerheads5000/FuelSim/blob/37eff8936e55fa4964b0c094ffd1093dff9a4519/FuelSim.java", "label": "FuelSim.java at commit 37eff89", "note": "Launch units, intake callbacks, field-relative speeds and hub scoring."},
+  {"source": "fuelsim-37eff89", "path": "FuelSim.java", "note": "Launch units, intake callbacks, field-relative speeds and hub scoring."},
   {
     "source": "wpilib",
     "path": "docs/software/commandbased/subsystems.html",
@@ -154,6 +185,11 @@ calibration worksheet.
     "source": "bline",
     "path": "concepts/path-elements/",
     "note": "The path follower used for the acquisition sequence; the fork keeps Cobra's BLine-Lib 0.8.4, so check concepts against that release."
+  },
+  {
+    "source": "bline",
+    "path": "lib/follow-path/",
+    "note": "FollowPath builder options (alliance flip and pose reset) and a dedicated runtime builder for a goal already in field coordinates."
   },
   {
     "source": "cobra",
@@ -168,12 +204,27 @@ calibration worksheet.
   {
     "source": "cobra",
     "path": "src/main/java/frc/robot/autonomous/AutonomousManager.java",
-    "note": "Cobra's fixed-path routines with time-based collection and shooting segments."
+    "note": "Cobra's fixed-path routines built from <code>drive.getBLineBuilder()</code>, with time-based collection and shooting segments."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/subsystems/drive/Drive.java",
+    "note": "The shared BLine builder: <code>withDefaultShouldFlip()</code>, and <code>withPoseReset(this::setPose)</code> in SIM."
   },
   {
     "source": "cobra",
     "path": "src/main/java/frc/robot/autonomous/bline/BLineManager.java",
-    "note": "How Cobra constructs the BLine follower and its PID controllers."
+    "note": "A separate builder with its own PID controllers, which nothing in the fork constructs."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/Robot.java",
+    "note": "<code>simulationInit</code> adds ten static placeholder fuel targets to <code>objectDetectionSim</code>."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/frc/robot/RobotContainer.java",
+    "note": "The <code>LoggedDashboardChooser</code> and <code>configureAutonomousRoutines</code>, where the one-piece routine is added."
   }
 ]} />
 
