@@ -10,36 +10,47 @@ difficulty: advanced
 description: "Trace typed voltage and current requests, identify supported controller modes, and compare their measured behavior."
 ---
 
-The student prepares the library for current-based control while preserving the voltage baseline.
-Start after [Calculus for Controls](/badges/badge-3-calculus). Badge 2 supplies FX, FXS and Nova
-introductions, configuration records and the two CTRE roller simulations. Before advanced physical
-comparisons, verify the actual fixture and its voltage baseline using
-[Hardware Evidence Completion](/badges/badge-3-hardware#first-enable). Simulation can proceed while
-its physical appointment is pending.
+The student prepares the ROBOTZ Garage library for current-based control while keeping the existing
+voltage control path working. Start once [Step 2](/badges/badge-3-calculus) is under way; the
+calculus rows (C1 to C5) can continue alongside this step. This step builds the typed torque-current
+capability, its visible refusal of unsupported and nonfinite requests, and the student's predictions
+for the Talon FXS request and the tower's output trace. Steps 4, 5 and 7 use this capability for the
+required Talon FX and Talon FXS comparisons on the roller, flywheel and pivot; linear rail and
+elevator comparisons, and versions for other motor controllers, are extensions.
+
+Before each advanced physical comparison in those steps, verify the actual fixture and its physical
+voltage baseline with the [first enable](/badges/badge-3-hardware#first-enable) in Step 13.
+Simulation work can continue while a comparison waits for its hardware appointment.
+
+## Lessons to Read
+
+Read these lessons before the guided change:
+
+- [IO Layers](/frc/io-layers)
+- [Current Limiting](/frc/current-limiting)
+- [TalonFX Simulation](/frc/talonfx-simulation)
+- [Manual Tuning: Introduction](/frc/manual-tuning-introduction)
+- [The Units Library](/frc/math-toolbox-units-and-interpolation#the-units-library)
+- [The Output Types](/frc/control-requests#the-output-types) and
+  [Licensing, in One Place](/frc/control-requests#licensing-in-one-place)
 
 ## Bridge to the Supplied Adapters
 
 The student begins with Badge 2's tested configuration record, builder, general mechanism models and
-selected physical roller. Compare the supplied FX and FXS adapters with the roller paths built in
-Badge 2 before the advanced comparisons. Trace a configuration field, a request and a measurement
-through each unfamiliar adapter; distinguish supplied code from the student's changes. Additional
-vendor implementations in the base are teaching assets to read.
+selected physical roller. Compare the supplied Talon FX and Talon FXS adapters with the roller paths
+built in Badge 2 before the advanced comparisons. Trace a configuration field, a request and a
+measurement through each unfamiliar adapter; distinguish supplied code from the student's changes.
+The Starter's other vendor adapters are there to read. Tests of the configured values and of each
+builder still apply, as in Badge 2; read the applied settings back from the device before using it.
 
 Start in the fork's `SingleRollerIO`. Its `runTorqueCurrent(Current)` is a default method that does
 nothing. Only the two Talon FX adapters, `SingleRollerIOTalonFX` and
 `SingleRollerIOTalonFXWithCANCoder`, override it to send `TorqueCurrentFOC`, and their simulation
-subclasses inherit that request. The Talon FXS adapters, `SingleRollerIONova` and the general
-`SingleRollerIOSim` inherit the empty default, so a torque-current request on them returns normally
-and changes nothing. Then open `Feeder.runFeederCurrent()`: it passes the tower's voltage setting,
-`towerVoltage`, into `Amps.of(...)`, so the number tuned in volts is sent as amperes. These two
-findings are the starting point for this step. Cobra binds no button or autonomous step to
-`runFeederCurrent()`. Add a temporary binding or a test before you record a trace.
-
-Keep controller-specific capability and gain records explicit. Tests of the configured values and
-of each builder still apply, as in Badge 2; inspect the vendor configuration result before using the
-device. The required
-FX/FXS comparisons cover roller, flywheel and pivot. Linear rail and additional elevator ports
-remain extensions.
+subclasses inherit that request. Three kinds of adapter inherit the empty default: the Talon FXS
+adapters, `SingleRollerIONova`, and the general `SingleRollerIOSim`. A torque-current request on any
+of them returns normally and changes nothing. Then open `Feeder.runFeederCurrent()`: it passes the
+tower's voltage setting, `towerVoltage`, into `Amps.of(...)`, so the number tuned in volts is sent
+as amperes. These two findings are the starting point for this step.
 
 ## Keep the Requested Quantity Explicit
 
@@ -48,96 +59,109 @@ requested quantity, expressed in amperes. A current request cannot be implemente
 same number into a voltage method. Keep `Voltage`, `Current`, `AngularVelocity`, and `Angle` in the
 mechanism-facing API, then convert at the vendor boundary.
 
-Read [IO Layers](/frc/io-layers), [Current Limiting](/frc/current-limiting),
-[TalonFX Simulation](/frc/talonfx-simulation), and
-[Manual Tuning: Introduction](/frc/manual-tuning-introduction). Draw the route from a subsystem goal
-to the vendor request and back through logged measurements. Identify the units at every conversion.
+Draw the route from a subsystem goal to the vendor request and back through logged measurements.
+Identify the units at every conversion.
 
-The guided change is a separate torque-current capability for Talon FX, built from the
-`TorqueCurrentFOC` request that `SingleRollerIOTalonFX` already sends. The student adds a typed
-current method to their own design and records the selected output mode. The method refuses a
+## Guided Change: Torque Current on Talon FX
+
+The guided change adds a separate torque-current capability for Talon FX to the student's migrated
+library, starting from the `TorqueCurrentFOC` request Cobra's `SingleRollerIOTalonFX` already sends.
+The student adds a typed current method and records the selected output mode. The method refuses a
 nonfinite request (NaN or infinite) by stopping the output and logging the refusal; it does not
 throw. [The Output Types](/frc/control-requests#the-output-types) lists the units of each request,
 and [Licensing, in One Place](/frc/control-requests#licensing-in-one-place) explains why
 `TorqueCurrentFOC` needs a Pro-licensed device.
 
 Talon FXS remains voltage-controlled. Phoenix 6 26.1.0 is the release the Starter pins, and in it
-`TalonFXS` has no `TorqueCurrentFOC` request. Pass a `TorqueCurrentFOC` to a `TalonFXS` through the
-generic `setControl(ControlRequest)` and write down a prediction: whether it compiles, whether it
-throws, and what it returns. Then check the `setControl(ControlRequest)` entry in the `CoreTalonFXS`
-Javadoc. An unsupported current request must be refused visibly, at configuration or at request
-time, so the log shows why nothing moved. A silent no-op fails the row.
+`TalonFXS` has no `TorqueCurrentFOC` request. Before trying it, write down a prediction for passing
+a `TorqueCurrentFOC` to a `TalonFXS` through the generic `setControl(ControlRequest)`: whether it
+compiles, whether it throws, and what it returns. Then try it in a unit test, and check the
+`setControl(ControlRequest)` entry in the `CoreTalonFXS` Javadoc. An unsupported current request
+must be refused visibly, at configuration or at request time, so the log shows why nothing moved. A
+silent no-op fails B3-03.1.
 
-Use separate gain sets for voltage and torque-current control. A voltage-mode proportional gain
-produces volts per unit of error; the corresponding current-mode gain produces amperes per unit of
-error. Copying the number from one mode to the other produces a different controller.
+Keep each motor controller's capability and gain records explicit, with separate gain sets for
+voltage and torque-current control. A voltage-mode proportional gain produces volts per unit of
+error; the corresponding current-mode gain produces amperes per unit of error. Copying the number
+from one mode to the other produces a different controller.
+
+## Trace Both Requests in Cobra
+
+Cobra binds no button or autonomous step to `runFeederCurrent()`. Add a temporary binding or a test
+before recording a trace.
+
+In the fork, trace `Feeder.runFeederVoltage()` and `Feeder.runFeederCurrent()` from the command to
+the adapter, writing the unit at each step.
+[The Units Library](/frc/math-toolbox-units-and-interpolation#the-units-library) covers converting
+at the vendor boundary.
+
+Fix the units in the `runFeederCurrent()` path and decide what a Talon FXS or Nova tower should do
+when asked for current; the Nova's request helpers are in
+[Select the Request and Sensor](/frc/thrifty-nova-control#select-the-request-and-sensor).
+
+Configure the student's tower for one supported mode, predict its output trace, and demonstrate that
+an unsupported request is refused visibly. Run each comparison from the same initial state for the
+same duration, and keep the voltage and current input magnitudes as separate choices.
+
+The student makes a provisional decision on which output mode Cobra's feed path (teleop and
+autonomous) should use and records the reason beside the physical voltage baseline. If the choice is
+torque current, the record includes the chosen torque-current setpoint in amperes. The Step 4 roller
+comparison confirms or changes the decision.
 
 ## Preserve Simulation Ownership
 
-General simulation advances its model through its existing periodic owner. Vendor simulation
-advances through the vendor IO's owned callback and feeds sensor state back to the controller.
-Adding another model update in the subsystem would advance time twice. Draw and explain the update
-order before changing it.
+General simulation advances its model once per robot loop, from the periodic code that owns the
+model. CTRE simulation advances in a callback the vendor IO owns and feeds sensor state back to the
+motor controller. Adding another model update in the subsystem would advance time twice. Draw and
+explain the update order before changing it.
 
 The Starter already contains a mechanism with two models. In SIM, the feeder tower is a `Flywheel`
 (`org/robotzgarage/frc2026/subsystems/flywheel/Flywheel.java`) whose IO is
 `SingleRollerIOSimTalonFX`. Read `Flywheel.periodic()`, then the IO's constructor and
 `updateSimState()`. For each model, record its class, what calls its update and how often, and
-whether its result feeds back into the Talon FX sim state the controller reads or reaches only the
-log. [TalonFX Simulation](/frc/talonfx-simulation) explains the vendor side.
+whether its result feeds back into the Talon FX sim state the motor controller reads or reaches only
+the log. [TalonFX Simulation](/frc/talonfx-simulation) explains the CTRE side.
 
-REAL constructs physical IO, SIM constructs the selected simulation, and REPLAY consumes recorded
-inputs with no physical controllers. A unit test cannot switch between them:
+In REAL mode `RobotContainer` constructs physical IO; in SIM, the selected simulation; in REPLAY, no
+physical controllers, and the code consumes recorded inputs. A unit test cannot switch between them:
 `Constants.currentMode` is a `static final` value set from `RobotBase.isReal()` and `simMode` when
-the class loads. Check each mode a different way. Trace each branch of the `RobotContainer`
-construction `switch` and write down what it builds. Set `simMode` to `REPLAY` and replay a saved
-simulation log, as in [Replaying a Match](/frc/log-replay#replaying-a-match). Add one test that
-constructs the SIM container and checks what was built. Keep model truth out of robot decisions: it
-may generate sensor observations and comparison plots, but normal control reads the same IO
-contract used on hardware.
+the class loads. Check the modes three ways instead:
+
+- Trace each branch of the `RobotContainer` construction `switch` and write down what it builds.
+- Set `simMode` to `REPLAY` and replay a saved simulation log, as in
+  [Replaying a Match](/frc/log-replay#replaying-a-match).
+- Add one test that constructs the SIM container and checks what was built.
+
+Keep the true pose and other simulator state out of robot decisions. They can generate sensor
+observations and comparison plots, but normal control reads the same IO contract used on hardware.
 
 ## Independent Change
 
-The mentor selects a different mechanism family. The student adds or deliberately refuses the new
-capability, demonstrates the result, and explains how the type or runtime check prevents an
-unsupported request. The student also traces a recorded input through replay and identifies an
-output recomputed by the robot code.
-
-## Trace Both Requests in Cobra
-
-In the fork, trace `Feeder.runFeederVoltage()` and `Feeder.runFeederCurrent()` from the command to
-the adapter, writing the unit at each step.
-[The Units Library](/frc/math-toolbox-units-and-interpolation#the-units-library) covers converting
-at the vendor boundary. Fix the units in the current path and decide what a Talon
-FXS or Nova tower should do when asked for current; the Nova's request helpers are in
-[Select the Request and Sensor](/frc/thrifty-nova-control#select-the-request-and-sensor). Change
-the student configuration for one supported mode, predict the output trace, and demonstrate that an
-unsupported request is refused visibly. Run each comparison from the same initial state for the
-same duration, and keep the voltage and current input magnitudes as separate choices.
-
-Decide which mode Cobra's operator feed binding and autonomous shot should use. Record the reason
-and the current value you choose, in amperes, beside the voltage baseline.
+The mentor selects a mechanism family other than the tower roller. The student adds or deliberately
+refuses the new capability, demonstrates the result, and explains how the type or runtime check
+prevents an unsupported request. The student also traces a recorded input through replay and
+identifies an output recomputed by the robot code.
 
 ## Badge Check
 
-S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, an explanation in the student's own words, the mentor's
-signature, and the date for each row. The mentor asks the
-student to explain a change and its result before signing.
+S means simulation, W means written reasoning, and M means mentor-observed review. The student
+records an evidence link and an explanation in the student's own words for each row in the fork's
+README. The mentor asks the student to explain a change and its result, checks each row, then signs
+and dates the step on the [sign-off sheet](/documents/badges/badge-3/badge-3-sign-off.pdf).
 
 | Row | Work | Done When |
 | --- | --- | --- |
-| B3-03.1 | Typed output capabilities | S/W: Keep voltage and current distinct; preserve typed speed and angle goals. Unsupported current requests cannot silently become voltage requests. |
+| B3-03.1 | Typed output capabilities | S/W: Keep voltage and current distinct and preserve typed speed and angle goals. Unsupported or nonfinite current requests are refused visibly; they never become voltage requests or silent no-ops. Fix the units in Cobra's current feed path, and add or refuse the capability on a mentor-selected second mechanism family. |
 | B3-03.2 | Configuration and simulation ownership | S/M: Select general simulation, CTRE simulation, hardware and replay deliberately. Trace each mode's construction in `RobotContainer`, replay a saved simulation log, and add a test that constructs the SIM container. Explain model-update ownership, conversions and the no-hardware replay path. |
 
 ## For the Mentor
 
 Compare these files with the student's design after the student has made their own decisions. In
-`Badge3MentorSolution`, read `TorqueCapabilityTest`, `TalonFxEndpointTest`,
-`StarterTransitionTest`, `RobotContainerSmokeTest` and `RollerNotifierTest`; `EXPERIMENTS.md` lists
-the matched comparison conditions, and `RobotContainer` and `Feeder` hold the mentor's feed-mode
-choice. In `curriculum-reference`, `TorqueFXExample` and `ControllerModesTest` run against that
-project's own pinned dependencies; the two projects' dependency sets are separate.
+`Badge3MentorSolution`, read `TorqueCapabilityTest`, `TalonFxEndpointTest`, `StarterTransitionTest`,
+`RobotContainerSmokeTest` and `RollerNotifierTest`; `EXPERIMENTS.md` lists the matched comparison
+conditions, and `RobotContainer` and `Feeder` hold the mentor's feed-mode choice. In
+`curriculum-reference`, `TorqueFXExample` and `ControllerModesTest` run against that project's own
+pinned dependencies, which are separate from those of `Badge3MentorSolution`.
 
 <Sources items={[
   {
@@ -158,7 +182,7 @@ project's own pinned dependencies; the two projects' dependency sets are separat
   {
     "source": "ctre-javadoc",
     "path": "com/ctre/phoenix6/hardware/core/CoreTalonFXS.html",
-    "note": "TalonFXS control requests: VoltageOut is available and TorqueCurrentFOC is not; the generic setControl(ControlRequest) returns the NotSupported StatusCode for an unsupported request. Checked against the 26.1.0 sources the Starter pins."
+    "note": "TalonFXS control requests and the generic setControl(ControlRequest) entry the prediction is checked against. Checked against the 26.1.0 sources the Starter pins."
   },
   {
     "source": "wpilib",
@@ -198,7 +222,12 @@ project's own pinned dependencies; the two projects' dependency sets are separat
   {
     "source": "cobra",
     "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFX.java",
-    "note": "The vendor-simulation model, its update callback and the Talon FX sim state it writes."
+    "note": "The CTRE simulation model, its Notifier update callback and the Talon FX sim state it writes."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSim.java",
+    "note": "The general simulation model advanced once per loop in updateInputs, and the empty runTorqueCurrent it inherits."
   }
 ]} />
 

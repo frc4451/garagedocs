@@ -60,6 +60,38 @@ This is the procedure behind [PID Tuning Practice – Elevator](/frc/pid-tuning-
 [Elevators](/frc/elevator-example) and [Pivots](/frc/pivot-example) show where those gains and
 gravity models belong in reusable components.
 
+## Tuning a Nova Live
+
+The bracket and the ladder change a gain dozens of times. Redeploying for each change is slow, so
+make the gains tunable and edit them from the dashboard;
+[Tunable Constants and Characterization](/frc/tunable-constants-and-characterization#the-tuning-loop)
+shows that loop. On a Thrifty Nova, the gains this procedure tunes are configuration options, and
+the profile gains apply while the Nova runs its onboard motion profile:
+
+<ContentTable
+  headers={["Procedure step", "Nova option"]}
+  rows={[
+    ["Gravity bracket", "<code>NovaConfig.Mp0.kG</code> and <code>NovaConfig.Mp0.kS</code>"],
+    ["<code>kP</code>/<code>kD</code> ladder", "<code>NovaConfig.Pid0.p</code> and <code>NovaConfig.Pid0.d</code>"],
+    ["Gravity model", "<code>NovaConfig.Mp0.gravType(...)</code>: <code>MPGravityType.COSINE</code> for an arm, <code>MPGravityType.CONSTANT</code> for an elevator"]
+  ]}
+/>
+
+Four things differ from the Talon in CTRE's worked example:
+
+- **Volts, not amps.** The Nova has no torque-current mode, and ThriftyLib documents its profile
+  `kS` and `kG` in volts. The example's numbers do not transfer; the procedure does. Expect a much
+  smaller `kP`, as in the voltage-mode practice projects.
+- **Send only what changed, and only when it changes.** Each `configure(...)` call is one CAN
+  transaction, and ThriftyLib warns against large reconfigurations inside the periodic loop. When a
+  tunable changes, send only the gain options in one `configure(...)` call, without a factory reset.
+- **The Nova remembers.** Its flash settings persist across power cycles. Put
+  `CANDeviceConfig.factoryReset()` first in the startup batch, so the next boot starts from the
+  constants in code rather than the last value tried on the dashboard. Copy the final values into
+  those constants before you finish.
+- **Tune on the robot.** ThriftyLib's simulator ignores all PID values, so the `kP`/`kD` ladder does
+  nothing in simulation. Bracket and ladder on the physical mechanism.
+
 <RulesBox title="Common mistakes">
 
 - **Bracketing an arm somewhere other than horizontal.** The gravity term is largest at horizontal;
@@ -79,7 +111,9 @@ gravity models belong in reusable components.
   {"source": "wpilib", "path": "docs/software/advanced-controls/introduction/tuning-elevator.html", "note": "WPILib's elevator tuning walkthrough."},
   {"source": "ctre", "path": "docs/api-reference/device-specific/talonfx/closed-loop-requests.html", "note": "<code>GravityType</code> Arm_Cosine and Elevator_Static."},
   {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "The elevator mechanism that applies gains established with this procedure."},
-  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/Hood.java", "note": "An arm-type mechanism with Arm_Cosine gravity."}
+  {"source": "cobra", "path": "src/main/java/frc/robot/subsystems/hood/Hood.java", "note": "An arm-type mechanism with Arm_Cosine gravity."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/configs", "note": "Nova Pid0 and Mp0 gain options, MPGravityType COSINE and CONSTANT, kS and kG in volts, one CAN transaction per configure() call, the warning against large reconfigurations in the periodic loop, and flash persistence with factoryReset() first."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/simulation", "note": "The simulator ignores all PID values, so PID tuning is done on the physical robot."}
 ]} />
 
 <LinkGrid links={[

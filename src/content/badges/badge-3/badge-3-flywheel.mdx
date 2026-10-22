@@ -11,40 +11,77 @@ description: "Characterize and tune measured flywheel speed before the separate 
 ---
 
 The student characterizes the flywheel, controls its measured speed, and validates the tuning on a
-separate run. Start after the calculus, output-capability and roller work in Steps 2–4, in the
-Badge3Starter fork. Read the Cobra classes named on this page in the preserved Starter; implement
-each change in your migrated `FlywheelIO` in the ROBOTZ Garage library (`org.robotzgarage.frc2027`,
-from Step 1).
+separate run. Start after the calculus, output-capability and roller work in Steps 2 through 4, in
+the `Badge3Starter` fork. The student reads the Cobra classes named on this page in the fork and
+implements each change in a new `FlywheelIO` for the follow-roller flywheel in the migrated ROBOTZ
+Garage library (`org.robotzgarage.frc2027`, from [Step 1](/badges/badge-3-start)).
 
-Research these before writing the command:
+Most of this step runs in simulation. B3-05.2 needs one hardware characterization run on the
+fixture. Before it, complete the [setup sheet](/badges/badge-3-hardware#complete-the-setup-sheet)
+and the [first enable](/badges/badge-3-hardware#first-enable) from Step 13.
 
-- [Feedforward](/frc/feedforward), for `kS` and `kV` and their units in volts and amps.
+Research these before writing the characterization command:
+
+- [Feedforward](/frc/feedforward), for `kS` and `kV` and their units in volts and amperes.
 - [Tunable Constants and Characterization](/frc/tunable-constants-and-characterization), for the
   least-squares fit and its checks.
 - [Manual Tuning: Flywheel](/frc/manual-tuning-flywheel) and
   [Shooter Example](/frc/shooter-example), for speed control and the wheel model.
-- [Commands](/frc/commands#ending-cleanly), for what `end(boolean interrupted)` runs on
+- [Ending Cleanly](/frc/commands#ending-cleanly), for what `end(boolean interrupted)` runs on
   cancellation.
 - [Command Groups](/frc/command-groups) and WPILib's
   [Command Compositions](https://docs.wpilib.org/en/stable/docs/software/commandbased/command-compositions.html),
   for what happens to the rest of a sequence when it is cancelled.
-- [FuelSim](/frc/fuelsim), which Step 6 uses with the measured speed.
 
-## Characterize Before Refining Feedback
+## Trace the Flywheel in Cobra
+
+In the fork, trace a `Shooter` command to `FlywheelFollower`, then the `FollowRollersIO` contract
+and its `FollowRollersIOTalonFX` and `FollowRollersIOSimTalonFX` adapters.
+
+Then find where SIM physics advances for the shooter. Two `moi` values look like candidates: the one
+in `ShooterConstants.shooterFlywheelConfig` and the one in
+`ShooterConstants.flywheelFollowersConfigSim`. Trace which one reaches a model that is stepped every
+loop, starting from the shooter IO that `RobotContainer` builds in SIM and from the `FlywheelSim`
+inside `FlywheelFollower`. Record which one a change to simulated inertia must edit, and explain why
+changing the other would leave the response unchanged.
+
+## Characterize before Refining Feedback
 
 Cobra's `Shooter.quasistaticCharacterization` delegates to its `FlywheelFollower`, which extends
 `FollowRollers`; the routine itself is `FollowRollers.quasistaticCharacterization`. Adapt it into a
 bounded command owned by the parent subsystem. A quasistatic test slowly increases effort so
-acceleration contributes less to the measured response. Check the samples anyway: a slow ramp
-reduces the acceleration term, but some can remain in the data.
+acceleration contributes less to the measured response. Some acceleration can remain in the data, so
+check the samples.
 
-The ramp itself reaches the motor through `FollowRollersIOTalonFX.runVolts` or `runTorqueCurrent`.
-Read which control requests those send, then answer in the student README: does a `VoltageOut` or
-`TorqueCurrentFOC` ramp use the Slot0 gains? Decide from that answer whether your command needs to
-change controller configuration at all. If it does, capture the configuration when the command
-starts and restore it on every exit, including cancellation.
+### Configure the Experiment before Enabling It
 
-Define a maximum effort, maximum duration, speed bound, and cancellation action before running it.
+Give the characterization command a limits record with no default values: the student supplies every
+fixture value. Decide which quantities the record must hold to bound effort, rate, time, speed and
+direction, and write down what each one prevents. Decide which values to refuse before any output,
+and log the refusal reason. Cobra's entry points to wrap are `Shooter.quasistaticCharacterization`,
+the feeder and intake roller characterizations, and the intake pivot's
+`Intake.endeffectorFeedForwardCharacterization`. Have each entry take a fixture-permission supplier
+(it reports whether the fixture conditions recorded with the mentor hold for this run), and allow
+output only when both that supplier and the subsystem's connection check pass.
+
+The pivot entry waits for [Step 7](/badges/badge-3-pivot#establish-manual-reference): its permission
+supplier needs the reference-validity gate that step adds, along with a finite measured position and
+travel margin. Step 7 completes it under row B3-07.4, so B3-05.2 covers the flywheel, feeder and
+intake roller entries.
+
+Before writing the stop logic, answer these in the fork's README:
+
+- Which measurements are checked before each output, and what does the command do when one is
+  invalid?
+- Which conditions stop the command, and what reason does each one log?
+- When the command is cancelled, which code runs, and how does a test show that the output reached
+  zero?
+
+Choose the physical limits with the mentor and record them before using the physical fixture;
+software tests cannot choose them.
+
+### Adapt Cobra's Routine
+
 Read Cobra's routine for three problems:
 
 1. It reads the configuration snapshot when the command object is built, not when the command
@@ -54,9 +91,14 @@ Read Cobra's routine for three problems:
    skips that step, so the zeroed gains stay applied.
 3. Its fit checks the sample count but not a near-zero regression denominator.
 
-Its `finallyDo` does stop the motor on every exit; keep that part. Problems 1 and 2 only matter to a
-command that changes configuration, so the answer above decides whether your command has to fix
-them or can avoid them.
+Its `finallyDo` stops the motor on every exit; keep that part.
+
+Problems 1 and 2 matter only to a command that changes motor controller configuration. The ramp
+reaches the motor through `FollowRollersIOTalonFX.runVolts` or `runTorqueCurrent`. Read which
+control requests those send, then answer in the fork's README: does a `VoltageOut` or
+`TorqueCurrentFOC` ramp use the Slot 0 gains? If the command must change configuration, capture it
+when the command starts and restore it on every exit, including cancellation; otherwise leave the
+configuration unchanged.
 
 Collect timestamp, requested and measured effort, speed, direction, and output mode. Exclude
 stationary samples from a moving-region fit and inspect acceleration and saturation. Fit voltage or
@@ -70,83 +112,80 @@ quasistatic `kV` will come out higher or lower than the steady-state `kV` for th
 explain the prediction from the acceleration term. Then compare the two fits and explain any
 difference.
 
-Validate the resulting gain choice on a separate run, then tune feedback against the agreed speed
-error and settling targets. Compare Talon FX voltage and torque-current control and Talon FXS
-voltage control. The Starter has no Talon FXS follow-roller adapter: `rollers/follow` holds only
-`FollowRollersIOTalonFX` and `FollowRollersIOSimTalonFX`. Build the Talon FXS comparison in your
-migrated `FlywheelIO`, starting from `SingleRollerIOTalonFXS` and `SingleRollerIOSimTalonFXS`. Keep
-the gain units beside every value. SysId is encouraged as extra exploration alongside the required
-Cobra adaptation.
+## Tune and Compare Speed Control
+
+Validate the resulting gain choice on a separate run, then tune feedback against speed-error and
+settling targets the student defines with the mentor and records before tuning. Compare Talon FX
+voltage and torque-current control and Talon FXS voltage control. A requested speed starts each run;
+measured speed determines the result. Change one output mode or gain at a time, predict rise time
+and error, run each comparison from the same initial state for the same duration and goal, and
+compare the saved traces. Keep the goal or profile, the measurement, and the output on separate
+traces.
+
+The Starter has no Talon FXS follow-roller adapter: the Talon adapters in `rollers/follow` are
+`FollowRollersIOTalonFX` and `FollowRollersIOSimTalonFX`. Build the Talon FXS comparison in the
+migrated `FlywheelIO`, starting from `SingleRollerIOTalonFXS` and `SingleRollerIOSimTalonFXS`.
+
+Keep the gain units beside every value. SysId is encouraged as extra exploration alongside the
+required Cobra adaptation.
+
+### Tune Gains Live
+
+Cobra changes gains while the robot runs, so a tuning pass does not need a redeploy for each value.
+Trace the path in the fork: `FollowRollers` builds one `LoggedTunableNumber` per gain under
+`<name>/FeedBack` and `<name>/FeedForward`, seeded from the controller's Slot 0, and its
+`periodic()` passes a changed group to `updateFeedBack` or `updateFeedForward`. The numbers are live
+only while `Constants.tuningMode` is true.
+[Tunable Constants and Characterization](/frc/tunable-constants-and-characterization#the-tuning-loop)
+teaches the tuning loop and how to edit the numbers from AdvantageScope.
+
+Carry live tuning into the migrated `FlywheelIO`, with one set of gains for each output mode: the
+Slot 0 voltage gains and a separate torque-current set. Before writing it, answer these in the
+fork's README:
+
+- `FollowRollersIOTalonFX.updateFeedBack` applies its whole stored `TalonFXConfiguration` to the
+  leader and the follower. Read CTRE's
+  [Configuration](https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/api-usage/configuration.html)
+  page, then decide what the migrated IO sends instead and why.
+- `apply()` waits for the device to respond. When does the migrated code send gains, and what would
+  sending them on every loop cost?
+- How does the student see on the dashboard that a gain change was refused or failed?
+- A dashboard value lasts until the code restarts. Where do the final values go, and with which
+  units?
+
+Tune with `tuningMode` on, copy the final values into the constants, then make the validation run
+with `tuningMode` off. The evidence then shows the values the robot keeps.
 
 ## Connect Measured Speed to a Shot
 
 The saved speed response becomes the input to
-[Step 6: FuelSim Launch Experiment](/badges/badge-3-fuelsim-experiment). That module owns the launch
+[Step 6: FuelSim Launch Experiment](/badges/badge-3-fuelsim-experiment). Step 6 owns the launch
 model, scoring shot, controlled miss and model assumptions. Finish the speed-control evidence here
-before changing launch parameters.
+before changing launch parameters. Keep the controller configuration, fitted data and separate
+validation run for the Step 6 launch experiment.
 
 ## Independent Change
 
 The mentor selects a different flywheel goal or simulated inertia. The student predicts spin-up,
-settling and steady speed, repeats from the same initial conditions, and explains the measured
-response. Keep the controller configuration, fitted data and independent validation run for the
-launch experiment.
+settling and steady speed, repeats the run from the same initial conditions, and explains the
+measured response. To change simulated inertia, edit the `moi` value identified in
+[Trace the Flywheel in Cobra](#trace-the-flywheel-in-cobra).
 
-Before changing simulated inertia, find where SIM physics advances for the shooter. Two `moi` values
-look like candidates: the one in `ShooterConstants.shooterFlywheelConfig` and the one in
-`ShooterConstants.flywheelFollowersConfigSim`. Trace which one reaches a model that is stepped every
-loop, starting from the shooter IO that `RobotContainer` builds in SIM and from the `FlywheelSim`
-inside `FlywheelFollower`. Change that one, and explain why changing the other would leave the
-response unchanged.
-
-## Configure the Experiment Before Enabling It
-
-Give the characterization command a limits record with no default values: the student supplies every
-fixture value. Decide which quantities the record must hold to bound effort, rate, time, speed and
-direction, and write down what each one prevents. Decide which values to refuse before any output,
-and log the refusal reason. Cobra's entry points to wrap are `Shooter.quasistaticCharacterization`,
-the feeder and intake roller characterizations, and the intake pivot's
-`Intake.endeffectorFeedForwardCharacterization`. Have each entry take a fixture-permission supplier,
-combined with the subsystem's connection check.
-
-The pivot entry waits for [Step 7](/badges/badge-3-pivot#establish-manual-reference): its permission
-supplier needs the reference-validity gate that step adds, along with a finite measured position and
-travel margin.
-
-Before writing the stop logic, answer these in the README:
-
-- Which measurements are checked before each output, and what does the command do when one is
-  invalid?
-- Which conditions stop the command, and what reason does each one log?
-- When the command is cancelled, which code runs, and how does a test show that the output reached
-  zero?
-
-An experiment that changes configuration records and restores it separately, including interruption
-paths. Choose the physical limits with the mentor and record them before using the actual fixture;
-software tests cannot choose them. Complete the
-[setup sheet](/badges/badge-3-hardware#complete-the-setup-sheet) and the
-[first enable](/badges/badge-3-hardware#first-enable) from Step 13 before any hardware
-characterization.
-
-## Trace the Flywheel in Cobra
-
-In the fork, trace a `Shooter` command to `FlywheelFollower`, then the `FollowRollersIO` contract
-and its `FollowRollersIOTalonFX` and `FollowRollersIOSimTalonFX` adapters. A requested speed starts
-the experiment; measured speed determines the result. Change one controller mode or gain, run each
-comparison from the same initial state for the same duration and goal, predict rise time and error,
-and compare saved traces. Keep profile/goal, measurement, and output on separate traces.
+When this step's simulation rows pass, the physical torque-current demonstration for this mechanism
+(B3-13.1) can follow; see
+[Required Demonstrations](/badges/badge-3-hardware#required-demonstrations).
 
 ## Badge Check
 
-S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, an explanation in the student's own words, the mentor's
-signature, and the date for each row. The mentor asks the
-student to explain a change and its result before signing.
+S means simulation, H means hardware, and W means written reasoning. The student records an evidence
+link and an explanation in the student's own words for each row in the fork's README. The mentor
+asks the student to explain a change and its result, checks each row, then signs and dates the step
+on the [sign-off sheet](/documents/badges/badge-3/badge-3-sign-off.pdf).
 
 | Row | Work | Done When |
 | --- | --- | --- |
 | B3-05.1 | Flywheel speed control | S: Compare Talon FX voltage and torque-current speed control and Talon FXS voltage control with typed angular velocity, separate mode-appropriate gains, tolerances and response logs. |
-| B3-05.2 | Characterize and validate | S/H/W: Adapt Cobra's quasistatic characterization, record units and stopping conditions, derive or justify gains, then validate them on a separate run. SysId remains encouraged exploration. |
+| B3-05.2 | Characterize and validate | S/H/W: Adapt Cobra's quasistatic characterization for the flywheel, feeder and intake roller entries, record units and stopping conditions, derive or justify gains, then validate them on a separate run. SysId remains encouraged exploration. |
 
 ## For the Mentor
 
@@ -158,16 +197,19 @@ methods. Its flywheel adapters, including the Talon FXS pair, are under
 `Badge3MentorSolution` lists matched comparison conditions. Compare them with the student's command
 after the student has designed their own.
 
+For live tuning, read `TunableGains` in the library, the flywheel adapters' `applyVoltageGains` and
+`applyTorqueGains`, and `LiveGainTuningTest`. `Badge2MechanismReference` carries the voltage half.
+
 <Sources items={[
   {
     "source": "ctre",
     "path": "docs/api-reference/device-specific/talonfx/closed-loop-requests.html",
-    "note": "Output types and closed-loop units; Slot gains apply to closed-loop requests."
+    "note": "Output types and closed-loop units, read to decide which requests use the Slot gains."
   },
   {
     "source": "ctre",
     "path": "docs/api-reference/device-specific/talonfx/open-loop-requests.html",
-    "note": "VoltageOut and TorqueCurrentFOC, the open-loop requests the ramp sends."
+    "note": "VoltageOut and TorqueCurrentFOC, read with the closed-loop page for the Slot 0 question."
   },
   {
     "source": "wpilib",
@@ -192,22 +234,32 @@ after the student has designed their own.
   {
     "source": "cobra",
     "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollers.java",
-    "note": "The quasistatic routine students adapt (build-time snapshot, restoration skipped on cancel, the unguarded fit) and the steady-state routine."
+    "note": "The quasistatic routine students adapt (build-time snapshot, restoration skipped on cancel, the unguarded fit), the steady-state routine, and the FeedBack and FeedForward tunables that periodic() pushes on change."
   },
   {
     "source": "cobra",
     "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollersIOTalonFX.java",
-    "note": "runVolts sends VoltageOut and runTorqueCurrent sends TorqueCurrentFOC."
+    "note": "runVolts, runTorqueCurrent, updateFeedBack and updateFeedForward, read to find which requests the ramp sends and what each update applies."
+  },
+  {
+    "source": "cobra",
+    "path": "src/main/java/org/littletonrobotics/LoggedTunableNumber.java",
+    "note": "The tunable number: dashboard values only while Constants.tuningMode is true, and hasChanged per caller."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/api-reference/api-usage/configuration.html",
+    "note": "Applying config groups and the cost of apply(), read for the live-tuning questions."
   },
   {
     "source": "cobra",
     "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/follow/FollowRollersIOSimTalonFX.java",
-    "note": "The SIM adapter whose DCMotorSims advance each loop from the sim config's moi."
+    "note": "The SIM adapter, one of the places the moi trace leads."
   },
   {
     "source": "cobra",
     "path": "src/main/java/org/robotzgarage/frc2026/subsystems/flywheel/FlywheelFollower.java",
-    "note": "The FlywheelSim built from shooterFlywheelConfig, whose update call is commented out."
+    "note": "The FlywheelSim inside FlywheelFollower, one of the two models the moi trace starts from."
   },
   {
     "source": "cobra",
@@ -222,7 +274,7 @@ after the student has designed their own.
   {
     "source": "cobra",
     "path": "src/main/java/frc/robot/RobotContainer.java",
-    "note": "The SIM shooter IO, FollowRollersIOSimTalonFX built from flywheelFollowersConfigSim."
+    "note": "The SIM shooter IO construction in RobotContainer, where the moi trace begins."
   }
 ]} />
 

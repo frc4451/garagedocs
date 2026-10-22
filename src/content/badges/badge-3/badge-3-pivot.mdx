@@ -11,36 +11,21 @@ description: "Establish reference validity and travel limits before comparing so
 ---
 
 The student refines the pivot while keeping its position reference, travel limits, and profile
-ownership explicit. Start after Step 3 and the Badge 2 software-profile baseline. This module can
-run alongside flywheel and FuelSim work. Before each physical reference or motion check, complete
-the [Step 13 setup sheet](/badges/badge-3-hardware#complete-the-setup-sheet) and
-[first enable](/badges/badge-3-hardware#first-enable) for that fixture. Read
-[CANcoder Absolute Position](/frc/cancoder-absolute-position),
-[Why Motion Magic](/frc/why-motion-magic),
-[Trapezoidal Motion Profiling](/frc/trapezoidal-motion-profiling), and
-[Exponential Motion Profiling](/frc/exponential-motion-profiling).
+ownership explicit. Start after Step 3 and the Badge 2 software-profile baseline. This step can run
+alongside the flywheel and FuelSim work in Steps 5 and 6. Before each powered reference or motion
+check, complete the [Step 13 setup sheet](/badges/badge-3-hardware#complete-the-setup-sheet) and
+[first enable](/badges/badge-3-hardware#first-enable) for that fixture.
 
-Steps 7 and 8 read Cobra's `org.robotzgarage.frc2026` classes in your Badge3Starter fork to learn
-what the robot does today, and implement each change in your migrated `org.robotzgarage.frc2027`
-pivot from [Step 1](/badges/badge-3-start#establish-the-baseline).
+The student reads Cobra's `org.robotzgarage.frc2026` classes in the Badge3Starter fork to learn what
+the robot does today and implements each change in the migrated `org.robotzgarage.frc2027` pivot
+from [Step 1](/badges/badge-3-start#establish-the-baseline).
 
-Cobra has two absolute-referenced pivots to start from. In the fork, the intake's `endeffector` is a
-`Pivot` on `SingleRollerIOTalonFXWithCANCoder`, and the hood runs on
-`SingleRollerIOTalonFXSWithCANCoder`. Both configure `FusedCANcoder` feedback with the
-rotor-to-sensor and sensor-to-mechanism ratios from their CANcoder configs. The intake adapter
-already holds `MotionMagicVoltage` and `MotionMagicExpoTorqueCurrentFOC` requests; the hood adapter
-uses `MotionMagicVoltage`. These adapters run only in REAL. In SIM, `RobotContainer` builds the
-endeffector on `SingleRollerIOSimTalonFX` (the `SingleRollerIOSimTalonFXWithCANCoder` line is
-commented out) and the hood on `SingleRollerIOSimTalonFXS`, so neither fused feedback nor the Expo
-request runs in Cobra's simulation until the student switches those constructions.
+Research these before changing the pivot IO:
 
-Before switching SIM to a CANcoder adapter, predict what fused feedback will report during a
-simulated move. Then read `SingleRollerIOSimTalonFXWithCANCoder.updateSimState()`: it writes the
-Talon FX rotor position and velocity and never writes the CANcoder's sim state, and the FXS version
-has the same gap.
-[The Missing Piece: the CANcoder](/frc/talonfx-simulation#the-missing-piece-the-cancoder) explains
-what fused feedback does with a CANcoder that never moves. Write the CANcoder's sim state from the
-same physics, in sensor rotations, before trusting any fused run in simulation.
+- [CANcoder Absolute Position](/frc/cancoder-absolute-position)
+- [Why Motion Magic](/frc/why-motion-magic)
+- [Trapezoidal Motion Profiling](/frc/trapezoidal-motion-profiling)
+- [Exponential Motion Profiling](/frc/exponential-motion-profiling)
 
 ## Establish Manual Reference
 
@@ -49,35 +34,65 @@ After power is restored in the disabled state, the operator explicitly establish
 reference. Record whether the write succeeded before allowing position requests. Startup must not
 move the mechanism automatically to find zero.
 
-Use a pivot with relative feedback for this exercise: your Badge 2 bench pivot, or a SIM pivot on a
-rotor-only adapter such as Cobra's `SingleRollerIOSimTalonFX`. Keep Cobra's intake pivot for the
-absolute path in B3-07.3. Its feedback is `FusedCANcoder`, and
+Use a pivot with relative feedback for this exercise: the student's Badge 2 bench pivot, or a SIM
+pivot on a rotor-only adapter such as Cobra's `SingleRollerIOSimTalonFX`. Keep Cobra's intake pivot
+for the absolute path in B3-07.3. Its feedback is `FusedCANcoder`, and
 [Starting Consistently, Every Time](/frc/cancoder-absolute-position#starting-consistently-every-time)
 explains why a fused motor is not re-zeroed with `setPosition`.
 
 Reference validity begins false after a power cycle or a known sensor reset. A matching encoder
 number alone does not prove the arm is at the reference mark. The subsystem rejects ordinary
-position requests until the reference procedure succeeds. Record a refusal reason and preserve a
-separate, mentor-controlled bring-up procedure if manual movement is needed.
+position requests until the reference procedure succeeds. Record a refusal reason. If manual
+movement is needed, keep a separate, mentor-controlled bring-up procedure for it.
 
 Cobra's pivots have no reference gate. Nothing in the Starter calls `Pivot.setGoalPosition`.
 `Intake` and `Hood` call `setGoal`, which `Pivot` inherits from `SingleRoller`: it records the goal
 and calls the adapter's `setGoal`, which sends a `MotionMagicVoltage` request. No step on that path
-checks a reference. The adapters' `resetPosition` calls `talon.setPosition(position)` and discards
-the returned `StatusCode`, so a failed write goes unnoticed. Add the gate to your migrated pivot:
-refuse normal requests until an explicit reference write succeeds, and check that write's result.
+checks a reference. The `resetPosition` methods of the intake and hood adapters,
+`SingleRollerIOTalonFXWithCANCoder` and `SingleRollerIOTalonFXSWithCANCoder`, call
+`talon.setPosition(position)` and discard the returned `StatusCode`, so a failed write goes
+unnoticed. Add the reference gate to the migrated pivot and check the result of the reference write.
 Write a test for the refusal and the recovery.
 
-Connect the gate to the controller's reset status, the disabled state, and subsystem requests. On a
-Talon FX, Phoenix 6's `ParentDevice.hasResetOccurred()` returns true when the device has reset since
-the previous call, so call it from one place each loop and invalidate the reference when it returns
-true. A second student follows the written procedure after a power cycle and demonstrates
+Connect the gate to the motor controller's reset status, the disabled state, and subsystem requests.
+On a Talon FX, Phoenix 6's `ParentDevice.hasResetOccurred()` returns true when the device has reset
+since the previous call, so call it from one place each loop and invalidate the reference when it
+returns true. Another member follows the written procedure after a power cycle and demonstrates
 repeatable goals. No limit switch is required.
+
+## Confirm the Trace in Cobra
+
+Start with the intake pivot's request in the fork: trace an `Intake` command such as
+`endeffectorDeploy()` to the inherited `SingleRoller.setGoal`, then to the CANcoder adapter's
+`setGoal` and its `MotionMagicVoltage` request. Then follow the same request in the migrated pivot.
+With the reference gate added, predict the result, then request an angle while the reference is
+invalid. Establish the reference explicitly, repeat the same request, and compare goal, measured
+angle, speed, and refusal. Connect the gate to the student's own subsystem before claiming the
+reference outcome.
 
 ## Add Absolute Position Reference
 
-This is a Badge 3 addition to the motor-relative Badge 2 mechanism library. Keep the
-relative-feedback path available while adding the absolute sensor configuration and IO.
+Cobra has two absolute-referenced pivots to start from. In the fork, the intake's `endeffector` is a
+`Pivot` on `SingleRollerIOTalonFXWithCANCoder`, and the hood runs on
+`SingleRollerIOTalonFXSWithCANCoder`. Both configure `FusedCANcoder` feedback with the
+rotor-to-sensor and sensor-to-mechanism ratios from their CANcoder configs. The intake adapter
+already holds `MotionMagicVoltage` and `MotionMagicExpoTorqueCurrentFOC` requests; the hood adapter
+uses `MotionMagicVoltage`. Expo is CTRE's exponential Motion Magic profile. These adapters run only
+in REAL. In SIM, `RobotContainer` builds the endeffector on `SingleRollerIOSimTalonFX` (the
+`SingleRollerIOSimTalonFXWithCANCoder` line is commented out) and the hood on
+`SingleRollerIOSimTalonFXS`, so neither fused feedback nor the Expo request runs in Cobra's
+simulation until those constructions are switched.
+
+For B3-07.3 in simulation, switch the endeffector's or the hood's SIM construction to its CANcoder
+adapter. Before switching, predict what fused feedback will report during a simulated move. Then
+read `SingleRollerIOSimTalonFXWithCANCoder.updateSimState()`: it writes the Talon FX rotor position
+and velocity and never writes the CANcoder's sim state, and the FXS version has the same gap.
+[The Missing Piece: the CANcoder](/frc/talonfx-simulation#the-missing-piece-the-cancoder) explains
+what fused feedback does with a CANcoder that never moves. Write the CANcoder's sim state from the
+same physics, in sensor rotations, before trusting any fused run in simulation.
+
+Absolute position reference is a Badge 3 addition to the motor-relative Badge 2 mechanism library.
+Keep the relative-feedback path available while adding the absolute sensor configuration and IO.
 Complete B3-07.3 with either of these vendor-matched fixtures:
 
 | Controller | Absolute sensor | Reference implementation |
@@ -90,37 +105,40 @@ A Thrifty fixture is a valid hardware option for the absolute-reference and repe
 The CTRE-specific Motion Magic, torque-current, and Expo simulation comparisons remain separate
 requirements; choosing Thrifty hardware does not require a second physical CTRE fixture.
 
-For both paths, record CAN bus and IDs, sensor placement, positive direction, offset, reduction,
-sensor-to-mechanism ratio, and permitted travel. Compare physical and reported mechanism angles
-at multiple marks before allowing normal motion. A single-turn encoder cannot identify which
-turn a multi-turn mechanism occupies. Keep the permitted travel within one sensor turn or use a
-separately reviewed referencing strategy. Have the IO refuse to reference when the travel exceeds
-one sensor turn, or when the encoder does not share the controller's bus with its own CAN ID, and
-report the reason as its reference status.
+For both paths, record CAN bus and IDs, sensor placement, positive direction, offset,
+motor-to-mechanism reduction, sensor-to-mechanism ratio, and permitted travel. Compare physical and
+reported mechanism angles at multiple marks before allowing normal motion. A single-turn encoder
+cannot tell which of its own turns it is on, so keep the permitted travel within one sensor turn or
+use a separately reviewed referencing strategy. Have the IO refuse to reference when the travel
+exceeds one sensor turn, or when the encoder is not on the controller's CAN bus at its recorded CAN
+ID, and report the reason as its reference status.
 
-Before wiring, compute how far each Cobra sensor turns across its pivot's travel. Take the
-`minAngle` to `maxAngle` range from `IntakeConstants.pivotConfig` and `HoodConstants.pivotConfig`,
-multiply by the sensor-to-mechanism ratio each CANcoder config uses
+Before configuring the absolute reference, compute how far each Cobra sensor turns across its
+pivot's travel. Take the `minAngle` to `maxAngle` range from `IntakeConstants.pivotConfig` and
+`HoodConstants.pivotConfig`, multiply by the sensor-to-mechanism ratio each CANcoder config uses
 (`endeffectorReductionSensorToMechanism` and `hoodReductionSensorToMechanism`), and compare each
 result with one sensor turn of 360 degrees. Record the margin.
 
 Cobra's CANcoder adapters write `MagnetOffset` as the config's `magnetOffset`, a mechanism angle,
-times `sensorToMechanismReduction`. The Thrifty path below keeps its offset in sensor-angle units
-from the start. Explain why Cobra multiplies by the ratio, which unit the CANcoder applies its
-offset in, and why the Thrifty path needs no multiplication.
+times `sensorToMechanismReduction`. The Thrifty path in
+[Thrifty CAN Encoder and Nova Startup](#thrifty-can-encoder-and-nova-startup) keeps its offset in
+sensor-angle units from the start. Explain why Cobra multiplies by the ratio, which unit the
+CANcoder applies its offset in, and why the Thrifty path needs no multiplication.
 
 ### Thrifty CAN Encoder and Nova Startup
 
-Review [Thrifty Nova Control](/frc/thrifty-nova-control) and
-[Thrifty Nova Simulation](/frc/thrifty-nova-simulation) first. Cobra and the Starter pin ThriftyLib
-2026.0.1 (`com.thethriftybot.frc:ThriftyLib-java`). Its `ThriftyEncoder` class offers position and
-zeroing but not the `CanEncoder` status API this exercise uses. Before this
-exercise, replace the fork's ThriftyLib vendordep with the 2026.2.2 release Badge 2 used
-(`com.thrifty.frc:Thrifty-java`, packages `com.thrifty.*`) and rebuild. The new release replaces the
-`ThriftyNova` class with `com.thrifty.nova.Nova` and a new configuration API, so the old Nova
-adapter and its configuration types are replaced, not only re-imported. The student's Badge 2
-`NovaConfigs` and `NovaMotorConfig` already use the 2026.2.2 API. This CAN device is distinct from
-Thrifty's 10-pin encoder; confirm which device the fixture uses before wiring it.
+This subsection applies only to a Thrifty Nova fixture; a CTRE fixture skips it. The Thrifty CAN
+encoder is distinct from Thrifty's 10-pin encoder; confirm which device the fixture uses before
+wiring it. Review [Thrifty Nova Control](/frc/thrifty-nova-control) and
+[Thrifty Nova Simulation](/frc/thrifty-nova-simulation) first.
+
+Cobra and the Starter pin ThriftyLib 2026.0.1 (`com.thethriftybot.frc:ThriftyLib-java`). Its
+`ThriftyEncoder` class offers position and zeroing but not the `CanEncoder` status API this exercise
+uses. Before this exercise, replace the fork's ThriftyLib vendordep with the 2026.2.2 release Badge
+2 used (`com.thrifty.frc:Thrifty-java`, packages `com.thrifty.*`) and rebuild. The new release
+replaces the `ThriftyNova` class with `com.thrifty.nova.Nova` and a new configuration API, so the
+student rewrites the old Nova adapter and its configuration types rather than only changing their
+imports. The student's Badge 2 `NovaConfigs` and `NovaMotorConfig` already use the 2026.2.2 API.
 
 Thrifty's online documentation and Javadoc follow its newest release. The
 [Encoders & Feedback](https://docs.thethriftybot.com/software/thriftylib/latest/encoders) page
@@ -129,17 +147,16 @@ sensor types; that pairing needs Nova firmware 2027.0.0-beta.4 or newer and is n
 exercise. In the pinned 2026.2.2 API, a `CanEncoder` reads the sensor, its `status()` reports
 `getPositionAbs()`, `getPositionRel()`, `getVelocity()`, and `getDeviceStatus()`, and
 `Nova.setEncoderPosition(rotations, EncoderType.INTERNAL)` seeds the motor's internal position.
-Check method names against the pinned library in the project; the online pages describe the newer
-release. In VS Code, use Go to Definition on a `com.thrifty` class to open the pinned 2026.2.2 jar's
-signatures. Your Badge 2 `PivotIONova`, which seeds the internal encoder with
-`setEncoderPosition(..., EncoderType.INTERNAL)` in its constructor and `resetPosition`, is a
-starting point for the new IO.
+Check method names against the pinned library in the project. In VS Code, use Go to Definition on a
+`com.thrifty` class to open the pinned 2026.2.2 jar's signatures. The student's Badge 2
+`PivotIONova`, which seeds the internal encoder with `setEncoderPosition(..., EncoderType.INTERNAL)`
+in its constructor and `resetPosition`, is a starting point for the new IO.
 
 Set the device offset and inversion to zero and false, and apply direction and offset exactly once
-in typed host calibration. Keep the offset in sensor-angle units, before division by the
-sensor-to-mechanism ratio. Convert the encoder's absolute position to a typed mechanism `Angle`.
-Initialize Nova's internal position with that angle times the motor reduction, converted to
-rotations only at `setEncoderPosition(..., EncoderType.INTERNAL)`.
+in the robot code's calibration, using typed units. Keep the offset in sensor-angle units, before
+division by the sensor-to-mechanism ratio. Convert the encoder's absolute position to a typed
+mechanism `Angle`. Initialize Nova's internal position with that angle times the motor reduction,
+converted to rotations only at `setEncoderPosition(..., EncoderType.INTERNAL)`.
 
 1. Start disabled with normal voltage and position requests refused. Read the encoder and verify
    its configuration, finite readings, travel range, and stationary mechanism.
@@ -157,13 +174,13 @@ rotations only at `setEncoderPosition(..., EncoderType.INTERNAL)`.
 
 The pinned status view reports the last device status, `getDeviceStatus()`, but no sample timestamp
 or dedicated heartbeat. A successful status is not proof of a fresh reading. Perform the physical
-disconnect check and record when the fault is detected. The software comparison also detects
-disagreement between motor-relative and absolute position, but that does not prove every reset or
+disconnect check and record when the fault is detected. Comparing motor-relative and absolute
+position in software also detects disagreement between them, but that does not prove every reset or
 stale-frame case is detected. Hardware evidence must include these limitations.
 
 Write tests for calibration, startup gating, write verification, faults, and recovery. A simulation
 that pairs the Nova voltage approximation with WPILib physics and a separate software
-absolute-sensor model checks the robot code's path, while the Nova and encoder firmware run only on
+absolute-sensor model checks the robot code's path. The Nova and encoder firmware run only on
 hardware, so record physical sensor behavior separately.
 
 ## Bound Travel
@@ -176,11 +193,14 @@ Badge 2 library `Pivot` clamps out-of-range goals and logs `GoalClamped`, but WP
 finiteness before the request. Test both ends and a nonfinite goal in simulation.
 
 Before restoring any clamp, compare each pivot's `minAngle` and `maxAngle` with the goals it
-receives. The hood's `PivotConfig` limits, 28 to 50 degrees, are launch elevation. The `Hood`
-presets DOWN, MID and UP, 0, 17 and 22 degrees, are displacement from DOWN
-([Keep the Hood References Clear](/frc/visualizing-cobra#keep-the-hood-references-clear)). Predict
-what DOWN becomes under a clamp to those limits. Then make the limits and the goals use one frame,
-record which frame you chose, and check the intake's limits against its `Intake` presets the same
+receives. The hood's `PivotConfig` limits, 28 to 50 degrees, use the reference in which DOWN is 28
+degrees. The `Hood` presets DOWN, MID and UP, 0, 17 and 22 degrees, are displacement from the hood's
+zero at DOWN
+([Keep the Hood References Clear](/frc/visualizing-cobra#keep-the-hood-references-clear)). In
+[Step 6](/badges/badge-3-fuelsim-experiment#apply-cobras-hood-and-table-conventions) the student
+works out how both references relate to launch elevation. Predict what DOWN becomes under a clamp to
+those limits. Then make the limits and the goals use one convention (elevation or displacement),
+record the chosen convention, and check the intake's limits against its `Intake` presets the same
 way.
 
 Cobra's `MotorConfigs` default disables both software limits, and both CANcoder adapters apply
@@ -188,19 +208,52 @@ whatever their config supplies. `IntakeConstants.endeffectorConfig` keeps a comm
 `softwareLimitSwitch` built from the pivot's limits and tolerance; read it as a starting point, and
 review [Software Limit Switches](/frc/motor-controller-configuration#software-limit-switches).
 Configure the selected controller's software limits using its feedback units, with thresholds in the
-same frame as the goals, and record their physical interpretation on the fixture sheet before
+same convention as the goals, and record their physical interpretation on the setup sheet before
 enabling hardware.
+
+## Characterize the Pivot
+
+With the reference gate and the travel bounds in place, complete the pivot characterization entry
+deferred from [Step 5](/badges/badge-3-flywheel#configure-the-experiment-before-enabling-it). Its
+fixture-permission supplier combines reference validity, a finite measured position, and travel
+margin. Record the units and stopping conditions, derive or justify the gains, and validate them on
+a separate run. Row B3-07.4 assesses this entry.
+
+## Tune the Pivot Live
+
+Cobra's `Pivot` extends `SingleRoller`, which builds the same `FeedBack` and `FeedForward` tunables
+as the flywheel in [Step 5](/badges/badge-3-flywheel#tune-gains-live). Carry the same live-tuning
+path into the migrated pivot IO for each motor controller the student supports, with separate
+voltage and torque-current gain sets on the Talon FX. Two differences from the flywheel matter:
+
+- A gain change reaches the controller while the pivot may be moving or holding against gravity.
+  Make changes while the pivot holds a goal inside the travel bounds from
+  [Bound Travel](#bound-travel), with the reference gate passing.
+- On a Nova, the profile feedforward and the PID are ThriftyLib configuration options. ThriftyLib's
+  [Configurations](https://docs.thethriftybot.com/software/thriftylib/latest/configs) page warns
+  against large reconfigurations in the periodic loop and says flash settings persist across power
+  cycles. Decide how the migrated Nova IO sends a gain change, which units the gains use once the
+  profile's sensor-to-mechanism ratio is set, and what returns the Nova to the constants at the next
+  startup. Record the answers in the fork's README.
+
+Copy the final values into the constants and repeat the validation run with `tuningMode` off.
 
 ## Compare Profiles on the Same Model
 
+Run every comparison in this section and the next on one stated test model. One suitable model is a
+Kraken X60 through a 100:1 reduction driving about 342 lb·in² (0.1 kg·m², the unit WPILib's
+simulation takes) around a vertical axis, so gravity adds no load, over 0 to 90 degrees on a 12 V
+supply. These are illustrative settings, not measurements of Cobra's hood or intake.
+
 Retain the Badge 2 software trapezoid as a baseline. Compare it with device-generated Motion Magic
-voltage control, then Talon FX torque-current Motion Magic. Talon FXS uses voltage. Record final
-goal, intermediate profile reference, measured angle and speed, output mode, gains, and limits.
+voltage control, then Talon FX torque-current Motion Magic. The Talon FXS comparison uses voltage
+control only. Record final goal, intermediate profile reference, measured angle and speed, output
+mode, gains, and limits.
 
 The Starter has no plain torque-current Motion Magic path in use. `SingleRollerIOTalonFX` holds a
 `MotionMagicTorqueCurrentFOC` request and the intake CANcoder adapter holds
 `MotionMagicExpoTorqueCurrentFOC`, both behind `setGoalTorque`, but nothing in the Starter calls
-`setGoalTorque`. Add a `MotionMagicTorqueCurrentFOC` request to your migrated Talon FX pivot IO for
+`setGoalTorque`. Add a `MotionMagicTorqueCurrentFOC` request to the migrated Talon FX pivot IO for
 B3-07.1. Its gains are in amps rather than volts, so give it its own slot.
 
 A profiled position request still requires a feedback controller to follow its intermediate
@@ -210,11 +263,10 @@ move.
 
 ## Compare Expo
 
-With reference validity and travel bounds established, complete the Expo comparison below.
+With reference validity and travel bounds established, complete this worksheet for the Expo
+comparison. Answer the first five prompts before running the comparison and the last one after it.
 
-Complete this worksheet before the exponential comparison:
-
-| Prompt | Student Response |
+| Prompt | What the Student Shows |
 | --- | --- |
 | What angle and speed units does the selected feedback report? | Show one conversion from degrees to mechanism rotations. |
 | Which object advances the trapezoidal profile, and which advances Motion Magic? | Name the owner and period. |
@@ -225,53 +277,49 @@ Complete this worksheet before the exponential comparison:
 
 Run supported CTRE Expo in simulation against the same initial angle, goal, and model. Use
 `MotionMagicExpoVoltage` with the same Slot 0 voltage gains as the Motion Magic voltage run, so the
-profile is the only change between runs. State the test model before running. One suitable model is
-a Kraken X60 through a 100:1 reduction driving about 342 lb in^2 (0.1 kg m^2, the unit WPILib's
-simulation takes) about a vertical axis, so gravity adds no load, over 0 to 90 degrees on a 12 V
-supply. These are illustrative settings, not measurements of Cobra's hood or intake.
+profile is the only change between runs.
 
 Cobra's REAL intake adapter holds a `MotionMagicExpoTorqueCurrentFOC` request. Read it as the
-installed torque-current variant; it needs torque-current gains, so it is not the voltage comparison
+existing torque-current variant; it needs torque-current gains, so it is not the voltage comparison
 this section asks for. Keep each run's settings and saved trace as evidence. Physical Expo is
-optional. The mentor checks all worksheet reasoning, then asks for an independent prediction with a
-changed constraint.
+optional.
 
-## Trace the Reference in Cobra
+## Independent Change
 
-Start with the intake pivot's request in the fork: trace an `Intake` command such as
-`endeffectorDeploy()` to the inherited `SingleRoller.setGoal`, then to the CANcoder adapter's
-`setGoal` and its `MotionMagicVoltage` request. Then follow the same request in your migrated pivot.
-With the reference gate added, first request an angle with an invalid reference and predict
-refusal. Establish the reference explicitly, repeat the same request, and
-compare goal, measured angle, speed, and refusal. Connect the gate to the actual student subsystem
-before claiming the reference outcome.
+The mentor checks all worksheet reasoning, then asks for an independent prediction with a changed
+constraint, assessed under B3-07.5.
+
+When this step's simulation rows pass, the physical torque-current demonstration for this mechanism
+(B3-13.1) can follow; see
+[Required Demonstrations](/badges/badge-3-hardware#required-demonstrations).
 
 ## Badge Check
 
 S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, an explanation in the student's own words, the mentor's
-signature, and the date for each row. The mentor asks the
-student to explain a change and its result before signing.
+The student records an evidence link and an explanation in the student's own words for each row in
+the fork's README. The mentor asks the student to explain a change and its result, checks each row,
+then signs and dates the step on the
+[sign-off sheet](/documents/badges/badge-3/badge-3-sign-off.pdf).
 
 | Row | Work | Done When |
 | --- | --- | --- |
 | B3-07.1 | Pivot profiles and units | S/W: Refine voltage and torque-current Motion Magic on Talon FX and voltage Motion Magic on Talon FXS. Explain software-profile versus device-profile ownership, gearing, typed goals, and gain units. |
-| B3-07.2 | Manual reference | S/H/M: Place the powered-off mechanism at its known reference, establish zero explicitly without automatic setup motion, record reference validity, and refuse normal position commands until valid. A second student follows the procedure after a power cycle. No limit switch is required. |
+| B3-07.2 | Manual reference | S/H/M: Place the powered-off mechanism at its known reference, establish zero explicitly without automatic setup motion, record reference validity, and refuse normal position commands until valid. Another member follows the procedure after a power cycle. No limit switch is required. |
 | B3-07.3 | Absolute reference by vendor | S/H/W: Use CTRE CANcoder with Talon FX/FXS, or Thrifty CAN encoder with Nova. Demonstrate validated startup, fault refusal, and explicit recovery separately from manual zeroing. For Nova, verify the internal-position seed readback; for CTRE, demonstrate fused feedback when supported. Explain placement, offsets, ratios, and single-turn limits. |
-| B3-07.4 | Travel and repeatability | S/H: Reject or bound invalid simulated goals. Configure the selected controller's software limits and repeat valid physical start/end goals against recorded error, settling, overshoot and repeatability targets. |
+| B3-07.4 | Travel, characterization, and repeatability | S/H/W: Reject or bound invalid simulated goals. Configure the selected controller's software limits. Run the pivot characterization deferred from Step 5 behind the reference gate and travel margin, record its units and stopping conditions, and validate its gains on a separate run. Repeat valid physical start/end goals against recorded error, settling, overshoot and repeatability targets. |
 | B3-07.5 | Exponential comparison | S/W: Run a supported CTRE exponential-profile comparison on the same pivot; complete the parameter/unit worksheet and explain when each profile is useful. Physical exponential profiling is optional. |
 
 ## For the Mentor
 
 `Badge3MentorSolution` contains the worked pivot exercises. `ReferencedPivot` and `PivotLessonTest`
 show the reference gate and its refusal and recovery; `PIVOT-EXERCISES.md` lists their settings.
-`ThriftyCanEncoderConfig` and `PivotIONovaWithCanEncoder` implement the Nova startup reference with
-`requestAbsoluteReference()`, `isReferenceValid()`, and `invalidateReference(...)`;
+`ThriftyCanEncoderConfig` and `PivotIONovaWithCanEncoder` implement the Nova startup reference;
 `ThriftyAbsoluteReferenceTest` and `ThriftyAbsoluteSimulationTest` cover it, and
-`THRIFTY-ABSOLUTE-REFERENCE.md` explains it. `ExpoPivotIOSim` and `ExpoComparisonTest` give a
-bounded Motion Magic versus Expo voltage comparison on the model the Compare Expo section states.
-`PivotIOSimTalonFXWithCANcoder` writes the CANcoder's sim state from the pivot physics, and
-`FusedPivotSimulationTest` checks absolute startup and fused feedback in mechanism units.
+`THRIFTY-ABSOLUTE-REFERENCE.md` explains it. `ExpoPivotIOSim` and `ExpoComparisonTest` give the
+Motion Magic versus Expo voltage comparison. `PivotIOSimTalonFXWithCANcoder` and
+`FusedPivotSimulationTest` cover the fused CANcoder simulation. Live tuning is in the pivot
+adapters' `applyVoltageGains` and `applyTorqueGains`, including the Nova and its CAN encoder
+wrapper, with `TunableGains` and `LiveGainTuningTest`.
 
 <Sources items={[
   {
@@ -338,7 +386,7 @@ bounded Motion Magic versus Expo voltage comparison on the model the Compare Exp
   {
     "source": "cobra",
     "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRoller.java",
-    "note": "The inherited setGoal that records the goal and forwards it to the IO without a check."
+    "note": "The inherited setGoal that records the goal and forwards it to the IO without a check, and the FeedBack and FeedForward tunables pushed on change in periodic()."
   },
   {
     "source": "cobra",
@@ -358,7 +406,7 @@ bounded Motion Magic versus Expo voltage comparison on the model the Compare Exp
   {
     "source": "cobra",
     "path": "src/main/java/frc/robot/subsystems/hood/HoodConstants.java",
-    "note": "The hood's 28 to 50 degree elevation limits and CANcoder ratios."
+    "note": "The hood's 28 to 50 degree limits, in the reference where DOWN is 28 degrees, and CANcoder ratios."
   },
   {
     "source": "cobra",
@@ -368,17 +416,22 @@ bounded Motion Magic versus Expo voltage comparison on the model the Compare Exp
   {
     "source": "cobra",
     "path": "src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOTalonFXSWithCANCoder.java",
-    "note": "The hood's Talon FXS FusedCANcoder feedback and the soft-limit configuration it passes through, disabled by default."
+    "note": "The hood's Talon FXS FusedCANcoder feedback, resetPosition, and the soft-limit configuration it passes through, disabled by default."
   },
   {
     "source": "cobra",
     "path": "src/main/java/org/robotzgarage/frc2026/subsystems/pivot/Pivot.java",
-    "note": "setGoalPosition, whose documented clamp is commented out and which nothing in the Starter calls."
+    "note": "setGoalPosition, whose documented clamp is commented out and which nothing in the Starter calls; Pivot extends SingleRoller and inherits its tunables."
   },
   {
     "source": "cobra",
     "path": "src/main/java/org/robotzgarage/frc2026/util/MotorConfigs.java",
     "note": "The default software limit configuration with both limits disabled."
+  },
+  {
+    "source": "thrifty",
+    "path": "software/thriftylib/latest/configs",
+    "note": "Pid0 and Mp0 gain options, the warning against large reconfigurations in the periodic loop, and flash settings persisting across power cycles unless factoryReset() comes first."
   }
 ]} />
 

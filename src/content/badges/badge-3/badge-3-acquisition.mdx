@@ -10,66 +10,17 @@ difficulty: advanced
 description: "Collect and score one piece in simulation with BLine, owned states and camera observations, then prove each required failure case."
 ---
 
-The student integrates one simulated collection and scoring attempt using BLine, the state-owned
-subsystem, and camera observations. Start after Steps 9 and 10, including the delayed-observation
-check, the required FuelSim experiment in Step 6, and the
-[Step 11 maple-sim integration](/badges/badge-3-maple). Work in your Badge3Starter fork. Read
-[BLine](/frc/bline), [Autonomous Simulation](/frc/autonomous-simulation), [FuelSim](/frc/fuelsim),
-and [Subsystem State Machines](/frc/subsystem-state-machines). The task is simulation-only.
+The student integrates one simulated collection and scoring attempt using BLine, the subsystem-owned
+states from Step 9, and camera observations. The task is simulation-only. Start after Steps 6, 9, 10
+(including its delayed-observation check) and 11 (the [combined simulation](/badges/badge-3-maple)).
+The student works in their fork of `Badge3Starter`.
 
-## Establish the Sequence
+Read these before starting:
 
-Record the initial robot pose, stationary piece location, search region, return pose, and scoring
-target. Start from the same conditions for every comparison. First prove the sequence with a
-single-piece field model and sensor adapter, then connect the FuelSim world from Step 6.
-
-1. Travel to the search region and wait for a valid PhotonVision observation within a stated time
-   bound.
-2. Select the target and compute the acquisition pose using the intake offset. Construct the BLine
-   approach from the estimated robot pose. Do not reset odometry to a detected piece or to
-   simulation truth.
-3. Approach and run the intake. Confirm collection through the possession IO. Reaching a path
-   endpoint is not proof that collection occurred.
-4. Return with the piece, prepare the flywheel and pivot, and wait for measured readiness within a
-   stated bound.
-5. Issue a single launch event, consume the held piece once, and record the resulting simulator
-   score. A launch completes the action; a simulator score determines whether it succeeded.
-
-Give the path commands drive requirements and bounded execution. Distinguish successful arrival from
-a timeout; command completion alone cannot authorize collection or scoring. On interruption, stop
-drive and feeder outputs and preserve a consistent piece state.
-
-Ordinary command composition of the BLine path is acceptable: a sequence or deadline group that
-runs the follower and the intake request, as in
-[Autonomous Routines](/frc/command-groups#autonomous-routines), meets the requirement when the
-transitions still come from measurements. A state-owned coordinator that runs the follower as a
-child command is also acceptable.
-
-Add the routine to the fork's existing `LoggedDashboardChooser` in
-`RobotContainer.configureAutonomousRoutines`, beside Cobra's routines, so it can be selected from
-the dashboard in SIM. If you select it another way, record in your README how to select and run it.
-
-## Connect One Field Model
-
-One world owns the piece. Its available field positions feed PhotonVision's simulated targets. Its
-intake event changes the possession IO. Its launch operation consumes the held piece and adds the
-projectile. The robot state machine reads camera and possession inputs; it does not query the
-world's exact piece location to decide where to drive.
-
-FuelSim does not synchronize PhotonVision targets automatically. The student writes that adapter and
-updates it from the same world after each physics step. The fork's `Robot.simulationInit` adds ten
-static placeholder fuel targets to `VisionConstants.objectDetectionSim`, a second fuel world that
-FuelSim does not know about. The adapter replaces them. Remove collected targets and do not leave a
-duplicate piece visible after acquisition. A missed projectile may return to the field according to
-the model; it is not automatically held again.
-[Registering Intakes](/frc/fuelsim#registering-intakes),
-[Launching Fuel](/frc/fuelsim#launching-fuel), and
-[Reading the Result](/frc/fuelsim#reading-the-result) cover the FuelSim calls.
-
-Use measured flywheel speed and measured pivot angle at launch. Record the pitch convention, radius,
-slip assumption, launch height, and field-relative robot velocity. Keep a scored count distinct from
-held state and launch count. Mirror relevant world state into the saved log so another student can
-reconstruct the event.
+- [BLine](/frc/bline)
+- [Autonomous Simulation](/frc/autonomous-simulation)
+- [FuelSim](/frc/fuelsim)
+- [Subsystem State Machines](/frc/subsystem-state-machines)
 
 ## Start from Cobra's Autonomous
 
@@ -82,97 +33,170 @@ observations, and nothing confirms possession: collection is assumed from the pa
 
 `Drive`'s builder adds `.withDefaultShouldFlip()` and, in SIM only, `.withPoseReset(this::setPose)`.
 Before reusing it for the approach, find what each option does in SIM, using
-[Wiring It to the Drivetrain](/frc/bline#wiring-it-to-the-drivetrain) and BLine's FollowPath
-builder options linked below. Explain why a path to an observed goal, already expressed in field
-coordinates from the estimated pose, needs neither.
+[Wiring It to the Drivetrain](/frc/bline#wiring-it-to-the-drivetrain) and BLine's FollowPath builder
+options (in Sources). Explain why a path to an observed goal, already expressed in field coordinates
+from the estimated pose, needs neither.
 
 The one-piece sequence replaces that assumption with observed states. Write down, for each state,
 the measurements that permit its transition. Route normal forward-feed requests through the
-readiness policy from Step 9. Keep the mechanism library to four explicit families, with commands
-owned by parent subsystems.
+readiness policy from Step 9.
 
-Build seven integrated runs: one successful attempt, one run for each of the first four failure
-cases below, and two interruption runs, one during driving and one during scoring. Save each run as
-a named WPILOG. Inspect state, refusal, camera and possession inputs, measured mechanism values,
-estimate, inventory, launch count, and score together. A passing launch test does not establish that
-the projectile scored or that the physical robot is tuned. Preserve misses while calibrating the
-model against physical observations.
+## Establish the Sequence
+
+Build the sequence from the four mechanism families in the migrated library (roller, flywheel, pivot
+and elevator), with commands owned by their parent subsystems.
+
+Run the sequence in the Step 11 combined simulation; a single-piece stand-in is optional for unit
+tests of the transition policy. Record the initial robot pose, stationary piece location, search
+region, return pose, and scoring target, and start every comparison from those same conditions.
+
+1. Travel to the search region, then wait there for a valid PhotonVision observation, moving on
+   after a stated wait.
+2. Select the target and compute the acquisition pose using the intake offset. Construct the BLine
+   approach from the estimated robot pose. Do not reset odometry to a detected piece or to the true
+   pose.
+3. Approach and run the intake. Confirm collection through the possession IO. Reaching a path
+   endpoint is not proof that collection occurred.
+4. Return with the piece, prepare the flywheel and pivot, and wait in place for measured readiness,
+   moving on after a stated wait.
+5. Issue a single launch event, consume the held piece once, and record the resulting simulator
+   score. A launch completes the action; a simulator score determines whether it succeeded.
+
+Each path command requires the drive subsystem and runs until BLine reports the path finished; do
+not put a time limit on a path. Distinguish arrival within the stated tolerance from a path that
+finished outside it; command completion alone cannot authorize collection or scoring. Time limits
+belong only on waits in place, such as waiting at the pickup for possession or a scoring window
+while stationary, and a wait that times out moves the routine on instead of ending autonomous. In
+this one-piece attempt, moving on ends the attempt in a defined final state: outputs stopped, the
+reason logged, and nothing marked held or scored. In a multi-piece routine, the same timeout starts
+the next path instead. On interruption, stop drive and feeder outputs and preserve a consistent
+piece state.
+
+Ordinary command composition of the BLine path is acceptable when each state transition still comes
+from a measurement: for example, a sequence or deadline group that runs the follower and the intake
+request, as in [Autonomous Routines](/frc/command-groups#autonomous-routines). A coordinator
+subsystem that owns the sequence's states and runs the follower as a child command is also
+acceptable.
+
+Add the routine to the fork's existing `LoggedDashboardChooser` in
+`RobotContainer.configureAutonomousRoutines`, beside Cobra's routines, so it can be selected from
+the dashboard in SIM. If the student selects it another way, the README records how to select and
+run it.
+
+## Connect One Fuel World
+
+One fuel world owns the piece: the field positions of its available pieces feed the camera world's
+simulated targets, its intake event changes the possession IO, and its launch operation consumes the
+held piece and adds the projectile. The robot state machine reads camera and possession inputs; it
+does not query the fuel world's exact piece location to decide where to drive.
+
+FuelSim does not synchronize PhotonVision targets automatically. Reuse the Step 10 adapter that
+drives the camera world from the fuel world; it already replaced the ten static placeholder targets
+that the fork's `Robot.simulationInit` adds. Remove collected targets so no duplicate piece stays
+visible after acquisition. A missed projectile may return to the field according to the model; it is
+not automatically held again. [Registering Intakes](/frc/fuelsim#registering-intakes),
+[Launching Fuel](/frc/fuelsim#launching-fuel), and
+[Reading the Result](/frc/fuelsim#reading-the-result) cover the FuelSim calls.
+
+Launch from the measured flywheel speed and the launch elevation converted from the measured hood
+position at launch. That converted elevation replaces the fixed launch elevation allowed in Step 6.
+Record the launch elevation convention, flywheel radius, slip factor, release height, and
+field-relative robot velocity. These are the declared assumptions for the scoring rows. Keep a
+scored count distinct from held state and launch count. Mirror relevant world state into the saved
+log so another member can reconstruct the event.
 
 ## Required Failure Runs
 
+Build seven integrated runs: one successful run, one run for each of the first four failure cases
+below, and two interruption runs, one during driving and one during scoring. Save each run as a
+named WPILOG. Inspect state, refusal, camera and possession inputs, measured mechanism values,
+estimated pose, inventory, launch count, and score together. A passing launch test does not
+establish that the projectile scored or that the physical robot is tuned.
+
 | Case | Injection | Evidence |
 | --- | --- | --- |
-| No visible piece | Remove or hide the piece before the search. | Search ends within its bound; no possession or launch is invented. |
+| No visible piece | Remove or hide the piece before the search. | The search wait times out after its stated wait; no possession or launch is invented. |
 | Target lost | Stop observations before collection. | The stale-target rule is visible and the attempt stops or recovers as documented. |
-| Collection timeout | Prevent possession confirmation at the attempted pickup. | The bounded attempt fails; held and scored remain false. |
+| Collection timeout | Prevent possession confirmation at the attempted pickup. | The pickup wait times out and the attempt ends in a defined state; held and scored remain false. |
 | Never ready | Keep measured speed or angle outside tolerance. | The feeder stays stopped and readiness times out. |
 | Interruption | Cancel once during driving and once during scoring. | Drive and feeder stop; the piece is neither duplicated nor consumed twice. |
 
-The mentor's transition-policy tests illustrate these cases; the student demonstrates them through
-the integrated robot and actual IO path. [Unit Tests in Simulation](/frc/unit-tests-in-simulation)
-shows how to run each case as a repeatable test that saves its log. Repeat any failure runs affected
-when FuelSim replaces the initial field stand-in.
-
-## Independent Change
-
-The mentor changes the initial piece location within the camera's supported region. The student
-predicts the acquisition pose, runs the full sequence, and explains any difference using
-observations, path error, possession, readiness, and score. Save the failure logs alongside the
-successful run.
-
-## Score Under Declared Assumptions
-
-B3-12.1 and B3-12.7 close only when the integrated run demonstrates a score under declared geometry
-and model assumptions; collection and a launch alone do not complete them. They also stay open until
-the [Step 13 commissioning record](/badges/badge-3-hardware#complete-the-setup-sheet) exists. Use
-[Step 6's hood and table conventions](/badges/badge-3-fuelsim-experiment#apply-cobras-hood-and-table-conventions)
-and that commissioning record to reconcile measured release speed, geometry, and the preserved
-empirical tables. Keep held-out validation shots separate from fitting. The legacy Step 6 scoring
-experiment and dropped-ball scoring fixtures remain useful scoped tests; neither establishes Cobra's
-shot calibration. Other coursework may continue while this evidence is pending. Do not change
-empirical table values solely to turn a simulation assertion green.
+The student demonstrates each case through the integrated robot code and its actual IO path in the
+combined simulation; policy tests against a stand-in do not replace these runs.
+[Unit Tests in Simulation](/frc/unit-tests-in-simulation) shows how to run each case as a repeatable
+test that saves its log.
 
 ## Keep Arrival and Visibility Checks Consistent
 
 Give the follower a small translation tolerance to reach the intake pickup region; 3 in works in
 simulation. Within a short distance and heading of the pickup goal, such as 6 in and 8 degrees,
-acquisition can finish the bounded final approach using estimated pose while the intake hides the
-target. Arrival alone never confirms possession. Repeat the collection-timeout and launch runs with
-added loop delay, for example 10 ms: the timeout must still occur when possession never arrives, and
-one confirmed launch must still occur when it does. Keep the lost-target test separate. Each failure
-test checks for the terminal reason of the condition it demonstrates.
+acquisition can finish the short final approach on the estimated pose while the intake hides the
+target.
+
+Repeat the collection-timeout run and the successful run with added loop delay, for example 10 ms:
+the pickup wait must still time out when possession never arrives, and one confirmed launch must
+still occur when it does. Each failure test checks that the attempt ended with the logged reason for
+its own case. The slower collection-timeout run must end with a collection timeout, not an early
+target-lost reason; the target-lost case keeps its own run.
+
+## Score under Declared Assumptions
+
+B3-12.1 and B3-12.7 close when an integrated run in the combined simulation records a score under
+the declared geometry and model assumptions; collection and a launch alone do not complete them. Use
+[Step 6's hood and table conventions](/badges/badge-3-fuelsim-experiment#apply-cobras-hood-and-table-conventions)
+to read the measured hood position and Cobra's preserved empirical tables. The declared assumptions
+take their launch elevation from
+[Work Out the Launch Elevation from the Hub Table](/badges/badge-3-fuelsim-experiment#work-out-the-launch-elevation-from-the-hub-table)
+and their slip factor from
+[Fit and Check the Slip Factor in FuelSim](/badges/badge-3-fuelsim-experiment#fit-and-check-the-slip-factor-in-fuelsim).
+Do not change empirical table values solely to turn a simulation assertion green.
+
+The Step 6 launch experiment and any test that drops fuel through a hub to check score counting
+remain useful within their scope; neither establishes Cobra's shot calibration. Calibrating the shot
+against physical launches is an optional extension: reconcile measured release speed, geometry, and
+the preserved empirical tables, and preserve misses in the record. Set aside some shots for
+validation and do not use them to fit the tables.
+
+## Independent Change
+
+The mentor changes the initial piece location within the camera's field of view and the Step 10
+range limit. The student predicts the acquisition pose, runs the full sequence, and explains any
+difference using observations, path error, possession, readiness, and score. The student saves the
+changed-location run's log with the successful run and the failure logs.
 
 ## Badge Check
 
-S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, an explanation in the student's own words, the mentor's
-signature, and the date for each row. The mentor asks the
-student to explain a change and its result before signing.
+S means simulation and W means written reasoning. The student records an evidence link and an
+explanation in the student's own words for each row in the fork's README. The mentor asks the
+student to explain a change and its result, checks each row, then signs and dates the step on the
+[sign-off sheet](/documents/badges/badge-3/badge-3-sign-off.pdf).
 
 | Row | Work | Done When |
 | --- | --- | --- |
-| B3-12.1 | Baseline one-piece sequence | S: Start at a specified pose, travel to a search region, detect through PhotonVision, approach using BLine, confirm collection through simulated inputs, return, wait for readiness and execute scoring. Log explicit available/held/scored state. |
-| B3-12.2 | No visible piece | S: Record a bounded failed attempt and defined stopped or recovery state without inventing possession. |
+| B3-12.1 | Baseline one-piece sequence | S: Start at a specified pose, travel to a search region, detect through PhotonVision, approach using BLine, confirm collection through simulated inputs, return, wait for readiness, launch, and record a simulated score under declared assumptions. Log explicit available/held/scored state. |
+| B3-12.2 | No visible piece | S: Search with no piece visible; the search wait times out after a stated time and the attempt ends in a defined stopped or recovery state without inventing possession. |
 | B3-12.3 | Target lost | S: Lose the observation before collection; apply the documented stale-target rule and log the outcome. |
-| B3-12.4 | Collection timeout | S: Reach the attempted collection without confirming possession; timeout without marking a piece held or scored. |
-| B3-12.5 | Never ready | S: Hold a mechanism outside readiness; terminate or recover within a stated bound, without launching. |
+| B3-12.4 | Collection timeout | S: Reach the pickup without confirming possession; the wait at the pickup times out after a stated time and the routine moves on without marking a piece held or scored. |
+| B3-12.5 | Never ready | S: Hold a mechanism outside readiness; the readiness wait times out after a stated time and the routine moves on without launching, or recovers if readiness returns. |
 | B3-12.6 | Interruption | S: Interrupt during driving and during scoring; verify documented safe outputs and consistent piece state. |
-| B3-12.7 | Integrate FuelSim | S/W: Reuse the flywheel experiment with measured pivot position. One field model owns the piece; adapt its representation into PhotonVision and possession IO. Consume one held piece once and use the simulator's scoring result. Recheck failure cases affected by the integration. |
+| B3-12.7 | Score in the combined simulation | S/W: Reuse the Step 6 launch experiment with measured hood position. One fuel world owns the piece; reuse the Step 10 camera adapter, remove collected targets, and drive the possession IO from the same world. Consume one held piece once and use the simulator's scoring result. Recheck failure cases affected by the integration. |
 
 ## For the Mentor
 
 `Badge3MentorSolution` maps its states in `frc/robot/subsystems/acquisition/Acquisition.java` to
-their measurements in `ONE-PIECE.md`. `Acquisition` runs its BLine paths as child commands built by
-`Drive.pathToObservedPose`, a separate runtime builder with `withShouldFlip(() -> false)`, no
-mirror and no pose reset. `FuelCameraTargets` replaces the static `simulationInit` targets with
-FuelSim's grounded fuel. The reference selects the routine through `Constants.autonomousRoutine`
-(`ONE_PIECE`) rather than the dashboard chooser. `OnePieceScenario` runs the seven cases
-(`SUCCESS`, `NO_PIECE`, `TARGET_LOST`, `COLLECTION_TIMEOUT`, `NEVER_READY`, `CANCEL_DRIVE`, and
-`CANCEL_FEED`) and saves their logs under `build/evidence`; `SlowCollectionSimulationTest` and
-`SlowSuccessSimulationTest` repeat two of them with 10 ms of added loop delay. The reference's
-`SUCCESS` run and its slow variant establish collection and launch with one launch and zero scores,
-so the reference itself has not yet demonstrated a score. `SHOT-CALIBRATION.md` holds the
-calibration worksheet.
+their measurements in `ONE-PIECE.md`. Its approach paths are built in
+`frc/robot/subsystems/drive/Drive.java`, and `FuelCameraTargets` supplies the camera world's
+targets. The reference defines the routine in `frc/robot/autonomous/routines/OnePiece.java` and
+lists it, in SIM only, in the `AutoSelector` routine chooser, which replaces the Starter's
+`LoggedDashboardChooser`. `OnePieceScenario` runs the seven cases (`SUCCESS`, `NO_PIECE`,
+`TARGET_LOST`, `COLLECTION_TIMEOUT`, `NEVER_READY`, `CANCEL_DRIVE`, and `CANCEL_FEED`) through
+`OnePieceSimulationTest` and the per-case tests (`NoPieceSimulationTest`,
+`TargetLostSimulationTest`, `CollectionTimeoutSimulationTest`, `NeverReadySimulationTest`,
+`CancelDriveSimulationTest`, and `CancelFeedSimulationTest`), and saves their logs under
+`build/evidence`; `SlowCollectionSimulationTest` and `SlowSuccessSimulationTest` repeat two of them
+with added loop delay. `FeedPolicyTest` covers the feed policy alone. The reference's `SUCCESS` run
+and its slow variant record one launch and one score under the fitted shot model from
+`CobraHubTableShotTest`. `SHOT-CALIBRATION.md` holds the calibration worksheet.
 
 <Sources items={[
   {"source": "fuelsim-37eff89", "path": "FuelSim.java", "note": "Launch units, intake callbacks, field-relative speeds and hub scoring."},
@@ -189,7 +213,7 @@ calibration worksheet.
   {
     "source": "bline",
     "path": "lib/follow-path/",
-    "note": "FollowPath builder options (alliance flip and pose reset) and a dedicated runtime builder for a goal already in field coordinates."
+    "note": "FollowPath builder options (alliance flip and pose reset)."
   },
   {
     "source": "cobra",
@@ -199,7 +223,7 @@ calibration worksheet.
   {
     "source": "photonvision",
     "path": "docs/simulation/simulation-java.html",
-    "note": "Simulated targets that the adapter updates from the fuel world."
+    "note": "Simulated targets that the Step 10 adapter updates from the fuel world."
   },
   {
     "source": "cobra",

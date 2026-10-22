@@ -158,6 +158,31 @@ The hardware IO configures motion profiling, travel conversion, and constant gra
 position sensor still needs a trustworthy zero from a limit switch, absolute sensor, or documented
 homing procedure.
 
+### Tune a Nova Live
+
+Tuning an elevator changes `kG`, `kS`, `kP` and `kD` many times; see
+[Manual Tuning: Arm and Elevator](/frc/manual-tuning-arm-and-elevator). Make those gains tunable so
+each change is a dashboard edit instead of a redeploy
+([Tunable Constants and Characterization](/frc/tunable-constants-and-characterization#the-tuning-loop)).
+Give `ElevatorIO` a method that takes new gains, and have the component call it only on a loop where
+a tunable changed.
+
+On a Thrifty Nova, those gains are `NovaConfig.Mp0.kG`, `NovaConfig.Mp0.kS`, `NovaConfig.Pid0.p` and
+`NovaConfig.Pid0.d`, and `NovaConfig.Mp0.gravType(MPGravityType.CONSTANT)` matches an elevator's
+constant gravity term. The points from
+[Tuning a Nova Live](/frc/manual-tuning-arm-and-elevator#tuning-a-nova-live) apply here:
+
+- **Volts.** The Nova has no torque-current mode, and ThriftyLib documents its profile `kS` and `kG`
+  in volts.
+- **Send only the changed gain options.** Use one `configure(...)` call without a factory reset.
+  Each call is one CAN transaction, and ThriftyLib warns against large reconfigurations inside the
+  periodic loop.
+- **Factory-reset at startup.** The Nova's flash settings persist across power cycles, so put
+  `CANDeviceConfig.factoryReset()` first in the startup batch. Copy the final values into the
+  constants so the next boot uses them.
+- **Tune the PID on the robot.** ThriftyLib's simulator ignores all PID values. The `ElevatorSim`
+  model below can still check goals, limits, gravity behavior and command sequencing.
+
 ### Simulate the elevator
 
 WPILib's `ElevatorSim` constructor accepts the motor model, gearing, moving mass, drum radius, lower
@@ -200,7 +225,9 @@ and hard-stop clearance.
   {"source": "cobra", "path": "src/main/java/org/robotzgarage/frc2026/subsystems/elevator/Elevator.java", "note": "FRC 4451 distance conversion, travel clamping, and simulation structure."},
   {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/physics-sim.html", "note": "ElevatorSim parameters and simulation loop."},
   {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj/simulation/ElevatorSim.html", "note": "The 2026 ElevatorSim constructor and measurements."},
-  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/feedforward.html", "note": "Elevator feedforward and unit requirements."}
+  {"source": "wpilib", "path": "docs/software/advanced-controls/controllers/feedforward.html", "note": "Elevator feedforward and unit requirements."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/configs", "note": "Nova Pid0 and Mp0 gain options, MPGravityType.CONSTANT, kS and kG in volts, one CAN transaction per configure() call, the warning against large reconfigurations in the periodic loop, and flash persistence with factoryReset() first."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/simulation", "note": "The simulator ignores all PID values, so PID tuning is done on the physical robot."}
 ]} />
 
 <LinkGrid title="Continue" section="frc" links={[

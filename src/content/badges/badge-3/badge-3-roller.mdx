@@ -11,10 +11,10 @@ description: "Compare roller output modes, add CANrange presence sensing, and la
 ---
 
 The student refines the roller from an output command into a mechanism that can distinguish
-collection, invalid sensing, and a sustained jam. Start after Step 3, in the Badge3Starter fork.
-Read the Cobra classes named on this page in the preserved Starter; implement each change in your
-migrated `RollerIO` in the ROBOTZ Garage library (`org.robotzgarage.frc2027`, from Step 1). The
-scripted sensing and jam experiments run first in simulation.
+collection, invalid sensing, and a sustained jam. Start after [Step 3](/badges/badge-3-controls), in
+the `Badge3Starter` fork. The student reads the Cobra classes named on this page in the fork and
+implements each change in the migrated roller IO in the ROBOTZ Garage library
+(`org.robotzgarage.frc2027`, from [Step 1](/badges/badge-3-start)).
 
 Research these before changing the roller IO:
 
@@ -30,24 +30,24 @@ Research these before changing the roller IO:
   and
   [Tuning CANrange](https://v6.docs.ctr-electronics.com/en/latest/docs/hardware-reference/canrange/tuning-canrange.html).
 
-Before any powered physical check, complete the
-[setup sheet](/badges/badge-3-hardware#complete-the-setup-sheet) and the
-[first enable](/badges/badge-3-hardware#first-enable) from Step 13, and save the voltage baseline.
+The scripted experiments run in simulation first. Before any powered check, including the
+physical CANrange test in B3-04.2, complete the
+[setup sheet](/badges/badge-3-hardware#complete-the-setup-sheet) and
+[first enable](/badges/badge-3-hardware#first-enable) from Step 13, fill in the possession rows of
+the commissioning record, and save the physical voltage baseline.
 
 ## Compare Output Modes
 
-Begin with the saved voltage baseline. Run positive, reverse, and zero effort on Talon FX and Talon
-FXS simulation. For the Talon FXS, start from Cobra's `SingleRollerIOSimTalonFXS` and the
-`MotorConfigs.TalonFXSConfigSim` record; `HoodConstants.hoodConfigSim` is the one place Cobra builds
-that record. Then add Talon FX `TorqueCurrentFOC` through the typed current capability. Log
-requested mode and effort, applied voltage, torque current, supply current, measured speed, and
-configured limits. Supply current is not a replacement for the torque-current measurement in a jam
-rule.
+Begin from the voltage-mode simulation runs recorded in [Step 3](/badges/badge-3-controls). Run
+positive, reverse, and zero effort (stop) in Talon FX and Talon FXS simulation. For the Talon FXS,
+start from Cobra's `SingleRollerIOSimTalonFXS` and the `MotorConfigs.TalonFXSConfigSim` record;
+`HoodConstants.hoodConfigSim` is the one place Cobra builds that record. Then add Talon FX
+`TorqueCurrentFOC` through the typed torque-current capability from Step 3. Log requested mode and
+effort, applied voltage, torque current, supply current, measured speed, and configured limits.
 
 Use the same model, initial state, and duration for comparisons. Describe the input magnitudes as
-separate choices in volts and amps, not equivalent values. Show the configured limit changing the
-response. A current request also needs a bounded operating range; current limiting alone does not
-detect a trapped game piece.
+separate choices in volts and amperes; a voltage and a current are not equivalent values. Show the
+configured limit changing the response. A current request also needs a bounded operating range.
 
 Cobra's intake already collects in torque-current mode: `Intake.runRollersTorqueCurrent()` requests
 the `intakeAmps` tunable, 50 A by default, and the voltage command beside it is commented out. Run
@@ -60,31 +60,38 @@ normal running in each mode, and explain why from what each request holds consta
 Cobra has no CANrange, so this IO starts from Phoenix 6's `CANrange` class. It reports
 `getIsDetected()`, `getDistance()`, `getSignalStrength()`, `getMeasurementHealth()`, and
 `getMeasurementTime()` as status signals; refresh them together and keep each signal's status. The
-input record needs connection/status information, measurement validity, distance with units,
-detection result, and sample time or age. Keep three outcomes distinct: present, absent, and
-invalid. An invalid reading does not prove absence.
+input record needs connection and status information, measurement validity, distance with units,
+detection result, and sample time or age.
+
+**Presence** is the CANrange reading: present, absent or invalid. It supplies the possession input.
+Keep the three outcomes distinct: an invalid reading does not prove absence. The student explains
+why a detection may be valid while a particular distance is unsuitable for the intended decision,
+using the device's reported health as well as the distance. Check the health values against the
+pinned CANrange API.
 
 `getIsDetected()` is computed on the device from its `ProximityParamsConfigs`: `ProximityThreshold`,
 `ProximityHysteresis`, and `MinSignalStrengthForValidMeasurement`. If the IO uses that signal, those
-configured values are the detection rule; if it compares `getDistance()` in software instead, the
-IO owns the threshold and hysteresis. Decide which one the rule uses and record why. The CANrange
-reports distance in meters, so convert at the IO boundary and record thresholds in inches beside the
-meter values. `getMeasurementTime()` is on the device's own clock, which is not synchronized to the
-robot's, so compute sample age from each `StatusSignal`'s timestamp rather than from that value.
+configured values are the detection rule; if it compares `getDistance()` in software instead, the IO
+owns the threshold and hysteresis. Decide which one the rule uses and record why.
+
+The CANrange reports distance in meters, so convert at the IO boundary and record thresholds in
+inches beside the meter values.
+
+`getMeasurementTime()` is on the device's own clock, which is not synchronized to the robot's, so
+compute sample age from each `StatusSignal`'s timestamp rather than from that value.
+
+Make presence change the roller in one stated way in this step, such as ending collection when a
+game piece is present, and record the chosen behavior.
 
 In simulation, first supply scripted input sequences through the same interface: absent to present,
-present to absent, disconnected, and stale. On hardware, move the selected object into and out of
-the configured range under mentor supervision. Record the selected threshold, hysteresis or
-debounce, the observed distances, and the subsystem response. Choose those values from the fixture
-and the game piece in front of it.
+present to absent, disconnected, and stale. On hardware, under mentor supervision, choose the
+threshold and the hysteresis or debounce from the fixture and the game piece in front of it, then
+move the game piece into and out of the configured range. Record the selected values, the observed
+distances, and the subsystem response.
 
-Until the CANrange is commissioned in [Step 13](/badges/badge-3-hardware), the REAL possession
-reading should report invalid, so that the readiness policy in
-[Step 9](/badges/badge-3-states) refuses to feed.
-
-The student explains why a detection may be valid while a particular distance is unsuitable for the
-intended decision. Check the pinned CANrange API and the device's reported health instead of
-reducing validity to a single distance comparison.
+Until the commissioning record's possession values are reviewed and entered, the REAL possession
+input must report invalid. The readiness policy built later in [Step 9](/badges/badge-3-states)
+refuses to feed on an invalid reading.
 
 ## Detect a Sustained Jam
 
@@ -94,59 +101,73 @@ In SIM, Cobra's rollers run on `SingleRollerIOSimTalonFX`, which reports both fr
 `DCMotorSim`. Nothing in that model loads or stalls the roller, so a jam rule never sees a jam in
 Cobra's simulation.
 
-Write the rule as a small class that receives the collection request, the roller IO's validity,
-measured torque current, and measured speed, so a unit test can drive it without a motor. In this
-section, valid means the roller motor's observations: the `connected` field of the roller inputs and
-finite measurements. It is separate from CANrange possession. The rule requires collecting, valid
-observations, substantial measured torque current, and low measured speed for a continuous interval.
+Write the rule as a small class that receives the collection request, whether the roller
+observations are valid, measured torque current, and measured speed, so a unit test can drive it
+without a motor. Roller observations are valid when the roller inputs report `connected` and every
+measurement is finite. That validity is separate from CANrange presence.
 
-Derive the thresholds instead of copying them. Record torque current and speed during normal
-collection and during startup, choose a current threshold and a speed threshold that sit outside
-those recordings with a stated margin, and choose a dwell longer than the startup transient. Write
-the margin and the recording it came from beside each value. Then decide whether the rule should
-latch while the roller is running in reverse, and justify the answer.
+The rule latches a jam when, for a continuous dwell time, collection is requested, the roller
+observations are valid, measured torque current is substantial, and measured speed is low. Use
+torque current: supply current does not replace it, and a current limit alone does not detect a
+trapped game piece.
+
+Reset the dwell timer when any required condition stops holding. Latch the jam once the dwell time
+expires. Stop the roller, or use a justified limited hold: a reduced holding effort, with a stated
+maximum and time limit, that keeps the game piece seated until an explicit ending condition stops
+the roller. Require an explicit reset before collection resumes. Automatic reversal or repeated
+retry is not required.
+
+Derive the thresholds instead of copying them. Start from the normal-collection recordings saved in
+[Compare Output Modes](#compare-output-modes) and add a startup recording; choose a current
+threshold and a speed threshold that sit outside those recordings with a stated margin, and choose a
+dwell time longer than the startup transient. Write the margin and the recording it came from beside
+each value. Then decide whether the rule should latch while the roller is running in reverse, and
+justify the answer.
 
 To watch the rule in simulation, give a roller a scripted IO that implements the roller IO contract
 and reports a chosen torque current and speed. Add controls to inject and clear a stall and to mark
-the roller observations invalid. Start collection, inject a stall, and confirm that the owner stops
-the roller when the rule latches. Clearing the simulated stall must not clear the latch: stop the
-collection command, reset the latch explicitly, then start a new command. Refuse a reset while
-collection is still requested. Keep this scripted roller separate from Cobra's physical feeder.
+the roller observations invalid. Start collection, inject a stall, and confirm that the subsystem
+that owns the roller stops it when the rule latches. Clearing the simulated stall must not clear the
+latch. To resume, stop the collection command, reset the latch, then start a new command; the rule
+refuses a reset while collection is still requested. Keep this scripted roller separate from Cobra's
+physical feeder.
 
-Reset the timer when any required condition stops holding. Latch the jam once the interval expires.
-Stop the roller, or use a justified limited hold with an explicit ending condition. Require an
-explicit reset before collection resumes. Automatic reversal or repeated retry is not required.
+Test a brief startup transient, normal collection, a sustained jam, invalid roller observations,
+stopping the command, and explicit reset. Record the reason for the stop. Simulate the jam through
+the scripted IO's observations; a deliberate physical jam is not required.
 
-Test a brief startup transient, normal collection, a sustained jam, invalid sensing, stopping the
-command, and explicit reset. Record the reason for the stop. Simulate the jam by controlling load or
-observations; a deliberate physical jam is not required.
+## Confirm the Trace in Cobra
+
+In the fork, trace the intake roller from `Intake` to its selected IO adapter and find where
+`SingleRollerIOTalonFX.updateInputs` fills `torqueCurrentAmps` and `velocity`. Then keep collection
+requested and the roller observations valid while the scripted IO changes measured speed and
+current. Predict when the dwell time starts, when the jam latches, and why the roller stays stopped
+after the request ends until an explicit reset. Save the traces from before and after the stall
+injection.
 
 ## Independent Change
 
-The mentor changes the simulated load or a sensor timing condition. The student predicts whether the
-rule should latch, runs it, and explains the result using the saved signals. CANrange presence and
-jam detection receive separate evidence because they answer different questions.
+The mentor changes the injected stall or a sensor timing condition. The student predicts whether the
+rule should latch, runs it, saves the traces, and explains the result using the saved signals.
+CANrange presence and jam detection receive separate evidence because they answer different
+questions.
 
-## Trace the Measurements in Cobra
-
-In the fork, trace the intake roller from `Intake` to its selected IO adapter and find where
-`SingleRollerIOTalonFX.updateInputs` fills `torqueCurrentAmps` and `velocity`. Then hold the
-collection request and roller validity fixed while the scripted IO changes measured speed and
-current. Predict when the dwell starts, when the jam latches, and why the roller stays stopped after
-the request ends until an explicit reset. Save the before/after traces and the independent change.
+When this step's simulation rows pass, the physical torque-current demonstration for this mechanism
+(B3-13.1) can follow; see
+[Required Demonstrations](/badges/badge-3-hardware#required-demonstrations).
 
 ## Badge Check
 
-S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, an explanation in the student's own words, the mentor's
-signature, and the date for each row. The mentor asks the
-student to explain a change and its result before signing.
+S means simulation, H means hardware, and W means written reasoning. The student records an evidence
+link and an explanation in the student's own words for each row in the fork's README. The mentor
+asks the student to explain a change and its result, checks each row, then signs and dates the step
+on the [sign-off sheet](/documents/badges/badge-3/badge-3-sign-off.pdf).
 
 | Row | Work | Done When |
 | --- | --- | --- |
-| B3-04.1 | Roller voltage and torque current | S: Implement and compare direct Talon FX voltage and torque-current effort and Talon FXS voltage effort, including positive, reverse, stop, configured limits and logged response. |
+| B3-04.1 | Roller voltage and torque current | S: Implement and compare Talon FX voltage and torque-current effort and Talon FXS voltage effort, including positive, reverse, stop, configured limits and logged response. |
 | B3-04.2 | CANrange presence | S/H: Demonstrate present, absent and invalid inputs separately; perform one physical CANrange test that changes roller subsystem behavior. |
-| B3-04.3 | Jam detection and recovery | S/W: Use sustained effort and observed motion with justified thresholds and timing. Log and latch the jam; stop or use a justified limited hold with an ending condition. Require explicit reset before normal intake resumes. No automatic reverse/retry is required. |
+| B3-04.3 | Jam detection and recovery | S/W: Use sustained measured torque current and low measured speed, with justified thresholds and dwell time. Log and latch the jam; stop or use a justified limited hold with an ending condition. Require an explicit reset before collection resumes. Automatic reversal or retry is not required. |
 
 ## For the Mentor
 
@@ -155,8 +176,7 @@ student to explain a change and its result before signing.
 gamepad on Driver Station port 4 in Teleop: hold A to collect, B to stop, X and Y to inject and
 clear a stall, the bumpers to invalidate and restore the roller observations, and Start to reset the
 latch. Use it to demonstrate the latch and reset behavior after the student has written their own
-rule and predictions. Its possession IO is `PossessionIOCANrange`, selected in REAL only when
-`PossessionConstants.hardware` is filled in.
+rule and predictions. Its possession IO is `PossessionIOCANrange`.
 
 <Sources items={[
   {

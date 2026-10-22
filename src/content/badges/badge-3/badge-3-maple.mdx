@@ -7,24 +7,32 @@ groupLabel: "Badge 3: Advanced FRC"
 groupOrder: 3
 order: 11
 difficulty: advanced
-description: "Required drivetrain contact experiments with maple-sim, explicit physics ownership, and separate truth and estimated pose."
+description: "Required drivetrain contact experiments with maple-sim, explicit physics ownership, and separate true and estimated poses."
 ---
 
-This step investigates how drivetrain contact changes a simulated path. Complete rows
-B3-11.1–B3-11.3 before the final Step 12 autonomous runs; the B3-11.4 reproduction by another member
-can follow with the Step 15 handoff. Start from your Badge3Starter fork with Step 6's FuelSim world
-and Step 10's camera IO in place. Read [maple-sim](/frc/maple-sim), [FuelSim](/frc/fuelsim),
-[Physics in the IO Layer](/frc/physics-in-the-io-layer), and
-[Unit Tests in Simulation](/frc/unit-tests-in-simulation). Use one combined configuration: maple-sim
-for chassis motion and contact, FuelSim for fuel and scoring, and PhotonVision for observations of
-the same fuel world.
+The student combines the simulators around a maple-sim drivetrain and investigates how drivetrain
+contact changes a simulated path. Complete rows B3-11.1 to B3-11.3 before the Step 12 autonomous
+runs; the B3-11.4 reproduction by another member can follow with the Step 15 handoff.
+
+Start from the student's `Badge3Starter` fork with Step 6's fuel world and Step 10's camera IO in
+place. Use one combined simulation: maple-sim for chassis motion and contact, the fuel world
+(FuelSim) for fuel and scoring, and the camera world (PhotonVision) for observations of the same
+fuel.
+
+Read these first:
+
+- [maple-sim](/frc/maple-sim)
+- [FuelSim](/frc/fuelsim)
+- [Physics in the IO Layer](/frc/physics-in-the-io-layer)
+- [Unit Tests in Simulation](/frc/unit-tests-in-simulation)
 
 ## Pin and Inspect the Dependency
 
-Add maple-sim `0.4.0-beta` and dyn4j `5.0.2` to the fork. When this badge pinned maple-sim on
-September 27, 2026, the public vendordep pointed to `0.4.0-beta-obstacles-fix`, whose Maven artifact
-could not be resolved, so declare both in `build.gradle` instead of adding a vendordep. The
-Starter's `build.gradle` has no `repositories` block, so add one above `dependencies` with Maven
+Add maple-sim `0.4.0-beta` and dyn4j `5.0.2` to the fork. Declare both in `build.gradle` instead of
+adding a vendordep. When this badge pinned maple-sim on September 27, 2026, the public vendordep
+pointed to `0.4.0-beta-obstacles-fix`, whose Maven artifact could not be resolved.
+
+The Starter's `build.gradle` has no `repositories` block, so add one above `dependencies` with Maven
 Central (for dyn4j) and maple-sim's Maven repository. Put the two `implementation` lines inside the
 Starter's existing `dependencies` block, beside `implementation wpi.java.deps.wpilib()`:
 
@@ -41,10 +49,10 @@ dependencies {
 }
 ```
 
-Record both versions in the student README, with the SHA-256 hash of the resolved
+Record both versions in the fork's README, with the SHA-256 hash of the resolved
 `maplesim-java-0.4.0-beta.jar` from Gradle's cache (under
-`.gradle/caches/modules-2/files-2.1/org.ironmaple/` in your user folder). Treat a later version as a
-deliberate dependency change that needs a rebuild and repeated experiments.
+`.gradle/caches/modules-2/files-2.1/org.ironmaple/` in the user's home folder). Treat a later
+version as a deliberate dependency change that needs a rebuild and repeated experiments.
 
 ## Choose the Drivetrain Model
 
@@ -53,24 +61,25 @@ empty `GyroIO` and four `ModuleIOSim` instances, each modeling its module's driv
 with `DCMotorSim`, so the simulated robot has no gyro, wheel slip, or field contact.
 
 Choose which of maple-sim's AdvantageKit template projects matches Cobra's drive IO and explain why.
-[The drivetrain, and what it costs](/frc/maple-sim#the-drivetrain-and-what-it-costs) lists the
+[The Drivetrain and What It Costs](/frc/maple-sim#the-drivetrain-and-what-it-costs) lists the
 templates. Then explain how maple-sim's module and gyro simulation differ from `ModuleIOSim`.
 
 Keep `ModuleIOSim` in the fork. Add a selector in `RobotContainer`'s SIM case, such as a constant,
-that builds `Drive` from either the `ModuleIOSim` drivetrain or the maple-sim drivetrain, so you can
-run the same commands against both models and compare them in simulation.
+that builds `Drive` from either the `ModuleIOSim` drivetrain or the maple-sim drivetrain, so the
+same commands can run against both models and be compared in simulation.
 
 ## Assign One Update Owner
 
-The arena advances the drivetrain physics once per robot period, with its internal subticks. The
-module and gyro IO read the resulting sensor data. Remove the old drivetrain physics updates from
-that configuration so two models do not both move the same robot. Preserve the normal estimator and
-path-follower interfaces.
+maple-sim's arena, `SimulatedArena`, advances the drivetrain physics once per robot period, with
+its internal subticks. The
+module and gyro IO read the resulting sensor data. When the selector chooses maple-sim, the
+`ModuleIOSim` physics updates must not run, so two models do not both move the same robot. Preserve
+the normal estimator and path-follower interfaces.
 
-Work through four ownership decisions and record each one:
+Work through five ownership decisions and record each one:
 
 1. **Subticks.** Run first at maple-sim's default subtick count and watch module steering in
-   AdvantageScope, comparing requested and measured module angles. Record what you observe, then
+   AdvantageScope, comparing requested and measured module angles. Record the observation, then
    choose a subtick count with `SimulatedArena.overrideSimulationTimings` and justify it from the
    log.
 2. **Fuel.** maple-sim's 2026 arena places its own fuel through `placeGamePiecesOnField`. Decide how
@@ -82,73 +91,86 @@ Work through four ownership decisions and record each one:
    or the previous one, and what delay that adds between a command and its measured motion.
 4. **Battery.** Find every place the fork writes the roboRIO input voltage.
    `SimulatedArena.simulationPeriodic` updates maple-sim's `SimulatedBattery` each subtick, and
-   `SimulatedBattery` writes `RoboRioSim.setVInVoltage`. The Starter's roller sims, such as
+   `SimulatedBattery` writes `RoboRioSim.setVInVoltage`. The fork's roller sims, such as
    `SingleRollerIOSimTalonFX`, also write it from their own current draw. Keep one owner, and
    register each mechanism's current draw with it.
+5. **Reset.** Decide which call resets the combined simulation, covering the maple-sim drivetrain
+   pose, the fuel world's fuel, and the camera world's targets, and check that no simulator keeps
+   state from the previous run.
+
+## Connect the True Pose
+
+maple-sim's drivetrain simulation supplies the true pose that Steps 6 and 10 deferred. Replace the
+fixed test pose registered with FuelSim in Step 6, and the camera world's pose source from Step 10,
+with that true pose. Fuel physics and camera rendering then follow the simulated robot, while the
+estimator keeps its own estimated pose.
 
 Record true field pose, estimated field pose, requested chassis speeds, measured module states,
-battery behavior, and the experiment configuration. BLine receives the estimated pose. True pose is
-for simulated observations and comparison, not a shortcut into control.
+battery behavior, and the experiment configuration. BLine receives the estimated pose. The true pose
+is for simulated observations and comparison, not a shortcut into control.
 
-## Check Contact Before the Paths
+## Check Contact before the Paths
 
 Before the path experiments, write a short test that drives the maple-sim chassis into a field wall
 with direct voltage and compares true motion with what the commanded voltage alone would produce.
 [A Mechanism in the Loop](/frc/unit-tests-in-simulation#a-mechanism-in-the-loop) shows how to run
-the robot loop inside a test. This establishes chassis contact behavior; it does not establish
-normal-estimator path behavior. For B3-11.2–B3-11.3, run the combined-world route and the parameter
-experiment using the normal estimator for control and truth only for comparison. Preserve both runs.
+the robot loop inside a test. This test is a prerequisite check; it does not replace the controlled
+contact experiment below.
 
 ## Run Two Experiments
 
-First run a known BLine route in open space. Record its start and end poses, completion or timeout,
-path error, and elapsed time. Repeat it from the same conditions to establish the variation present
-in the model.
+Run both experiments in the combined simulation, with the normal estimator controlling the robot and
+the true pose used only for comparison. Save the log of every run.
 
-Then introduce a known obstacle or field boundary on a controlled route. Predict where contact will
-occur and how it may change true motion, wheel readings, and the estimate. Run with a time bound so
-a robot blocked by an obstacle cannot command drive indefinitely. Compare the true and estimated
-trajectories after contact.
+First run a known BLine path in open space. Record its start and end poses, whether BLine finished
+it, path error, and elapsed time. Repeat it from the same conditions to establish the variation
+present in the model.
 
-Change one parameter or initial condition, such as approach speed or initial lateral position. Keep
-the remaining conditions fixed. Explain what changed, what the logs support, and which contact or
-friction assumptions would need hardware measurements before they describe a physical robot.
+Then introduce a known obstacle or field boundary on a controlled path. Predict where contact will
+occur and how it may change true motion, wheel readings, and the estimate. Run the path until BLine
+finishes it or the autonomous period ends, and record which happened; do not put a time limit on the
+path. Compare the true and estimated trajectories after contact.
+
+Last, repeat the contact path with one parameter or initial condition changed, such as approach
+speed or initial lateral position, keeping the remaining conditions fixed. Explain what changed,
+what the logs support, and which contact or friction assumptions would need hardware measurements
+before they describe a physical robot.
 
 ## Reproduce Both Simulators
 
-Give another member the FuelSim and maple-sim instructions, pinned versions,
-expected observations, and log locations. The member repeats a scoring shot, controlled miss,
-open-space path, and contact experiment. FuelSim reproduction already completed for the required
-handoff can be credited here. Record where instructions needed correction. The mentor checks the
-student's explanation of model ownership and truth-versus-estimate separation.
+Give another member the FuelSim and maple-sim instructions, pinned versions, expected observations,
+and log locations. The member repeats the scoring shot and controlled miss from the Step 6 launch
+experiment, the open-space path, and the contact experiment. Record where the instructions needed
+correction. FuelSim reproduction already completed for the B3-15.1 handoff can be credited here. The
+mentor checks the student's explanation of the physics, camera, battery, and reset owners, and of
+the separation between true and estimated pose.
 
 ## Badge Check
 
-S means simulation, H means hardware, W means written reasoning, and M means mentor-observed review.
-The student records an evidence link, an explanation in the student's own words, the mentor's
-signature, and the date for each row. The mentor asks the
-student to explain a change and its result before signing.
+S means simulation, W means written reasoning, and M means mentor-observed review. The student
+records an evidence link and an explanation in the student's own words for each row in the fork's
+README. The mentor asks the student to explain a change and its result, checks each row, then signs
+and dates the step on the [sign-off sheet](/documents/badges/badge-3/badge-3-sign-off.pdf).
 
 | Row | Work | Done When |
 | --- | --- | --- |
 | B3-11.1 | Plan maple-sim integration | W: Identify pinned version and matching template, explain IO changes and update ownership, and predict an experimental result before running it. |
-| B3-11.2 | Motion and contact | S: Run a known BLine path in open space and a controlled field-contact experiment. Vary one parameter or initial condition and explain the observed response. |
-| B3-11.3 | Truth and estimate | S/W: Log true and estimated pose separately; control uses the normal estimated pose. Explain what the model adds and cannot establish about hardware. |
-| B3-11.4 | Reproduce the explorations | S/M: Another member reproduces FuelSim and maple-sim experiments from instructions. Use the combined world and identify its physics, camera, battery, and reset owners. |
+| B3-11.2 | Motion and contact | S: Run a known BLine path in open space and a controlled field-contact experiment, recording whether BLine finished each path or the autonomous period ended. Vary one parameter or initial condition and explain the observed response. |
+| B3-11.3 | True and estimated pose | S/W: Log true and estimated pose separately; control uses the normal estimated pose. Explain what the model adds and cannot establish about hardware. |
+| B3-11.4 | Reproduce the explorations | S/M: Another member reproduces FuelSim and maple-sim experiments from instructions in the combined simulation; the student explains the physics, camera, battery, and reset owners. |
 
 ## For the Mentor
 
-`curriculum-reference` adds maple-sim through `vendordeps/maple-sim.json` and contains the focused
-`MapleExperiment` and `MapleVisionTest`, a smaller independent physics example.
-`Badge3MentorSolution` declares the same versions in `build.gradle` and drives SIM through
-`GyroIOMapleSim` and `ModuleIOMapleSim`. It keeps the template `ModuleIOSim` source for reference
-but has no selector, so a student's selector goes beyond the reference. `DriveSimulation` builds a
-`SimulatedArena` from `RebuiltFieldObstaclesMap` with an empty `placeGamePiecesOnField`, and sets 20
-ms periods with 40 subticks because the 24:1 steering reduction was unstable at the default step.
-`RobotContainer.updateSimulation`, called from `Robot.robotPeriodic` before the scheduler, advances
-the arena and then FuelSim; `registerBatteryLoad` adds each mechanism sim's current to
-`SimulatedBattery`. `FieldContactSimulationTest` and `CombinedSimulationTest` cover contact and the
-combined world. `EXPERIMENTS.md` lists the combined-world route and parameter experiment.
+`curriculum-reference` adds maple-sim through its own `vendordeps/maple-sim.json`, pinned to
+`0.4.0-beta` (the legacy route this step replaces), and contains the focused `MapleExperiment` and
+`MapleVisionTest`, smaller independent physics examples. `Badge3MentorSolution` declares the same
+versions in `build.gradle` and drives SIM through `GyroIOMapleSim` and `ModuleIOMapleSim`. It keeps
+the template `ModuleIOSim` source for reference but has no selector, so a student's selector goes
+beyond the reference. See `DriveSimulation` for the arena, subtick and fuel decisions,
+`RobotContainer.updateSimulation` and `RobotContainer.resetSimulation` for the loop position and
+reset, and `MIGRATION.md` for battery ownership. `FieldContactSimulationTest` and
+`CombinedSimulationTest` cover contact and the combined simulation, and `EXPERIMENTS.md` lists the
+path and parameter experiments.
 
 <Sources items={[
   {
