@@ -7,9 +7,10 @@ survives), deployed to GitHub Pages at the domain root. Six content sections (To
 Java with its Practice assignments, Kit Bot, FRC, Badges) plus the Resources catalog and the
 References page.
 
-Read this file, then [`docs/documentation-style.md`](docs/documentation-style.md) and
-[`docs/content-authoring.md`](docs/content-authoring.md). They are the standard; this file is
-the summary and the rules that are easy to miss.
+Read this file, then the [Docs Prose Style Guide](.claude/skills/docs-prose-style-guide/SKILL.md),
+[`docs/documentation-style.md`](docs/documentation-style.md) and
+[`docs/content-authoring.md`](docs/content-authoring.md). They are the standard, and the prose
+guide wins any conflict among them; this file is the summary and the rules that are easy to miss.
 
 ---
 
@@ -28,8 +29,11 @@ the summary and the rules that are easy to miss.
 
 ## 2. Prose standard (the anti-slop rules)
 
-Curriculum prose follows [`docs/documentation-style.md`](docs/documentation-style.md). The
-rules that matter most, because they are the ones generated text breaks:
+Curriculum prose follows the [Docs Prose Style Guide](.claude/skills/docs-prose-style-guide/SKILL.md)
+(formerly the Mentor Voice Prose Guide; a project skill, so it loads as `docs-prose-style-guide`),
+then [`docs/documentation-style.md`](docs/documentation-style.md). Where they disagree, the guide
+wins (maintainer decision, 2026-10-20). The rules that matter most, because they are the ones
+generated text breaks:
 
 - **No em dashes** in lesson prose. Choose the punctuation the sentence needs: a colon, a
   comma, parentheses, or two sentences. Do not apply one replacement mechanically.
@@ -42,9 +46,10 @@ rules that matter most, because they are the ones generated text breaks:
   that confirms it.
 - **"Must" only for real requirements** (rules, inspection, safety, API contracts). Advice
   is written as advice with its reason.
-- **Title Case headings and titles**, following the later shared Mentor Voice Prose Guide, without
+- **Title Case headings and titles**, with the prose guide's lowercase minor words, without
   taglines (a series is "Series: Item", as in "Manual Tuning: Flywheel").
-- **Plain, direct, conversational without a persona.** One idea per paragraph, concrete
+- **An experienced mentor explaining to a high-school student**: plain, direct and
+  conversational, with no invented anecdotes or forced slang. One idea per paragraph, concrete
   subjects, active verbs, the practical idea before the terminology, and the useful result
   before the theory that explains it.
 - **Preserve meaning when editing.** Removing words is fine; removing conditions, units,
