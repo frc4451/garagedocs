@@ -58,11 +58,14 @@ already completed.
 5. Change the fork's project name, preserve the original version record, and create the evidence
    directory. Keep the baseline logs for later comparisons.
 
-Then record an enabled baseline: from the unchanged code, run the selected autonomous routine in
-simulation ([Autonomous Simulation](/frc/autonomous-simulation)), and record the routine, mode,
-initial pose, enabled duration, outcome, and requested versus measured traces in the fork. Until
-that run exists, the README marks the enabled baseline as pending; the disabled check does not stand
-in for it.
+Then record an enabled baseline. The Starter's SIM mode publishes to NetworkTables and writes no log
+file, so first add the one-line `WPILOGWriter` receiver that
+[Recording a Simulation](/frc/simulation-in-advantagescope#recording-a-simulation) shows, the only
+code change before the baseline, and note it in the README. From that otherwise unchanged code, run
+the selected autonomous routine in simulation ([Autonomous Simulation](/frc/autonomous-simulation)),
+and record the routine, mode, initial pose, enabled duration, outcome, and requested versus measured
+traces in the fork. Until that run exists, the README marks the enabled baseline as pending; the
+disabled check does not stand in for it.
 
 ## Read the Migration Target
 
@@ -80,6 +83,28 @@ Steps 3–12, the student moves active reusable code to the ROBOTZ Garage librar
 `org.robotzgarage.frc2027`. The fork keeps the original `org.robotzgarage.frc2026` classes alongside
 the migrated library until the student retires them. The drivetrain and robot-specific shooting
 policy stay in the robot project.
+
+### Start the Library
+
+Start the migrated library before Step 3 by copying the mechanism library from the student's own
+Badge 2 project into the fork, renaming its package and imports to `org.robotzgarage.frc2027`. With
+the mentor's agreement, the student can copy the `org.robotzgarage.frc2027` package of
+`Badge2MechanismReference` instead; it already uses that package name. Build the fork to confirm the
+copy compiles before Step 3 changes it.
+
+The copied Nova files import `com.thrifty`, the ThriftyLib 2026.2.2 API Badge 2 used, while Cobra
+and the Starter pin 2026.0.1 (`com.thethriftybot`). Replace the fork's ThriftyLib vendordep with
+2026.2.2 when the library is copied, on every motor-controller route. The Starter's
+`SingleRollerIONova` and `MotorConfigs` use the old API: port each to the new one, or retire it if
+nothing in the fork constructs it, and record the choice in the fork's README.
+
+Library code takes its settings as arguments and does not import classes from `frc.robot`. Some of
+Cobra's `org.robotzgarage.frc2026` classes do; the AprilTag vision classes, for example, import
+robot code. When a util, math or vision class moves into the library, pass those settings in
+instead. Retire each `org.robotzgarage.frc2026` class once nothing in the fork constructs or imports
+it.
+
+### Trace One Roller
 
 Begin by tracing one roller, the feeder tower, with
 [One Mechanism, End to End](/frc/cobra-repository-tour#one-mechanism-end-to-end) as the reading

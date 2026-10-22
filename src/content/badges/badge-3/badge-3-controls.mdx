@@ -115,6 +115,13 @@ model. CTRE simulation advances in a callback the vendor IO owns and feeds senso
 motor controller. Adding another model update in the subsystem would advance time twice. Draw and
 explain the update order before changing it.
 
+Cobra's `SingleRollerIOSimTalonFX` runs its CTRE simulation on a 5 ms `Notifier`. Keep that pattern
+when the migrated roller, flywheel and pivot CTRE simulations move into the library: the callback
+measures elapsed FPGA time and advances the model, `updateInputs` only reads feedback, each model
+stays on that one callback thread, and the Notifier closes before its motor controllers. The robot
+still owns the single shared battery update. Code that does run once per robot loop takes its period
+from `TimedRobot.kDefaultPeriod` instead of a written 0.02.
+
 The Starter already contains a mechanism with two models. In SIM, the feeder tower is a `Flywheel`
 (`org/robotzgarage/frc2026/subsystems/flywheel/Flywheel.java`) whose IO is
 `SingleRollerIOSimTalonFX`. Read `Flywheel.periodic()`, then the IO's constructor and
@@ -159,9 +166,11 @@ and dates the step on the [sign-off sheet](/documents/badges/badge-3/badge-3-sig
 Compare these files with the student's design after the student has made their own decisions. In
 `Badge3MentorSolution`, read `TorqueCapabilityTest`, `TalonFxEndpointTest`, `StarterTransitionTest`,
 `RobotContainerSmokeTest` and `RollerNotifierTest`; `EXPERIMENTS.md` lists the matched comparison
-conditions, and `RobotContainer` and `Feeder` hold the mentor's feed-mode choice. In
-`curriculum-reference`, `TorqueFXExample` and `ControllerModesTest` run against that project's own
-pinned dependencies, which are separate from those of `Badge3MentorSolution`.
+conditions, and `RobotContainer` and `Feeder` hold the mentor's feed-mode choice. The
+`checkMechanismTiming` task in its `build.gradle` fails the build when mechanism code writes the 20
+ms loop period as a number instead of using `TimedRobot.kDefaultPeriod`. In `curriculum-reference`,
+`TorqueFXExample` and `ControllerModesTest` run against that project's own pinned dependencies,
+which are separate from those of `Badge3MentorSolution`.
 
 <Sources items={[
   {
