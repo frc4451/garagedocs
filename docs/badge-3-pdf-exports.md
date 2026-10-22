@@ -2,8 +2,9 @@
 
 Recorded October 19, 2026; the sign-off sheet was re-exported October 20, 2026 after the Step 15
 rename and row-wording cleanup, and again later that day after the Step 7 task
-update and the logo correction (LEVEL 3), and on October 21, 2026 after the Step 13
-wording change. Student-facing links use the PDFs in `public/documents/badges/badge-3/`;
+update and the logo correction (LEVEL 3), on October 21, 2026 after the Step 13
+wording change, and on October 22, 2026 after the Step 1, 5 and 6 task updates (starting
+the migrated library, the named characterization entries and the hub-table work). Student-facing links use the PDFs in `public/documents/badges/badge-3/`;
 Google Docs remains the editing source. Changes to a Google Doc do not update the site PDF
 automatically.
 
