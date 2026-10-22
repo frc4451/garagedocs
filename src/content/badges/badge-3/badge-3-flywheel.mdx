@@ -12,9 +12,9 @@ description: "Characterize and tune measured flywheel speed before the separate 
 
 The student characterizes the flywheel, controls its measured speed, and validates the tuning on a
 separate run. Start after the calculus, output-capability and roller work in Steps 2 through 4, in
-the `Badge3Starter` fork. The student reads the Cobra classes named on this page in the fork and
-implements each change in a new `FlywheelIO` for the follow-roller flywheel in the migrated ROBOTZ
-Garage library (`org.robotzgarage.frc2027`, from [Step 1](/badges/badge-3-start)).
+the `Badge3Starter` fork. The student reads the Cobra classes named on this page in the fork. The
+student implements each change in a new `FlywheelIO` for the follow-roller flywheel in the migrated
+ROBOTZ Garage library (`org.robotzgarage.frc2027`, from [Step 1](/badges/badge-3-start)).
 
 Most of this step runs in simulation. B3-05.2 needs one hardware characterization run on the
 fixture. Before it, complete the [setup sheet](/badges/badge-3-hardware#complete-the-setup-sheet)
@@ -31,7 +31,7 @@ Research these before writing the characterization command:
   cancellation.
 - [Command Groups](/frc/command-groups) and WPILib's
   [Command Compositions](https://docs.wpilib.org/en/stable/docs/software/commandbased/command-compositions.html),
-  for what happens to the rest of a sequence when it is cancelled.
+  for how a sequence advances and for the `finallyDo()` and `handleInterrupt()` decorators.
 
 ## Trace the Flywheel in Cobra
 
@@ -60,8 +60,8 @@ fixture value. Decide which quantities the record must hold to bound effort, rat
 direction, and write down what each one prevents. Decide which values to refuse before any output,
 and log the refusal reason. Cobra's entry points to wrap are `Shooter.quasistaticCharacterization`,
 the feeder and intake roller characterizations, and the intake pivot's
-`Intake.endeffectorFeedForwardCharacterization`. Have each entry take a fixture-permission supplier
-(it reports whether the fixture conditions recorded with the mentor hold for this run), and allow
+`Intake.endeffectorFeedForwardCharacterization`. Have each entry take a fixture-permission supplier,
+which reports whether the fixture conditions recorded with the mentor hold for this run. Allow
 output only when both that supplier and the subsystem's connection check pass.
 
 The pivot entry waits for [Step 7](/badges/badge-3-pivot#establish-manual-reference): its permission
@@ -117,8 +117,8 @@ difference.
 Validate the resulting gain choice on a separate run, then tune feedback against speed-error and
 settling targets the student defines with the mentor and records before tuning. Compare Talon FX
 voltage and torque-current control and Talon FXS voltage control. A requested speed starts each run;
-measured speed determines the result. Change one output mode or gain at a time, predict rise time
-and error, run each comparison from the same initial state for the same duration and goal, and
+measured speed determines the result. Change one output mode or gain at a time and predict rise time
+and error. Run each comparison from the same initial state for the same duration and goal, and
 compare the saved traces. Keep the goal or profile, the measurement, and the output on separate
 traces.
 
@@ -142,10 +142,10 @@ required Cobra adaptation.
 ### Tune Gains Live
 
 Cobra changes gains while the robot runs, so a tuning pass does not need a redeploy for each value.
-Trace the path in the fork: `FollowRollers` builds one `LoggedTunableNumber` per gain under
-`<name>/FeedBack` and `<name>/FeedForward`, seeded from the controller's Slot 0, and its
-`periodic()` passes a changed group to `updateFeedBack` or `updateFeedForward`. The numbers are live
-only while `Constants.tuningMode` is true.
+Trace the path in the fork. `FollowRollers` builds one `LoggedTunableNumber` per gain under
+`<name>/FeedBack` and `<name>/FeedForward`, seeded from the controller's Slot 0. Its `periodic()`
+passes a changed group to `updateFeedBack` or `updateFeedForward`. The numbers are live only while
+`Constants.tuningMode` is true.
 [Tunable Constants and Characterization](/frc/tunable-constants-and-characterization#the-tuning-loop)
 teaches the tuning loop and how to edit the numbers from AdvantageScope.
 
@@ -155,7 +155,7 @@ fork's README:
 
 - `FollowRollersIOTalonFX.updateFeedBack` applies its whole stored `TalonFXConfiguration` to the
   leader and the follower. Read CTRE's
-  [Configuration](https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/api-usage/configuration.html)
+  [Configuration](https://v6.docs.ctr-electronics.com/en/stable/docs/api-reference/api-usage/configuration.html)
   page, then decide what the migrated IO sends instead and why.
 - `apply()` waits for the device to respond. When does the migrated code send gains, and what would
   sending them on every loop cost?
@@ -219,7 +219,17 @@ For live tuning, read `TunableGains` in the library, the flywheel adapters' `app
   {
     "source": "ctre",
     "path": "docs/api-reference/device-specific/talonfx/open-loop-requests.html",
-    "note": "VoltageOut and TorqueCurrentFOC, read with the closed-loop page for the Slot 0 question."
+    "note": "VoltageOut and the open-loop request naming, including FOC-only requests."
+  },
+  {
+    "source": "ctre-javadoc",
+    "path": "com/ctre/phoenix6/controls/TorqueCurrentFOC.html",
+    "note": "The TorqueCurrentFOC request class and its fields, read with VoltageOut for the Slot 0 question."
+  },
+  {
+    "source": "ctre-javadoc",
+    "path": "com/ctre/phoenix6/controls/VoltageOut.html",
+    "note": "The VoltageOut request class and its fields, read with TorqueCurrentFOC for the Slot 0 question."
   },
   {
     "source": "wpilib",
@@ -229,17 +239,22 @@ For live tuning, read `TunableGains` in the library, the flywheel adapters' `app
   {
     "source": "wpilib",
     "path": "docs/software/commandbased/command-compositions.html",
-    "note": "How a sequential composition ends when it is interrupted, the reason a chained restoration is skipped."
+    "note": "Sequences start each command only after the previous one finishes, so a command that never finishes blocks the rest; finallyDo() runs on every end and handleInterrupt() only on interruption."
+  },
+  {
+    "url": "https://github.com/wpilibsuite/allwpilib/blob/v2026.2.1/wpilibNewCommands/src/main/java/edu/wpi/first/wpilibj2/command/SequentialCommandGroup.java",
+    "label": "WPILib SequentialCommandGroup.java (v2026.2.1)",
+    "note": "end(interrupted) ends only the running command; later commands in the sequence are not started."
   },
   {
     "source": "wpilib",
     "path": "docs/software/advanced-controls/system-identification/introduction.html",
-    "note": "SysId as encouraged exploration beside the required Cobra adaptation."
+    "note": "What system identification is, the SysId tool, and the simple-motor model whose kS, kV and kA it fits."
   },
   {
     "source": "ctre",
-    "path": "docs/api-reference/wpilib-integration/sysid-integration/index.html",
-    "note": "Running SysId with Phoenix 6 devices."
+    "path": "docs/api-reference/wpilib-integration/sysid-integration/plumbing-and-running-sysid.html",
+    "note": "Setting up and running a SysId routine with Phoenix 6 signal logging."
   },
   {
     "source": "cobra",

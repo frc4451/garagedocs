@@ -12,8 +12,8 @@ description: "Compare roller output modes, add CANrange presence sensing, and la
 
 The student refines the roller from an output command into a mechanism that can distinguish
 collection, invalid sensing, and a sustained jam. Start after [Step 3](/badges/badge-3-controls), in
-the `Badge3Starter` fork. The student reads the Cobra classes named on this page in the fork and
-implements each change in the migrated roller IO in the ROBOTZ Garage library
+the `Badge3Starter` fork. The student reads the Cobra classes named on this page in the fork. The
+student implements each change in the migrated roller IO in the ROBOTZ Garage library
 (`org.robotzgarage.frc2027`, from [Step 1](/badges/badge-3-start)).
 
 Research these before changing the roller IO:
@@ -26,15 +26,15 @@ Research these before changing the roller IO:
 - [Unit Tests in Simulation](/frc/unit-tests-in-simulation), for driving a rule and a command
   without a robot.
 - The CTRE
-  [CANrange documentation](https://v6.docs.ctr-electronics.com/en/latest/docs/hardware-reference/canrange/index.html)
+  [CANrange documentation](https://v6.docs.ctr-electronics.com/en/stable/docs/hardware-reference/canrange/index.html)
   and
-  [Tuning CANrange](https://v6.docs.ctr-electronics.com/en/latest/docs/hardware-reference/canrange/tuning-canrange.html).
+  [Tuning CANrange](https://v6.docs.ctr-electronics.com/en/stable/docs/hardware-reference/canrange/tuning-canrange.html).
 
 The scripted experiments run in simulation first. Before any powered check, including the
 physical CANrange test in B3-04.2, complete the
 [setup sheet](/badges/badge-3-hardware#complete-the-setup-sheet) and
-[first enable](/badges/badge-3-hardware#first-enable) from Step 13, fill in the possession rows of
-the commissioning record, and save the physical voltage baseline.
+[first enable](/badges/badge-3-hardware#first-enable) from Step 13. Then fill in the possession rows
+of the commissioning record and save the physical voltage baseline.
 
 ## Compare Output Modes
 
@@ -85,7 +85,7 @@ game piece is present, and record the chosen behavior.
 
 In simulation, first supply scripted input sequences through the same interface: absent to present,
 present to absent, disconnected, and stale. On hardware, under mentor supervision, choose the
-threshold and the hysteresis or debounce from the fixture and the game piece in front of it, then
+threshold and the hysteresis or debounce from the fixture and the game piece in front of it. Then
 move the game piece into and out of the configured range. Record the selected values, the observed
 distances, and the subsystem response.
 
@@ -101,9 +101,9 @@ In SIM, Cobra's rollers run on `SingleRollerIOSimTalonFX`, which reports both fr
 `DCMotorSim`. Nothing in that model loads or stalls the roller, so a jam rule never sees a jam in
 Cobra's simulation.
 
-Write the rule as a small class that receives the collection request, whether the roller
-observations are valid, measured torque current, and measured speed, so a unit test can drive it
-without a motor. Roller observations are valid when the roller inputs report `connected` and every
+Write the rule as a small class so a unit test can drive it without a motor. It receives the
+collection request, whether the roller observations are valid, measured torque current, and measured
+speed. Roller observations are valid when the roller inputs report `connected` and every
 measurement is finite. That validity is separate from CANrange presence.
 
 The rule latches a jam when, for a continuous dwell time, collection is requested, the roller
@@ -118,7 +118,7 @@ the roller. Require an explicit reset before collection resumes. Automatic rever
 retry is not required.
 
 Derive the thresholds instead of copying them. Start from the normal-collection recordings saved in
-[Compare Output Modes](#compare-output-modes) and add a startup recording; choose a current
+[Compare Output Modes](#compare-output-modes) and add a startup recording. Choose a current
 threshold and a speed threshold that sit outside those recordings with a stated margin, and choose a
 dwell time longer than the startup transient. Write the margin and the recording it came from beside
 each value. Then decide whether the rule should latch while the roller is running in reverse, and
@@ -173,16 +173,26 @@ on the [sign-off sheet](/documents/badges/badge-3/badge-3-sign-off.pdf).
 
 `Badge3MentorSolution` contains a worked jam exercise: `JamRule`, `JamExerciseIO`, `JamExercise`,
 `JamRuleTest`, and `JAM-EXERCISE.md`, read in that order. Its simulation-only roller runs from a
-gamepad on Driver Station port 4 in Teleop: hold A to collect, B to stop, X and Y to inject and
-clear a stall, the bumpers to invalidate and restore the roller observations, and Start to reset the
-latch. Use it to demonstrate the latch and reset behavior after the student has written their own
-rule and predictions. Its possession IO is `PossessionIOCANrange`.
+gamepad on Driver Station port 4 in Teleop:
+
+- A (held) collects and B stops
+- X and Y inject and clear a stall
+- the bumpers invalidate and restore the roller observations
+- Start resets the latch
+
+The mentor uses it to demonstrate the latch and reset behavior after the student has written their
+own rule and predictions. Its possession IO is `PossessionIOCANrange`.
 
 <Sources items={[
   {
     "source": "ctre",
     "path": "docs/api-reference/device-specific/talonfx/open-loop-requests.html",
-    "note": "VoltageOut and TorqueCurrentFOC effort requests compared on the roller."
+    "note": "VoltageOut and the open-loop request naming, including FOC-only requests."
+  },
+  {
+    "source": "ctre-javadoc",
+    "path": "com/ctre/phoenix6/controls/TorqueCurrentFOC.html",
+    "note": "The TorqueCurrentFOC request: its Output field in amperes of stator current and its Pro requirement."
   },
   {
     "source": "ctre",

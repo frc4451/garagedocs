@@ -25,11 +25,12 @@ Read these before starting:
 ## Start from Cobra's Autonomous
 
 In the fork, `AutonomousManager` builds Cobra's routines from fixed BLine paths, intake deploy and
-stow commands that wait until the pivot is near its goal, and timed shooting segments such as
-`handleInterpolateShooterToHub` from Step 1. Each path command comes from `drive.getBLineBuilder()`,
-the builder `Drive` configures in its constructor. `BLineManager` constructs a separate builder with
-its own PID controllers, but nothing in the fork constructs `BLineManager`. No routine reads camera
-observations, and nothing confirms possession: collection is assumed from the path and the clock.
+stow commands, and timed shooting segments such as `handleInterpolateShooterToHub` from Step 1. The
+deploy and stow commands wait until the pivot is near its goal. Each path command comes from
+`drive.getBLineBuilder()`, the builder `Drive` configures in its constructor. `BLineManager`
+constructs a separate builder with its own PID controllers, but nothing in the fork constructs
+`BLineManager`. No routine reads camera observations, and nothing confirms possession: collection is
+assumed from the path and the clock.
 
 `Drive`'s builder adds `.withDefaultShouldFlip()` and, in SIM only, `.withPoseReset(this::setPose)`.
 Before reusing it for the approach, find what each option does in SIM, using
@@ -65,14 +66,14 @@ region, return pose, and scoring target, and start every comparison from those s
 Each path command requires the drive subsystem and runs until BLine reports the path finished; do
 not put a time limit on a path. Distinguish arrival within the stated tolerance from a path that
 finished outside it; command completion alone cannot authorize collection or scoring. Time limits
-belong only on waits in place, such as waiting at the pickup for possession or a scoring window, and
-a wait that times out moves the routine on instead of ending autonomous. In this one-piece attempt,
+belong only on waits in place, such as waiting at the pickup for possession or a scoring window. A
+wait that times out moves the routine on instead of ending autonomous. In this one-piece attempt,
 moving on ends the attempt in a defined final state: outputs stopped, the reason logged, and nothing
 marked held or scored. In a multi-piece routine, the same timeout starts the next path instead. On
 interruption, stop drive and feeder outputs and preserve a consistent piece state.
 
 Ordinary command composition of the BLine path is acceptable when each state transition still comes
-from a measurement: for example, a sequence or deadline group that runs the follower and the intake
+from a measurement. For example, a sequence or deadline group can run the follower and the intake
 request, as in [Autonomous Routines](/frc/command-groups#autonomous-routines). A coordinator
 subsystem that owns the sequence's states and runs the follower as a child command is also
 acceptable.
@@ -84,7 +85,7 @@ run it.
 
 ## Connect One Fuel World
 
-One fuel world owns the piece: the field positions of its available pieces feed the camera world's
+One fuel world owns the piece. The field positions of its available pieces feed the camera world's
 simulated targets, its intake event changes the possession IO, and its launch operation consumes the
 held piece and adds the projectile. The robot state machine reads camera and possession inputs; it
 does not query the fuel world's exact piece location to decide where to drive.
@@ -137,8 +138,8 @@ simulation. Within a short distance and heading of the pickup goal, such as 6 in
 acquisition can finish the short final approach on the estimated pose while the intake hides the
 target.
 
-Repeat the collection-timeout run and the successful run with added loop delay, for example 10 ms:
-the pickup wait must still time out when possession never arrives, and one confirmed launch must
+Repeat the collection-timeout run and the successful run with added loop delay, for example 10 ms.
+The pickup wait must still time out when possession never arrives, and one confirmed launch must
 still occur when it does. Each failure test checks that the attempt ended with the logged reason for
 its own case. The slower collection-timeout run must end with a collection timeout, not an early
 target-lost reason; the target-lost case keeps its own run.
@@ -146,7 +147,7 @@ target-lost reason; the target-lost case keeps its own run.
 ## Score under Declared Assumptions
 
 B3-12.1 and B3-12.7 close when an integrated run in the combined simulation records a score under
-the declared geometry and model assumptions; collection and a launch alone do not complete them. Use
+the declared geometry and model assumptions. Collection and a launch alone do not complete them. Use
 [Step 6's hood and table conventions](/badges/badge-3-fuelsim-experiment#apply-cobras-hood-and-table-conventions)
 to read the measured hood position and Cobra's preserved empirical tables. The declared assumptions
 take their launch elevation from
@@ -170,8 +171,8 @@ changed-location run's log with the successful run and the failure logs.
 
 With the one-piece sequence complete, retire the `org.robotzgarage.frc2026` classes that nothing in
 the fork constructs or imports any more, as
-[Start the Library](/badges/badge-3-start#start-the-library) describes, so the fork's reusable code
-lives in `org.robotzgarage.frc2027`.
+[Start the Library](/badges/badge-3-start#start-the-library) describes. The fork's reusable code
+then lives in `org.robotzgarage.frc2027`.
 
 ## Badge Check
 
@@ -197,12 +198,12 @@ their measurements in `ONE-PIECE.md`. Its approach paths are built in
 `frc/robot/subsystems/drive/Drive.java`, and `FuelCameraTargets` supplies the camera world's
 targets. The reference defines the routine in `frc/robot/autonomous/routines/OnePiece.java` and
 lists it, in SIM only, in the `AutoSelector` routine chooser, which replaces the Starter's
-`LoggedDashboardChooser`. `OnePieceScenario` runs the seven cases (`SUCCESS`, `NO_PIECE`,
-`TARGET_LOST`, `COLLECTION_TIMEOUT`, `NEVER_READY`, `CANCEL_DRIVE`, and `CANCEL_FEED`) through
-`OnePieceSimulationTest` and the per-case tests (`NoPieceSimulationTest`,
+`LoggedDashboardChooser`. `OnePieceScenario` runs seven cases: `SUCCESS`, `NO_PIECE`,
+`TARGET_LOST`, `COLLECTION_TIMEOUT`, `NEVER_READY`, `CANCEL_DRIVE`, and `CANCEL_FEED`. It runs them
+through `OnePieceSimulationTest` and the per-case tests (`NoPieceSimulationTest`,
 `TargetLostSimulationTest`, `CollectionTimeoutSimulationTest`, `NeverReadySimulationTest`,
 `CancelDriveSimulationTest`, and `CancelFeedSimulationTest`), and saves their logs under
-`build/evidence`; `SlowCollectionSimulationTest` and `SlowSuccessSimulationTest` repeat two of them
+`build/evidence`. `SlowCollectionSimulationTest` and `SlowSuccessSimulationTest` repeat two of them
 with added loop delay. `FeedPolicyTest` covers the feed policy alone. The reference's `SUCCESS` run
 and its slow variant record one launch and one score under the fitted shot model from
 `CobraHubTableShotTest`. `SHOT-CALIBRATION.md` holds the calibration worksheet.
@@ -224,6 +225,7 @@ and its slow variant record one launch and one score under the fitted shot model
     "path": "lib/follow-path/",
     "note": "FollowPath builder options (alliance flip and pose reset)."
   },
+  {"url": "https://github.com/edanliahovetsky/BLine-Lib/blob/v0.8.4/src/main/java/frc/robot/lib/BLine/FollowPath.java", "label": "BLine-Lib FollowPath.java at v0.8.4", "note": "The builder options and the completion rule in the release the fork pins."},
   {
     "source": "cobra",
     "path": "vendordeps/BLine-Lib.json",

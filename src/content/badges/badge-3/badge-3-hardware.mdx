@@ -13,7 +13,7 @@ description: "Review physical evidence collected after each mechanism simulation
 Step 13 reviews the physical evidence collected throughout the badge. Motor controller setup and use
 begin in [Badge 2 Hardware Setup and Utilization](/badges/badge-2-hardware). Each advanced
 demonstration follows its mechanism's simulation rows in Steps 4, 5 and 7 and the fixture
-preparation below, so the physical work happens alongside each mechanism and this step reviews it.
+preparation below. The physical work happens alongside each mechanism, and this step reviews it.
 Steps 4, 5, 7 and 10 send the student here before their hardware rows: read the setup sheet and
 first-enable sections before the first powered check.
 
@@ -30,7 +30,7 @@ first-enable sections before the first powered check.
 
 | Resource | What to Review |
 | --- | --- |
-| [Phoenix Tuner X](https://v6.docs.ctr-electronics.com/en/stable/docs/tuner/index.html) and [Controlling Devices](https://v6.docs.ctr-electronics.com/en/stable/docs/tuner/controlling-devices.html) | Inspecting devices and bounded operation with the Driver Station enabled. |
+| [Phoenix Tuner X Device List](https://v6.docs.ctr-electronics.com/en/stable/docs/tuner/device-list.html) and [Controlling Devices](https://v6.docs.ctr-electronics.com/en/stable/docs/tuner/controlling-devices.html) | Inspecting firmware, IDs and license state, and running a device with the Driver Station enabled. |
 | [What Is Licensing](https://v6.docs.ctr-electronics.com/en/stable/docs/licensing/what-is-licensing.html) and [Control Types](https://v6.docs.ctr-electronics.com/en/stable/docs/api-reference/device-specific/talonfx/talonfx-control-intro.html) | Pro features, simulation without a license, and the unlicensed behavior of `TorqueCurrentFOC`. |
 | [Tuning CANrange](https://v6.docs.ctr-electronics.com/en/stable/docs/hardware-reference/canrange/tuning-canrange.html) | Proximity thresholds from signal strength and distance for the possession sensor. |
 | [Thrifty Config](https://docs.thethriftybot.com/software/thrifty-config) | The configuration application for a Nova fixture. |
@@ -78,10 +78,13 @@ normal motion.
 ## Required Demonstrations
 
 `TorqueCurrentFOC` and `FusedCANcoder` feedback need a Phoenix Pro license on the device or on its
-CANivore; simulation needs none. A request that passed every simulation row can produce no motion on
-an unlicensed Talon FX: CTRE documents that the device disables its output, sets the
-`UnlicensedFeatureInUse` fault and blinks its unlicensed pattern. Confirm license state in Phoenix
-Tuner X before the appointment, and check that fault first when a torque request does nothing.
+CANivore; simulation needs none. The two behave differently on an unlicensed Talon FX. A torque
+request that passed every simulation row can produce no motion: CTRE documents that the device
+disables its output, sets the `UnlicensedFeatureInUse` fault and blinks its unlicensed pattern. A
+device configured for `FusedCANcoder` falls back to `RemoteCANcoder` feedback and sets the
+`UsingFusedCANcoderWhileUnlicensed` fault. Confirm license state in Phoenix Tuner X before the
+appointment. Check `UnlicensedFeatureInUse` first when a torque request does nothing, and
+`UsingFusedCANcoderWhileUnlicensed` on a pivot configured for fused feedback.
 
 Row B3-13.1 requires physical torque-current roller, flywheel and pivot demonstrations. On at least
 one mechanism, compare voltage and torque-current control using a verified matching Badge 2 FX
@@ -89,7 +92,7 @@ physical voltage baseline or a new matched voltage run. Record separate gain uni
 conditions.
 
 Run each demonstration through the student's own IO on the deployed robot code, not through Tuner X
-controls, and make each log identify the active request type and its gain units. Before the voltage
+controls. Make each log identify the active request type and its gain units. Before the voltage
 and torque-current comparison, predict how measured speed and supply current change in each mode
 when the same load is added, then compare the prediction with the log.
 
@@ -148,13 +151,18 @@ possession values in `PossessionConstants.java`. `PossessionIOCANrangeTest` cove
 adapter.
 
 <Sources items={[
-  {"url":"https://docs.home.thethriftybot.com/javadoc/com/thethriftybot/devices/ThriftyNova.html", "label":"ThriftyLib API (com.thethriftybot, pinned at 2026.0.1 in Cobra and the Starter)", "note":"Motor selection and configuration methods; verify the chosen fixture separately."},
-  {"url":"https://software.thethriftybot.com/javadoc/latest/com/thrifty/canEncoder/package-summary.html", "label":"Thrifty API (com.thrifty, the 2026.2.2 release the fork pins from Step 1)", "note":"Newer package with the Nova and CAN encoder classes."},
+  {"url":"https://docs.home.thethriftybot.com/javadoc/com/thethriftybot/devices/ThriftyNova.html", "label":"ThriftyLib 2026.1.0 API (com.thethriftybot; Cobra and the Starter pin 2026.0.1)", "note":"Motor selection and configuration methods; verify the chosen fixture separately."},
+  {"url":"https://software.thethriftybot.com/javadoc/latest/com/thrifty/nova/package-summary.html", "label":"Thrifty API, com.thrifty.nova package (latest Javadoc; the fork pins 2026.2.2 from Step 1)", "note":"The newer Nova API: the <code>Nova</code> class and its <code>NovaConfig</code> configuration helpers."},
   {"url":"https://www.thethriftybot.com/products/thrifty-nova", "label":"Thrifty Nova", "note":"Published NEO and NEO 550 compatibility."},
   {
     "source": "ctre",
     "path": "docs/api-reference/device-specific/talonfx/talonfx-control-intro.html",
     "note": "TorqueCurrentFOC and FOC need a Pro license; an unlicensed device disables output for requests that require FOC and sets UnlicensedFeatureInUse."
+  },
+  {
+    "source": "ctre",
+    "path": "docs/api-reference/device-specific/talonfx/remote-sensors.html",
+    "note": "FusedCANcoder's Pro requirement and its unlicensed fallback to RemoteCANcoder."
   },
   {
     "source": "ctre",
@@ -168,8 +176,13 @@ adapter.
   },
   {
     "source": "ctre",
+    "path": "docs/tuner/device-list.html",
+    "note": "The Tuner X device cards: firmware state, duplicate IDs and the licensing indicator."
+  },
+  {
+    "source": "ctre",
     "path": "docs/tuner/controlling-devices.html",
-    "note": "Bounded operation with Tuner X and the Driver Station enable requirement."
+    "note": "Running a device from Tuner X and the Driver Station enable requirement."
   },
   {
     "source": "ctre",

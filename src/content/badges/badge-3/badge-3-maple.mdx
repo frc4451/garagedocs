@@ -29,8 +29,8 @@ Read these first:
 ## Pin and Inspect the Dependency
 
 Add maple-sim `0.4.0-beta` and dyn4j `5.0.2` to the fork. Declare both in `build.gradle` instead of
-adding a vendordep. When this badge pinned maple-sim, the public vendordep
-pointed to `0.4.0-beta-obstacles-fix`, whose Maven artifact could not be resolved.
+adding a vendordep. When this badge pinned maple-sim, the public vendordep pointed to
+`0.4.0-beta-obstacles-fix`, whose Maven artifact could not be resolved.
 
 The Starter's `build.gradle` has no `repositories` block, so add one above `dependencies` with Maven
 Central (for dyn4j) and maple-sim's Maven repository. Put the two `implementation` lines inside the
@@ -57,7 +57,7 @@ version as a deliberate dependency change that needs a rebuild and repeated expe
 ## Choose the Drivetrain Model
 
 Start from Cobra's simulated drive. In the fork's SIM mode, `RobotContainer` builds `Drive` from an
-empty `GyroIO` and four `ModuleIOSim` instances, each modeling its module's drive and turn motors
+empty `GyroIO` and four `ModuleIOSim` instances. Each one models its module's drive and turn motors
 with `DCMotorSim`, so the simulated robot has no gyro, wheel slip, or field contact.
 
 Choose which of maple-sim's AdvantageKit template projects matches Cobra's drive IO and explain why.
@@ -65,16 +65,15 @@ Choose which of maple-sim's AdvantageKit template projects matches Cobra's drive
 templates. Then explain how maple-sim's module and gyro simulation differ from `ModuleIOSim`.
 
 Keep `ModuleIOSim` in the fork. Add a selector in `RobotContainer`'s SIM case, such as a constant,
-that builds `Drive` from either the `ModuleIOSim` drivetrain or the maple-sim drivetrain, so the
-same commands can run against both models and be compared in simulation.
+that builds `Drive` from either the `ModuleIOSim` drivetrain or the maple-sim drivetrain. The same
+commands can then run against both models and be compared in simulation.
 
 ## Assign One Update Owner
 
 maple-sim's arena, `SimulatedArena`, advances the drivetrain physics once per robot period, with
-its internal subticks. The
-module and gyro IO read the resulting sensor data. When the selector chooses maple-sim, the
-`ModuleIOSim` physics updates must not run, so two models do not both move the same robot. Preserve
-the normal estimator and path-follower interfaces.
+its internal subticks. The module and gyro IO read the resulting sensor data. When the selector
+chooses maple-sim, the `ModuleIOSim` physics updates must not run, so two models do not both move
+the same robot. Preserve the normal estimator and path-follower interfaces.
 
 Work through five ownership decisions and record each one:
 
@@ -100,11 +99,11 @@ Work through five ownership decisions and record each one:
 
 ## Connect the True Pose
 
-maple-sim's drivetrain simulation supplies the true pose that Steps 6 and 10 deferred. Replace the
-fixed test pose registered with FuelSim in Step 6, the camera world's pose source from Step 10, and
-the pose that the AprilTag camera simulation renders from (Cobra's `AprilTagVision` passes it the
-global pose estimate), with that true pose. Fuel physics and camera rendering then follow the
-simulated robot, while the estimator keeps its own estimated pose.
+maple-sim's drivetrain simulation supplies the true pose that Steps 6 and 10 deferred. Replace three
+poses with that true pose: the fixed test pose registered with FuelSim in Step 6, the camera world's
+pose source from Step 10, and the pose that the AprilTag camera simulation renders from. Cobra's
+`AprilTagVision` passes that simulation the global pose estimate. Fuel physics and camera rendering
+then follow the simulated robot, while the estimator keeps its own estimated pose.
 
 Record true field pose, estimated field pose, requested chassis speeds, measured module states,
 battery behavior, and the experiment configuration. BLine receives the estimated pose. The true pose
@@ -113,7 +112,8 @@ is for simulated observations and comparison, not a shortcut into control.
 ## Check Contact before the Paths
 
 Before the path experiments, write a short test that drives the maple-sim chassis into a field wall
-with direct voltage and compares true motion with what the commanded voltage alone would produce.
+with direct voltage. The test compares true motion with what the commanded voltage alone would
+produce.
 [A Mechanism in the Loop](/frc/unit-tests-in-simulation#a-mechanism-in-the-loop) shows how to run
 the robot loop inside a test. This test is a prerequisite check; it does not replace the controlled
 contact experiment below.
@@ -192,27 +192,39 @@ path and parameter experiments.
   {
     "source": "maple-sim",
     "path": "installing-maple-sim/",
-    "note": "Adding maple-sim to a project; this badge pins 0.4.0-beta through build.gradle."
+    "note": "The vendordep install route that this step replaces with build.gradle lines."
   },
   {
-    "source": "maple-sim-source",
+    "source": "maple-sim-v0.4.0-beta",
+    "path": "docs/vendordep/maple-sim.json",
+    "note": "The vendordep at the pinned tag: the two Maven repository URLs, the <code>maplesim-java</code> 0.4.0-beta coordinates and the dyn4j 5.0.2 dependency."
+  },
+  {"url": "https://shenzhen-robotics-alliance.github.io/maple-sim/vendordep/maple-sim.json", "label": "maple-sim public vendordep JSON", "note": "The version the public vendordep names; it read <code>0.4.0-beta-obstacles-fix</code> when this badge pinned maple-sim."},
+  {
+    "source": "maple-sim-v0.4.0-beta",
     "path": "project/src/main/java/org/ironmaple/simulation/SimulatedArena.java",
     "note": "<code>simulationPeriodic</code> runs the subticks (five by default), each updating <code>SimulatedBattery</code>; <code>overrideSimulationTimings</code>; <code>placeGamePiecesOnField</code> on reset."
   },
   {
-    "source": "maple-sim-source",
+    "source": "maple-sim-v0.4.0-beta",
     "path": "project/src/main/java/org/ironmaple/simulation/motorsims/SimulatedBattery.java",
     "note": "The battery model that writes <code>RoboRioSim.setVInVoltage</code> and accepts registered electrical loads."
   },
   {
-    "source": "maple-sim-source",
+    "source": "maple-sim-v0.4.0-beta",
     "path": "project/src/main/java/org/ironmaple/simulation/seasonspecific/rebuilt2026/Arena2026Rebuilt.java",
     "note": "The 2026 field obstacles map and the arena's own fuel placement."
   },
+  {"url": "https://github.com/wpilibsuite/allwpilib/blob/v2026.2.1/wpilibj/src/main/java/edu/wpi/first/wpilibj/IterativeRobotBase.java", "label": "WPILib IterativeRobotBase.java at v2026.2.1 (the fork's GradleRIO version)", "note": "<code>loopFunc</code>, the robot loop that calls each periodic method."},
   {
     "source": "advantagekit",
-    "path": "getting-started/template-projects/talonfx-swerve-template",
-    "note": "The AdvantageKit Talon FX swerve template whose drive IO the student compares with Cobra's."
+    "path": "getting-started/template-projects/spark-swerve-template/",
+    "note": "One of the two AdvantageKit swerve templates that maple-sim's AdvantageKit templates build on, with its drive, module and gyro IO."
+  },
+  {
+    "source": "advantagekit",
+    "path": "getting-started/template-projects/talonfx-swerve-template/",
+    "note": "One of the two AdvantageKit swerve templates that maple-sim's AdvantageKit templates build on, with its drive, module and gyro IO."
   },
   {
     "source": "cobra",

@@ -119,13 +119,13 @@ export const sourceRegistry = {
   },
   ctre: {
     name: 'CTRE Phoenix 6 docs',
-    base: 'https://v6.docs.ctr-electronics.com/en/latest/',
+    base: 'https://v6.docs.ctr-electronics.com/en/stable/',
     version: '26.1.0',
   },
   'ctre-javadoc': {
     name: 'CTRE Phoenix 6 Java API',
-    base: 'https://api.ctr-electronics.com/phoenix6/latest/java/',
-    version: '26.1.0',
+    base: 'https://api.ctr-electronics.com/phoenix6/stable/java/',
+    version: 'stable (26.3.0), checked against the 26.1.0 sources',
   },
   rev: {
     name: 'REV docs',
@@ -139,7 +139,7 @@ export const sourceRegistry = {
   },
   photonvision: {
     name: 'PhotonVision docs',
-    base: 'https://docs.photonvision.org/en/latest/',
+    base: 'https://docs.photonvision.org/en/v2026.1.1/',
     version: 'PhotonLib 2026.1.1',
   },
   'photonlib-javadoc': {
@@ -201,6 +201,11 @@ export const sourceRegistry = {
     name: 'maple-sim source',
     base: 'https://github.com/Shenzhen-Robotics-Alliance/maple-sim/blob/main/',
     version: 'main, BSD-3-Clause',
+  },
+  'maple-sim-v0.4.0-beta': {
+    name: 'maple-sim source',
+    base: 'https://github.com/Shenzhen-Robotics-Alliance/maple-sim/blob/v0.4.0-beta/',
+    version: 'v0.4.0-beta, BSD-3-Clause',
   },
   fuelsim: {
     name: 'FRC 5000 FuelSim',

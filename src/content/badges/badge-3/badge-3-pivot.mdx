@@ -56,7 +56,7 @@ Write a test for the refusal and the recovery.
 
 Connect the gate to the motor controller's reset status, the disabled state, and subsystem requests.
 On a Talon FX, Phoenix 6's `ParentDevice.hasResetOccurred()` returns true when the device has reset
-since the previous call, so call it from one place each loop and invalidate the reference when it
+since the previous call. Call it from one place each loop, and invalidate the reference when it
 returns true. Another member follows the written procedure after a power cycle and demonstrates
 repeatable goals. No limit switch is required.
 
@@ -78,10 +78,10 @@ Cobra has two absolute-referenced pivots to start from. In the fork, the intake'
 rotor-to-sensor and sensor-to-mechanism ratios from their CANcoder configs. The intake adapter
 already holds `MotionMagicVoltage` and `MotionMagicExpoTorqueCurrentFOC` requests; the hood adapter
 uses `MotionMagicVoltage`. Expo is CTRE's exponential Motion Magic profile. These adapters run only
-in REAL. In SIM, `RobotContainer` builds the endeffector on `SingleRollerIOSimTalonFX` (the
-`SingleRollerIOSimTalonFXWithCANCoder` line is commented out) and the hood on
-`SingleRollerIOSimTalonFXS`, so neither fused feedback nor the Expo request runs in Cobra's
-simulation until those constructions are switched.
+in REAL. In SIM, `RobotContainer` builds the endeffector on `SingleRollerIOSimTalonFX` and the hood
+on `SingleRollerIOSimTalonFXS`; the `SingleRollerIOSimTalonFXWithCANCoder` line is commented out.
+Neither fused feedback nor the Expo request runs in Cobra's simulation until those constructions
+are switched.
 
 For B3-07.3 in simulation, switch the endeffector's or the hood's SIM construction to its CANcoder
 adapter. Before switching, predict what fused feedback will report during a simulated move. Then
@@ -109,15 +109,15 @@ For both paths, record CAN bus and IDs, sensor placement, positive direction, of
 motor-to-mechanism reduction, sensor-to-mechanism ratio, and permitted travel. Compare physical and
 reported mechanism angles at multiple marks before allowing normal motion. A single-turn encoder
 cannot tell which of its own turns it is on, so keep the permitted travel within one sensor turn or
-use a separately reviewed referencing strategy. Have the IO refuse to reference when the travel
-exceeds one sensor turn, or when the encoder is not on the controller's CAN bus at its recorded CAN
-ID, and report the reason as its reference status.
+use a separately reviewed referencing strategy. Have the IO refuse to reference in two cases: when
+the travel exceeds one sensor turn, and when the encoder is not on the controller's CAN bus at its
+recorded CAN ID. Have it report the reason as its reference status.
 
 Before configuring the absolute reference, compute how far each Cobra sensor turns across its
 pivot's travel. Take the `minAngle` to `maxAngle` range from `IntakeConstants.pivotConfig` and
-`HoodConstants.pivotConfig`, multiply by the sensor-to-mechanism ratio each CANcoder config uses
-(`endeffectorReductionSensorToMechanism` and `hoodReductionSensorToMechanism`), and compare each
-result with one sensor turn of 360 degrees. Record the margin.
+`HoodConstants.pivotConfig`, and multiply it by the sensor-to-mechanism ratio each CANcoder config
+uses (`endeffectorReductionSensorToMechanism` and `hoodReductionSensorToMechanism`). Compare each
+result with one sensor turn of 360 degrees, and record the margin.
 
 Cobra's CANcoder adapters write `MagnetOffset` as the config's `magnetOffset`, a mechanism angle,
 times `sensorToMechanismReduction`. The Thrifty path in
@@ -144,7 +144,7 @@ The student's Badge 2 `NovaConfigs` and `NovaMotorConfig` already use the 2026.2
 Thrifty's online documentation and Javadoc follow its newest release. The
 [Encoders & Feedback](https://docs.thethriftybot.com/software/thriftylib/latest/encoders) page
 describes pairing a CAN encoder to the Nova with `NovaConfig.canEncoderId` and the CAN feedback
-sensor types; that pairing needs Nova firmware 2027.0.0-beta.4 or newer and is not part of this
+sensor types. That pairing needs Nova firmware 2027.0.0-beta.4 or newer and is not part of this
 exercise. In the pinned 2026.2.2 API, a `CanEncoder` reads the sensor, its `status()` reports
 `getPositionAbs()`, `getPositionRel()`, `getVelocity()`, and `getDeviceStatus()`, and
 `Nova.setEncoderPosition(rotations, EncoderType.INTERNAL)` seeds the motor's internal position.
@@ -189,9 +189,9 @@ hardware, so record physical sensor behavior separately.
 Reject nonfinite goals and deliberately reject or clamp out-of-range finite goals. Cobra's
 `Pivot.setGoalPosition` documents clamping to its minimum and maximum angles, but the clamp is
 commented out, and the `setGoal` path Cobra uses has no clamp, so goals reach the IO unbounded. The
-Badge 2 library `Pivot` clamps out-of-range goals and logs `GoalClamped`, but WPILib's
-`MathUtil.clamp` is built on `Math.max` and `Math.min`, which return NaN when given NaN; check
-finiteness before the request. Test both ends and a nonfinite goal in simulation.
+Badge 2 library `Pivot` clamps out-of-range goals and logs `GoalClamped`. WPILib's `MathUtil.clamp`
+is built on `Math.max` and `Math.min`, which return NaN when given NaN, so check finiteness before
+the request. Test both ends and a nonfinite goal in simulation.
 
 Before restoring any clamp, compare each pivot's `minAngle` and `maxAngle` with the goals it
 receives. The hood's `PivotConfig` limits, 28 to 50 degrees, use the reference in which DOWN is 28
@@ -233,18 +233,20 @@ voltage and torque-current gain sets on the Talon FX. Two differences from the f
 - On a Nova, the profile feedforward and the PID are ThriftyLib configuration options. ThriftyLib's
   [Configurations](https://docs.thethriftybot.com/software/thriftylib/latest/configs) page warns
   against large reconfigurations in the periodic loop and says flash settings persist across power
-  cycles. Decide how the migrated Nova IO sends a gain change, which units the gains use once the
-  profile's sensor-to-mechanism ratio is set, and what returns the Nova to the constants at the next
-  startup. Record the answers in the fork's README.
+  cycles. Decide how the migrated Nova IO sends a gain change and which units the gains use once
+  the profile's sensor-to-mechanism ratio is set. Then decide what returns the Nova to the constants
+  at the next startup. Record the answers in the fork's README.
 
 Copy the final values into the constants and repeat the validation run with `tuningMode` off.
 
 ## Compare Profiles on the Same Model
 
 Run every comparison in this section and the next on one stated test model. One suitable model is a
-Kraken X60 through a 100:1 reduction driving about 342 lb·in² (0.1 kg·m², the unit WPILib's
-simulation takes) around a vertical axis, so gravity adds no load, over 0 to 90 degrees on a 12 V
-supply. These are illustrative settings, not measurements of Cobra's hood or intake.
+Kraken X60 through a 100:1 reduction on a 12 V supply, moving over 0 to 90 degrees. It drives
+about <Equation tex="342\;\mathrm{lb}\cdot\mathrm{in}^2" />
+(<Equation tex="0.1\;\mathrm{kg}\cdot\mathrm{m}^2" />, the unit WPILib's simulation takes) around a
+vertical axis, so gravity adds no load. These are illustrative settings, not measurements of
+Cobra's hood or intake.
 
 Retain the Badge 2 software trapezoid as a baseline. Compare it with device-generated Motion Magic
 voltage control, then Talon FX torque-current Motion Magic. The Talon FXS comparison uses voltage
@@ -336,12 +338,22 @@ wrapper, with `TunableGains` and `LiveGainTuningTest`.
   {
     "source": "ctre",
     "path": "docs/hardware-reference/cancoder/index.html",
-    "note": "CANcoder placement, magnet offset and absolute range."
+    "note": "CANcoder magnet placement and the Magnet Offset config."
+  },
+  {
+    "source": "ctre-javadoc",
+    "path": "com/ctre/phoenix6/configs/MagnetSensorConfigs.html",
+    "note": "MagnetOffset and AbsoluteSensorDiscontinuityPoint: their ranges, units, and where the absolute position wraps."
   },
   {
     "source": "ctre",
     "path": "docs/api-reference/api-usage/actuator-limits.html",
-    "note": "Software limit configuration in feedback units."
+    "note": "Reading the forward and reverse soft-limit fault state."
+  },
+  {
+    "source": "ctre-javadoc",
+    "path": "com/ctre/phoenix6/configs/SoftwareLimitSwitchConfigs.html",
+    "note": "Forward and reverse soft-limit enables and thresholds, and the units the thresholds use."
   },
   {
     "source": "ctre-javadoc",
@@ -358,12 +370,13 @@ wrapper, with `TunableGains` and `LiveGainTuningTest`.
     "path": "com/ctre/phoenix6/sim/CANcoderSimState.html",
     "note": "The CANcoder sim state that fused simulation must write from the pivot physics."
   },
-  {"url": "https://docs.thethriftybot.com/software/thriftylib/latest/encoders", "label": "ThriftyLib Encoders & Feedback (latest)", "note": "CAN encoder pairing that needs Nova firmware 2027.0.0-beta.4; contrasted with the pinned 2026.2.2 startup seed."},
+  {"source": "thrifty", "path": "software/thriftylib/latest/encoders", "note": "Latest-docs CAN encoder pairing (canEncoderId), which needs Nova firmware 2027.0.0-beta.4; contrasted with the pinned 2026.2.2 startup seed."},
   {
     "source": "wpilib-javadoc",
     "path": "edu/wpi/first/math/MathUtil.html",
     "note": "MathUtil.clamp, used by the Badge 2 Pivot's goal clamp."
   },
+  {"url": "https://github.com/wpilibsuite/allwpilib/blob/v2026.2.1/wpimath/src/main/java/edu/wpi/first/math/MathUtil.java", "label": "WPILib MathUtil.java (v2026.2.1)", "note": "The source of clamp(double, double, double), built on Math.max and Math.min, at the Starter's GradleRIO version."},
   {
     "source": "java-api",
     "path": "java.base/java/lang/Math.html",
@@ -432,7 +445,7 @@ wrapper, with `TunableGains` and `LiveGainTuningTest`.
   {
     "source": "thrifty",
     "path": "software/thriftylib/latest/configs",
-    "note": "Pid0 and Mp0 gain options, the warning against large reconfigurations in the periodic loop, and flash settings persisting across power cycles unless factoryReset() comes first."
+    "note": "Pid0 and Mp0 gain options, the warning against large reconfigurations in the periodic loop, and flash settings persisting across power cycles unless factoryReset() comes first. Latest docs: the pinned 2026.2.2 jar sets the profile ratio with MotorConfig.setMPSensorToMech instead of NovaConfig.SensorToMechanismRatio."
   }
 ]} />
 
