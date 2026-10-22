@@ -1,5 +1,13 @@
 // Remove a badge from this set when its curriculum is ready to publish.
-const unpublishedBadges = new Set(['badge-3']);
+const unpublishedBadges = new Set<string>([]);
+
+// Published badges whose pilot is still open; their pages carry a pilot notice. Remove a badge
+// from this set when its validation gates close.
+const pilotBadges = new Set(['badge-3']);
+
+function belongsTo(badges: Set<string>, lessonId: string): boolean {
+  return [...badges].some((badge) => lessonId === badge || lessonId.startsWith(`${badge}-`));
+}
 
 export function isBadgeWorkInProgress(
   section: string,
@@ -7,7 +15,11 @@ export function isBadgeWorkInProgress(
   development = import.meta.env.DEV,
 ): boolean {
   if (development || section !== 'badges') return false;
-  return [...unpublishedBadges].some((badge) => lessonId === badge || lessonId.startsWith(`${badge}-`));
+  return belongsTo(unpublishedBadges, lessonId);
+}
+
+export function isBadgeInPilot(section: string, lessonId: string): boolean {
+  return section === 'badges' && belongsTo(pilotBadges, lessonId);
 }
 
 interface PublicationData {
