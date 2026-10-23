@@ -202,7 +202,7 @@ export const sourceRegistry = {
     base: 'https://github.com/Shenzhen-Robotics-Alliance/maple-sim/blob/main/',
     version: 'main, BSD-3-Clause',
   },
-  'maple-sim-v0.4.0-beta': {
+  'maple-sim-v0-4-0-beta': {
     name: 'maple-sim source',
     base: 'https://github.com/Shenzhen-Robotics-Alliance/maple-sim/blob/v0.4.0-beta/',
     version: 'v0.4.0-beta, BSD-3-Clause',

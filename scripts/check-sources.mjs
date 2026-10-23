@@ -7,6 +7,13 @@
 // src/data/sources.ts, fetches each unique URL once with a browser-like User-Agent, and
 // exits non-zero if any URL fails. Every lesson page in the required sections is expected
 // to carry a block; section overviews are exempt.
+//
+// A host that still refuses the request after the retries (a bot challenge, 403, 429 or 999)
+// is reported as blocked rather than failing: CI runs from datacenter addresses that some
+// documentation hosts turn away, and the refusal says nothing about whether the page exists.
+// Blocked URLs need a check in a browser. A 404, 410, 401, 5xx, DNS error or timeout still
+// fails. On GitHub Actions both lists are also written as annotations, which show on the
+// run page without signing in.
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -16,6 +23,14 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const CONTENT = join(ROOT, 'src', 'content');
 const REQUIRED_SECTIONS = ['frc', 'tools', 'kit-bot', 'assignments', 'java', 'badges'];
 const quiet = process.argv.includes('--quiet');
+const onGitHubActions = process.env.GITHUB_ACTIONS === 'true';
+
+// Workflow commands treat `%`, CR and LF specially in the message.
+function annotate(level, title, message) {
+  if (!onGitHubActions) return;
+  const escaped = message.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+  console.log(`::${level} title=${title}::${escaped}`);
+}
 
 // Pull the registry out of the TypeScript source without a TS loader: it is a plain
 // object literal with string values.
@@ -51,6 +66,7 @@ for (const file of walk(CONTENT)) {
       items = JSON.parse(block[1]);
     } catch (err) {
       console.error(`${rel}: Sources block is not valid JSON (${err.message})`);
+      annotate('error', 'Sources block', `${rel}: not valid JSON (${err.message})`);
       process.exitCode = 1;
       continue;
     }
@@ -60,6 +76,7 @@ for (const file of walk(CONTENT)) {
         const base = registry[item.source];
         if (!base) {
           console.error(`${rel}: unknown source id "${item.source}"`);
+          annotate('error', 'Sources block', `${rel}: unknown source id "${item.source}"`);
           process.exitCode = 1;
           continue;
         }
@@ -77,6 +94,9 @@ const MAX_ATTEMPTS = 5;
 const RETRY_BASE_DELAY_MS = 1_000;
 const MAX_RETRY_DELAY_MS = 30_000;
 const RETRYABLE_STATUS = new Set([403, 408, 425, 429]);
+// Final answers that mean "this client was refused", not "this page is gone". 999 is the
+// nonstandard status some sites send to automated clients.
+const BLOCKED_STATUS = new Set([403, 429, 999]);
 
 function shouldRetry(status) {
   if (status === 'CHALLENGE') return false;
@@ -148,8 +168,12 @@ async function check(url) {
   return result.status;
 }
 
+function isBlocked(status) {
+  return status === 'CHALLENGE' || BLOCKED_STATUS.has(status);
+}
+
 const failures = [];
-const challenged = [];
+const blocked = [];
 const entries = [...urls.entries()];
 // Keep enough parallelism for a full-site check without sending large bursts to
 // GitHub, WPILib, Oracle, and the other documentation hosts.
@@ -161,7 +185,7 @@ await Promise.all(
       const [url, pages] = entries[index++];
       const status = await check(url);
       const ok = typeof status === 'number' && status >= 200 && status < 400;
-      if (status === 'CHALLENGE') challenged.push({ url, pages });
+      if (isBlocked(status)) blocked.push({ url, status, pages });
       else if (!ok) failures.push({ url, status, pages });
       else if (!quiet) console.log(`${status}  ${url}`);
     }
@@ -171,10 +195,14 @@ await Promise.all(
 console.log(`\n${urls.size} unique source URLs checked, ${failures.length} failing`);
 for (const f of failures) {
   console.log(`  ${f.status}  ${f.url}  <- ${f.pages.join(', ')}`);
+  annotate('error', 'Cited source failing', `${f.status} ${f.url} <- ${f.pages.join(', ')}`);
 }
-if (challenged.length) {
-  console.log(`\n${challenged.length} blocked by bot protection (not failures; verify in a browser):`);
-  for (const c of challenged) console.log(`  ${c.url}  <- ${c.pages.join(', ')}`);
+if (blocked.length) {
+  console.log(`\n${blocked.length} blocked by the host (not failures; verify in a browser):`);
+  for (const b of blocked) {
+    console.log(`  ${b.status}  ${b.url}  <- ${b.pages.join(', ')}`);
+    annotate('warning', 'Cited source blocked', `${b.status} ${b.url} <- ${b.pages.join(', ')}`);
+  }
 }
 if (missing.length) {
   console.log(`\n${missing.length} ${REQUIRED_SECTIONS.join('/')} pages without a <Sources> block:`);
