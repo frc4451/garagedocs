@@ -12,6 +12,7 @@ import { rehypeBasePath } from './scripts/rehype-base-path.mjs';
 import { rehypeHeadingLinks } from './scripts/rehype-heading-links.mjs';
 import { rehypeMarkdownTables } from './scripts/rehype-markdown-tables.mjs';
 import { rehypeRunnableJava } from './scripts/rehype-runnable-java.mjs';
+import { remarkEquationPunctuation } from './scripts/remark-equation-punctuation.mjs';
 import { remarkJavaNorun } from './scripts/remark-java-norun.mjs';
 
 // Deployment target. The site is served from the domain root (`/`). Override with
@@ -188,7 +189,9 @@ export default defineConfig({
       // plugin marks the code node, but Astro's Shiki step rebuilds every <pre> and
       // drops that mark — so the Shiki transformer below re-reads the fence meta
       // and stamps data-java-norun on the <pre> that actually reaches rehype.
-      remarkPlugins: [remarkJavaNorun],
+      // remarkEquationPunctuation keeps a period or comma on the line of the inline
+      // equation it follows.
+      remarkPlugins: [remarkJavaNorun, remarkEquationPunctuation],
       // Astro normally assigns heading ids *after* user rehype plugins run, so
       // rehypeHeadingIds is listed explicitly first and rehypeHeadingLinks turns
       // each heading into a link to its own anchor. Content links are authored

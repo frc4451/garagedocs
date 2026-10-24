@@ -155,7 +155,13 @@ export const sourceRegistry = {
   thrifty: {
     name: 'Thrifty Bot docs',
     base: 'https://docs.thethriftybot.com/',
-    version: 'shared 2026/2027 source, checked 2026-09-28',
+    version: 'latest only (no versioned docs); shared 2026/2027 source, checked 2026-09-28',
+  },
+  // Thrifty hosts only a `latest` build of the com.thrifty Javadoc; versioned paths return 403.
+  'thrifty-javadoc': {
+    name: 'ThriftyLib Java API',
+    base: 'https://software.thethriftybot.com/javadoc/latest/',
+    version: 'latest only; can differ from the pinned 2026.2.2 jar',
   },
   advantagekit: {
     name: 'AdvantageKit docs',
@@ -190,18 +196,14 @@ export const sourceRegistry = {
   bline: {
     name: 'BLine docs',
     base: 'https://bline-docs.pages.dev/',
-    version: 'BLine-Lib 0.9.1',
+    version: 'docs describe BLine-Lib 0.9.2; lessons checked against 0.9.1, same public API',
   },
   'maple-sim': {
     name: 'maple-sim docs',
     base: 'https://shenzhen-robotics-alliance.github.io/maple-sim/',
     version: 'maplesim 0.4.0-beta, frcYear 2026',
   },
-  'maple-sim-source': {
-    name: 'maple-sim source',
-    base: 'https://github.com/Shenzhen-Robotics-Alliance/maple-sim/blob/main/',
-    version: 'main, BSD-3-Clause',
-  },
+  // Pinned to the release the lessons use; main has since rewritten Arena2026Rebuilt.
   'maple-sim-v0-4-0-beta': {
     name: 'maple-sim source',
     base: 'https://github.com/Shenzhen-Robotics-Alliance/maple-sim/blob/v0.4.0-beta/',
