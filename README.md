@@ -217,7 +217,10 @@ The tokens are what make the reader preferences work:
 
 ## License
 
-Copyright © 2026 FRC 4451 ROBOTZ Garage. Forked from itkan-robotics/mantik; see NOTICE.
+BSD 3-Clause; see [LICENSE](LICENSE). Copyright © 2026 Itkan Robotics and FRC 4451 ROBOTZ Garage.
+Forked from itkan-robotics/mantik, which uses the same licence. The Java playground ported from
+FRC3476/mantik-orange, the CC BY-SA pages from FSC Open Docs, and the third-party components keep
+their own terms; see the end of LICENSE and [NOTICE](NOTICE).
 
 ## Offline access
 
