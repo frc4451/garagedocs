@@ -174,6 +174,21 @@ Open the replay result in AdvantageScope. Confirm that the original input table 
 step. This exercise proves the template path with a known log; the student records their own
 mechanism logs after Step 7 adds a mechanism.
 
+The replay exercise starts from one saved log and ends with a second file beside it:
+
+```mermaid
+flowchart TB
+  accTitle: Replaying a template log
+  accDescr: The original log comes either from a robot running the same template or from a desktop simulation in SIM with the added WPILOGWriter, driven for at least ten seconds, which saves a .wpilog under logs. The student then sets simMode to REPLAY and starts Simulate Robot Code. LogFileUtil.findReplayLog checks AKIT_LOG_PATH first, then the file open in AdvantageScope, then prompts for a file. WPILOGReader reads the original log, and the run writes a new file with _sim added to its name that holds the original inputs and ReplayOutputs. Afterward the student restores simMode to SIM.
+  robot["Robot running the<br/>same template"] --> log["Original .wpilog"]
+  sim["SIM with WPILOGWriter,<br/>drive for 10 s or more,<br/>file saved under logs/"] --> log
+  log --> mode["Set simMode to REPLAY,<br/>start Simulate Robot Code"]
+  mode --> find["findReplayLog() checks<br/>AKIT_LOG_PATH, then the<br/>AdvantageScope file,<br/>then prompts"]
+  find --> read["WPILOGReader reads<br/>the original log"]
+  read --> out["New file with _sim:<br/>original inputs and<br/>ReplayOutputs"]
+  out --> restore["Restore simMode to SIM"]
+```
+
 ### Replay in the Finished Solutions
 
 The template exercise above uses `Constants.simMode`. The finished Bench solution keeps that
@@ -199,13 +214,39 @@ motor IO for that selected role; unselected components receive empty IO. Changin
 redeployment, not reconfiguring the motor every time a button is pressed. A bare motor may represent
 the selected mechanism through its encoder conversion; this does not prove the position of an
 unattached assembly. SIM constructs four independent general models. REPLAY uses empty IO for all
-components. The general Nova simulation does not emulate Nova firmware.
+components. Neither these general models nor Step 7's SimThriftyNova emulates Nova firmware.
+
+`Badge2Bench`'s mode switch constructs these implementations:
+
+```mermaid
+flowchart TB
+  accTitle: What Badge2Bench constructs in each mode
+  accDescr: Constants.currentMode selects one of three branches in Badge2Bench's RobotContainer. In REAL, Constants.benchType and Constants.benchMechanism select one role, the branch constructs one motor IO for that role, and every unselected component receives empty IO; changing roles requires a redeploy. In SIM, the branch constructs four independent general models. In REPLAY, every component receives empty IO.
+  mode["Constants.currentMode"] --> real["REAL<br/>benchType and<br/>benchMechanism<br/>select one role"]
+  mode --> sim["SIM"]
+  mode --> replay["REPLAY"]
+  real --> one["One motor IO for that role;<br/>unselected components<br/>get empty IO.<br/>New role: redeploy."]
+  sim --> four["Four independent<br/>general models"]
+  replay --> empty["Empty IO for<br/>all components"]
+```
 
 Before Step 7, the student opens a template inputs class annotated with `@AutoLog`, builds, and
 locates its generated `InputsAutoLogged` class under the build output. The student identifies how
 the generated class records and restores input fields. This is AdvantageKit's annotation processing.
 The motor configuration exercise below uses Lombok to generate a builder for constructing settings.
 Neither generated output is edited by hand or committed.
+
+Two separate code generators run during the build, and each feeds a different part of the roller:
+
+```mermaid
+flowchart TB
+  accTitle: The two code generators in Badge2Bench
+  accDescr: An inputs class annotated with @AutoLog goes through AdvantageKit's annotation processor, which writes a generated InputsAutoLogged class under the build output; that class records and restores the input fields. A motor configuration record annotated with @Builder goes through Lombok during compilation, which supplies builder(), a method for each named setting, and build(). The builder produces a record equal to one made with the direct constructor, and in Step 7 that record is passed to the roller IO constructor, which applies it. Neither generated output is edited by hand or committed.
+  autolog["Inputs class<br/>annotated @AutoLog"] -->|"AdvantageKit<br/>annotation processor"| gen1["Generated InputsAutoLogged<br/>under the build output:<br/>records and restores inputs"]
+  record["Motor configuration<br/>record annotated<br/>@Builder"] -->|"Lombok, during<br/>compilation"| gen2["builder(), named<br/>setting methods,<br/>build()"]
+  gen2 --> equal["Record equal to the<br/>direct constructor's"]
+  equal --> io["Step 7: roller IO<br/>constructor applies it"]
+```
 
 ## Guided Lombok Example
 

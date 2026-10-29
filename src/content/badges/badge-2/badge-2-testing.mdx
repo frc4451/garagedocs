@@ -226,6 +226,17 @@ inputs 0.55 and -0.55 produce approximately 0.50 and -0.50 after rescaling, then
 after signed squaring. The values are dimensionless controller inputs; conversion to a mechanism's
 typed voltage request belongs at the command boundary.
 
+The left-X path with the illustrative deadband of 0.10, for a raw input of 0.55 and one of 0.05:
+
+```mermaid
+flowchart TB
+  accTitle: One left-X input through the controller class
+  accDescr: The raw value comes from the parent implementation, super.getLeftX(); the example inputs are 0.55 and 0.05. A private deadband helper calls MathUtil.applyDeadband with 0.10, which removes small inputs and rescales the rest, so getLeftX() returns 0.50 or 0. A private sign-preserving helper squares that processed value with Math.abs(value) times value, so getLeftXSquared() returns 0.25 or 0. A command reads the processed getters without applying another deadband and converts the dimensionless value to a typed voltage request at the command boundary.
+  raw["super.getLeftX()<br/>raw: 0.55 or 0.05"] -->|"private deadband helper<br/>MathUtil.applyDeadband, 0.10"| dz["getLeftX()<br/>0.50 or 0"]
+  dz -->|"private helper<br/>Math.abs(value) * value"| sq["getLeftXSquared()<br/>0.25 or 0"]
+  sq --> cmd["Command boundary:<br/>no second deadband;<br/>typed voltage request"]
+```
+
 ### Independent Controller Change
 
 Add the same deadband and signed-squaring behavior for left Y and right X without copying the
@@ -315,6 +326,38 @@ Check centered input, both signs, the deadband boundary, and full-scale input on
 axis. With deadband 0.10, raw values ±0.55 should yield approximately ±0.50 after deadband and ±0.25
 after signed squaring. The tolerance of `1e-9` used for `MechanismLimits` is too tight here because
 of the float storage. Restore simulated input state during teardown.
+
+In the proposed test, the simulator and the controller class share one `XboxController`:
+
+```mermaid
+---
+config:
+  sequence:
+    actorMargin: 24
+    width: 110
+    messageFontSize: 14
+    mirrorActors: false
+---
+sequenceDiagram
+  accTitle: How the controller input test reaches the override
+  accDescr: The test initializes HAL, constructs the student's GarageCommandXboxController on port 0, and constructs an XboxControllerSim from controller.getHID(), so both share the same XboxController. The test sets left X to minus 0.55 on the simulator and calls notifyNewData, which updates the shared XboxController. When the test calls getLeftX(), the override reads super.getLeftX() from that XboxController, receives minus 0.55, applies the deadband and returns about minus 0.50, which assertEquals checks within a tolerance of 1e-6. The same check through a reference declared as CommandXboxController still runs the override. Teardown sets left X back to zero and notifies again.
+  participant T as Test
+  participant C as Controller class
+  participant S as XboxControllerSim
+  participant H as XboxController
+  T->>T: HAL.initialize(500, 0)
+  T->>C: new (port 0)
+  T->>S: new (controller.getHID())
+  Note over S,H: same XboxController
+  T->>S: setLeftX(-0.55)<br/>notifyNewData()
+  S->>H: simulated axis
+  T->>C: getLeftX()
+  C->>H: super.getLeftX()
+  H-->>C: -0.55
+  C-->>T: about -0.50
+  Note over T: assertEquals within 1e-6.<br/>A CommandXboxController<br/>reference runs the same override.
+  T->>S: teardown: setLeftX(0.0)<br/>notifyNewData()
+```
 
 Name the tests for the behavior they prove and retain their results in the evidence table. Trigger
 scheduling and rumble lifecycle checks follow in

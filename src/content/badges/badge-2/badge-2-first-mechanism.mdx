@@ -64,17 +64,16 @@ proposed student class names:
 - `RollerIOTalonFXS` supplies the voltage IO used by the physical Talon FXS controller.
 - `RollerIOSimTalonFXS` extends `RollerIOTalonFXS` and connects `TalonFXSSimState` to the physics
   model.
-- `RollerIONova` supplies the voltage IO used by the physical Thrifty Nova controller, including
-  voltage-to-duty and mechanism-unit conversions.
-- `RollerIOSimNova` extends `RollerIONova`, reuses those conversions, and connects the
-  SimThriftyNova backend to the physics model.
+- `RollerIONova` supplies the voltage IO used by the physical Thrifty Nova controller. It sends each
+  voltage request through ThriftyLib's native voltage control and converts feedback to mechanism
+  units.
+- `RollerIOSimNova` extends `RollerIONova`, reuses its requests and feedback conversion, and applies
+  the requested voltage to the physics model.
 - `RollerTest` checks behavior through the same measurements that the component reads.
 
-For the Nova pair, give `RollerIONova` a constructor that accepts a backend through a small
-student-defined interface for duty requests and feedback. The physical constructor supplies a
-backend that wraps ThriftyLib's `Nova` (`com.thrifty.nova.Nova`); the simulation subclass supplies
-the physics backend without constructing a CAN device. `SimThriftyNova` is the student-built backend
-described below, not a vendor firmware-simulation API.
+For the Nova pair, `RollerIONova` constructs ThriftyLib's `Nova` (`com.thrifty.nova.Nova`) from
+the configuration record. `RollerIOSimNova` calls the same constructor, then takes motion, current
+and applied voltage from the physics model instead of the device status.
 
 The component is a plain Java object. A small parent subsystem calls its `periodic()` once per robot
 loop and gives its commands one WPILib requirement. Step 9 extends that ownership pattern. The
@@ -97,15 +96,17 @@ Read these pairs in order and trace a single voltage request and measured respon
   [`SingleRollerIOSimTalonFXS.java`](https://github.com/frc4451/Cobra2026Private/blob/main/src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIOSimTalonFXS.java):
   the corresponding FXS adapter and simulation inheritance.
 - [`SingleRollerIONova.java`](https://github.com/frc4451/Cobra2026Private/blob/main/src/main/java/org/robotzgarage/frc2026/subsystems/rollers/single/SingleRollerIONova.java):
-  Nova construction, configuration and feedback conversion. The required SimThriftyNova backend
-  remains the student design described above; this file is the hardware reference.
+  Nova construction, configuration and feedback conversion. Cobra uses ThriftyLib's `ThriftyNova`
+  class (`com.thethriftybot.devices`) and sends volts with its `setVoltage` method; the badge's
+  pinned release uses `com.thrifty.nova.Nova` and `MotorControl.voltage`. SimThriftyNova remains the
+  student design described below; this file is the hardware reference.
 
 Cobra's CTRE simulation adapters show notifier timing and rotor feedback; retain only the
 rotor-feedback pattern here, because Notifier-based mechanism updates belong to Badge 3. Their
 per-model battery updates are not the badge's shared battery-owner design. Retain the badge's single
-update owner, summed current draw, synchronization and cleanup checks. Likewise, compare Nova's
-methods against the pinned release and the voltage-to-duty tests rather than assuming a method name
-proves the requested units.
+update owner, summed current draw, synchronization and cleanup checks. Likewise, check each Nova
+method's units against the pinned release instead of assuming a method name proves them: a voltage
+request takes volts, and a percent request takes a fraction of output.
 
 ## Start with the Physics Model
 
@@ -175,6 +176,23 @@ application and observed result. Building the record prepares values; constructi
 the IO applies them. Normal voltage commands and measurements still pass through the existing IO
 methods and logged inputs.
 
+The trace for one setting, from the builder to the evidence table:
+
+```mermaid
+flowchart TB
+  accTitle: One configuration setting from builder to hardware
+  accDescr: The robot's construction code supplies the fixture's named settings through the builder, which produces completed records, RollerConfig with CtreMotorConfig or NovaMotorConfig. Building the records prepares values. The Step 6 configuration tests check those records, and the student and mentor compare them with the Step 4 fixture record before construction. The selected IO constructor, RollerIOTalonFX, RollerIOTalonFXS or RollerIONova, applies the values through the pinned vendor API's configuration calls. Status or readback support, or a physical check, verifies each setting and fills the evidence table with the record component, units, application point and check. If the startup checks pass, output can be enabled; if not, the IO reports the failure and output stays disabled.
+  build["Builder in construction<br/>code: named fixture<br/>settings"] --> rec["Completed records<br/>RollerConfig and<br/>CtreMotorConfig or<br/>NovaMotorConfig"]
+  rec --> tests["Step 6 configuration<br/>tests check the records"]
+  fixture["Step 4 fixture record"] -.->|"compared before<br/>construction"| rec
+  rec --> ctor["IO constructor applies them<br/>through the pinned vendor<br/>API's configuration calls"]
+  ctor --> check["Status, readback<br/>or physical check"]
+  check --> table["Evidence table: record<br/>component, units,<br/>application point, check"]
+  check --> ok{"Startup checks<br/>pass?"}
+  ok -->|"yes"| enable["Output may<br/>be enabled"]
+  ok -->|"no"| fault["Report the failure;<br/>output stays disabled"]
+```
+
 `RollerIOSim` receives its own model configuration, including motor model, reduction, and inertia.
 Shared physical values agree with the hardware setup, but a simulation record does not need a CAN
 ID. REPLAY constructs neither motor nor model. Record the selected configuration values or a
@@ -185,6 +203,26 @@ selected simulation IO in `SIM` (the general `RollerIOSim` unless a CTRE device 
 SimThriftyNova is chosen by name), and an empty `RollerIO` in `REPLAY`. `REAL` constructs only the
 fixture's devices, so the same project deploys to the bench roboRIO without constructing anything
 that is not wired.
+
+The roller classes and what each mode constructs. In `SIM`, `RobotContainer` builds `RollerIOSim`
+unless one of the three vendor simulation classes is chosen by name; those classes extend the
+hardware adapters, and [Simulation Loop](#simulation-loop) covers them.
+
+```mermaid
+flowchart TB
+  accTitle: Roller IO classes by mode
+  accDescr: The plain Roller component depends only on RollerIO. In REAL, the robot constructs only the fixture's controller adapter, RollerIOTalonFX, RollerIOTalonFXS or RollerIONova. In SIM, the general model is RollerIOSim with a DCMotorSim. In REPLAY, an empty RollerIO constructs no hardware or physics. Each hardware adapter is extended by a simulation class: RollerIOSimTalonFX connects TalonFXSimState, RollerIOSimTalonFXS connects TalonFXSSimState, and RollerIOSimNova drives a physics model from the Nova adapter's requests. In SIM, RollerIOSim is the default; a vendor simulation class can be chosen by name instead.
+  roller["Roller<br/>plain component"] -->|"depends only on"| io["RollerIO"]
+  io --> real["REAL: the fixture's<br/>controller only"]
+  io -->|"SIM, by default"| gen["RollerIOSim<br/>DCMotorSim"]
+  io -->|"REPLAY"| empty["Empty RollerIO<br/>no hardware<br/>or physics"]
+  real --> fx["RollerIOTalonFX"]
+  real --> fxs["RollerIOTalonFXS"]
+  real --> nova["RollerIONova"]
+  fx -.->|"extended by"| sfx["RollerIOSimTalonFX<br/>TalonFXSimState"]
+  fxs -.->|"extended by"| sfxs["RollerIOSimTalonFXS<br/>TalonFXSSimState"]
+  nova -.->|"extended by"| snova["RollerIOSimNova<br/>physics model"]
+```
 
 ## Implement the Provided Controller
 
@@ -205,20 +243,25 @@ Thrifty Config. The student identifies the encoder source and checks its positio
 against that release. The mentor reviews one rotation-to-mechanism conversion before the powered
 check.
 
-Nova's documented `setPercent` request is a fraction of output, not volts. For a release whose
-selected adapter uses percent output, the student implements voltage compensation at the IO
+ThriftyLib 2026.2.2, the pinned release, has native voltage control. `MotorControl.voltage` takes a
+`Voltage` and selects the Nova's voltage control type, so `RollerIONova` passes the typed request
+through unchanged, the same contract as `VoltageOut` on the Talons. The student cites that API in
+the IO and logs the Nova's reported applied voltage separately from the requested voltage.
+
+A percent request is different. The pinned release's `MotorControl.percent` takes a fraction of
+output between minus one and one, not volts; Cobra's `ThriftyNova` calls the same request
+`setPercent`. An adapter that uses a percent request implements voltage compensation at the IO
 boundary: read the supply voltage, reject a nonfinite or nonpositive supply, clamp the voltage
-request to the approved bound and available supply, then divide it by supply voltage to obtain a
-fraction between minus one and one. Invalid input produces zero output and a recorded fault. Stop
-sends zero. The student records the source of the supply reading; using roboRIO battery voltage is
-an approximation of the controller's supply. Requested duty multiplied by that supply is an
-estimated output, and the log names it accordingly.
+request to the approved bound and available supply, then divide it by supply voltage to obtain the
+fraction. Invalid input produces zero output and a recorded fault. Stop sends zero. The student
+records the source of the supply reading; using roboRIO battery voltage is an approximation of the
+controller's supply. Requested duty multiplied by that supply is an estimated output, and the log
+names it accordingly.
 
 The student tests that conversion independently: a 3 V request with a 12 V supply produces a 0.25
 fraction; the same request at 10 V produces 0.30. The negative cases preserve direction. A zero or
-invalid supply produces zero, and a request beyond the configured bound is limited. If the pinned
-release provides a verified native voltage method, the student can use it and cite that exact API
-instead. A numeric voltage is never passed unchanged to `setPercent`.
+invalid supply produces zero, and a request beyond the configured bound is limited. A numeric
+voltage is never passed unchanged to a percent request.
 
 ## Simulation Loop
 
@@ -250,27 +293,47 @@ those devices are not an acceptance criterion.
 
 ### ThriftyNova and SimThriftyNova
 
-Implement `RollerIONova` using ThriftyLib's `Nova` class and the configuration and conversion
-checks above. Implement `RollerIOSimNova` using `DCMotorSim`, without constructing a CAN
-device. Extract the voltage-to-duty calculation and feedback-unit conversions into helpers that both
-adapters use, so the simulation exercises the same conversion rules as the hardware path.
+Implement `RollerIONova` using ThriftyLib's `Nova` class, its native voltage control, and the
+configuration and feedback checks above. Implement `RollerIOSimNova` as a subclass that reuses that
+constructor, its request methods and its feedback conversion, and drives a `DCMotorSim` from the
+requests, so the simulation exercises the same request path as the hardware.
 
-On each 20 ms update, SimThriftyNova reads the shared simulated supply, converts the bounded voltage
-request to duty, and applies duty times supply voltage to the physics model. Advance the model once,
-then populate the normal logged inputs. Report current to the shared battery owner. Label modeled
-feedback and estimated applied voltage explicitly; the simulation does not provide device-status or
+On each 20 ms update, SimThriftyNova reads the shared simulated supply, limits the requested voltage
+to that supply while enabled or uses zero while disabled, then applies the result to the physics
+model. Advance the model once, then populate the normal logged inputs from the model's motion,
+current and applied voltage. Report current to the shared battery owner. Label modeled feedback and
+the model's applied voltage explicitly; the simulation does not provide device-status or
 configuration-readback evidence.
 
-Test positive and negative requests, stop, disable, invalid supply, output limits, and a changed
-reduction. Include the 3 V requests at 12 V and 10 V supplies from the conversion exercise. Compare
-the motion with the general roller using matching motor, reduction and inertia, and save a log
-showing requests, supply, duty, estimated applied voltage and measured model motion. Restore Driver
-Station and battery state after each test.
+Both device simulations do their work inside `updateInputs`, once per 20 ms loop. The CTRE paths
+exchange voltage and rotor feedback with the device's `SimState`; SimThriftyNova takes its inputs
+from the model.
 
-The CTRE simulations establish the IO/device/physics connection. SimThriftyNova establishes the
-shared conversion rules and physics behavior; it does not emulate Nova firmware or prove CAN
-communication. The physical demonstration establishes the actual fixture behavior. Only the supplied
-physical controller must be demonstrated.
+```mermaid
+flowchart TB
+  accTitle: One update of the CTRE and Nova roller simulations
+  accDescr: Roller.periodic calls updateInputs once per 20 ms loop. On the CTRE path, RollerIOSimTalonFX or RollerIOSimTalonFXS gives the SimState the shared supply voltage and reads the device's simulated motor voltage into the DCMotorSim, which advances once and reports its current to SimBattery. The mechanism rotation multiplied by the reduction gives rotor position and velocity, which are written back through the SimState, and the device applies its configured feedback ratio. The inherited adapter code then reads the device feedback into the logged inputs. On the Nova path, RollerIOSimNova limits the requested voltage to the shared supply while enabled, or uses zero while disabled, and applies it to the DCMotorSim, which advances once and reports its current to SimBattery. Motion, current and applied voltage are then taken from the model and written to the logged inputs as modeled values.
+  start["Roller.periodic() calls<br/>updateInputs(inputs)"]
+  start -->|"RollerIOSimTalonFX<br/>or ...SimTalonFXS"| c1["SimState gets the<br/>shared supply and<br/>reports motor voltage"]
+  c1 --> c2["DCMotorSim advances<br/>once; current to<br/>SimBattery"]
+  c2 --> c3["Rotation × reduction:<br/>rotor position and<br/>velocity into SimState"]
+  c3 --> c4["Inherited adapter code<br/>reads device feedback"]
+  start -->|"RollerIOSimNova"| n1["Request limited to the<br/>shared supply; zero<br/>while disabled"]
+  n1 --> n2["DCMotorSim advances<br/>once; current to<br/>SimBattery"]
+  n2 --> n3["Motion, current and<br/>applied voltage taken<br/>from the model"]
+  c4 --> inputs["Logged inputs"]
+  n3 --> inputs
+```
+
+Test positive and negative requests, stop, disable, a request beyond the simulated supply, a reduced
+supply, and a changed reduction. Compare the motion with the general roller using matching motor,
+reduction and inertia, and save a log showing requests, supply, applied voltage and measured model
+motion. Restore Driver Station and battery state after each test.
+
+The CTRE simulations establish the IO/device/physics connection. SimThriftyNova establishes that the
+Nova adapter's requests and feedback conversion drive the physics model; it does not emulate Nova
+firmware or prove CAN communication. The physical demonstration establishes the actual fixture
+behavior. Only the supplied physical controller must be demonstrated.
 
 ## First Test
 
@@ -316,6 +379,21 @@ processes operator input and produces driver feedback; it does not construct mec
 into their IO. If the student completes the rumble extension, bind it to a documented feedback
 event.
 
+The controller class stops at the trigger. Everything after it belongs to the bindings and the
+roller's parent subsystem:
+
+```mermaid
+flowchart TB
+  accTitle: From controller input to the roller
+  accDescr: The GarageCommandXboxController processes operator input and supplies triggers: an inherited button, leftX(), which is true while the processed axis is nonzero, and leftTrigger() with the configured threshold. RobotContainer binds those triggers during container setup, and the scheduler polls them each loop. A triggered command comes from the roller's parent subsystem and requires the parent. While it runs, the command requests a roller voltage; on release or interruption, it stops the roller. The Roller passes either request to RollerIO. The controller class never constructs a mechanism or reaches into its IO.
+  ctrl["GarageCommandXboxController<br/>processed input only"] -->|"inherited button,<br/>leftX(), leftTrigger()"| bind["Triggers bound in<br/>RobotContainer setup"]
+  bind -->|"scheduler polls<br/>each loop"| cmd["Command from the<br/>parent subsystem;<br/>requires the parent"]
+  cmd -->|"while running"| run["Roller: voltage<br/>request"]
+  cmd -->|"release or<br/>interruption"| stop["Roller: stop"]
+  run --> io["RollerIO"]
+  stop --> io
+```
+
 ### Prove the Behavior
 
 Use `XboxControllerSim` with the controller's underlying HID and notify new input data before
@@ -339,7 +417,7 @@ subsystems.
 
 ## Add the Roller Drawing
 
-After the motion and stop tests pass, build your own measured-speed roller spinner using
+After the motion and stop tests pass, the student builds a measured-speed roller spinner using
 [Step 8: Read the Four Mechanisms in 2D](/badges/badge-2-mechanism-library#read-the-four-mechanisms-in-2d).
 It uses only logged 2D lines. Verify forward, reverse and coasting against the velocity plot. The
 voltage-controlled roller has no speed goal; never animate the requested voltage as though it were
@@ -391,8 +469,8 @@ behavior, as explained in [Sign-Off](/badges/badge-2-sign-off#required-sheet).
 | 6.10 | Physical comparison | The fixture record, physical log, independent hardware change, and comparison with simulation are saved. |
 | 6.11 | Talon FX roller simulation | The FX voltage adapter and device simulation pass direction, conversion, stop and disable checks; the student traces device voltage to physics and rotor feedback to logged inputs. |
 | 6.12 | Talon FXS roller simulation | The FXS path repeats the checks with its supported motor arrangement, documented model and feedback units; the student explains the differences and verifies cleanup. |
-| 6.13 | ThriftyNova IO | `RollerIONova` uses ThriftyLib's `Nova`, accepts the tested configuration record, and shares tested voltage-to-duty and feedback conversions with SimThriftyNova; configuration application and verification are documented. Physical operation is required when Nova is the supplied fixture. |
-| 6.14 | SimThriftyNova roller simulation | `RollerIOSimNova` passes direction, conversion, invalid-supply, output-limit, stop, disable and changed-reduction checks; one model update owner and the shared battery owner are identified; the saved log distinguishes modeled feedback from hardware evidence. |
+| 6.13 | ThriftyNova IO | `RollerIONova` uses ThriftyLib's `Nova`, accepts the tested configuration record, sends voltage through the pinned release's native voltage control, and shares its tested feedback conversion with SimThriftyNova; configuration application and verification are documented. Physical operation is required when Nova is the supplied fixture. |
+| 6.14 | SimThriftyNova roller simulation | `RollerIOSimNova` passes direction, conversion, reduced-supply, output-limit, stop, disable and changed-reduction checks; one model update owner and the shared battery owner are identified; the saved log distinguishes modeled feedback from hardware evidence. |
 | 8.9 | Controller bindings and feedback | The Step 6 controller gains a stick trigger and a configured analog-trigger threshold; timed rumble is optional; inherited and added controls schedule commands from the roller's parent subsystem. |
 | 8.10 | Controller evidence | Required input checks pass without hardware; any optional rumble checks also pass; the bindings operate the simulated roller; release, interruption, and disable have verified outcomes. |
 
@@ -407,9 +485,9 @@ brake according to the model and neutral behavior; it need not become zero in th
 
 1. The student builds from a clean clone and runs the general, FX, FXS and SimThriftyNova simulation
    checks and conversion tests, naming each selected implementation.
-2. The student shows the ThriftyNova IO and its shared conversion helpers, then traces a builder
-   setting through configuration tests, the selected IO constructor, and its application evidence,
-   then traces a command through the component, measurement, and log.
+2. The student shows the ThriftyNova IO, its voltage request and its shared feedback conversion,
+   then traces a builder setting through configuration tests, the selected IO constructor, and its
+   application evidence, then traces a command through the component, measurement, and log.
 3. The student shows the simulation prediction and explains the changed response.
 4. The student operates the simulated roller from the controller bindings, shows the passing binding
    tests, and traces a processed input through its binding into the parent subsystem.
@@ -471,7 +549,12 @@ brake according to the model and neutral behavior; it need not become zero in th
   {
     "source": "thrifty",
     "path": "software/thriftylib/latest/control-types",
-    "note": "Nova percent output; the voltage-to-duty conversion and its tests are a curriculum design."
+    "note": "Nova control types; the voltage-to-duty rule for a percent adapter and its tests are a curriculum design."
+  },
+  {
+    "source": "thrifty-javadoc",
+    "path": "com/thrifty/core/MotorControl.html",
+    "note": "The native <code>voltage</code> request and the fractional <code>percent</code> request; the badge pins ThriftyLib 2026.2.2."
   },
   {
     "source": "thrifty",

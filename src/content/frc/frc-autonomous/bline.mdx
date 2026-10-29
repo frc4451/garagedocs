@@ -55,7 +55,7 @@ progress rather than a clock."
     ["Reference", "Desired state at time <em>t</em>", "Next point along the line, from the current pose"],
     ["After a bump", "Chases a schedule that has moved on", "Resumes from wherever the robot is"],
     ["Sharp corner", "Slowed automatically by the optimiser", "Not slowed unless you add a constraint"],
-    ["Blocked by a robot", "Time runs out; the path finishes", "Keeps trying; add a timeout"],
+    ["Blocked by a robot", "Time runs out; the path finishes", "Keeps trying until it reaches the final point"],
     ["Strength", "Fastest possible motion, known in advance", "Robust motion, tuned empirically"]
   ]}
 />
@@ -288,7 +288,6 @@ public Command scoringAuto() {
 
   return Commands.sequence(
           Commands.runOnce(() -> feedRequested.set(false)), Commands.deadline(paths, feedRegion))
-      .withTimeout(14.0)
       .finallyDo(
           interrupted -> {
             feedRequested.set(false);
@@ -300,12 +299,13 @@ public Command scoringAuto() {
 
 Place the two matching event keys on the drawn paths. Here events do not schedule commands, so the
 ordinary WPILib composition can own the feed parent for the routine. The path sequence is the
-deadline: when it ends, the feed command is interrupted too. The example's 14-second bound is a
-simulation exercise limit; record a timeout separately from arrival. Repeating the region allows
-another on/off pair later in the route. Add the second required mechanism action using the same
-explicit ownership and end behavior.
+deadline: when it ends, the feed command is interrupted too. The routine has no overall time limit,
+so it runs until the last path finishes or the routine is interrupted. A wait in place, such as
+holding at a pickup until a piece arrives, can take its own `withTimeout` and move on to the next
+path. Repeating the region allows another on/off pair later in the route. Add the second required
+mechanism action using the same explicit ownership and end behavior.
 
-Run completion, timeout while enabled, cancellation while enabled, disable, and a second run.
+Run completion, cancellation while enabled, disable, and a second run.
 Inspect the command state and mechanism goals as well as voltage. A single stop call cannot contain
 an independently scheduled command that writes another output next loop. The offset exercise still
 needs a separately constructed version without the nominal first-path pose reset.
@@ -322,8 +322,11 @@ above is their BLine side.
 
 - **Tuning all three PIDs at once.** Translation, then rotation, then cross-track: one unknown per
   plot.
-- **No timeout on a path that might be blocked.** `withTimeout(...)` on the built command, or a
-  fallback in the sequence.
+- **Treating a blocked path as finished.** BLine ends a path only when the robot reaches the final
+  point within its end tolerances, so a robot pinned by another robot keeps driving. Do not put a
+  time limit on the path. In the log, a pose that stops changing while the path command is still
+  running shows the block. If the routine needs a way out, add a fallback in the composition: end
+  the path with `until(...)` on a measured condition and continue with another command.
 - **A sharp corner drawn at full speed.** Add a velocity constraint on that segment; nothing will
   slow it for you.
 - **`withPoseReset` left set after the first path.** The option persists on the builder, so every
@@ -337,7 +340,8 @@ above is their BLine side.
 
 <Sources items={[
   {"source": "bline", "path": "lib/event-triggers/", "note": "Event command lifetimes, requirement conflicts and scoped event-to-state composition."},
-  {"source": "bline", "path": "concepts/design-philosophy/", "note": "How BLine works: a polyline followed by geometric progress through points, not a time-parameterized trajectory."},
+  {"source": "bline", "path": "concepts/design-philosophy/", "note": "How BLine works: a polyline followed by geometric progress through points, not a time-parameterized trajectory. A path finishes only inside the final end tolerances, and a blocked robot keeps trying without a fallback."},
+  {"source": "wpilib", "path": "docs/software/commandbased/command-compositions.html", "note": "The <code>until</code> decorator that ends a path command on a condition."},
   {"source": "bline", "path": "gui/", "note": "The path editor layout and editor screenshot."},
   {"source": "bline", "path": "lib/field-visualization/", "note": "Optional BLineField output in Elastic and its screenshot."},
   {"source": "bline", "path": "concepts/path-elements/", "note": "Translation, rotation, and event element roles and the path-element diagram."},

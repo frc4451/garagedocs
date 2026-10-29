@@ -27,6 +27,15 @@ Badge 2 includes numeric AdvantageKit logs and simple 2D line drawings for all f
 Measured-versus-goal comparisons are part of this step and the Step 9 composition review.
 Component 3D and CAD visualization remain in Badge 3.
 
+```mermaid
+flowchart LR
+  accTitle: Visualization in Badge 2 and Badge 3
+  accDescr: Badge 2 covers numeric AdvantageKit logs, 2D line drawings for all four mechanisms, and measured against goal comparisons. Component 3D poses and CAD models come later, in Badge 3.
+  b2["Badge 2<br/>Numeric AdvantageKit logs<br/>2D line drawings, all four<br/>Measured against goal"]
+  b3["Badge 3<br/>Component 3D poses<br/>CAD models"]
+  b2 -->|"later"| b3
+```
+
 ## Position Feedback Scope
 
 Badge 2 mechanisms use motor-relative position feedback and a documented starting reference.
@@ -40,6 +49,15 @@ For the CTRE pivot comparison, select the internal motor sensor and the configur
 Set the simulation starting angle explicitly. A configured initial angle does not establish
 an unknown physical mechanism's reference. The broader linked examples may include absolute
 feedback; leave that branch out of the Badge 2 implementation.
+
+```mermaid
+flowchart LR
+  accTitle: Where a Badge 2 mechanism position comes from
+  accDescr: A Badge 2 mechanism position starts from a documented starting reference that is set explicitly. The motor's internal sensor counts rotor rotations from there, and dividing by the configured reduction gives the mechanism position. CANcoders, magnet offsets and remote or fused absolute feedback are Badge 3 work and are left out here.
+  ref["Starting reference,<br/>set explicitly"] --> sensor["Motor's internal sensor<br/>counts rotor rotations"]
+  sensor -->|"÷ configured reduction"| pos["Mechanism position"]
+  abs["CANcoder, magnet offset,<br/>remote or fused feedback"] -.->|"Badge 3, not here"| pos
+```
 
 ## References to Review
 
@@ -68,6 +86,86 @@ mode, only the selected mechanism gets the selected motor's IO; unselected compo
 All four general models run in SIM, and every component uses empty IO in REPLAY. Construct those
 choices explicitly in `RobotContainer`.
 
+The pivot family shows the shape every family repeats. Only the subsystem is scheduled; the
+component behind it never sees which IO it was given.
+
+```mermaid
+classDiagram
+  accTitle: Pivot family classes in the mechanism library
+  accDescr: The bench's PivotSubsystem extends SubsystemBase and owns one Pivot component. Pivot keeps the goal, limits, readiness and logging, reads a PivotConfig, and sends clamped requests to a PivotIO. PivotIO fills a PivotIOInputs object marked AutoLog. Three implementations stand behind PivotIO: PivotIOSim with a general WPILib model in SIM, the CTRE pivot simulation IO for the Motion Magic comparison, and an empty IO used in REPLAY and for every unselected mechanism in REAL.
+  direction TB
+  class PivotSubsystem {
+    <<SubsystemBase>>
+    +periodic()
+    command factories
+  }
+  class Pivot {
+    goal, limits, readiness
+    +periodic()
+    +getPosition()
+    +getGoal()
+  }
+  class PivotConfig {
+    <<record>>
+    limits, tolerance, gains
+  }
+  class PivotIO {
+    <<interface>>
+    +updateInputs(inputs)
+    actuator requests
+  }
+  class PivotIOInputs {
+    <<AutoLog>>
+    angle, velocity
+    voltage, current
+  }
+  class PivotIOSim["PivotIOSim (SIM)"]
+  class CtrePivotIO["CTRE sim IO"]
+  class EmptyPivotIO["Empty IO (REPLAY, unselected)"]
+  PivotSubsystem *-- Pivot : owns one
+  Pivot --> PivotConfig : reads
+  Pivot --> PivotIO : clamped requests
+  PivotIO ..> PivotIOInputs : fills
+  PivotIO <|.. PivotIOSim
+  PivotIO <|.. CtrePivotIO
+  PivotIO <|.. EmptyPivotIO
+```
+
+One robot loop runs in a fixed order. The component reads its inputs only after AdvantageKit has
+processed them, so REPLAY sees the same values the robot logged. The button's command runs after
+every subsystem's `periodic()`, and its goal passes through the component's clamp on the way to
+the IO.
+
+```mermaid
+---
+config:
+  sequence:
+    actorMargin: 24
+    width: 110
+    messageFontSize: 14
+    mirrorActors: false
+---
+sequenceDiagram
+  accTitle: One robot loop through the pivot
+  accDescr: The CommandScheduler first runs PivotSubsystem periodic, which calls Pivot periodic once. Pivot asks PivotIO to update its inputs, then passes them to the AdvantageKit Logger with processInputs, which records them, or during replay fills them from the log. Pivot reads only those processed inputs and records its goal, readiness and requested output. The subsystem updates PivotMechanism with the measured angle and the active goal. After all subsystem periodic calls, the scheduler runs the held button's command, which requests a 45 degree goal. Pivot clamps it to the travel limits and sends the clamped goal to PivotIO.
+  participant Sch as Scheduler
+  participant Sub as PivotSubsystem
+  participant P as Pivot
+  participant AK as Logger
+  participant IO as PivotIO
+  Sch->>Sub: periodic()
+  Sub->>P: periodic()
+  P->>IO: updateInputs(inputs)
+  P->>AK: processInputs(inputs)
+  Note over P,AK: REPLAY fills inputs<br/>from the log here
+  P->>AK: recordOutput(goal, ...)
+  Sub->>Sub: update PivotMechanism
+  Sch->>Sub: command: 45 degrees
+  Sub->>P: angle goal
+  Note over P: clamp to travel limits
+  P->>IO: clamped goal
+```
+
 ## Reuse the Configuration Pattern
 
 Extend the
@@ -82,6 +180,22 @@ limits, and mass belong with the elevator model or mechanism configuration. CAN 
 supported controller settings belong with the hardware adapter. Give simulation records their model
 parameters and check them in configuration tests before running the model. The student tests changed
 configuration values and traces any new setting to the code that consumes it.
+
+Using the elevator as the example, each record feeds only the code that needs its values:
+
+```mermaid
+flowchart LR
+  accTitle: Which configuration record feeds which code, elevator example
+  accDescr: ElevatorConfig holds the mechanism values, reduction, drum radius, rigging factor, travel limits, tolerance and gains, and feeds the Elevator component, the general simulation IO and any hardware adapter. A simulation record holds the model parameters, the motor model and carriage mass, and feeds only the simulation IO. CtreMotorConfig or NovaMotorConfig holds device setup, CAN ID, inversion and current limits, and feeds only the hardware adapter, which is an extension for the elevator.
+  sim["Simulation record<br/>motor model, carriage mass"]
+  mech["ElevatorConfig<br/>reduction, drum radius, rigging,<br/>travel limits, tolerance, gains"]
+  dev["CtreMotorConfig or<br/>NovaMotorConfig<br/>CAN ID, inversion,<br/>current limits"]
+  sim --> simio["General simulation IO"]
+  mech --> simio
+  mech --> comp["Elevator component"]
+  mech --> hw["Hardware adapter<br/>(an extension here)"]
+  dev --> hw
+```
 
 ## Cobra2026 Connection
 
@@ -101,6 +215,27 @@ diameter to radius explicitly and independently check the travel calculation. Ke
 physics in the IO layer and its voltage-control baseline; Cobra's component-level simulation and
 additional control modes are comparison material.
 
+Cobra's tree, for comparison only:
+
+```mermaid
+classDiagram
+  accTitle: Cobra2026 mechanism components and their shared base
+  accDescr: In Cobra2026, Flywheel, Pivot and Elevator all extend the plain SingleRoller class. Elevator holds a nested ElevatorConfig record whose drumRadius gives drumCircumference, two pi times the radius, which converts drum rotations to inches.
+  direction TB
+  class SingleRoller {
+    plain class
+  }
+  class ElevatorConfig {
+    <<record>>
+    drumRadius
+    +drumCircumference() 2π × drumRadius
+  }
+  Flywheel --|> SingleRoller
+  Pivot --|> SingleRoller
+  Elevator --|> SingleRoller
+  Elevator *-- ElevatorConfig : config
+```
+
 ## Typed Mechanism Contracts
 
 | Family | Goal | Measurements | General Model |
@@ -118,6 +253,17 @@ Before motion tests, the student proves equivalent inputs: 90 degrees and 0.25 r
 same pivot goal; 1 foot and 12 inches produce the same elevator goal. A second assertion checks the
 number sent across the IO boundary. Typed inputs alone do not catch an incorrect conversion inside
 the adapter.
+
+```mermaid
+flowchart TB
+  accTitle: Where a typed pivot goal becomes a number
+  accDescr: Degrees.of(90) and Rotations.of(0.25) produce the same typed Angle goal, which the first test checks. The component clamps and compares that typed goal. Only the IO adapter converts it to a number, with .in(Rotations), giving 0.25 for the model or vendor API, which the second test checks.
+  a["Degrees.of(90)"] --> g["Angle goal<br/>test 1: same goal"]
+  b["Rotations.of(0.25)"] --> g
+  g --> comp["Component<br/>clamps and compares,<br/>still typed"]
+  comp --> io["IO adapter"]
+  io -->|".in(Rotations)"| num["0.25 to the model<br/>or vendor API<br/>test 2: number sent"]
+```
 
 ## Bench Integration
 
@@ -137,6 +283,19 @@ bindings belong to `RobotContainer`. Reassign one gamepad between ports in simul
 elevator X/Y exercise manual voltage near both limits. A general physics model's hard stop alone
 does not verify a vendor controller's software limit; inspect that separately in its device sim.
 
+The same bindings as a picture. In SIM all four ports are live; in REAL only the mechanism selected
+in `Constants.java` gets bindings:
+
+```mermaid
+flowchart LR
+  accTitle: Bench controller ports
+  accDescr: Port 0 runs the roller, A at plus 3 volts and B at minus 3 volts. Port 1 runs the flywheel, A at 30 rotations per second and B at 15. Port 2 runs the pivot, A to 45 degrees, B to 15 degrees, X at minus 3 volts and Y at plus 3 volts. Port 3 runs the elevator, A to 20 inches, B to 8 inches, X at minus 3 volts and Y at plus 3 volts. Each button acts while held.
+  p0["Port 0"] -->|"A +3 V, B −3 V"| r["Roller"]
+  p1["Port 1"] -->|"A 30 rot/s, B 15 rot/s"| f["Flywheel"]
+  p2["Port 2"] -->|"A 45°, B 15°<br/>X −3 V, Y +3 V"| p["Pivot"]
+  p3["Port 3"] -->|"A 20 in, B 8 in<br/>X −3 V, Y +3 V"| e["Elevator"]
+```
+
 ## Component Behavior
 
 The roller retains Step 7's voltage and stop behavior. The flywheel accepts a speed goal and reports
@@ -155,6 +314,23 @@ implementation. The student documents the starting reference, positive direction
 drum radius, mass, and travel limits. A simulated reference is an initial condition; it is not
 evidence that a physical elevator has been referenced.
 
+What each family does with a request, and where readiness comes from:
+
+```mermaid
+flowchart TB
+  accTitle: How each mechanism family handles a request
+  accDescr: The roller takes a voltage request and reports measured speed, with no goal to reach. The flywheel takes a speed goal and is ready when measured speed is within tolerance. The pivot clamps its angle goal to the travel limits, follows a software profile with feedback and arm feedforward, and is at its goal when the measured angle is within tolerance. The elevator clamps its height goal to the travel limits, follows a software profile with feedback against a model that includes gravity, and is at its goal when the measured height is within tolerance.
+  rq["Roller<br/>Voltage request"] --> rm["Measured speed<br/>no goal to reach"]
+  fq["Flywheel<br/>speed goal"] --> fm["Measured speed"]
+  fm -->|"within tolerance"| fr["Ready"]
+  pq["Pivot<br/>angle goal"] -->|"clamped"| pp["Profile, feedback,<br/>arm feedforward"]
+  pp --> pm["Measured angle"]
+  pm -->|"within tolerance"| pr["At goal"]
+  eq["Elevator<br/>height goal"] -->|"clamped"| ep["Profile and feedback,<br/>gravity in the model"]
+  ep --> em["Measured height"]
+  em -->|"within tolerance"| er["At goal"]
+```
+
 ## Software Profile Before Motion Magic
 
 The student first builds a general `PivotIOSim` following
@@ -168,6 +344,29 @@ using Talon FXS or Talon FX in simulation. That IO sends `MotionMagicVoltage`; t
 the intermediate reference. The student removes the external software profile from that selected
 path and keeps the same component goals. The selected CTRE pivot can run without that controller
 attached.
+
+The component and its clamped goal stay the same in both paths. What moves is the owner of the
+intermediate reference.
+
+```mermaid
+flowchart LR
+  accTitle: Who owns the pivot's motion profile
+  accDescr: In the general PivotIOSim, robot code owns the profile. The clamped goal feeds a TrapezoidProfile. Its intermediate reference and the measured angle feed PID plus arm feedforward, and the bounded voltage drives SingleJointedArmSim, which returns the measured angle. In the CTRE pivot simulation, the device owns the profile. The clamped goal goes to the Talon FX or FXS as a MotionMagicVoltage request. The Talon generates the reference and applies its gains, its motor voltage drives SingleJointedArmSim, and the model's rotor position goes back to the Talon.
+  subgraph soft["PivotIOSim owns the profile"]
+    direction TB
+    g1["Clamped goal"] --> tp["TrapezoidProfile"]
+    tp -->|"reference"| pid["PID + arm feedforward"]
+    pid -->|"bounded voltage"| arm["SingleJointedArmSim"]
+    arm -->|"measured angle"| pid
+  end
+  subgraph ctre["The Talon owns the profile"]
+    direction TB
+    g2["Clamped goal"] -->|"MotionMagicVoltage"| talon["Talon FX or FXS<br/>profile and gains"]
+    talon -->|"motor voltage"| model["SingleJointedArmSim"]
+    model -->|"rotor position"| talon
+  end
+  soft ~~~ ctre
+```
 
 The vendor comparison retains the supply, motor-voltage, rotor-feedback, direction and ratio
 checks. Use one synchronous IO update owner with `TimedRobot.kDefaultPeriod` for the Badge 2
@@ -187,8 +386,18 @@ null checks on records remain allowed; typed measures alone do not guarantee fin
 
 Badge 2 requests voltage in its general control loops and uses `MotionMagicVoltage` for the CTRE
 profile comparison. The provided-controller roller preserves that typed voltage contract using the
-adapter explained in Step 7. Its Nova route distinguishes duty fraction from voltage. Torque-current
-control is introduced in Badge 3.
+adapter explained in Step 7. Its Nova route sends volts through ThriftyLib's native voltage control.
+Torque-current control is introduced in Badge 3.
+
+```mermaid
+flowchart LR
+  accTitle: What each Badge 2 control path sends
+  accDescr: The general simulation loops send a bounded voltage to the WPILib model. The CTRE pivot comparison sends MotionMagicVoltage to the Talon. The provided-controller roller keeps the typed Voltage contract through the Step 7 adapter for FX, FXS or Nova. Torque-current control waits for Badge 3.
+  gen["General simulation loops"] -->|"bounded voltage"| model["WPILib model"]
+  ctre["CTRE pivot comparison"] -->|"MotionMagicVoltage"| talon["Talon FX or FXS"]
+  roll["Provided-controller roller"] -->|"Voltage, through<br/>the Step 7 adapter"| dev["FX, FXS or Nova"]
+  tc["Torque-current control<br/>comes in Badge 3"]
+```
 
 ## Elevator Conversion
 
@@ -204,6 +413,15 @@ This equation assumes constant effective diameter and no slip. For direct riggin
 <Equation tex="S=1" />. Ten motor revolutions through a 10:1 reduction turn the drum once. With a
 2 in diameter, carriage travel is approximately 6.28 in. These values are a calculation example,
 not the physical fixture's settings.
+
+```mermaid
+flowchart TB
+  accTitle: Elevator conversion from motor revolutions to carriage travel
+  accDescr: Motor revolutions N divided by the reduction G give drum revolutions. Drum revolutions times pi times the effective drum diameter D give cable travel. Cable travel times the rigging factor S gives carriage travel h. In the worked example, 10 motor revolutions through a 10 to 1 reduction give 1 drum revolution, a 2 inch diameter gives about 6.28 inches of cable, and direct rigging with S equal to 1 gives about 6.28 inches of carriage travel.
+  n["Motor revolutions N<br/>10"] -->|"÷ G, G = 10"| d["Drum revolutions<br/>1"]
+  d -->|"× πD, D = 2 in"| c["Cable travel<br/>≈ 6.28 in"]
+  c -->|"× S, S = 1"| h["Carriage travel h<br/>≈ 6.28 in"]
+```
 
 <Equation tex="S" /> is the rigging factor, `riggingFactor` in `ElevatorConfig`. With direct
 rigging the carriage is tied to the cable and moves as far as the cable, so
@@ -248,6 +466,20 @@ before the student compares changes.
    inertia requires another baseline check. General and vendor-controlled simulations may need
    different numeric gains; values are not copied without checking their units.
 
+```mermaid
+flowchart TB
+  accTitle: Establishing a simulation baseline
+  accDescr: Step 1 records the motor, reduction, inertia or mass, reference, supply and travel, then a bounded open-loop check confirms direction and conversion. Step 2 chooses a goal, tolerance and maximum test time with integral gain at zero. Step 3 adds feedforward for motion or gravity. Step 4 adds proportional feedback and compares goal, reference, measurement, voltage and current; if the response looks wrong, check enable state, direction, units, gravity and saturation before changing gains. Step 5 saves the configuration and passing log. A change to gearing, diameter, mass or inertia sends the work back to step 1.
+  s1["1. Record motor, reduction,<br/>inertia or mass, reference,<br/>supply, travel"] --> ol["Bounded open-loop check:<br/>direction and conversion"]
+  ol --> s2["2. Goal, tolerance,<br/>maximum test time;<br/>integral gain zero"]
+  s2 --> s3["3. Feedforward for<br/>motion or gravity"]
+  s3 --> s4["4. Proportional feedback;<br/>compare goal, reference,<br/>measured, voltage, current"]
+  s4 -->|"response wrong"| chk["Check enable, direction,<br/>units, gravity, saturation<br/>before changing gains"]
+  chk --> s4
+  s4 --> s5["5. Save configuration<br/>and passing log"]
+  s5 -.->|"gearing, diameter,<br/>mass or inertia change"| s1
+```
+
 For example, 3 V at 20 rotations per second and 6 V at 40 rotations per second give a two-point
 slope of 0.15 V per rotation per second. That is an illustrative starting estimate from steady,
 unsaturated samples. Independent characterization and performance refinement come in Badge 3.
@@ -262,6 +494,16 @@ position.
   gain, that decreasing error gives a negative D contribution.
 - Error staying at +4 in for 2 s adds +8 inch-seconds to an accumulation that starts at zero.
   Later zero error stops further accumulation but does not erase the stored amount.
+
+```mermaid
+flowchart LR
+  accTitle: The two PID calculations from the error graph
+  accDescr: Error falling from plus 8 inches to plus 4 inches over 0.5 seconds has a slope of minus 8 inches per second, so a positive D gain gives a negative D contribution. Error held at plus 4 inches for 2 seconds adds an area of plus 8 inch-seconds; later zero error stops the accumulation from growing but leaves it at plus 8 inch-seconds.
+  e1["Error +8 in to +4 in<br/>over 0.5 s"] -->|"slope"| r["−8 in/s"]
+  r -->|"× positive D gain"| d["D contribution<br/>negative"]
+  e2["Error +4 in<br/>held for 2 s"] -->|"area"| i["+8 in·s"]
+  i -->|"later zero error"| keep["Stops growing,<br/>stays +8 in·s"]
+```
 
 The student explains the signs and units beside an existing mechanism graph. These are guided
 calculations, not instructions to enable I or D. Formal derivatives, integrals, and the worksheet
@@ -322,6 +564,24 @@ The drawing reads processed IO inputs in REAL, SIM and REPLAY. It never construc
 advances physics or calls the component a second time. Schematic drawing dimensions are separate
 from physical gearing and dimensions. On a bare-motor bench, the pivot/elevator picture represents
 the configured encoder conversion, not proof of an attached arm or carriage.
+
+The pivot path from input to screen. The other three families follow the same path with their own
+measured and goal lines:
+
+```mermaid
+flowchart TB
+  accTitle: The pivot drawing from processed inputs to AdvantageScope
+  accDescr: Processed IO inputs, in REAL, SIM or REPLAY, reach the Pivot component through its periodic call. The subsystem then calls the mechanism's update with the measured position and the goal. The measured angle sets the thin arm; a present goal sets the wide arm at the clamped goal; an absent goal hides the wide arm. The subsystem records the drawing as Pivot/Mechanism2d, which AdvantageScope shows in a Mechanism tab.
+  io["Processed IO inputs<br/>REAL, SIM or REPLAY"] --> comp["pivot.periodic()"]
+  comp --> upd["mechanism.update(<br/>position, goal)"]
+  upd -->|"measured angle"| thin["Thin arm"]
+  upd -->|"goal present"| wide["Wide arm at<br/>clamped goal"]
+  upd -->|"goal absent"| hide["Wide arm hidden"]
+  thin --> log["recordOutput<br/>Pivot/Mechanism2d"]
+  wide --> log
+  hide --> log
+  log --> as["AdvantageScope<br/>Mechanism tab"]
+```
 
 ### Build and submit your drawings
 
@@ -389,6 +649,19 @@ and exercise its relevant goal and limit behavior. All active models report curr
 owner. REPLAY constructs no motor, physics model, or notifier. The capability table distinguishes
 general simulations, the FX and FXS roller device simulations, SimThriftyNova physics adapter,
 selected CTRE pivot simulation, and physical FX, FXS or Nova roller, and unimplemented extensions.
+
+The one battery owner in SIM:
+
+```mermaid
+flowchart TB
+  accTitle: One simulated battery owner
+  accDescr: In SIM, the roller, flywheel, pivot and elevator simulation IO each report their current draw to SimBattery. Once per simulation cycle, SimBattery passes all the currents to BatterySim and writes the loaded voltage once with RoboRioSim.setVInVoltage. Each model reads that supply on its next update. REPLAY constructs none of these.
+  r["RollerIOSim"] -->|"current"| b
+  f["FlywheelIOSim"] -->|"current"| b
+  p["PivotIOSim"] -->|"current"| b
+  e["ElevatorIOSim"] -->|"current"| b
+  b["SimBattery<br/>all currents into BatterySim,<br/>once per cycle"] -->|"RoboRioSim.setVInVoltage"| v["Loaded supply voltage,<br/>read by each model<br/>on its next update"]
+```
 
 ## Rows
 
@@ -470,6 +743,11 @@ optional.
   {
     "source": "advantagekit",
     "path": "data-flow/recording-inputs/io-interfaces/",
-    "note": "Logging and replay across the common IO boundary."
+    "note": "Logging and replay across the common IO boundary; processInputs records inputs, or fills them from the log in replay, right after updateInputs (the loop diagram)."
+  },
+  {
+    "source": "wpilib",
+    "path": "docs/software/commandbased/command-scheduler.html",
+    "note": "Subsystem periodic methods run before scheduled commands execute, the order in the loop diagram."
   }
 ]} />

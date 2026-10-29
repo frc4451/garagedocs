@@ -14,6 +14,7 @@ import { rehypeMarkdownTables } from './scripts/rehype-markdown-tables.mjs';
 import { rehypeRunnableJava } from './scripts/rehype-runnable-java.mjs';
 import { remarkEquationPunctuation } from './scripts/remark-equation-punctuation.mjs';
 import { remarkJavaNorun } from './scripts/remark-java-norun.mjs';
+import { rehypeMermaid } from './scripts/rehype-mermaid.mjs';
 
 // Deployment target. The site is served from the domain root (`/`). Override with
 // env vars to deploy under a subdirectory, e.g. `BASE_PATH=/garagedocs npm run build`;
@@ -194,7 +195,8 @@ export default defineConfig({
       remarkPlugins: [remarkJavaNorun, remarkEquationPunctuation],
       // Astro normally assigns heading ids *after* user rehype plugins run, so
       // rehypeHeadingIds is listed explicitly first and rehypeHeadingLinks turns
-      // each heading into a link to its own anchor. Content links are authored
+      // each heading into a link to its own anchor. rehypeMermaid renders `mermaid`
+      // fences to light and dark images in headless Chromium. Content links are authored
       // site-root-relative (`/frc/...`); rehypeBasePath rewrites them for the
       // deployed base path. rehypeRunnableJava then wraps Java example fences in
       // the Java lessons so the browser can hydrate a Run control.
@@ -202,10 +204,13 @@ export default defineConfig({
         rehypeHeadingIds,
         rehypeHeadingLinks,
         rehypeMarkdownTables,
+        rehypeMermaid,
         [rehypeBasePath, { base: BASE }],
         rehypeRunnableJava,
       ],
     }),
+    // Shiki would highlight `mermaid` fences before rehypeMermaid sees them.
+    syntaxHighlight: { type: 'shiki', excludeLangs: ['math', 'mermaid'] },
     shikiConfig: {
       theme: 'github-light',
       themes: {

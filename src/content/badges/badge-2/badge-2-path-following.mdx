@@ -73,6 +73,28 @@ feedforward for each side, and hands velocity and feedforward to the IO. The
 [PathPlanner](/frc/pathplanner#autobuilder-configuration-differential) lesson has the differential
 configuration beside the swerve one.
 
+The configured callbacks carry data in both directions between the Kit Bot `Drive` and `AutoBuilder`.
+
+```mermaid
+flowchart TB
+  accTitle: Kit Bot AutoBuilder wiring
+  accDescr: The Kit Bot Drive constructor configures AutoBuilder with PPLTVController, an alliance flip supplier and the ppConfig from DriveConstants. Drive supplies its pose, and AutoBuilder calls the pose reset. The left and right wheel velocities pass through DifferentialDriveKinematics to give robot-relative ChassisSpeeds for AutoBuilder. AutoBuilder sends ChassisSpeeds to runClosedLoop, which converts them to wheel speeds and computes a kS and kV feedforward for each side, then hands velocity and feedforward to the drive IO.
+  pose["Drive pose"]
+  wheels["Left and right<br/>wheel velocities"]
+  cfg["DriveConstants<br/>ppConfig"]
+  kin["DifferentialDriveKinematics"]
+  ab["AutoBuilder<br/>PPLTVController,<br/>alliance flip"]
+  rcl["runClosedLoop:<br/>wheel speeds,<br/>kS and kV feedforward<br/>per side"]
+  io["Drive IO"]
+  wheels --> kin
+  kin -->|"robot-relative<br/>ChassisSpeeds"| ab
+  pose -->|"pose supplier"| ab
+  ab -.->|"pose reset"| pose
+  cfg --> ab
+  ab -->|"ChassisSpeeds"| rcl
+  rcl -->|"velocity and<br/>feedforward"| io
+```
+
 `PPLTVController` is the follower for a drivetrain that cannot move sideways: it controls forward
 speed and turn rate, and the robot's heading is the direction of travel. `DriveConstants` carries
 the numbers `RobotConfig` is built from: mass, moment of inertia, wheel coefficient of friction,
@@ -92,6 +114,23 @@ track width setting appears only for a non-holonomic robot. `AutoBuilder` follow
 copy does not match `DriveConstants`. Enter the code's values in the app so the preview matches what
 the robot runs.
 
+Two configurations exist, and only the one built in code decides what the robot follows.
+
+```mermaid
+flowchart TB
+  accTitle: Code RobotConfig and app settings
+  accDescr: DriveConstants builds the RobotConfig in code, and AutoBuilder follows paths with it, so it decides what the robot runs. The PathPlanner app's Robot Config settings are saved in settings.json and shape only the editor's preview. The student enters the code's values from DriveConstants into the app so the preview matches the robot.
+  dc["DriveConstants"]
+  rc["RobotConfig<br/>built in code"]
+  ab["AutoBuilder:<br/>what the robot follows"]
+  app["PathPlanner app<br/>Robot Config"]
+  sj["settings.json"]
+  prev["Editor preview only"]
+  dc --> rc --> ab
+  dc -.->|"student enters<br/>the code's values"| app
+  app --> sj --> prev
+```
+
 | # | Work | Lesson | Done when |
 |---|---|---|---|
 | 10.1 | Confirm `RobotConfig` | [PathPlanner](/frc/pathplanner#configuring-autobuilder) | The student reads mass, moment of inertia, wheel data, gearing, track width and maximum speed out of `DriveConstants`, confirms motors per side, gearing and wheel size against the simulated Kit Bot, identifies mass and moment of inertia as template defaults, and enters the code's values in the PathPlanner app's Robot Config |
@@ -109,7 +148,7 @@ Move the workflow to swerve, then keep the same drivetrain interfaces and mechan
 replacing the PathPlanner follower with BLine. The student chooses the routes, action timing, and
 the path that demonstrates heading independent of travel.
 
-### Bring the Mechanisms Into Badge2Swerve
+### Reuse the Step 9 Mechanisms
 
 The composed parents were built and tested directly in `Badge2Swerve` in Step 9. Reuse the same
 CobraIntake, EmberSuperStructure and RiptideSuperStructure commands for autonomous actions; do not
@@ -130,25 +169,27 @@ not prove the required path accuracy or successful completion.
 
 ### Drive With the Controller
 
-The swerve template drives from a plain `CommandXboxController` in `RobotContainer`, and its
+The swerve template drove from a plain `CommandXboxController`, and its
 `DriveCommands.joystickDrive` applies its own input shaping: `getLinearVelocityFromJoysticks`
 applies a 0.1 deadband to the stick's magnitude and then squares it, and the rotation axis gets a
-deadband and signed squaring of its own. Passing the student's processed getters into that command
-would deadband and square the same input twice.
+deadband and signed squaring of its own. Step 9 kept that shaping by passing the unprocessed
+`getHID()` axes; passing the student's processed getters into that command would deadband and
+square the same input twice.
 
 All input shaping moves into the student's controller class:
 
-1. Replace the template's `CommandXboxController` field with a `GarageCommandXboxController` on the
-   same port.
+1. Confirm that port 0 is the `GarageCommandXboxController` field Step 9 added in place of the
+   template's `CommandXboxController`.
 2. In `getLinearVelocityFromJoysticks`, remove the `MathUtil.applyDeadband` call and the squaring
    line, so the method only converts the two stick values into a direction and magnitude.
 3. In `joystickDrive`, remove the rotation deadband and the signed-squaring line, so `omega` is the
    supplied value.
 4. Pass `() -> -this.controller.getLeftYSquared()` and `() -> -this.controller.getLeftXSquared()`
-   where the template passed `getLeftY()` and `getLeftX()`, in both the `joystickDrive` default
-   command and the `joystickDriveAtAngle` binding, and `() -> -this.controller.getRightXSquared()`
-   where `joystickDrive` received `getRightX()`. The minus signs stay; they convert the stick's axes
-   to the field's and make pushing right X to the right turn the robot clockwise.
+   where the Step 9 bindings pass the unprocessed left Y and left X, in both the `joystickDrive`
+   default command and the `joystickDriveAtAngle` binding, and
+   `() -> -this.controller.getRightXSquared()` where `joystickDrive` receives the unprocessed
+   right X. The minus signs stay; they convert the stick's axes to the field's and make pushing
+   right X to the right turn the robot clockwise.
 
 The template shaped the stick's magnitude; the controller class shapes each axis separately. On a
 diagonal, each axis crosses the deadband on its own, so a small diagonal push can move the robot
@@ -192,6 +233,27 @@ The same swerve drive, with BLine-Lib as the follower. BLine follows a sequence 
 robot's current pose rather than a schedule in time, which the [BLine](/frc/bline#get-to-point)
 lesson explains and row 10.28 demonstrates.
 
+Both swerve followers read the same `Drive` interfaces. Both reach the Step 9 mechanisms through
+event commands that leave the drivetrain to the path.
+
+```mermaid
+flowchart TB
+  accTitle: Two swerve followers on one drivetrain
+  accDescr: The swerve Drive provides a pose supplier, a pose reset, measured robot-relative ChassisSpeeds and a drive consumer. PathPlanner's AutoBuilder uses them with PPHolonomicDriveController and a RobotConfig from TunerConstants. BLine's FollowPath.Builder uses them with three PID controllers and applies withPoseReset to the first path only. Each routine follows three named paths, and the path commands require Drive. PathPlanner reaches mechanism actions through named commands, EventTriggers or the auto command tree, and BLine through registerEventTrigger or a BLineCommands composition. Both run the Step 9 parent commands, which require their own parent and never the drivetrain.
+  drive["Drive<br/>pose supplier, pose reset,<br/>measured robot-relative<br/>ChassisSpeeds,<br/>drive consumer"]
+  pp["PathPlanner AutoBuilder<br/>PPHolonomicDriveController,<br/>RobotConfig from<br/>TunerConstants"]
+  bl["BLine FollowPath.Builder<br/>three PID controllers,<br/>withPoseReset on<br/>the first path only"]
+  ppr["Three named paths:<br/>path commands<br/>require Drive"]
+  blr["Three named paths:<br/>path commands<br/>require Drive"]
+  ppe["Named commands,<br/>EventTriggers or<br/>the auto command tree"]
+  ble["registerEventTrigger<br/>or BLineCommands"]
+  mech["Step 9 parent commands<br/>require their parent,<br/>never Drive"]
+  drive --> pp
+  drive --> bl
+  pp --> ppr --> ppe --> mech
+  bl --> blr --> ble --> mech
+```
+
 | # | Work | Lesson | Done when |
 |---|---|---|---|
 | 10.20 | Install BLine-Lib | [BLine](/frc/bline#installing-it) | The vendordep is installed at the version the README records (0.9.1 when this page was written), and `frc.robot.lib.BLine` imports resolve |
@@ -205,13 +267,14 @@ lesson explains and row 10.28 demonstrates.
 | 10.28 | Two starting offsets | [BLine](/frc/bline#get-to-point) | The routine runs from the drawn start and from a start offset by about half a metre; the offset run resets the drivetrain's estimated pose to the offset start and omits the command's nominal pose reset, so the follower receives the actual offset |
 | 10.29 | Save the log | [Log Replay](/frc/log-replay) | A `.wpilog` shows all paths, both actions, and the final stopped state |
 
-Before either swerve routine runs, the student defines an overall time bound and a stopped end
-state. A timeout is recorded separately from successful arrival. Interruption stops drive and leaves
-the Step 9 mechanisms in their documented safe states. Path events use those parent commands rather
-than writing motor IO directly. Follow the [bounded mechanism-action example](/frc/bline#events):
+Before either swerve routine runs, the student defines a stopped end state. The routine has no
+overall time limit. Only an action that waits in place, such as waiting at a pickup for a game
+piece, may time out, and the routine then moves on to its next path. Interruption stops drive and
+leaves the Step 9 mechanisms in their documented safe states. Path events use those parent commands
+rather than writing motor IO directly. Follow the [mechanism-action example](/frc/bline#events):
 events change a flag, and a command inside the routine's deadline observes it. Check normal
-completion, timeout and cancellation while enabled, disable, and a second run. No action or event
-flag from the previous run remains active.
+completion, cancellation while enabled, disable, and a second run. No action or event flag from the
+previous run remains active.
 
 ## Badge Check
 

@@ -79,6 +79,17 @@ accepted IDs in a `List<Integer>`, then converts them to the `int[]` field that 
 inputs.validIds = validIds.stream().mapToInt(Integer::intValue).toArray();
 ```
 
+Each stage of that line hands the next stage a different type:
+
+```mermaid
+flowchart TB
+  accTitle: Cobra's validIds conversion
+  accDescr: In FRC 4451's AprilTagIOPhoton, the accepted tag IDs collect in validIds, a List of Integer. stream() turns the list into a Stream of Integer. mapToInt with the method reference Integer::intValue unboxes each Integer into an int, giving an IntStream. toArray() collects those values into an int array, which is stored in inputs.validIds, the field AdvantageKit logs.
+  list["validIds<br/>List#lt;Integer#gt;"] -->|"stream()"| s["Stream#lt;Integer#gt;"]
+  s -->|"mapToInt(<br/>Integer::intValue)"| i["IntStream"]
+  i -->|"toArray()"| arr["inputs.validIds<br/>int[ ], logged"]
+```
+
 `Integer::intValue` unboxes each `Integer` into an `int`. A plain loop would also work; the stream
 states the conversion in one line. A loop reads better when the work has several steps or needs to
 stop early, as [Streams](/java/fundamentals/streams#when-a-loop-is-better) explains.
@@ -173,11 +184,48 @@ true
 RollerConfig[name=intake, reduction=3.0]
 ```
 
+The three variables in `main` refer to two `RollerConfig` objects with the same component values:
+
+```mermaid
+flowchart TB
+  accTitle: Three variables and two RollerConfig objects
+  accDescr: In ConfigPractice main, the variables first and alias hold references to the same RollerConfig object, so first == alias is true. The variable equalValue refers to a second RollerConfig object. Both objects store the name intake and the reduction 3.0, so first == equalValue is false while first.equals(equalValue) is true.
+  first["first"] --> a["RollerConfig object<br/>name = intake<br/>reduction = 3.0"]
+  alias["alias"] --> a
+  eq["equalValue"] --> b["Second RollerConfig object<br/>name = intake<br/>reduction = 3.0"]
+  a -.-|"== false<br/>equals true"| b
+```
+
 The first two variables hold references to the same object. `equalValue` refers to a different
 object whose record components have the same values, so `==` is false and the record's generated
 `equals` method is true. The compact constructor validates and normalizes every new `RollerConfig`
 before the record stores its components. `report` receives a `Consumer<RollerConfig>` callback, and
 `System.out::println` supplies the existing method that the callback calls.
+
+In the call order below, `report` runs the callback after `main` hands it over.
+
+```mermaid
+---
+config:
+  sequence:
+    actorMargin: 24
+    width: 110
+    messageFontSize: 14
+    mirrorActors: false
+---
+sequenceDiagram
+  accTitle: When the report callback runs
+  accDescr: main calls report with the record first and the method reference System.out::println. Nothing prints yet. Inside report, the line callback.accept(config) runs the supplied Consumer, which calls System.out.println with the same record. The console then shows RollerConfig[name=intake, reduction=3.0]. report decides when the callback runs.
+  participant M as main
+  participant R as report
+  participant C as callback
+  participant O as System.out
+  M->>R: report(first,<br/>System.out::println)
+  Note over M,R: nothing printed yet
+  R->>C: accept(config)
+  C->>O: println(config)
+  Note over O: RollerConfig[name=intake,<br/>reduction=3.0]
+```
 
 ## Independent Change
 

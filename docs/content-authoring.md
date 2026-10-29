@@ -118,6 +118,37 @@ git checkout -b new-branch
 
 Java fences follow the [AdvantageKit Spotless Profile](/java/fundamentals/code-style). Format Java with the Spotless configuration used by Cobra2026: Google Java Format, unused-import removal, trailing-whitespace removal, and a final newline. The formatter owns layout; the author remains responsible for naming, visibility, comments, and design. Run `npx vite-node scripts/test-java-lesson-examples.ts` after editing Java fences. When working in a robot repository, use that repository's `spotlessApply` and `spotlessCheck` tasks because its `build.gradle` is the executable authority.
 
+### Diagrams
+
+Draw state machines, sequences, class relationships and Git histories as `mermaid` fences.
+`scripts/rehype-mermaid.mjs` renders each one at build time, in headless Chromium, to a light
+and a dark image in the site's colours; the reader's theme picks which one shows. Readers
+download no Mermaid code, and the diagram works offline.
+
+````mdx
+```mermaid
+stateDiagram-v2
+  accTitle: Intake SystemState transitions
+  accDescr: IDLE moves to INTAKING when INTAKE is wanted, and INTAKING moves to HOLDING when the beam break sees a piece.
+  direction LR
+  IDLE --> INTAKING : wanted INTAKE
+  INTAKING --> HOLDING : piece seen
+```
+````
+
+The build stops with the file and line when a diagram breaks one of these rules:
+
+- `accTitle` is required. It becomes the image's alt text.
+- `accDescr` is required. Screen readers announce it as the image's description, so write
+  out what the arrows say.
+- `click` directives are refused. Their links would skip the base-path rewrite and the link
+  check; link from the prose instead.
+
+A diagram drawn from robot code makes claims about that code: cite the file in the page's
+`<Sources>` block. Check the diagram in both themes before publishing. Edge labels can
+overlap in the default top-down layout, and `direction LR` often fixes it. Mermaid's syntax
+for each diagram type is in the [Mermaid documentation](https://mermaid.js.org/intro/).
+
 ### RulesBox / StepsBox / ExerciseBox
 
 Use component tags with **markdown inside** (slot content):
@@ -269,6 +300,7 @@ npm run migrate
 
 ```bash
 npm install
+npx playwright install chromium   # once per machine: the build renders Mermaid diagrams in it
 npm run dev       # dev server at 127.0.0.1:5173/
 npm run build     # production build + Pagefind index
 npm run preview   # serve dist/ (search works here)

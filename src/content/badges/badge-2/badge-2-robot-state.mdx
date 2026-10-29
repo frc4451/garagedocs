@@ -74,10 +74,10 @@ condition.
 
 ### Construct Once, Publish from Components
 
-Construct `new BobotState()` once in `RobotContainer`, before constructing `Vision`. As in Cobra,
-the constructor takes no subsystem, supplier or callback arguments. Components publish observations
-through static setters; other components and commands use static getters. No writer handle is
-needed.
+Construct `new BobotState()` once in `RobotContainer`, before constructing `AprilTagVision`. As in
+Cobra, the constructor takes no subsystem, supplier or callback arguments. Components publish
+observations through static setters; other components and commands use static getters. No writer
+handle is needed.
 
 ```java
 // In Drive.periodic(), after applying odometry and accepted vision:
@@ -89,12 +89,12 @@ BobotState.setLastAppliedObservations(applied);
 BobotState.setShooterHasPiece(this.hasPiece());
 ```
 
-These are partial snippets in their owning subsystems. Vision supplies accepted observations through
-`BobotState::offerVisionObservation`; Drive calls `BobotState.drainVisionObservations()` once per
-loop. Use `@Getter` and `@Setter` on shared immutable values such as pose and possession. Copy
-mutable velocity values and observation lists at the boundary. Derived targeting facts have getters
-only. The responsible publisher for each field is a code convention, not an exclusive runtime
-handle.
+These are partial snippets in their owning subsystems. `AprilTagVision` supplies accepted
+observations through `BobotState::offerVisionObservation`; Drive calls
+`BobotState.drainVisionObservations()` once per loop. Use `@Getter` and `@Setter` on shared
+immutable values such as pose and possession. Copy mutable velocity values and observation lists at
+the boundary. Derived targeting facts have getters only. The responsible publisher for each field is
+a code convention, not an exclusive runtime handle.
 
 ### What the Object Does
 
@@ -117,19 +117,78 @@ Badge 2 `BobotState`:
 - provides one or more `Trigger`s built on derived facts, for `RobotContainer` to bind;
 - makes no motor, component or subsystem output call.
 
+The diagram shows who writes into `BobotState`, which class drains its observation queue, and
+where the derived facts go.
+
+```mermaid
+flowchart TB
+  accTitle: Who writes and reads BobotState
+  accDescr: The vision subsystem from Step 12 offers each accepted observation to the queue that BobotState owns. The drivetrain drains that queue once per loop into its pose estimator and is the only writer of the estimated pose and velocity, which it publishes back into BobotState. EmberSuperStructure publishes possession. BobotState sets no motor, component or subsystem output. Its periodic method derives a robot-to-target distance and a field-zone predicate, records them to the AdvantageKit log with Logger.recordOutput, and exposes them through getters and Triggers, which RobotContainer binds to commands.
+  vision["Vision subsystem<br/>(Step 12)"]
+  drive["Drivetrain"]
+  ember["EmberSuperStructure"]
+  state["BobotState<br/>owns the<br/>observation queue<br/>sets no subsystem output"]
+  facts["Derived facts<br/>robot-to-target distance<br/>field-zone predicate"]
+  log["AdvantageKit log<br/>Logger.recordOutput"]
+  trig["Getters and Triggers"]
+  cmd["Commands bound<br/>in RobotContainer"]
+  vision -->|"offers accepted<br/>observations"| state
+  state -->|"drained once<br/>per loop"| drive
+  drive -->|"pose and velocity,<br/>only writer"| state
+  ember -->|"possession"| state
+  state -->|"periodic()"| facts
+  facts --> log
+  facts --> trig
+  trig --> cmd
+```
+
 One loop runs in this order, as the [BobotState lesson](/frc/bobot-state#the-flow-through-one-loop)
 describes for Cobra:
 
-1. `VirtualSubsystem.runPeriodically()` runs before the scheduler, in the order the instances were
-   constructed. Construct `BobotState` before `Vision` (the solution name for Cobra's
-   `AprilTagVision`): `BobotState.periodic()` recomputes its derived facts from the previous loop's
-   published pose and possession, then logs them; next the vision subsystem from Step 12 processes
-   its cameras and offers accepted observations to the `BobotState` queue.
+1. `VirtualSubsystem.periodicAll()` (Cobra's `runPeriodically()`) runs before the scheduler, in the
+   order the instances were constructed. Construct `BobotState` before `AprilTagVision`:
+   `BobotState.periodic()` recomputes its derived facts from the previous loop's published pose and
+   possession, then logs them; next the vision subsystem from Step 12 processes its cameras and
+   offers accepted observations to the `BobotState` queue.
 2. The scheduler runs subsystem `periodic()` methods. The drivetrain updates odometry, drains the
    queue into its pose estimator with one `addVisionMeasurement` per observation, and writes the new
    pose and velocity into `BobotState`. Ember publishes possession from its processed inputs in
    its own `periodic()`, including false when possession is absent or invalid.
 3. The scheduler runs commands and polls triggers, which read the derived facts.
+
+The same loop drawn as calls. `BobotState` derives its facts before the drivetrain writes the new
+pose, so the commands in phase 3 read facts computed from the previous loop's pose.
+
+```mermaid
+---
+config:
+  sequence:
+    actorMargin: 24
+    width: 110
+    messageFontSize: 14
+    mirrorActors: false
+---
+sequenceDiagram
+  accTitle: One robot loop through BobotState
+  accDescr: The loop has three phases. First, the virtual subsystems run before the scheduler, in construction order: BobotState recomputes its derived facts from the previous loop's pose and possession and logs them, then the vision subsystem offers its accepted observations to the BobotState queue. Second, the scheduler runs subsystem periodic methods: the drivetrain updates odometry, drains the queue, applies one addVisionMeasurement per observation, and writes the new pose and velocity into BobotState, and Ember publishes possession in its own periodic method. Third, the scheduler runs commands and polls triggers, which read the derived facts.
+  participant S as BobotState
+  participant V as AprilTagVision
+  participant D as Drivetrain
+  participant E as Ember
+  participant C as Commands
+  Note over S,C: 1. Virtual subsystems, before the scheduler
+  S->>S: derive facts from<br/>last loop's inputs, log
+  V->>S: offer accepted<br/>observations
+  Note over S,C: 2. Scheduler: subsystem periodic()
+  D->>D: update odometry
+  D->>S: drain the queue
+  S-->>D: observations
+  D->>D: one addVisionMeasurement<br/>per observation
+  D->>S: new pose and velocity
+  E->>S: possession
+  Note over S,C: 3. Scheduler: commands and triggers
+  C->>S: read derived facts
+```
 
 The [Why State Machines](/frc/why-state-machines) lesson explains where a full state-driven
 superstructure would take this next. Badge 2 stops before it: the object derives facts, and commands
@@ -162,7 +221,7 @@ the routine instead.
 
 | # | Work | Lesson | Done when |
 |---|---|---|---|
-| 12.1 | A `VirtualSubsystem` | [VirtualSubsystem](/frc/virtual-subsystem#writing-one) | `BobotState extends` the `VirtualSubsystem` base class from Step 12, is constructed once with no arguments before `Vision`, and its `periodic()` runs every loop before the vision subsystem and the command scheduler's subsystems |
+| 12.1 | A `VirtualSubsystem` | [VirtualSubsystem](/frc/virtual-subsystem#writing-one) | `BobotState extends` the `VirtualSubsystem` base class from Step 12, is constructed once with no arguments before `AprilTagVision`, and its `periodic()` runs every loop before the vision subsystem and the command scheduler's subsystems |
 | 12.2 | Pose and velocity in | [BobotState](/frc/bobot-state#the-flow-through-one-loop) | The drivetrain writes the estimated pose and velocity into `BobotState`; no other class writes them |
 | 12.3 | Observations in | [BobotState](/frc/bobot-state#the-flow-through-one-loop) | Accepted Step 12 observations are offered to the queue `BobotState` owns through a `BobotState` method; only the drivetrain drains it |
 | 12.4 | One target calculation | [VARC](/frc/varc#writing-one) | A distance or transform to a fixed target is recomputed every loop from the current pose and logged |

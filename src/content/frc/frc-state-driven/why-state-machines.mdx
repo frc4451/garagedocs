@@ -145,6 +145,22 @@ driver.rightBumper()
     .onFalse(Commands.runOnce(() -> intake.setWantedState(WantedState.IDLE)));
 ```
 
+Drawn as a diagram, `handleStateTransition()` gives these moves between `SystemState` values:
+
+```mermaid
+stateDiagram-v2
+  accTitle: Intake SystemState transitions
+  accDescr: IDLE moves to INTAKING when INTAKE is wanted. INTAKING moves to HOLDING when the beam break sees a piece, or back to IDLE when IDLE or FEED is wanted. HOLDING moves to FEEDING when FEED is wanted. FEEDING moves to IDLE once the piece is gone, or back to HOLDING when IDLE is wanted while the piece is still there.
+  direction LR
+  [*] --> IDLE
+  IDLE --> INTAKING : wanted INTAKE
+  INTAKING --> HOLDING : piece seen
+  INTAKING --> IDLE : wanted IDLE or FEED
+  HOLDING --> FEEDING : wanted FEED
+  FEEDING --> IDLE : piece gone
+  FEEDING --> HOLDING : wanted IDLE
+```
+
 Both versions do the same thing. The difference is where the truth lives. In the trigger version,
 "is the intake holding a piece" is an answer you assemble from which commands are scheduled and what
 `hasPiece()` returns right now. In the state version, `Intake/SystemState` is a single logged value

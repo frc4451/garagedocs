@@ -63,10 +63,12 @@ successfully before registering the existing BLine routine in the same chooser.
 | 13.10 | Replay | [Log Replay](/frc/log-replay#replaying-a-match) | The saved log replays through the current code in `REPLAY` mode, including the component views rebuilt from recorded inputs, and a new output added during replay appears in the replayed log |
 
 The template builds its chooser from `AutoBuilder.buildAutoChooser()`, which lists the PathPlanner
-autos. Add the BLine routine as one more option with the chooser's `addOption` method. A command
-object can belong to only one composition: registering one object with `NamedCommands` and also
-placing it in the BLine sequence throws an error that names the composition. Keep a command factory
-when both followers need the same behavior. Call it separately for each API that takes a `Command`;
+autos. Add the BLine routine as one more option with the chooser's `addOption` method.
+`NamedCommands.registerCommand` stores the command object itself. Each time an auto uses that name,
+PathPlannerLib wraps the stored object in a new `FunctionalCommand` that calls its methods, so
+placing the same object in the BLine sequence raises no error. Both routines would still share one
+object and its internal state, such as the timer inside a `withTimeout`. Keep a command factory when
+both followers need the same behavior. Call it separately for each API that takes a `Command`;
 pass the factory itself only when the API asks for a `Supplier<Command>`. For example, this partial
 wiring uses the student's feed-parent factory:
 
@@ -129,6 +131,31 @@ model through its one owner, and appears in the next loop's inputs. The student 
 configuration uses general WPILib control, a CTRE roller device simulation or the CTRE pivot
 comparison.
 
+The diagram draws the chain with its last arrow closing the loop. The student still names the
+file for each arrow.
+
+```mermaid
+flowchart TB
+  accTitle: Capstone data flow as a loop
+  accDescr: Simulated hardware produces IO inputs, which feed a component or subsystem. That leads to pose and vision observations, which BobotState turns into derived facts. A command decision uses those facts and sends an IO request. The selected simulation IO advances its physics model, which changes the simulation state, and that state appears in the next loop's IO inputs.
+  hw["Simulated hardware"]
+  io["IO inputs"]
+  comp["Component or subsystem"]
+  obs["Pose and<br/>vision observations"]
+  facts["BobotState<br/>derived facts"]
+  dec["Command decision"]
+  req["IO request"]
+  sim["Simulation state"]
+  hw --> io
+  io --> comp
+  comp --> obs
+  obs --> facts
+  facts --> dec
+  dec --> req
+  req -->|"selected simulation IO<br/>advances its physics model"| sim
+  sim -->|"next loop's inputs"| io
+```
+
 ## Badge Check
 
 <StepsBox title="Capstone Badge Check">
@@ -138,11 +165,11 @@ comparison.
    and the routine runs to a stop. AdvantageScope shows the path, the mechanism actions, the camera
    observations and the derived state on one timeline.
 3. The student selects the BLine routine and runs it the same way, without touching source.
-4. The student demonstrates a timeout and a cancellation while the simulated robot remains enabled,
-   then the mentor repeats the interruption by disabling. The drivetrain stops, every mechanism
-   enters its documented safe state, and no action remains scheduled. Run the routine again to show
-   that event flags and commands did not leak from the previous run. The student identifies each
-   outcome in the log.
+4. The student demonstrates a cancellation while the simulated robot remains enabled, then the
+   mentor repeats the interruption by disabling. The drivetrain stops, every mechanism enters its
+   documented safe state, and no action remains scheduled. Run the routine again to show that event
+   flags and commands did not leak from the previous run. The student identifies each outcome in the
+   log.
 5. The student walks the data-flow chain above from one simulated encoder to the sim state, naming
    the file at each arrow.
 6. The student identifies the selected mechanism simulation configuration and explains why replay
@@ -162,6 +189,8 @@ comparison.
   {"source": "advantagekit-templates", "path": "talonfx_swerve/src/main/java/frc/robot/RobotContainer.java", "note": "The <code>LoggedDashboardChooser</code> the capstone's chooser extends."},
   {"source": "wpilib", "path": "docs/software/wpilib-tools/robot-simulation/simulation-gui.html", "note": "Enabling autonomous and disabling the robot from the Sim GUI."},
   {"source": "wpilib", "path": "docs/software/commandbased/command-compositions.html", "note": "End and interruption behavior of a composed routine, and the rule that a command instance in one composition cannot be added to another."},
+  {"url": "https://github.com/mjansen4857/pathplanner/blob/v2026.1.2/pathplannerlib/src/main/java/com/pathplanner/lib/auto/NamedCommands.java", "label": "PathPlannerLib NamedCommands.java (v2026.1.2)", "note": "<code>registerCommand</code> stores the object; <code>getCommand</code> wraps it each time an auto uses the name."},
+  {"url": "https://github.com/mjansen4857/pathplanner/blob/v2026.1.2/pathplannerlib/src/main/java/com/pathplanner/lib/auto/CommandUtil.java", "label": "PathPlannerLib CommandUtil.java (v2026.1.2)", "note": "<code>wrappedEventCommand</code> builds a <code>FunctionalCommand</code> that calls the stored object's methods."},
   {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Commands.html", "note": "<code>Commands.either</code>, used to let a derived fact choose inside the routine."},
   {"source": "wpilib-javadoc", "path": "edu/wpi/first/wpilibj2/command/Command.html", "note": "<code>onlyIf</code>, used to skip a command when a derived fact is false."},
   {"source": "advantagescope", "path": "tab-reference/2d-field", "note": "The field view for the planned and measured poses."},

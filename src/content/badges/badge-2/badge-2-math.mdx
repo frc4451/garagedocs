@@ -49,6 +49,19 @@ introduce the 3D transform chain, acceptance predicates, and residuals. The iden
 existing evidence remains recognizable. These rows are required before AprilTag implementation,
 rather than a prerequisite for the first path.
 
+The two stages fall on either side of Step 11.
+
+```mermaid
+flowchart TB
+  accTitle: Step 10 completed in two stages
+  accDescr: In the first stage of Step 10, the student completes rows 9.1 to 9.5 and 9.11, which cover 2D frames, transformations and measured odometry, and the mentor signs those checks. The student then completes Step 11, Path Following. At the start of Step 12, the student completes the second stage, rows 9.6 to 9.10 and 9.12, which cover the 3D transform chain, acceptance predicates and residuals, and the mentor signs the camera checks. AprilTag implementation in Step 12 follows.
+  s1["Step 10, first stage<br/>Rows 9.1 to 9.5 and 9.11:<br/>2D frames, transforms,<br/>measured odometry.<br/>Mentor signs."]
+  s11["Step 11:<br/>Path Following"]
+  s2["Start of Step 12, second stage<br/>Rows 9.6 to 9.10 and 9.12:<br/>3D chain, predicates,<br/>residuals.<br/>Mentor signs."]
+  impl["Step 12 AprilTag<br/>implementation"]
+  s1 --> s11 --> s2 --> impl
+```
+
 ## Vision Worksheet
 
 Use the [Vision Worksheet (PDF)](/documents/badges/badge-2/badge-2-vision-worksheet.pdf)
@@ -224,6 +237,28 @@ library classes and reads the numbers:
    odometry result and can apply timestamped vision corrections.
 6. The vision filter compares a new observation with the reference pose by subtracting translations
    and measuring the residual vector.
+
+The vision filter reads its reference pose from the estimator and returns accepted observations
+to it.
+
+```mermaid
+flowchart TB
+  accTitle: From encoders to an estimated pose
+  accDescr: Encoders measure wheel or module motion, and kinematics converts it into robot motion. The odometry update, DifferentialDriveOdometry or SwerveDriveOdometry, combines that motion with the gyro heading into a new Pose2d. The pose estimator starts from that odometry result. A vision observation goes to the vision filter, which compares it with the reference pose from the estimator by subtracting translations and measuring the residual. The estimator applies accepted observations as timestamped vision corrections.
+  enc["Encoders:<br/>wheel or module motion"]
+  gyro["Gyro:<br/>heading"]
+  kin["Kinematics:<br/>robot motion"]
+  odo["Odometry update<br/>DifferentialDriveOdometry or<br/>SwerveDriveOdometry:<br/>new Pose2d"]
+  est["Pose estimator<br/>starts from odometry"]
+  obs["Vision<br/>observation"]
+  filt["Vision filter:<br/>residual against<br/>the reference pose"]
+  enc --> kin --> odo
+  gyro --> odo
+  odo --> est
+  obs --> filt
+  est -->|"reference pose"| filt
+  filt -->|"accepted,<br/>timestamped"| est
+```
 
 Students use WPILib's tested geometry, kinematics, odometry and estimator classes. The vector work
 explains the values moving through those APIs and helps the student catch a frame, sign or unit

@@ -30,6 +30,22 @@ Each parent owns plain components, calls each component's `periodic()` once, ass
 and creates commands that require only that parent. Interlocks stay inside the parent. A controller
 chooses an action; it does not own the motor control or bypass the parent's interlocks.
 
+CobraIntake shows the pattern the other two parents repeat with more components:
+
+```mermaid
+flowchart TB
+  accTitle: CobraIntake owns its components and commands
+  accDescr: RobotContainer selects the simulation IO and passes a PivotIO and a RollerIO into CobraIntake, which extends SubsystemBase. CobraIntake builds and owns a Pivot and a Roller and calls each one's periodic once per loop. It passes measured values and active goals to CobraIntakeMechanism, and creates the commands, each of which requires only CobraIntake. RobotContainer binds those commands to port 0 buttons.
+  rc["RobotContainer<br/>selects IO"]
+  intake["CobraIntake<br/>SubsystemBase"]
+  rc -->|"PivotIO, RollerIO"| intake
+  intake -->|"owns, periodic() once"| pivot["Pivot"]
+  intake -->|"owns, periodic() once"| roller["Roller"]
+  intake -->|"measured values, goals"| viz["CobraIntakeMechanism"]
+  intake -->|"creates"| cmd["Commands<br/>require CobraIntake only"]
+  rc -->|"binds port 0 buttons"| cmd
+```
+
 ## Prepare Badge2Swerve
 
 Copy the Step 8 reusable component library, general simulation IO, configuration records, 2D
@@ -44,6 +60,22 @@ loop. Keep display constants and named states in each parent's constants file. R
 belong in `org.robotzgarage.frc2027.mechanisms.visualizations`. Construct IO explicitly in the
 mode branches; a separate mechanism factory is not needed. The parents construct their plain
 components from that IO.
+
+What moves to `Badge2Swerve`, what stays behind, and how the IO reaches the parents:
+
+```mermaid
+flowchart TB
+  accTitle: What Badge2Swerve takes from Badge2Bench
+  accDescr: Badge2Swerve copies the component library with its configuration records and tests, the general simulation IO, the 2D visualization helpers and the student controller from Badge2Bench. Vendor IO and the fixture configuration stay in Badge2Bench. In Badge2Swerve, RobotContainer picks IO by mode. In SIM it constructs the general simulation IO and registers each load once with the shared SimBattery. In REPLAY it uses empty IO and the inputs come from the log. Either way it passes the IO into the parents, which build their plain components from it.
+  bench["Badge2Bench"]
+  bench -->|"copy"| copied["Components and tests<br/>Config records<br/>General simulation IO<br/>2D helpers<br/>Student controller"]
+  bench -.->|"stays in Bench"| stays["Vendor IO,<br/>fixture configuration"]
+  copied --> mode{"Badge2Swerve<br/>RobotContainer mode"}
+  mode -->|"SIM"| sim["General simulation IO,<br/>each load registered<br/>once with SimBattery"]
+  mode -->|"REPLAY"| replay["Empty IO,<br/>inputs from the log"]
+  sim --> parents["Parents build their<br/>plain components from IO"]
+  replay --> parents
+```
 
 Build and test each superstructure's behavior first, then add its local visualizer in the same
 folder. The visualizer constructs the reusable Step 8 views and records their outputs. It receives
@@ -80,6 +112,36 @@ Find the parent's component fields, its calls to both components' `periodic()`, 
 factories. This is the ownership pattern used for the required elevator assembly and
 pivoting-shooter work: one parent coordinates plain components and owns the command requirement.
 
+Cobra's classes, as they stand in `Intake.java` and the library. Badge 2 keeps the shape and swaps
+`Flywheel` for the student's `Roller`:
+
+```mermaid
+classDiagram
+  accTitle: Cobra2026 Intake and its library components
+  accDescr: Cobra2026's Intake extends SubsystemBase. It owns a Pivot named endeffector and a Flywheel named rollers, names its pivot positions in the EndeffectorState enum with STARTING, DEPLOYED, LIFTED and SQUEEZE, and calls both components' periodic from its own. Pivot and Flywheel both extend SingleRoller, a plain class that extends nothing.
+  direction TB
+  class Intake {
+    <<SubsystemBase>>
+    +periodic()
+    command factories
+  }
+  class EndeffectorState {
+    <<enumeration>>
+    STARTING
+    DEPLOYED
+    LIFTED
+    SQUEEZE
+  }
+  class SingleRoller {
+    plain class
+  }
+  Intake *-- Pivot : endeffector
+  Intake *-- Flywheel : rollers
+  Intake ..> EndeffectorState : names positions
+  Pivot --|> SingleRoller
+  Flywheel --|> SingleRoller
+```
+
 Cobra's intake is a pivot-and-roller example, not the required elevator/conveyor clearance solution.
 Use its structure while implementing the lesson's measured-position interlocks and voltage requests.
 Start with the CobraIntake exercise below, then apply that ownership pattern to Ember and Riptide.
@@ -110,6 +172,38 @@ Required behavior:
 - A command that stops the roller and stows the pivot.
 - Completion based on the measured pivot angle through `atGoal`, not on a timer.
 - One requirement, the parent `CobraIntake`, on every command.
+
+The required behavior as states, with the port 0 buttons from
+[Bind the Composed Subsystems](#bind-the-composed-subsystems). The roller waits for the measured
+angle in both directions:
+
+```mermaid
+stateDiagram-v2
+  accTitle: CobraIntake states
+  accDescr: CobraIntake rests in Stow, with the pivot held at STOWED and the roller stopped. The left bumper moves it to Deploying, where the roller stays stopped and the pivot moves to INTAKE; when the pivot's atGoal reports the measured angle it moves to Intaking and the roller runs at the intake voltage. The right bumper moves it to Moving to Eject, where the pivot moves to EJECT before the roller runs; at atGoal it moves to Ejecting and the roller runs at the eject voltage. Releasing the bumper, or pressing Y, returns it to Stow from any state.
+  state "Stow" as Stow
+  state "Deploying" as Deploying
+  state "Intaking" as Intaking
+  state "Moving to Eject" as ToEject
+  state "Ejecting" as Ejecting
+  [*] --> Stow
+  Stow : Pivot to STOWED
+  Stow : Roller stopped
+  Stow : Release or Y returns here
+  Stow : from any state
+  Stow --> Deploying : left bumper
+  Deploying : Roller stopped
+  Deploying : Pivot to INTAKE
+  Deploying --> Intaking : pivot atGoal
+  Intaking : Roller at intake voltage
+  Intaking --> Stow : release
+  Stow --> ToEject : right bumper
+  ToEject : Roller waits
+  ToEject : Pivot to EJECT
+  ToEject --> Ejecting : pivot atGoal
+  Ejecting : Roller at eject voltage
+  Ejecting --> Stow : release
+```
 
 ## 2. Build EmberSuperStructure
 
@@ -166,6 +260,43 @@ its shoot command rather than competing commands with the same requirement.
    and flywheel and retain the pivot's accepted angle goal while enabled. On disable, all actuator
    effort stops; this does not guarantee the model holds against gravity.
 
+The same behaviors as a state diagram. The feeder runs in only two places: in Acquire until a
+piece is reported, and in Feeding while every shot condition holds.
+
+```mermaid
+stateDiagram-v2
+  accTitle: EmberSuperStructure commands and the feed gate
+  accDescr: The superstructure starts in Idle, where the feeder and flywheel are stopped and the pivot keeps its accepted goal. An acquire request moves to Acquire, where the pivot goes to the loading angle, the flywheel stays stopped and the feeder runs while the possession input is valid; when a valid input reports a piece it returns to Idle. An aim request for NEAR or FAR moves to Aim and Spin, which requests the preset angle and speed and keeps the feeder stopped even when ready. A shoot request for NEAR or FAR moves to Shoot: Aiming, with the preset goals held, the feeder stopped and the missing condition logged. When possession is valid and present and the measured angle and speed are within tolerance, it moves to Shoot: Feeding and the feeder runs. Losing angle, speed or input validity returns it to Shoot: Aiming. When the piece leaves, it returns to Idle. Every command returns to Idle on release or interruption.
+  state "Idle" as Idle
+  state "Acquire" as Acquire
+  state "Aim and Spin" as Aim
+  state "Shoot: Aiming" as Aiming
+  state "Shoot: Feeding" as Feeding
+  [*] --> Idle
+  Idle : Feeder and flywheel stopped
+  Idle : Pivot keeps its accepted goal
+  Idle : Every command returns here
+  Idle : on release or interruption
+  Idle --> Acquire : acquire
+  Acquire : Pivot at loading angle
+  Acquire : Flywheel stopped
+  Acquire : Feeder runs while input valid
+  Acquire : Ends when a piece is reported
+  Acquire --> Idle
+  Idle --> Aim : aim NEAR or FAR
+  Aim : Preset angle and speed
+  Aim : Feeder stopped, even ready
+  Idle --> Aiming : shoot NEAR or FAR
+  Aiming : Preset goals held
+  Aiming : Feeder stopped
+  Aiming : Logs the missing condition
+  Aiming --> Feeding : piece, angle, speed ready
+  Feeding : Feeder runs
+  Feeding : Back to aiming if any is lost
+  Feeding --> Aiming
+  Feeding --> Idle : piece leaves
+```
+
 The test sequence is: acquire a piece, request a preset, observe aim and spin-up, shoot once ready,
 and observe the possession input clear. Repeat for the second preset. Also try shooting with no
 piece, invalid possession, an off-target pivot and an underspeed flywheel. Each refusal should log
@@ -197,6 +328,25 @@ Required interlocks:
 "Stops safely" means the component keeps or returns to a defined goal and the conveyor is stopped;
 it does not mean the subsystem throws an exception or leaves a goal half-applied.
 
+Each request passes one check inside the parent before anything reaches a component. Every check
+reads measured state, never the goal that was requested. A refusal stops safely, as defined above,
+and its log entry or `Alert` names the request and the interlock:
+
+```mermaid
+flowchart LR
+  accTitle: RiptideSuperStructure interlock checks
+  accDescr: A request to RiptideSuperStructure takes one of three paths. A pivot goal away from the starting angle is accepted only if the elevator is measured above the clearance height. An elevator goal below the clearance height is accepted only if the pivot is measured at its starting angle. A conveyor request runs only while the measured height and angle match one of the two approved pairs within tolerance, and the parent rechecks that every loop and stops the conveyor if the pair is lost. An accepted pivot or elevator goal goes to its component. Each check that fails refuses the request and logs it.
+  pivotReq["Pivot goal<br/>away from start"] --> c1{"Elevator measured<br/>above clearance?"}
+  c1 -->|"yes"| pivotOk["Pivot goal sent"]
+  c1 -->|"no"| refuse1["Refused and logged"]
+  elevReq["Elevator goal<br/>below clearance"] --> c2{"Pivot measured<br/>at start?"}
+  c2 -->|"yes"| elevOk["Elevator goal sent"]
+  c2 -->|"no"| refuse2["Refused and logged"]
+  convReq["Run conveyor"] --> c3{"Height and angle at<br/>an approved pair?"}
+  c3 -->|"yes"| run["Conveyor runs; stops<br/>if a loop finds<br/>the pair lost"]
+  c3 -->|"no"| refuse3["Refused and logged"]
+```
+
 The interlock tests (rows 8.5 and 8.6) construct each parent with the general WPILib simulation IO
 from Step 8. Those models advance one fixed step each time `scheduler.run()` calls the parent's
 `periodic()`, and `SimHooks.stepTiming` controls the command timing, so the test decides exactly how
@@ -223,6 +373,39 @@ home waits for the pivot before lowering. Use those constants when reproducing t
 | Convey | Allow conveyor effort while the approved pair remains measured. | Stop conveyor immediately if either measurement leaves tolerance. |
 | Return Pivot | Stop conveyor; keep elevator at or above staging; request the starting angle. | Pivot is within the starting-angle tolerance. |
 | Lower | Keep pivot at its start; lower to `STOWED`. | Both measurements match `STOWED`. |
+
+The same phases as a state diagram. Every arrow out of a phase is a measured condition or a driver
+request:
+
+```mermaid
+stateDiagram-v2
+  accTitle: Riptide clearance move to SCORE_LOW and back
+  accDescr: The move starts in Raise, where the pivot holds its starting angle, the elevator rises to the 0.35 m staging height and the conveyor is stopped. When the measured height is above the 0.30 m clearance and at staging, it moves to Position, where the elevator stays above clearance while the pivot and elevator move to SCORE_LOW. With both measurements at SCORE_LOW, a convey request moves it to Convey, where the conveyor runs. If either measurement leaves tolerance, the conveyor stops and the move returns to Position. A stow request from Position or Convey moves to Return Pivot, where the conveyor is stopped, the elevator stays at or above staging and the pivot returns to its starting angle. When the pivot is within the starting-angle tolerance, Lower holds the pivot at its start and lowers the elevator to STOWED at 0.10 m. The move ends when both measurements match STOWED.
+  state "Raise" as Raise
+  state "Position" as Position
+  state "Convey" as Convey
+  state "Return Pivot" as ReturnPivot
+  state "Lower" as Lower
+  [*] --> Raise : scoreLowCommand()
+  Raise : Pivot held at start
+  Raise : Elevator to staging, 0.35 m
+  Raise : Conveyor stopped
+  Raise --> Position : height above 0.30 m, at staging
+  Position : Elevator held above clearance
+  Position : Pivot and elevator to SCORE_LOW
+  Position --> Convey : convey request, both at SCORE_LOW
+  Convey : Conveyor runs
+  Convey --> Position : a measurement leaves tolerance
+  Position --> ReturnPivot : stow request
+  Convey --> ReturnPivot : stow request
+  ReturnPivot : Conveyor stopped
+  ReturnPivot : Elevator at or above staging
+  ReturnPivot : Pivot to starting angle
+  ReturnPivot --> Lower : pivot within start tolerance
+  Lower : Pivot held at start
+  Lower : Elevator to STOWED, 0.10 m
+  Lower --> [*] : both match STOWED
+```
 
 A `Trigger` is a Boolean condition the scheduler can read repeatedly.
 [Riptide's `isAtMode()`](https://github.com/frc4451/Riptide2025/blob/main/src/main/java/frc/robot/subsystems/superstructure/SuperStructure.java)
@@ -289,6 +472,24 @@ once, evaluates its interlocks, then calls its visualizer's `update()` with proc
 and active goals. The visualizer updates the views and calls `Logger.recordOutput` for each one.
 It never calls component `periodic()`, advances simulation, or changes a motor request.
 
+For Riptide, one loop runs in this order:
+
+```mermaid
+flowchart TB
+  accTitle: One loop of the Riptide visualizer
+  accDescr: RiptideSuperStructure's periodic first calls periodic once on the elevator, pivot and conveyor, then checks its interlocks, then passes the processed measurements and active goals to RiptideSuperStructureMechanism's update. The visualizer updates three reusable views and records each one: ElevatorMechanism shows measured height and the goal when one is active and logs to Lift/Elevator/Mechanism2d; PivotMechanism shows measured angle and the goal when one is active and logs to Lift/Pivot/Mechanism2d; RollerMechanism shows measured speed with no goal and logs to Lift/Conveyor/Mechanism2d.
+  p["RiptideSuperStructure.periodic()"]
+  p -->|"1"| comps["elevator, pivot, conveyor:<br/>periodic() once each"]
+  comps -->|"2"| inter["Interlocks checked"]
+  inter -->|"3: measurements, active goals"| viz["RiptideSuperStructureMechanism<br/>update()"]
+  viz --> ev["ElevatorMechanism<br/>measured height,<br/>goal if active"]
+  viz --> pv["PivotMechanism<br/>measured angle,<br/>goal if active"]
+  viz --> rv["RollerMechanism<br/>measured speed,<br/>no goal"]
+  ev -->|"recordOutput"| l1["Lift/Elevator/<br/>Mechanism2d"]
+  pv -->|"recordOutput"| l2["Lift/Pivot/<br/>Mechanism2d"]
+  rv -->|"recordOutput"| l3["Lift/Conveyor/<br/>Mechanism2d"]
+```
+
 For example, these members belong in `CobraIntake`; the visualizer implementation lives alongside
 it:
 
@@ -338,6 +539,25 @@ Use three instances of the student controller class and keep one binding method 
 | 2: Riptide | X / Y / B | LOW_SCORE / HIGH_SCORE / STOWED. |
 | 2 | Right bumper | Run the conveyor only at an approved measured pair. |
 | 2 | POV left / POV down | Request a pivot move / low elevator move to exercise the clearance refusals. |
+
+Port 0's drive bindings keep the template's `DriveCommands`, which deadband and square the sticks
+themselves, until
+[Step 11 moves that shaping into the controller class](/badges/badge-2-path-following#drive-with-the-controller).
+Until then, pass the drive commands the unprocessed axes from `getHID()`, so each stick is shaped
+once.
+
+Each port reaches one parent, and port 0 also drives. Because every command requires only the
+subsystem it reaches, driving and intaking from port 0 can run at the same time:
+
+```mermaid
+flowchart LR
+  accTitle: Which controller port reaches which subsystem
+  accDescr: Port 0 drives the drive base with the sticks and A, B and X, and operates CobraIntake with the bumpers and Y. Port 1 operates EmberSuperStructure with the left bumper, POV up and right, and the triggers. Port 2 operates RiptideSuperStructure with X, Y and B, the right bumper, and POV left and down.
+  p0["Port 0"] -->|"sticks, A, B, X"| drive["Drive base"]
+  p0 -->|"bumpers, Y"| cobra["CobraIntake"]
+  p1["Port 1"] -->|"left bumper,<br/>POV, triggers"| ember["EmberSuperStructure"]
+  p2["Port 2"] -->|"X, Y, B, right<br/>bumper, POV"| riptide["RiptideSuperStructure"]
+```
 
 For simulation with one gamepad, move its Driver Station assignment to the port for the assembly
 being tested. Keep the other ports neutral. Changing ports selects controls; it does not select a

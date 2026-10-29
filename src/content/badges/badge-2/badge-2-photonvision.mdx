@@ -112,6 +112,52 @@ record in `VisionConstants`: camera name and mounting transform. Both example ca
 `VisionConstants.simStreamsEnabled` directly to compare rendering costs. The named predicates read
 acceptance limits directly from `VisionConstants`.
 
+Which class owns which, and where the simulation IO inherits the real one:
+
+```mermaid
+classDiagram
+  accTitle: Badge 2 vision classes
+  accDescr: AprilTagVision extends VirtualSubsystem and owns one AprilTagCamera record per camera. Each AprilTagCamera groups the camera's AprilTagIO, its AprilTagIOInputsAutoLogged, its CameraConfig and its disconnect alert. CameraConfig is a record with the camera name and mounting transform. AprilTagIO is the data contract, with @AutoLog inputs carrying Observation and RejectedObservation arrays and a default updateInputs. AprilTagIOPhoton implements AprilTagIO and owns a PhotonCamera, a PhotonPoseEstimator, the robotToCamera transform and the field layout. AprilTagIOPhotonSim extends AprilTagIOPhoton and adds the camera to a VisionSystemSim.
+  direction TB
+  class AprilTagVision {
+    periodic()
+  }
+  class AprilTagCamera {
+    <<record>>
+    IO
+    AprilTagIOInputsAutoLogged
+    CameraConfig
+    disconnect alert
+  }
+  class CameraConfig {
+    <<record>>
+    camera name
+    mounting transform
+  }
+  class AprilTagIO {
+    <<interface>>
+    @AutoLog inputs
+    Observation[]
+    RejectedObservation[]
+    default updateInputs()
+  }
+  class AprilTagIOPhoton {
+    PhotonCamera
+    PhotonPoseEstimator
+    robotToCamera
+    field layout
+  }
+  class AprilTagIOPhotonSim {
+    joins VisionSystemSim
+  }
+  AprilTagVision --|> VirtualSubsystem
+  AprilTagVision *-- AprilTagCamera : one per camera
+  AprilTagCamera o-- AprilTagIO
+  AprilTagCamera o-- CameraConfig
+  AprilTagIOPhoton ..|> AprilTagIO
+  AprilTagIOPhotonSim --|> AprilTagIOPhoton
+```
+
 In this badge, `RobotContainer` explicitly constructs the REAL, SIM, or REPLAY IO, wraps it in an
 `AprilTagCamera`, and passes the camera list to `AprilTagVision`. Pass `BobotState::getFieldToRobot`
 as the pose supplier and `BobotState::offerVisionObservation` as the observation consumer. Cobra
@@ -167,6 +213,39 @@ camera world with the pose supplied by `BobotState`.
 The drivetrain's `periodic()` runs later in the same loop and drains the observations vision just
 offered. [Step 13](/badges/badge-2-robot-state) makes `BobotState` a `VirtualSubsystem` too.
 
+The calls in one robot loop, in order, from the camera read to the drivetrain's pose update:
+
+```mermaid
+---
+config:
+  sequence:
+    actorMargin: 24
+    width: 110
+    messageFontSize: 14
+    mirrorActors: false
+---
+sequenceDiagram
+  accTitle: One robot loop with vision first
+  accDescr: In Robot.robotPeriodic, VirtualSubsystem.periodicAll runs AprilTagVision's periodic before the command scheduler. AprilTagVision calls updateInputs on each camera's IO, which fills the accepted and rejected arrays, then calls Logger.processInputs, which records them on the robot and restores them during replay. AprilTagVision offers each accepted observation to the BobotState queue. The command scheduler then runs Drive's periodic, which updates odometry, drains the BobotState queue, calls addVisionMeasurement once per observation and writes its estimated pose back into BobotState.
+  participant R as Robot
+  participant V as AprilTagVision
+  participant IO as AprilTagIOPhoton
+  participant B as BobotState
+  participant D as Drive
+  R->>V: periodicAll()
+  V->>IO: updateInputs()
+  IO-->>V: accepted, rejected
+  V->>V: processInputs()
+  Note over V: replay restores
+  V->>B: offer accepted
+  R->>D: scheduler run()
+  D->>D: odometry update
+  D->>B: drain queue
+  B-->>D: observations
+  D->>D: addVisionMeasurement
+  D->>B: write pose
+```
+
 ### Filter and Residual
 
 The rejection code names each predicate (`hasTags`, `ambiguityOk`, `onField`, `onFloor`,
@@ -180,6 +259,26 @@ together have proved reliable enough in practice, and their distance still raise
 Uncertainty selection is a separate stage after acceptance: the filter decides whether an
 observation enters the estimator, and the standard deviations decide how much an accepted one moves
 the pose. The student can explain both stages and point at the code for each.
+
+Each unread result from one camera takes this path through `AprilTagIOPhoton`.
+
+```mermaid
+flowchart TB
+  accTitle: One camera result through AprilTagIOPhoton
+  accDescr: Each loop, AprilTagIOPhoton reads every unread result once with getAllUnreadResults, and each result keeps its own timestamp. PhotonPoseEstimator returns an Optional. When it is empty, the result supplies no pose and no observation. When a pose is present, the six named predicates are checked. If any is false, a RejectedObservation records the first failed predicate and the residual in the RejectedObservation array. If every predicate is true, standard deviations are chosen from tag count and distance, and an Observation with its residual and standard deviations goes into the Observation array.
+  read["getAllUnreadResults()<br/>once per loop; each result<br/>keeps its own timestamp"]
+  est{"Pose<br/>present?"}
+  none["Empty Optional:<br/>no pose,<br/>no observation"]
+  pred{"Every<br/>predicate<br/>true?"}
+  rej["RejectedObservation[]:<br/>first failed predicate,<br/>residual"]
+  sd["Standard deviations<br/>from tag count<br/>and distance"]
+  acc["Observation[]:<br/>residual,<br/>standard deviations"]
+  read -->|"PhotonPoseEstimator<br/>returns an Optional"| est
+  est -->|"no"| none
+  est -->|"yes"| pred
+  pred -->|"no"| rej
+  pred -->|"yes"| sd --> acc
+```
 
 Track the last processed timestamp separately in each camera IO. Use the estimator's time base for
 age checks, not wall-clock time. A newer frame can advance that camera's timestamp even if a
@@ -216,6 +315,25 @@ Because the simulated cameras render the field from the estimated pose, the simu
 transforms, filtering, logging and the estimator connection. It cannot show vision correcting a
 wrong estimate: resetting the estimate moves the simulated cameras with it, and their observations
 agree with the wrong pose. That correction is checked on the robot.
+
+The simulated cameras start from the same estimate they report on, so their observations close a
+loop.
+
+```mermaid
+flowchart TB
+  accTitle: Why simulation cannot correct a wrong estimate
+  accDescr: BobotState holds the estimated pose. Every loop that pose is passed to VisionSystemSim.update, so the simulated world places the robot, and each camera at its robotToCamera transform, at the estimated pose. PhotonCameraSim renders the tags from there. The real AprilTagIOPhoton code, with the same estimator, transform and filter, turns those frames into observations that agree with the estimate. Drive's pose estimator applies the accepted observations and writes the estimated pose back into BobotState, so a wrong estimate stays wrong.
+  bs["BobotState<br/>estimated pose"]
+  world["VisionSystemSim<br/>field tags, cameras<br/>at robotToCamera"]
+  camsim["PhotonCameraSim<br/>renders tags from<br/>the estimated pose"]
+  io["AprilTagIOPhoton code:<br/>same estimator,<br/>transform and filter"]
+  drive["Drive<br/>pose estimator"]
+  bs -->|"update(pose)<br/>every loop"| world
+  world --> camsim
+  camsim -->|"observations agree<br/>with the estimate"| io
+  io -->|"accepted<br/>observations"| drive
+  drive -->|"writes estimated pose"| bs
+```
 
 A **low-resource option** is required: a configuration flag that calls `enableRawStream(false)` and
 `enableProcessedStream(false)` (PhotonLib enables both streams by default) and leaves the wireframe
