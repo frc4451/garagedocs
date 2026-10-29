@@ -93,6 +93,32 @@ Until the commissioning record's possession values are reviewed and entered, the
 input must report invalid. The readiness policy built later in [Step 9](/badges/badge-3-states)
 refuses to feed on an invalid reading.
 
+```mermaid
+flowchart TB
+  accTitle: The CANrange presence IO boundary
+  accDescr: The CANrange reports detection, distance, signal strength, measurement health and measurement time as status signals, which the IO refreshes together while keeping each signal's status. The detection rule comes from one of two places, recorded with its reason: the device's ProximityParamsConfigs behind getIsDetected(), or a threshold and hysteresis the IO applies to getDistance() in software. The IO's input record holds connection and status, measurement validity, distance converted from meters to inches, the detection result, and a sample age computed from the StatusSignal timestamps rather than from getMeasurementTime(). Presence has three outcomes: present, absent and invalid. An invalid reading does not prove absence. Until the commissioning record's possession values are reviewed and entered, the REAL input reports invalid. Presence changes the roller in one stated way in this step, and the Step 9 readiness policy refuses to feed on an invalid reading.
+  dev["CANrange status signals<br/>getIsDetected,<br/>getDistance,<br/>getSignalStrength,<br/>getMeasurementHealth,<br/>getMeasurementTime"]
+  rule["Detection rule, recorded<br/>with its reason:<br/>device<br/>ProximityParamsConfigs<br/>or IO threshold and<br/>hysteresis<br/>on getDistance()"]
+  io["Presence IO inputs<br/>connection and status,<br/>validity, detection,<br/>distance in inches,<br/>sample age from<br/>StatusSignal timestamps"]
+  gate["REAL before the<br/>commissioning<br/>possession values<br/>are entered"]
+  p{"Presence"}
+  present["Present"]
+  absent["Absent"]
+  invalid["Invalid<br/>not proof of absence"]
+  roller["Roller: one stated<br/>behavior in this step"]
+  policy["Step 9 readiness policy<br/>refuses to feed"]
+  dev -->|"refreshed together,<br/>status kept per signal"| io
+  rule --> io
+  io --> p
+  gate -->|"always reports"| invalid
+  p --> present
+  p --> absent
+  p --> invalid
+  present --> roller
+  absent --> roller
+  invalid --> policy
+```
+
 ## Detect a Sustained Jam
 
 Cobra has no jam rule, but its rollers already log what one needs. The `SingleRollerIO` inputs
@@ -116,6 +142,19 @@ expires. Stop the roller, or use a justified limited hold: a reduced holding eff
 maximum and time limit, that keeps the game piece seated until an explicit ending condition stops
 the roller. Require an explicit reset before collection resumes. Automatic reversal or repeated
 retry is not required.
+
+```mermaid
+flowchart TB
+  accTitle: The jam rule's dwell timer and latch
+  accDescr: The rule starts clear. When collection is requested, the roller observations are valid, measured torque current is substantial and measured speed is low, the dwell timer runs. If any of those conditions stops holding, the timer resets and the rule returns to clear. If they hold for the whole dwell time, the rule latches a jam, and the owning subsystem stops the roller or applies a justified limited hold with a stated maximum, time limit and ending condition. Clearing the stall does not clear the latch. Only an explicit reset, made after collection is no longer requested, returns the rule to clear so a new collection command can start.
+  clear["Clear"]
+  timing["Timing<br/>dwell timer runs"]
+  latched["Latched<br/>roller stopped, or a<br/>justified limited hold;<br/>clearing the stall does<br/>not clear the latch"]
+  clear -->|"collection requested,<br/>observations valid,<br/>torque current<br/>substantial, speed low"| timing
+  timing -->|"any condition<br/>stops holding:<br/>timer resets"| clear
+  timing -->|"dwell time expires"| latched
+  latched -->|"explicit reset, made<br/>after collection is<br/>no longer requested"| clear
+```
 
 Derive the thresholds instead of copying them. Start from the normal-collection recordings saved in
 [Compare Output Modes](#compare-output-modes) and add a startup recording. Choose a current

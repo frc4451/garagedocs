@@ -93,6 +93,23 @@ Read Cobra's routine for three problems:
 
 Its `finallyDo` stops the motor on every exit; keep that part.
 
+Cobra's routine runs in this order, with the three problems marked:
+
+```mermaid
+flowchart TB
+  accTitle: Cobra's quasistatic routine as written
+  accDescr: FollowRollers.quasistaticCharacterization reads a snapshot of the feedforward and feedback configuration when the command object is built, which is problem 1. When the sequence runs, it zeroes both gain groups, clears the sample lists and restarts the timer, then enters a Commands.run that ramps the input with time, sends it through runVolts or runTorqueCurrent, and records a sample whenever measured speed is above a small threshold. That run ends only when it is cancelled. Its finallyDo stops the motor on every exit and fits kS and kV when at least two samples exist, without checking for a near-zero denominator, which is problem 3. The restoration of the snapshot is chained after it with andThen, so cancelling the sequence skips it and the zeroed gains stay applied, which is problem 2.
+  build["Command object built:<br/>snapshot of FeedForward<br/>and FeedBack read here<br/>(problem 1)"]
+  zero["Sequence starts:<br/>zero both gain groups"]
+  clear["Clear the samples,<br/>restart the timer"]
+  run["Commands.run: ramp the<br/>input with time through<br/>runVolts or<br/>runTorqueCurrent,<br/>record samples above<br/>a speed threshold;<br/>ends only when cancelled"]
+  fin["finallyDo:<br/>stop the motor,<br/>fit kS and kV from<br/>at least two samples,<br/>no denominator check<br/>(problem 3)"]
+  restore["andThen: restore the<br/>snapshot"]
+  build --> zero --> clear --> run
+  run -->|"cancelled"| fin
+  fin -.->|"skipped when the sequence<br/>is cancelled (problem 2)"| restore
+```
+
 Problems 1 and 2 matter only to a command that changes motor controller configuration. The ramp
 reaches the motor through `FollowRollersIOTalonFX.runVolts` or `runTorqueCurrent`. Read which
 control requests those send, then answer in the fork's README: does a `VoltageOut` or
@@ -104,6 +121,30 @@ Collect timestamp, requested and measured effort, speed, direction, and output m
 stationary samples from a moving-region fit and inspect acceleration and saturation. Fit voltage or
 current against speed using consistent units, require at least two distinct speeds, and reject a
 zero or near-zero regression denominator. Save the samples and the method used to select them.
+
+Together with the limits and permission rules above, those requirements give the adapted command
+this outline. The stop conditions and refusal reasons inside it are the student's to choose:
+
+```mermaid
+flowchart TB
+  accTitle: Outline of the adapted characterization command
+  accDescr: When the command starts, it captures the motor controller configuration if it will change any. Before any output, it checks the limits record, the fixture-permission supplier and the subsystem's connection check. If any check fails, it refuses, logs the refusal reason and sends no output. If all pass, it ramps effort, checks measurements before each output and collects samples until a stop condition the student defined or a cancellation. Every exit, including cancellation, sets output to zero, restores any captured configuration and logs the reason the command ended. The fit then needs at least two distinct speeds and a regression denominator that is not zero or near zero; otherwise the fit is rejected. The samples and the selection method are saved with an accepted fit.
+  start["Command starts:<br/>capture the configuration<br/>if the command changes it"]
+  check{"Limits record valid,<br/>fixture permission and<br/>connection check pass?"}
+  refuse["Refuse before any output,<br/>log the refusal reason"]
+  ramp["Ramp effort, check<br/>measurements<br/>before each output,<br/>collect samples"]
+  exit["Every exit, including<br/>cancellation:<br/>output to zero,<br/>restore any captured<br/>configuration,<br/>log the reason"]
+  fit{"At least two<br/>distinct speeds,<br/>denominator not<br/>near zero?"}
+  keep["Save the fit, the samples<br/>and the selection method"]
+  reject["Reject the fit"]
+  start --> check
+  check -->|"no"| refuse
+  check -->|"yes"| ramp
+  ramp -->|"stop condition<br/>or cancellation"| exit
+  exit --> fit
+  fit -->|"yes"| keep
+  fit -->|"no"| reject
+```
 
 Cobra also has `FollowRollers.steadyStateCharacterization`, which
 `Shooter.steadyStateCharacterization` exposes: it holds each of a series of fixed inputs, waits for
@@ -148,6 +189,25 @@ passes a changed group to `updateFeedBack` or `updateFeedForward`. The numbers a
 `Constants.tuningMode` is true.
 [Tunable Constants and Characterization](/frc/tunable-constants-and-characterization#the-tuning-loop)
 teaches the tuning loop and how to edit the numbers from AdvantageScope.
+
+In Cobra, a dashboard edit reaches the motor controllers along this path:
+
+```mermaid
+flowchart TB
+  accTitle: Cobra's live gain path for the flywheel
+  accDescr: FollowRollers builds one LoggedTunableNumber per gain, under name/FeedBack for kP, kI and kD and under name/FeedForward for kS, kG, kV and kA, each seeded from the controller's Slot 0. Dashboard values are live only while Constants.tuningMode is true. Each FollowRollers.periodic() call checks whether any number in a group has changed and passes a changed group to updateFeedBack or updateFeedForward. In FollowRollersIOTalonFX, each update writes the Slot 0 fields into its stored TalonFXConfiguration and applies that whole configuration to the leader and to the follower.
+  dash["Dashboard edit<br/>(live only while<br/>Constants.tuningMode<br/>is true)"]
+  tn["One LoggedTunableNumber<br/>per gain<br/>name/FeedBack: kP, kI, kD<br/>name/FeedForward: kS,<br/>kG, kV, kA<br/>seeded from Slot 0"]
+  per{"FollowRollers.periodic():<br/>a group changed?"}
+  upd["updateFeedBack or<br/>updateFeedForward"]
+  io["FollowRollersIOTalonFX:<br/>write the Slot 0 fields,<br/>apply the whole<br/>TalonFXConfiguration"]
+  lead["Leader"]
+  fol["Follower"]
+  dash --> tn --> per
+  per -->|"yes"| upd --> io
+  io --> lead
+  io --> fol
+```
 
 Carry live tuning into the migrated `FlywheelIO`, with one set of gains for each output mode: the
 Slot 0 voltage gains and a separate torque-current set. Before writing it, answer these in the

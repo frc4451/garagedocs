@@ -75,6 +75,30 @@ interruption and disable on the actual FX fixture. Save the configuration and ph
 B3-13.1. For a gravity-loaded pivot, establish support, reference validity and travel limits before
 normal motion.
 
+The diagram shows the order from the setup sheet to the first demonstrations.
+
+```mermaid
+flowchart TB
+  accTitle: From the setup sheet to the first demonstrations
+  accDescr: The student first updates the setup sheet for the actual arrangement, including the commissioning record. A fixture that changed since its Badge 2 enable goes through the Badge 2 first-enable procedure again. The FX physical voltage baseline then comes from one of two routes: a student with matching physical FX evidence verifies the present configuration and reuses that baseline, and a student who used FXS or Nova physically establishes a bounded FX baseline with the mentor. Before a torque-current comparison, the student shows positive and reverse voltage, feedback direction, stop, interruption and disable on the actual FX fixture, and saves the configuration and physical log with B3-13.1. A gravity-loaded pivot also needs support, reference validity and travel limits before normal motion. The demonstrations then run through the student's own IO on the deployed robot code.
+  sheet["Update the setup sheet<br/>and commissioning record"]
+  changed{"Fixture changed since<br/>its Badge 2 enable?"}
+  enable["Badge 2 first-enable<br/>procedure"]
+  route{"Badge 2<br/>physical route"}
+  reuse["Matching FX evidence:<br/>verify the present<br/>configuration and reuse<br/>the baseline"]
+  new["FXS or Nova:<br/>establish a bounded<br/>FX baseline with<br/>the mentor"]
+  checks["On the FX fixture:<br/>positive and<br/>reverse voltage,<br/>feedback direction,<br/>stop, interruption,<br/>disable; save the<br/>configuration and log"]
+  pivot["Gravity-loaded pivot:<br/>support,<br/>reference validity,<br/>travel limits"]
+  demo["Demonstrations through<br/>the student's own IO"]
+  sheet --> changed
+  changed -->|"yes"| enable --> route
+  changed -->|"no"| route
+  route --> reuse --> checks
+  route --> new --> checks
+  checks -->|"pivot"| pivot --> demo
+  checks -->|"roller, flywheel"| demo
+```
+
 ## Required Demonstrations
 
 `TorqueCurrentFOC` and `FusedCANcoder` feedback need a Phoenix Pro license on the device or on its
@@ -85,6 +109,23 @@ device configured for `FusedCANcoder` falls back to `RemoteCANcoder` feedback an
 `UsingFusedCANcoderWhileUnlicensed` fault. Confirm license state in Phoenix Tuner X before the
 appointment. Check `UnlicensedFeatureInUse` first when a torque request does nothing, and
 `UsingFusedCANcoderWhileUnlicensed` on a pivot configured for fused feedback.
+
+```mermaid
+flowchart TB
+  accTitle: What an unlicensed Talon FX does with Pro features
+  accDescr: In simulation, TorqueCurrentFOC and FusedCANcoder need no license. On hardware, they need a Phoenix Pro license on the device or on its CANivore, which Phoenix Tuner X shows. With a license, the feature runs. Without one, a TorqueCurrentFOC request produces no motion: the device disables its output, sets the UnlicensedFeatureInUse fault and blinks its unlicensed pattern. A device configured for FusedCANcoder falls back to RemoteCANcoder feedback and sets the UsingFusedCANcoderWhileUnlicensed fault.
+  req["TorqueCurrentFOC or<br/>FusedCANcoder"]
+  sim["Simulation:<br/>no license needed"]
+  lic{"Phoenix Pro license<br/>on the device or<br/>its CANivore?<br/>check in Tuner X"}
+  runs["The feature runs"]
+  tq["TorqueCurrentFOC:<br/>output disabled,<br/>UnlicensedFeatureInUse,<br/>unlicensed blink pattern"]
+  fused["FusedCANcoder:<br/>falls back to<br/>RemoteCANcoder,<br/>UsingFusedCANcoderWhileUnlicensed"]
+  req -->|"SIM"| sim
+  req -->|"hardware"| lic
+  lic -->|"yes"| runs
+  lic -->|"no"| tq
+  lic -->|"no"| fused
+```
 
 Row B3-13.1 requires physical torque-current roller, flywheel and pivot demonstrations. On at least
 one mechanism, compare voltage and torque-current control using a verified matching Badge 2 FX

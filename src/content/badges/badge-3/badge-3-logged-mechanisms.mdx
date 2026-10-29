@@ -89,6 +89,24 @@ This is part of the existing `periodic()` method. Do not call `endeffector.perio
 for the drawing. Publish the drawing every loop after changing it. Drawing updates run on the robot
 thread even when the selected CTRE simulation advances its physics on a Notifier.
 
+The diagram follows one loop from the pivot's inputs to the logged drawing.
+
+```mermaid
+flowchart TB
+  accTitle: One loop of the intake drawing
+  accDescr: Inside Intake.periodic(), endeffector.periodic() processes the pivot's IO inputs first, in REAL, SIM or REPLAY. The measured position from those processed inputs drives the thin measured arm. The Optional goal from getGoal() drives the wider goal arm, which is hidden when the Optional is empty. Both arms are ligaments on one fixed root, on a canvas the student's drawing class owns. Logger.recordOutput publishes the canvas as Intake/Mechanism2d every loop. A saved log holds it under RealOutputs, and an AdvantageKit replay regenerates it under ReplayOutputs. The drawing displays data only; physics stays in the IO implementation and control stays in the pivot.
+  io["Pivot IO inputs<br/>REAL, SIM or REPLAY"] --> ep["endeffector.periodic()"]
+  ep -->|"measured<br/>position"| meas["Measured arm<br/>thin"]
+  ep -->|"getGoal(), an<br/>Optional#lt;Angle#gt;"| goal["Goal arm<br/>wider, hidden<br/>when empty"]
+  root["Student's drawing class:<br/>canvas with one<br/>fixed root at the pivot"]
+  root --> meas
+  root --> goal
+  meas --> key["Logger.recordOutput<br/>every loop:<br/>Intake/Mechanism2d"]
+  goal --> key
+  key --> real["RealOutputs<br/>in the saved log"]
+  key --> rep["ReplayOutputs<br/>in the _sim replay log"]
+```
+
 Read [Measured Against Goal](/frc/measured-against-goal). Drive the measured arm from the processed
 IO measurement in REAL, SIM, and REPLAY. Drive the goal arm from the requested goal, and hide it
 when no goal exists. A stopped pivot can still have a measured position. Do not substitute a goal or
@@ -157,6 +175,18 @@ array, for example as `Intake/ComponentPoses`, and attach it in AdvantageScope's
 asset README orders the array as `[intake, hood]`. The intake entry comes from the measured angle,
 and the hood entry is an identity pose that keeps the static hood where it was exported. Optionally
 add the fuel positions the Step 6 adapter already logs to the same 3D field view.
+
+```mermaid
+flowchart TB
+  accTitle: Intake CAD animation from the measured angle
+  accDescr: The measured intake angle sets the intake entry of a component pose array, logged for example as Intake/ComponentPoses. The array follows the asset README's order, intake first and hood second. The hood entry is an identity pose that keeps the static hood where it was exported. AdvantageScope's 3D field view attaches the array to the Robot_Cobra2026Week6 model, whose intake origin is aligned with the hinge. The fuel positions the Step 6 adapter logs can optionally join the same view.
+  m["Measured intake angle"] --> i["Entry 0: intake pose"]
+  id["Identity pose"] --> h["Entry 1: hood pose<br/>static"]
+  i --> arr["Intake/ComponentPoses<br/>order: intake, hood"]
+  h --> arr
+  arr --> v["AdvantageScope 3D field<br/>Robot_Cobra2026Week6<br/>intake origin<br/>at the hinge"]
+  fuel["Step 6 fuel positions<br/>optional"] -.-> v
+```
 
 Record the asset version, component order, transforms, and log with B3-08.2, and include the
 reproduction steps in the B3-15.1 handoff. The drawing and the CAD animation are separate evidence,

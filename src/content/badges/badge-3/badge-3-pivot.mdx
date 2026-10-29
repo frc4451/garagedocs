@@ -54,11 +54,45 @@ checks a reference. The `resetPosition` methods of the intake and hood adapters,
 unnoticed. Add the reference gate to the migrated pivot and check the result of the reference write.
 Write a test for the refusal and the recovery.
 
+Cobra's request and reset paths, as the fork has them:
+
+```mermaid
+flowchart TB
+  accTitle: Cobra's pivot request and reset paths
+  accDescr: Intake and Hood call setGoal, which Pivot inherits from SingleRoller. SingleRoller.setGoal records the goal and calls the adapter's setGoal, which sends a MotionMagicVoltage request to the motor controller. No step on that path checks a reference. Separately, the CANcoder adapters' resetPosition calls talon.setPosition and discards the returned StatusCode, so a failed write goes unnoticed. Pivot.setGoalPosition exists, but nothing in the Starter calls it.
+  cmd["Intake or Hood"]
+  sr["SingleRoller.setGoal<br/>(inherited by Pivot)<br/>records the goal"]
+  ad["CANcoder adapter<br/>setGoal"]
+  mm["MotionMagicVoltage<br/>request"]
+  rp["CANcoder adapter<br/>resetPosition"]
+  sp["talon.setPosition(position)<br/>StatusCode discarded"]
+  unused["Pivot.setGoalPosition<br/>not called in the Starter"]
+  cmd --> sr -->|"no reference check"| ad --> mm
+  rp --> sp
+```
+
 Connect the gate to the motor controller's reset status, the disabled state, and subsystem requests.
 On a Talon FX, Phoenix 6's `ParentDevice.hasResetOccurred()` returns true when the device has reset
 since the previous call. Call it from one place each loop, and invalidate the reference when it
 returns true. Another member follows the written procedure after a power cycle and demonstrates
 repeatable goals. No limit switch is required.
+
+The reference gate in the migrated pivot has two states:
+
+```mermaid
+stateDiagram-v2
+  accTitle: Reference validity in the migrated pivot
+  accDescr: Reference validity starts false after a power cycle or a known sensor reset. While it is invalid, the subsystem refuses ordinary position requests and records a refusal reason, and a failed reference write leaves it invalid. With the mechanism at its known reference and the robot disabled, the operator explicitly establishes the encoder reference; when the write succeeds, the reference becomes valid and position requests are allowed. When hasResetOccurred(), called from one place each loop, returns true, or after a known sensor reset, the reference becomes invalid again.
+  state "Reference invalid" as Invalid
+  state "Reference valid" as Valid
+  [*] --> Invalid : power cycle
+  Invalid : Position requests refused
+  Invalid : Refusal reason recorded
+  Invalid : A failed write stays here
+  Invalid --> Valid : established while disabled, write succeeded
+  Valid : Position requests allowed
+  Valid --> Invalid : hasResetOccurred() true or known sensor reset
+```
 
 ## Confirm the Trace in Cobra
 
@@ -90,6 +124,25 @@ and velocity and never writes the CANcoder's sim state, and the FXS version has 
 [The Missing Piece: the CANcoder](/frc/talonfx-simulation#the-missing-piece-the-cancoder) explains
 what fused feedback does with a CANcoder that never moves. Write the CANcoder's sim state from the
 same physics, in sensor rotations, before trusting any fused run in simulation.
+
+Cobra builds its two absolute-referenced pivots differently in REAL and SIM:
+
+```mermaid
+flowchart LR
+  accTitle: Cobra's absolute-referenced pivots in REAL and SIM
+  accDescr: In REAL, RobotContainer builds the intake endeffector on SingleRollerIOTalonFXWithCANCoder, which configures FusedCANcoder feedback and holds MotionMagicVoltage and MotionMagicExpoTorqueCurrentFOC requests, and the hood on SingleRollerIOTalonFXSWithCANCoder, which configures FusedCANcoder feedback and uses MotionMagicVoltage. In SIM, it builds the endeffector on SingleRollerIOSimTalonFX and the hood on SingleRollerIOSimTalonFXS, so neither fused feedback nor the Expo request runs. The SingleRollerIOSimTalonFXWithCANCoder construction is commented out; its updateSimState writes the Talon FX rotor position and velocity and never writes the CANcoder's sim state, and the FXS version has the same gap.
+  rc["RobotContainer"]
+  e1["Endeffector:<br/>SingleRollerIOTalonFXWithCANCoder<br/>FusedCANcoder,<br/>MotionMagicVoltage,<br/>MotionMagicExpoTorqueCurrentFOC"]
+  h1["Hood:<br/>SingleRollerIOTalonFXSWithCANCoder<br/>FusedCANcoder,<br/>MotionMagicVoltage"]
+  e2["Endeffector:<br/>SingleRollerIOSimTalonFX"]
+  h2["Hood:<br/>SingleRollerIOSimTalonFXS"]
+  c["SingleRollerIOSimTalonFXWithCANCoder<br/>updateSimState writes<br/>rotor position<br/>and velocity,<br/>never the CANcoder"]
+  rc -->|"REAL"| e1
+  rc -->|"REAL"| h1
+  rc -->|"SIM"| e2
+  rc -->|"SIM"| h2
+  rc -.->|"SIM, commented out"| c
+```
 
 Absolute position reference is a Badge 3 addition to the motor-relative Badge 2 mechanism library.
 Keep the relative-feedback path available while adding the absolute sensor configuration and IO.
@@ -172,6 +225,27 @@ converted to rotations only at `setEncoderPosition(..., EncoderType.INTERNAL)`.
    rejected or ignored seed, restart/reset, and recovery. Faults invalidate the reference and stop
    output. Restoring communication alone must not re-enable motion; reference again while disabled.
    Invalidate the reference after a known Nova reset or reconfiguration.
+
+The Nova startup reference moves through these stages. The readback count and timeout are the
+student's choices:
+
+```mermaid
+flowchart TB
+  accTitle: Thrifty Nova startup reference
+  accDescr: The pivot starts disabled with normal voltage and position requests refused. The code reads the CAN encoder and verifies its configuration, finite readings, travel range and a stationary mechanism. An explicit reference request then seeds Nova's internal position with setEncoderPosition and EncoderType.INTERNAL; a successful request means only that the seed was sent, and the write commands no motion. The normal periodic input update collects agreeing position readbacks while the robot is disabled and the mechanism is stationary. When the chosen count agrees before the chosen timeout, the reference becomes valid and the robot can enable and command a bounded goal. If the timeout passes first, output stays stopped. A fault, a known Nova reset or a reconfiguration invalidates the reference and stops output. Restoring communication alone does not re-enable motion; the reference is requested again while disabled.
+  s1["Disabled: voltage and<br/>position requests refused"]
+  s2["Read the CAN encoder:<br/>configuration,<br/>finite readings,<br/>travel range,<br/>stationary mechanism"]
+  s3["Explicit reference<br/>request:<br/>setEncoderPosition<br/>(..., INTERNAL)<br/>seed sent, no motion"]
+  s4{"Periodic update:<br/>the chosen count<br/>of agreeing readbacks<br/>before the timeout?"}
+  s5["Reference valid:<br/>enable, bounded goal"]
+  stop["Output stays stopped"]
+  fault["Fault, Nova reset<br/>or reconfiguration:<br/>reference invalid,<br/>output stopped"]
+  s1 --> s2 --> s3 --> s4
+  s4 -->|"yes"| s5
+  s4 -->|"timeout"| stop
+  s5 --> fault
+  fault -->|"reference again<br/>while disabled"| s1
+```
 
 The pinned status view reports the last device status, `getDeviceStatus()`, but no sample timestamp
 or dedicated heartbeat. A successful status is not proof of a fresh reading. Perform the physical

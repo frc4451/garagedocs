@@ -106,6 +106,25 @@ In this step, readiness means the measured flywheel speed is within the Step 5 t
 possession is a scripted held-piece flag. [Step 9](/badges/badge-3-states) replaces both with the
 subsystem's readiness policy.
 
+A launch request in this step passes these checks:
+
+```mermaid
+flowchart TB
+  accTitle: One launch request in Step 6
+  accDescr: A launch request checks possession, which in this step is a scripted held-piece flag, and readiness, which in this step means the measured flywheel speed is within the Step 5 tolerance. If either check fails, no projectile is produced. If both pass, the adapter launches with the measured flywheel speed and consumes the held fuel only after launching, so calling it again with no held fuel produces no projectile. Step 9 replaces both checks with the subsystem's readiness policy.
+  req["Launch request"]
+  pos{"Possession?<br/>(scripted<br/>held-piece flag)"}
+  ready{"Readiness?<br/>(measured speed<br/>within the Step 5<br/>tolerance)"}
+  none["No projectile"]
+  launch["Launch with the<br/>measured flywheel speed"]
+  consume["Consume the<br/>held fuel"]
+  req --> pos
+  pos -->|"no"| none
+  pos -->|"yes"| ready
+  ready -->|"no"| none
+  ready -->|"yes"| launch --> consume
+```
+
 Register the robot's dimensions, a pose supplier for physics, and field-relative speeds. Take the
 bumper-inclusive width and length, the bumper height and the intake's pickup rectangle from Cobra's
 CAD or a measurement of the robot. Record each value and its source in the README as a model
@@ -124,6 +143,27 @@ that the logged value matches. For replay, consume the saved robot inputs and in
 recorded world outputs. Running a fresh fuel world is a new experiment, and its outputs are new
 results rather than reconstructed evidence.
 
+The adapter, the class that updates the fuel world, and the log connect like this:
+
+```mermaid
+flowchart TB
+  accTitle: What feeds and reads the fuel world in Step 6
+  accDescr: The student's adapter registers the robot with FuelSim: the bumper-inclusive dimensions, bumper height and intake rectangle recorded as model assumptions, a pose supplier for physics, and field-relative speeds. In this step the pose supplier returns a fixed test pose, which Step 11 replaces with maple-sim's true pose; the estimated pose from the pose estimator is never registered. The adapter's launch method uses the measured flywheel speed. The class that updates the fuel world advances it once per 20 ms simulation period, and FuelSim runs its own subticks. FuelSim publishes its state to NetworkTables, which is live only. For saved evidence, the updating class mirrors fuel positions, possession, launch count and score, plus launch speed and launch elevation at each launch, into the AdvantageKit log.
+  reg["Robot dimensions,<br/>bumper height,<br/>intake rectangle<br/>(model assumptions);<br/>fixed test pose, never<br/>the estimated pose<br/>(Step 11: maple-sim<br/>true pose);<br/>field-relative speeds"]
+  fly["Measured<br/>flywheel speed"]
+  adapter["Student's adapter<br/>around FuelSim"]
+  updater["Class that updates<br/>the fuel world"]
+  world["FuelSim world<br/>own subticks"]
+  nt["NetworkTables<br/>(live only)"]
+  log["AdvantageKit log:<br/>fuel positions,<br/>possession, launch count,<br/>score, launch speed<br/>and elevation"]
+  reg -->|"register"| adapter
+  fly -->|"launch method"| adapter
+  adapter --> world
+  updater -->|"once per 20 ms<br/>simulation period"| world
+  world --> nt
+  updater -->|"mirror"| log
+```
+
 ## Apply Cobra's Hood and Table Conventions
 
 This section's evidence supports B3-06.2. Keep the Step 6 launch experiment separate from Cobra's
@@ -141,6 +181,19 @@ Every hub shot uses DOWN. In the `NEAR_ALLIANCE` zone the hood bindings in `Robo
 DOWN, and every `HubInterpolator` entry has the same 28-degree pitch. MID and UP are feeding
 positions with their own tables. The hub table can therefore establish the launch elevation at DOWN,
 and only at DOWN.
+
+The hood quantities connect as follows; the last link is the one the student establishes:
+
+```mermaid
+flowchart TB
+  accTitle: Cobra's hood quantities and the link left open
+  accDescr: Hood presets are displacements from DOWN: DOWN at 0, MID at 17 and UP at 22 degrees. HoodConstants.pivotConfig, at 28 through 50 degrees, and HubInterpolator, at a fixed 28 degree pitch, use a second reference in which DOWN is 28 degrees; the only trace of that offset in the hood code is the commented plus(Degrees.of(28.0)) on the CANcoder magnet offset. FuelSim's launchFuel takes its hoodAngle argument as a launch elevation, where 0 is a horizontal launch. Cobra's code never states whether the 28 degrees are measured from horizontal or from vertical, so the link from hood angle to launch elevation is the one the student establishes from the hub table.
+  disp["Displacement from DOWN<br/>Hood presets: DOWN 0,<br/>MID 17, UP 22 degrees"]
+  angle["Hood angle<br/>pivotConfig 28 to<br/>50 degrees,<br/>HubInterpolator<br/>pitch 28 degrees"]
+  elev["Launch elevation<br/>0 is horizontal<br/>(launchFuel's hoodAngle)"]
+  disp -->|"second reference:<br/>DOWN is 28 degrees"| angle
+  angle -->|"from horizontal or<br/>from vertical?<br/>established from<br/>the hub table"| elev
+```
 
 ### Work Out the Launch Elevation from the Hub Table
 
@@ -178,6 +231,39 @@ seconds, with gravity at <Equation tex="g = 32.2\;\mathrm{ft/s^2}" />.
    the contact radius <Equation tex="r" /> from `shooterFlywheelConfig`, converted to feet, and the
    wheel speed <Equation tex="n" /> from the entry's primary velocity in rotations per second:
    <Equation tex="k_{\text{slip}} = \frac{v}{2\pi r n}" />.
+
+Each calculation in that list feeds the next:
+
+```mermaid
+flowchart TB
+  accTitle: Inputs to the hub-table derivation
+  accDescr: For each hub table entry, the table distance minus the release's forward offset, forwardPositive, gives the horizontal distance. The horizontal distance divided by the time of flight gives the horizontal speed. The entry height from Hub.ENTRY_HEIGHT, the release height from upPositive and the time of flight give the upward speed at release. The upward and horizontal speeds give the launch elevation and the launch speed. The launch speed, the contact radius from shooterFlywheelConfig and the entry's primary velocity give the slip factor. The elevations from at least four entries are compared with the two readings of the 28 degrees.
+  hd["Horizontal distance<br/>table distance minus the<br/>forward offset<br/>(forwardPositive)"]
+  tof["Time of flight"]
+  vx["Horizontal speed v_x"]
+  hts["Entry height<br/>(Hub.ENTRY_HEIGHT)<br/>and release height<br/>(upPositive)"]
+  vy["Upward speed v_y"]
+  th["Launch elevation"]
+  v["Launch speed v"]
+  r["Contact radius r<br/>(shooterFlywheelConfig)"]
+  n["Primary velocity n"]
+  k["Slip factor"]
+  cmp["Compare the elevations<br/>from at least four<br/>entries with<br/>both readings"]
+  hd --> vx
+  tof --> vx
+  hts --> vy
+  tof --> vy
+  vx --> th
+  vy --> th
+  vx --> v
+  vy --> v
+  th --> cmp
+  v --> k
+  r --> k
+  n --> k
+  v ~~~ r
+  v ~~~ n
+```
 
 These calculations ignore drag, treat the hub center as the entry point, and rely on a table whose
 original measurements are not documented. Treat the result as a reading of evidence, not a

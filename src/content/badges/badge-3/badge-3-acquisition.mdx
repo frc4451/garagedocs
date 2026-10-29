@@ -69,8 +69,37 @@ finished outside it; command completion alone cannot authorize collection or sco
 belong only on waits in place, such as waiting at the pickup for possession or a scoring window. A
 wait that times out moves the routine on instead of ending autonomous. In this one-piece attempt,
 moving on ends the attempt in a defined final state: outputs stopped, the reason logged, and nothing
-marked held or scored. In a multi-piece routine, the same timeout starts the next path instead. On
+marked scored. The held state follows the possession IO. It stays false after an observation or
+collection timeout and stays true after a readiness timeout, because the robot still holds the piece
+it never launched. In a multi-piece routine, the same timeout starts the next path instead. On
 interruption, stop drive and feeder outputs and preserve a consistent piece state.
+
+The diagram shows the five stages, the three waits in place, and where a wait that times out leads
+in this attempt.
+
+```mermaid
+flowchart TB
+  accTitle: The one-piece sequence and its waits in place
+  accDescr: The attempt starts from the recorded initial pose. A BLine path with no time limit travels to the search region, where the robot waits in place for a valid PhotonVision observation. The robot selects the target and computes the acquisition pose with the intake offset, then a BLine approach built from the estimated pose runs with the intake. At the pickup the robot waits in place for the possession IO to confirm collection. A return path with no time limit brings the piece back while the flywheel and pivot prepare, and the robot waits in place for measured readiness. A single launch event consumes the held piece once, and the simulator's score decides whether the launch succeeded. Each of the three waits in place moves on after its stated wait; in this one-piece attempt, moving on ends the attempt in a defined final state with outputs stopped and the reason logged.
+  start["Recorded initial pose"]
+  search["BLine path to the<br/>search region<br/>no time limit"]
+  see{"Wait in place:<br/>valid PhotonVision<br/>observation"}
+  pose["Select the target,<br/>compute the<br/>acquisition pose with<br/>the intake offset"]
+  approach["BLine approach built<br/>from the estimated pose,<br/>intake running<br/>no time limit"]
+  have{"Wait in place:<br/>possession IO<br/>confirms collection"}
+  back["Return path, flywheel<br/>and pivot prepare<br/>no time limit"]
+  ready{"Wait in place:<br/>measured readiness"}
+  launch["Single launch event<br/>consumes the held<br/>piece once"]
+  score["Simulator score<br/>decides success"]
+  stop["Defined final state<br/>outputs stopped<br/>reason logged"]
+  start --> search --> see
+  see -->|"observed"| pose --> approach --> have
+  have -->|"confirmed"| back --> ready
+  ready -->|"ready"| launch --> score
+  see -.->|"stated wait ends"| stop
+  have -.->|"stated wait ends"| stop
+  ready -.->|"stated wait ends"| stop
+```
 
 Ordinary command composition of the BLine path is acceptable when each state transition still comes
 from a measurement. For example, a sequence or deadline group can run the follower and the intake
@@ -104,6 +133,27 @@ Record the launch elevation convention, flywheel radius, slip factor, release he
 field-relative robot velocity. These are the declared assumptions for the scoring rows. Keep a
 scored count distinct from held state and launch count. Mirror relevant world state into the saved
 log so another member can reconstruct the event.
+
+The diagram traces the piece from the fuel world to the robot's inputs and back through the launch.
+
+```mermaid
+flowchart TB
+  accTitle: One fuel world feeds the robot's inputs
+  accDescr: The fuel world, the FuelSim instance, owns the piece. The Step 10 adapter copies the field positions of its available pieces into the camera world's simulated targets and removes collected targets, and the camera world produces PhotonVision observations for the robot code. The fuel world's intake event changes the possession IO. The robot state machine reads only the camera observations and the possession input, never the fuel world's exact piece location. A single launch event goes to the launch operation, which uses the measured flywheel speed and the launch elevation converted from the measured hood position, consumes the held piece and adds the projectile to the fuel world. The fuel world's state and score are mirrored into the saved log.
+  fuel["Fuel world<br/>FuelSim owns the piece"]
+  adapter["Step 10 adapter<br/>removes collected targets"]
+  cam["Camera world<br/>simulated targets"]
+  poss["Possession IO"]
+  sm["Robot state machine<br/>reads camera and<br/>possession inputs only"]
+  launch["Launch operation<br/>measured flywheel speed,<br/>elevation from the<br/>measured hood position"]
+  log["Saved log"]
+  fuel -->|"available piece<br/>positions"| adapter --> cam
+  cam -->|"PhotonVision<br/>observations"| sm
+  fuel -->|"intake event"| poss --> sm
+  sm -->|"single launch event"| launch
+  launch -->|"consume the held piece,<br/>add the projectile"| fuel
+  fuel -->|"world state<br/>and score"| log
+```
 
 ## Required Failure Runs
 

@@ -40,6 +40,24 @@ both choices out: choose the object-detection IO and the SIM camera world in `Ro
 Badge 2 did for AprilTags in [Architecture](/badges/badge-2-photonvision#architecture), and pass
 both to `ObjectDetectionVision`.
 
+```mermaid
+flowchart TB
+  accTitle: Where the object-detection IO is chosen
+  accDescr: In the fork, ObjectDetectionVision chooses its IO inside its own constructor and updates the shared camera world from BobotState.getGlobalPose(), the estimated pose. After the change, RobotContainer chooses by mode and passes the choices in. In REAL it builds ObjectDetectionIOPhoton, which reads getAllUnreadResults(). In SIM it builds ObjectDetectionIOPhotonSim, which extends the real implementation and supplies a PhotonCameraSim, so both modes parse PhotonVision results through the same path. In SIM it also passes the camera world with a pose supplier, which returns the estimated pose until Step 11 swaps in the true pose without changing ObjectDetectionVision. In REPLAY no camera or field physics is built, and ObjectDetectionVision reads the recorded inputs.
+  rc["RobotContainer<br/>chooses by mode"]
+  rc -->|"REAL"| real["ObjectDetectionIOPhoton<br/>getAllUnreadResults()"]
+  rc -->|"SIM"| sim["ObjectDetectionIOPhotonSim<br/>extends the real IO,<br/>supplies PhotonCameraSim"]
+  rc -->|"SIM"| world["Camera world"]
+  rc -->|"REPLAY"| rep["Recorded inputs,<br/>no camera<br/>or physics"]
+  pose["Pose supplier<br/>estimated, then true<br/>from Step 11"] --> world
+  sim ~~~ world
+  sim -.->|"same parsing path"| real
+  real --> odv["ObjectDetectionVision"]
+  sim --> odv
+  world --> odv
+  rep --> odv
+```
+
 Badge 2's [simulated camera world](/badges/badge-2-photonvision#simulation) was rendered from the
 estimated pose, which is why it could not show vision correcting a wrong estimate. Until Step 11
 adds a true pose, the camera world keeps rendering from the estimated pose; record that in the log.
@@ -83,6 +101,18 @@ observation timestamp;
 [Prepare for Moving Observations](/badges/badge-3-object-detection#prepare-for-moving-observations)
 covers where that pose comes from on a moving robot.
 
+```mermaid
+flowchart TB
+  accTitle: From a camera bearing to a field position
+  accDescr: A target's yaw and pitch identify a ray from the camera, not a position. The capture-time robot pose, FieldToRobot at the observation timestamp, and the configured RobotToCamera transform carry that ray into the field. Intersecting the field ray with the fuel-center plane, the plane at the 0.075 m fuel radius above the floor, gives the estimated piece position. When the intersection is meaningless, the observation becomes a rejection with a logged reason instead of a position. The selection logic sees only the estimate, which is logged separately from the configured simulation target position.
+  b["Yaw and pitch:<br/>a ray from the camera"] --> fr["Ray in field<br/>coordinates"]
+  p["FieldToRobot<br/>at capture time"] --> fr
+  c["RobotToCamera<br/>configured transform"] --> fr
+  fr --> x{"Meaningful<br/>intersection with the<br/>fuel-center plane?"}
+  x -->|"yes"| est["Estimated piece position<br/>to selection and the log"]
+  x -->|"no"| rej["Rejection with<br/>a logged reason"]
+```
+
 List the geometric cases where an intersection is meaningless and give each a logged reason. Include
 values that are not finite numbers, camera and plane heights that make an intersection impossible,
 rays that never reach the plane in front of the camera, and points the field cannot contain. Start
@@ -115,6 +145,19 @@ target height and range limit the projection used. Keep three frame cases distin
 received image with no targets, and a frame without capture-pose history. The last is a rejection,
 not a target at a placeholder zero pose. Test the parser with recorded packets and check that the
 raw inputs round-trip through the log.
+
+```mermaid
+flowchart TD
+  accTitle: Three frame cases kept distinct
+  accDescr: The IO reads the unread results once per loop. When no new frame arrived, there is no new observation and the age of the previous observation keeps increasing. When a frame arrived with no targets, the log records that no target was in that frame. When a frame has targets but no capture-time robot pose is available, the frame is a rejection with a logged reason, not a target at a placeholder zero pose. Otherwise each observation goes on to the projection. Each frame logs its timestamp, sequence number and reason.
+  read["Read unread results<br/>once per loop"] --> q1{"New frame?"}
+  q1 -->|"no"| age["No new observation;<br/>previous age keeps<br/>increasing"]
+  q1 -->|"yes"| q2{"Any targets?"}
+  q2 -->|"no"| empty["Empty frame:<br/>no target in view"]
+  q2 -->|"yes"| q3{"Capture-time<br/>pose available?"}
+  q3 -->|"no"| rej["Rejected frame<br/>with a logged reason"]
+  q3 -->|"yes"| proj["Project each observation"]
+```
 
 Normal REPLAY uses saved projected inputs, as in
 [Check the Replay Boundary](/frc/vision-subsystem#check-the-replay-boundary). To investigate a

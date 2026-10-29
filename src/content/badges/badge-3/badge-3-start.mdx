@@ -104,6 +104,20 @@ robot code. When a util, math or vision class moves into the library, pass those
 instead. Retire each `org.robotzgarage.frc2026` class once nothing in the fork constructs or imports
 it.
 
+```mermaid
+flowchart TB
+  accTitle: Where the migrated code lives in the fork
+  accDescr: The student's fork holds three areas during the migration. The migrated ROBOTZ Garage library, org.robotzgarage.frc2027, starts before Step 3 as a copy of the student's Badge 2 mechanism library, or of Badge2MechanismReference with the mentor's agreement, renamed to the new package. Across Steps 3 to 12, active reusable code moves into it from Cobra's original org.robotzgarage.frc2026 package, which stays in the fork until the student retires each class. The robot project, frc.robot, keeps the drivetrain and the robot-specific shooting policy and uses both packages while the migration runs. The library takes its settings as arguments and imports nothing from frc.robot.
+  b2["Student's Badge 2<br/>mechanism library, or<br/>Badge2MechanismReference"]
+  old["org.robotzgarage.frc2026<br/>Cobra's original<br/>reusable code, kept<br/>until each class<br/>is retired"]
+  lib["org.robotzgarage.frc2027<br/>migrated ROBOTZ<br/>Garage library;<br/>settings passed in<br/>as arguments;<br/>no frc.robot imports"]
+  robot["frc.robot<br/>drivetrain and<br/>shooting policy"]
+  b2 -->|"copied and renamed<br/>before Step 3"| lib
+  old -->|"active reusable<br/>code moves,<br/>Steps 3 to 12"| lib
+  robot -->|"uses"| lib
+  robot -->|"uses until retired"| old
+```
+
 ### Trace One Roller
 
 Begin by tracing one roller, the feeder tower, with
@@ -117,6 +131,23 @@ builds `SingleRollerIOSimTalonFX` from `FeederConstants.towerConfigSim`, a recor
 `towerConfig` plus the motor model and moment of inertia.
 [Constructing Subsystems](/frc/robot-container-and-bindings#constructing-subsystems) explains that
 `switch`.
+
+```mermaid
+flowchart TB
+  accTitle: The feeder tower from command to IO adapter
+  accDescr: Feeder.runFeederVoltage() calls runVolts on the tower. The tower is a Flywheel, which extends SingleRoller, so the call is the inherited SingleRoller.runVolts(), which passes the request to the SingleRollerIO contract. RobotContainer's construction switch chooses the adapter behind that contract. In REAL it builds SingleRollerIOTalonFX from FeederConstants.towerConfig. In SIM it builds SingleRollerIOSimTalonFX from FeederConstants.towerConfigSim, a record made from towerConfig plus the motor model and moment of inertia.
+  cmd["Feeder.runFeederVoltage()"]
+  tower["tower: Flywheel<br/>extends SingleRoller"]
+  io["SingleRollerIO contract"]
+  rc["RobotContainer<br/>construction switch"]
+  real["REAL<br/>SingleRollerIOTalonFX<br/>from towerConfig"]
+  sim["SIM<br/>SingleRollerIOSimTalonFX<br/>from towerConfigSim<br/>(towerConfig +<br/>motor model +<br/>moment of inertia)"]
+  cmd -->|"runVolts()"| tower
+  tower -->|"inherited<br/>SingleRoller.runVolts()"| io
+  rc -->|"chooses the adapter"| io
+  io --> real
+  io --> sim
+```
 
 When the student migrates this roller, each mechanism family stays an explicit type. A mechanism's
 commands go in the subsystem that owns it, as the tower's commands live in `Feeder`. Add
@@ -140,6 +171,35 @@ Then open `autonomous/AutonomousManager.java` and read `handleInterpolateShooter
 `Shooter.isNearHubVelocity` reports the flywheel within 2 rotations per second of its interpolated
 speed. Then it feeds until the shot's time runs out. It checks once: a speed drop after feeding
 starts does not stop the feeder.
+
+```mermaid
+flowchart TB
+  accTitle: Cobra's two feed paths
+  accDescr: In teleop, the operator controller on port 1 holds A. The binding combines A with the negation of BobotState.shouldStopFeedingFuelToShooter(), which checks the field zone, the shooter's position relative to the hub, and trench proximity. When the combined trigger becomes true, feeder.runFeederVoltage() starts; onFalse stops the feeder when A is released or the condition becomes true. In autonomous, handleInterpolateShooterToHub runs shooter.runShooterToHub() as a deadline until the shot's time runs out. Beside it, Commands.waitUntil waits until the robot is far enough from the hub and Shooter.isNearHubVelocity reports the flywheel within 2 rotations per second of its interpolated speed, then feeder.runFeederVoltage() runs. When the deadline ends, the shooter and feeder stop.
+  subgraph teleop["Teleop: RobotContainer binding"]
+    direction TB
+    a["Operator holds A<br/>(port 1)"]
+    stop["shouldStopFeedingFuelToShooter()<br/>field zone,<br/>shooter position<br/>relative to the hub,<br/>isNearTrench"]
+    and{"A and not<br/>shouldStop..."}
+    feedT["onTrue:<br/>feeder.runFeederVoltage()"]
+    endT["onFalse:<br/>feeder.stop()"]
+    a --> and
+    stop -->|"negated"| and
+    and -->|"becomes true"| feedT
+    and -->|"becomes false"| endT
+  end
+  subgraph auto["Autonomous: handleInterpolateShooterToHub"]
+    direction TB
+    shot["Deadline:<br/>shooter.runShooterToHub()<br/>until the shot's time<br/>runs out"]
+    wait{"Commands.waitUntil:<br/>far enough from<br/>the hub and<br/>isNearHubVelocity(2 rps)"}
+    feedA["feeder.runFeederVoltage()"]
+    endA["shooter.stop(),<br/>feeder.stop()"]
+    shot -.->|"runs beside"| wait
+    wait -->|"then"| feedA
+    shot -->|"deadline ends"| endA
+  end
+  teleop ~~~ auto
+```
 
 Record, for each feed path (teleop and autonomous), which measurements permit feeding and which are
 ignored. Predict what happens when the operator holds A before the flywheel reaches speed, and when

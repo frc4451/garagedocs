@@ -52,6 +52,19 @@ of them returns normally and changes nothing. Then open `Feeder.runFeederCurrent
 tower's voltage setting, `towerVoltage`, into `Amps.of(...)`, so the number tuned in volts is sent
 as amperes. These two findings are the starting point for this step.
 
+```mermaid
+flowchart TB
+  accTitle: Which roller adapters implement runTorqueCurrent
+  accDescr: SingleRollerIO declares runTorqueCurrent(Current) as a default method with an empty body. SingleRollerIOTalonFX and SingleRollerIOTalonFXWithCANCoder override it to send TorqueCurrentFOC, and their simulation subclasses, SingleRollerIOSimTalonFX and SingleRollerIOSimTalonFXWithCANCoder, inherit that request. The Talon FXS adapters and their simulation subclasses, SingleRollerIONova, and the general SingleRollerIOSim inherit the empty default, so a torque-current request on any of them returns normally and changes nothing.
+  io["SingleRollerIO<br/>runTorqueCurrent(Current)<br/>default: empty body"]
+  fx["SingleRollerIOTalonFX<br/>SingleRollerIOTalonFXWithCANCoder<br/>override: send<br/>TorqueCurrentFOC"]
+  fxsim["SingleRollerIOSimTalonFX<br/>SingleRollerIOSimTalonFXWithCANCoder<br/>inherit the request"]
+  empty["Talon FXS adapters<br/>and their sims,<br/>SingleRollerIONova,<br/>SingleRollerIOSim<br/>inherit the<br/>empty default:<br/>returns normally,<br/>changes nothing"]
+  io -->|"implemented by"| fx
+  fx -->|"extended by"| fxsim
+  io -->|"implemented by"| empty
+```
+
 ## Keep the Requested Quantity Explicit
 
 Voltage describes the electrical potential applied to the motor. Torque current is a different
@@ -142,6 +155,28 @@ the class loads. Check the modes three ways instead:
 - Set `simMode` to `REPLAY` and replay a saved simulation log, as in
   [Replaying a Match](/frc/log-replay#replaying-a-match).
 - Add one test that constructs the SIM container and checks what was built.
+
+```mermaid
+flowchart TB
+  accTitle: How the robot mode is fixed and how each mode is checked
+  accDescr: When the Constants class loads, currentMode is set once from RobotBase.isReal(): REAL on a roboRIO, otherwise the value of simMode. It is static final, so a unit test cannot switch it. RobotContainer's construction switch reads it. REAL constructs physical IO, SIM the selected simulation, and REPLAY no physical controllers, with the code consuming recorded inputs. The three checks cover the modes: tracing each branch of the switch covers all three, replaying a saved simulation log with simMode set to REPLAY exercises the replay path, and a test that constructs the SIM container checks what SIM builds.
+  load["Constants class loads<br/>currentMode =<br/>RobotBase.isReal()<br/>? REAL : simMode<br/>(static final)"]
+  sw{"RobotContainer<br/>construction switch"}
+  real["REAL<br/>physical IO"]
+  sim["SIM<br/>selected simulation"]
+  rep["REPLAY<br/>no physical controllers,<br/>recorded inputs"]
+  trace["Check: trace each branch"]
+  replay["Check: set simMode<br/>to REPLAY, replay a<br/>saved simulation log"]
+  test["Check: test that<br/>constructs<br/>the SIM container"]
+  load --> sw
+  sw --> real
+  sw --> sim
+  sw --> rep
+  sw -.-|"check"| trace
+  rep -.-|"check"| replay
+  sim -.-|"check"| test
+  real ~~~ trace
+```
 
 Keep the true pose and other simulator state out of robot decisions. They can generate sensor
 observations and comparison plots, but normal control reads the same IO contract used on hardware.

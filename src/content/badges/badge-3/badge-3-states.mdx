@@ -112,6 +112,24 @@ Write the transition policy first as a class that receives observations as argum
 drive it deterministically without motors or a field. Then adapt it into the subsystem, connect
 logged IO, and define outputs for every state, including failure and interruption.
 
+The diagram shows where each responsibility sits once the policy is inside the subsystem.
+
+```mermaid
+flowchart TB
+  accTitle: Who owns a state transition
+  accDescr: A command requests a behavior from the subsystem and declares the subsystem as its requirement. The subsystem passes the request and the logged IO observations to the transition policy, a class that receives observations as arguments, so a test can call it with the same arguments and no motors or field. The policy evaluates the guards and returns either the next state or a refusal reason. The subsystem owns every actuator output and sets the outputs defined for the resulting state, including failure and interruption. Each loop the subsystem logs the requested state, current state, elapsed time, guard values, refusal reason and actual outputs.
+  cmd["Command<br/>requires the subsystem"] -->|"request"| pol
+  io["Logged IO inputs"] -->|"observations"| pol
+  subgraph sub["Subsystem"]
+    pol["Transition policy<br/>observations as arguments"]
+    out["Outputs defined<br/>for every state"]
+    pol -->|"next state or<br/>refusal reason"| out
+  end
+  test["Deterministic test<br/>no motors or field"] -.->|"same arguments"| pol
+  out --> act["Actuators"]
+  sub --> log["Log: requested and<br/>current state,<br/>elapsed time,<br/>guard values,<br/>refusal reason,<br/>actual outputs"]
+```
+
 ## Exercise the Refusals
 
 Start from a known state for each test. Request a valid transition, a clearance violation, a
@@ -145,6 +163,18 @@ make the dropoff table valid at DOWN.
 The readiness policy refuses feeding on a mismatch, and a changed shot mode starts a new settling
 interval. Log the selected shot mode, hood goal and measurement, flywheel goal and measurement, and
 the refusal reason together.
+
+```mermaid
+flowchart LR
+  accTitle: What the readiness policy reads before feeding
+  accDescr: The readiness policy is one guard that decides whether the feeder may run, and this page names the observations it reads. Possession comes from the Step 4 CANrange presence reading once connected, which is present, absent or invalid, and the REAL possession input reports invalid until the reviewed commissioning values are entered. The policy also reads whether the pivot reference is valid, the selected shot mode, which names a shooter table and its required hood preset together, and the measured speed and angle. The measurements must satisfy the policy for the whole settling interval, and a changed shot mode starts a new settling interval. The policy either lets the feeder run or refuses with a logged reason, including a refusal on a shot-mode mismatch. A requested goal is never evidence that the mechanism reached it.
+  pos["Possession<br/>CANrange presence:<br/>present, absent, invalid"] --> pol
+  ref["Pivot reference<br/>valid or not"] --> pol
+  sm["Selected shot mode<br/>shooter table and<br/>hood preset"] --> pol
+  meas["Measured speed<br/>and angle"] --> pol
+  pol["Readiness policy<br/>held for the whole<br/>settling interval"] -->|"ready"| feed["Feeder may run"]
+  pol -->|"not ready"| refuse["Refuse and log<br/>the reason"]
+```
 
 Test the shooting binding across zone changes and a trench-clearance condition, and test mismatch
 refusal and the settling interval after recovery separately. These checks confirm that the shot

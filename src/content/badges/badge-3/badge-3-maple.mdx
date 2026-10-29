@@ -68,6 +68,19 @@ Keep `ModuleIOSim` in the fork. Add a selector in `RobotContainer`'s SIM case, s
 that builds `Drive` from either the `ModuleIOSim` drivetrain or the maple-sim drivetrain. The same
 commands can then run against both models and be compared in simulation.
 
+```mermaid
+flowchart LR
+  accTitle: The SIM drivetrain selector
+  accDescr: In the SIM case, a selector in RobotContainer, such as a constant, builds Drive from one of two drivetrain models. The first is Cobra's existing one: an empty GyroIO and four ModuleIOSim instances, each modelling its module's drive and turn motors with DCMotorSim, with no gyro, wheel slip or field contact. The second uses maple-sim's module and gyro simulation, whose IO reads the sensor data from the drivetrain physics that SimulatedArena advances. When the selector chooses maple-sim, the ModuleIOSim physics updates do not run, so only one model moves the robot. Drive keeps the same estimator and path-follower interfaces for both, so the same commands run against either model.
+  sel{"SIM selector<br/>in RobotContainer"}
+  sel --> a["Empty GyroIO and<br/>four ModuleIOSim<br/>DCMotorSim: no gyro,<br/>slip or contact"]
+  sel --> b["maple-sim module<br/>and gyro IO"]
+  arena["SimulatedArena<br/>advances the physics"] --> b
+  a --> d["Drive<br/>same estimator and<br/>path-follower interfaces"]
+  b --> d
+  cmd["Same commands"] --> d
+```
+
 ## Assign One Update Owner
 
 maple-sim's arena, `SimulatedArena`, advances the drivetrain physics once per robot period, with
@@ -108,6 +121,22 @@ then follow the simulated robot, while the estimator keeps its own estimated pos
 Record true field pose, estimated field pose, requested chassis speeds, measured module states,
 battery behavior, and the experiment configuration. BLine receives the estimated pose. The true pose
 is for simulated observations and comparison, not a shortcut into control.
+
+```mermaid
+flowchart TB
+  accTitle: True pose and estimated pose in the combined simulation
+  accDescr: The maple-sim drivetrain simulation supplies the true pose. It replaces three poses: the fixed test pose registered with FuelSim in Step 6, the object-detection camera world's pose source from Step 10, and the pose the AprilTag camera simulation renders from, where Cobra's AprilTagVision passes the global pose estimate. Fuel physics and camera rendering then follow the simulated robot. The simulated module and gyro readings and the AprilTag observations feed the normal pose estimator, which produces the estimated pose, and the object-detection camera's fuel observations go to ObjectDetectionVision. BLine receives only the estimated pose. The true and estimated poses are logged separately for comparison.
+  maple["maple-sim drivetrain<br/>true pose"] --> fuel["FuelSim<br/>fuel world"]
+  maple --> ocam["Object-detection<br/>camera world"]
+  maple --> acam["AprilTag camera<br/>simulation"]
+  maple -->|"module and<br/>gyro readings"| est["Pose estimator"]
+  acam -->|"AprilTag<br/>observations"| est
+  ocam -->|"fuel observations"| odv["ObjectDetectionVision"]
+  est --> estp["Estimated pose"]
+  estp --> bline["BLine"]
+  maple -.-> log["Log true and<br/>estimated pose<br/>separately"]
+  estp -.-> log
+```
 
 ## Check Contact before the Paths
 
