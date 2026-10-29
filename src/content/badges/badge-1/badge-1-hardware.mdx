@@ -16,6 +16,27 @@ already picks the real IO implementation when `RobotBase.isReal()` is true
 the driver controller's USB slot, and the test area before enabling. Hardware may need different
 directions or settings from the simulation.
 
+The diagram shows the one decision that changes between Steps 6 and 7. `RobotContainer` creates
+either the simulation IO or the real IO, and passes it to the same `Drive` and `Launcher` code. The
+console line `IO: sim` or `IO: real` reports which branch ran.
+
+```mermaid
+flowchart TB
+  accTitle: How the same Kit Bot code runs in Steps 6 and 7
+  accDescr: RobotContainer checks RobotBase.isReal(). When it is false, in simulation on the laptop in Step 6, the console prints IO: sim and RobotContainer creates DriveIOSim, which uses WPILib's DifferentialDrivetrainSim, and LauncherIOSim, which gives each launcher motor its own flywheel model. When it is true, on the roboRIO in Step 7, the console prints IO: real and RobotContainer creates DriveIOReal, which drives four SparkMax controllers in two leader and follower pairs, and LauncherIOReal, which drives two SparkMax controllers. Either pair is passed to the same Drive and Launcher subsystems.
+  rc["RobotContainer checks<br/>RobotBase.isReal()"]
+  rc -->|"false: simulation on<br/>the laptop, Step 6<br/>prints IO: sim"| sim["DriveIOSim<br/>DifferentialDrivetrainSim<br/><br/>LauncherIOSim<br/>one flywheel model<br/>per launcher motor"]
+  rc -->|"true: the roboRIO,<br/>Step 7<br/>prints IO: real"| real["DriveIOReal<br/>four SparkMax in two<br/>leader and follower pairs<br/><br/>LauncherIOReal<br/>two SparkMax"]
+  sim -->|"passed in as<br/>driveIO and launcherIO"| subs["Drive and Launcher:<br/>the same subsystem code<br/>in both steps"]
+  real -->|"passed in as<br/>driveIO and launcherIO"| subs
+```
+
+The names come from the Kit Bot lessons ([R07](/kit-bot/r07-drive-io),
+[R08](/kit-bot/r08-launcher-io) and [R12](/kit-bot/r12-real-vs-sim)). Scorpion2026 uses the same
+pattern with its own names: `RobotContainer` switches on `Constants.currentMode` and creates
+`DriveIOSpark` and `SuperstructureIOSparkNEO` on the robot, or `DriveIOSim` and
+`SuperstructureIOSim` in simulation.
+
 ### Rows
 
 | # | Step | Where it is taught | Done when |
@@ -27,11 +48,31 @@ directions or settings from the simulation.
 | 7.5 | Safety check before the first enable | [R12 Part 2: First Deploy](/kit-bot/r12-first-deploy#inspect-the-robot) | Robot on blocks, mechanism clear, and one person stationed at Driver Station **Disable** |
 | 7.6 | Drive the real Kit Bot | [R11](/kit-bot/r11-teleop-drive) on hardware | Forward is forward and the turn direction is correct; the robot holds still inside the deadband |
 | 7.7 | Launch on hardware | [R08 Part 2](/kit-bot/r08-launcher-io-part-2) on hardware | The bumpers intake and launch; on launch, the intake and launcher roller starts at once and the feeder waits through spin-up; AdvantageScope shows both motors |
-| 7.8 | Autonomous on carpet | [R14](/kit-bot/r14-time-based-autonomous) on hardware | The routine chosen in Glass drives and stops within its timeout |
+| 7.8 | Autonomous on carpet | [R14](/kit-bot/r14-time-based-autonomous) on hardware, with [Elastic Basics](/frc/elastic-basics) | The routine chosen in Elastic drives and stops within its timeout |
 
 Rows 7.1 through 7.5 are one bring-up sequence (roboRIO image, radio, CAN inventory, safe deploy)
 that ends at the first motion in row 7.6. The mentor stays beside the student through the whole
-sequence, even when a row was practiced on another robot.
+sequence, even when a row was practiced on another robot. Each arrow below is the check that lets
+the student move to the next row.
+
+```mermaid
+flowchart TB
+  accTitle: The Step 7 bring-up order
+  accDescr: Row 7.1 images the roboRIO and sets the team number; the Driver Station showing the team number leads to row 7.2, updating and configuring the radio. When ping reaches the roboRIO, row 7.3 sets the CAN IDs. When every SPARK MAX appears once with its Constants ID, row 7.4 deploys the real IO. When the console prints IO: real, row 7.5 is the safety check: robot on blocks, mechanism clear, one person at Disable. After the mentor reviews the first action, row 7.6 is the first motion on blocks, followed by driving, launching and autonomous on carpet in rows 7.6 to 7.8.
+  r1["7.1 Image the roboRIO<br/>and set the team number"]
+  r2["7.2 Update and configure<br/>the radio"]
+  r3["7.3 Set CAN IDs<br/>in the REV Hardware Client"]
+  r4["7.4 Deploy the real IO"]
+  r5["7.5 Safety check: on blocks,<br/>mechanism clear,<br/>one person at Disable"]
+  r6["7.6 First motion on blocks"]
+  carpet["7.6 to 7.8 on carpet:<br/>drive, launch, autonomous"]
+  r1 -->|"Driver Station shows<br/>the team number"| r2
+  r2 -->|"ping reaches<br/>the roboRIO"| r3
+  r3 -->|"every SPARK MAX once,<br/>with its Constants ID"| r4
+  r4 -->|"console prints<br/>IO: real"| r5
+  r5 -->|"first action reviewed<br/>with the mentor"| r6
+  r6 -->|"disabled, then<br/>off the blocks"| carpet
+```
 
 ### Badge checks
 
@@ -91,5 +132,6 @@ README.
   {"source": "wpilib", "path": "docs/software/vscode-overview/viewing-console-output.html", "note": "Where <code>IO: real</code> appears."},
   {"source": "wpilib", "path": "docs/software/vscode-overview/deploying-robot-code.html", "note": "Row 7.4."},
   {"url": "https://docs.revrobotics.com/rev-hardware-client-2/", "label": "REV Hardware Client 2", "note": "Row 7.3: current REVLib 2026 device setup."},
-  {"source": "rev", "path": "brushless/spark-max/gs", "note": "SPARK MAX getting started, including CAN ID assignment."}
+  {"source": "rev", "path": "brushless/spark-max/gs", "note": "SPARK MAX getting started, including CAN ID assignment."},
+  {"source": "scorpion", "path": "src/main/java/frc/robot/RobotContainer.java", "note": "The mode switch that creates DriveIOSpark and SuperstructureIOSparkNEO on the robot, or DriveIOSim and SuperstructureIOSim in simulation."}
 ]} />
