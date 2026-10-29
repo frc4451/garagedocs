@@ -111,3 +111,15 @@ test('fails the build with the fence location when Mermaid cannot render', async
     /src\/content\/frc\/page\.mdx:7: Mermaid could not render this diagram: Parse error on line 2/,
   );
 });
+
+test('names the page and the install command when Chromium cannot start', async () => {
+  const render = async () => {
+    throw new Error("browserType.launch: Executable doesn't exist");
+  };
+  await assert.rejects(
+    rehypeMermaid({ renderer: render })({ type: 'root', children: [fence(DIAGRAM, 5)] }, file),
+    (error) =>
+      error.message.includes("src/content/frc/page.mdx:5: Mermaid could not start Chromium: browserType.launch: Executable doesn't exist")
+      && error.message.includes('npx playwright install chromium'),
+  );
+});

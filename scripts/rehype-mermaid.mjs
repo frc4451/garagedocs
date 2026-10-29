@@ -136,15 +136,28 @@ export function rehypeMermaid(options = {}) {
 
     const render = options.renderer ?? (sharedRenderer ||= createMermaidRenderer());
     const codes = fences.map((fence) => fence.code);
-    // Each call gets its own config object, so nothing one render changes reaches the next.
-    const [light, dark] = await Promise.all(
-      ['light', 'dark'].map((theme) =>
-        render(codes, {
-          prefix: `mermaid-${theme}`,
-          mermaidConfig: { theme: 'base', fontFamily: FONT_FAMILY, themeVariables: { ...MERMAID_THEMES[theme] } },
-        })
-      )
-    );
+    let light;
+    let dark;
+    try {
+      // Each call gets its own config object, so nothing one render changes reaches the next.
+      [light, dark] = await Promise.all(
+        ['light', 'dark'].map((theme) =>
+          render(codes, {
+            prefix: `mermaid-${theme}`,
+            mermaidConfig: { theme: 'base', fontFamily: FONT_FAMILY, themeVariables: { ...MERMAID_THEMES[theme] } },
+          })
+        )
+      );
+    } catch (error) {
+      // mermaid-isomorphic keeps its browser launch, failed or not, for the renderer's lifetime.
+      // Drop a failed renderer so the next page retries, for example after installing Chromium,
+      // instead of failing until the dev server restarts.
+      if (render === sharedRenderer) sharedRenderer = undefined;
+      throw new Error(
+        `${location(file, fences[0].line)}: Mermaid could not start Chromium: ${error.message}\n` +
+          'Run `npx playwright install chromium`, then reload the page.'
+      );
+    }
 
     // Replace from the end so earlier indexes in a shared parent stay valid.
     for (let i = fences.length - 1; i >= 0; i--) {

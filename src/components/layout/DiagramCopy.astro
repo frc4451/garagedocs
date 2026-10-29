@@ -1,0 +1,177 @@
+---
+// Copy a Mermaid diagram (scripts/rehype-mermaid.mjs) as a PNG: right-click it, or use the
+// Copy image button that appears on hover and keyboard focus. Shift+right-click keeps the
+// browser's own menu.
+---
+
+<script>
+  // Twice the drawn size, so the pasted image stays sharp on high-density screens and in print.
+  const SCALE = 2;
+  // The light diagram on white pastes cleanly into documents whatever theme the reader uses.
+  const BACKGROUND = '#ffffff';
+
+  let menu: HTMLDivElement | undefined;
+  let menuItem: HTMLButtonElement | undefined;
+  let menuFigure: HTMLElement | undefined;
+  let status: HTMLElement | undefined;
+
+  function lightImage(figure: Element) {
+    return figure.querySelector<HTMLImageElement>('img.mermaid-diagram__light');
+  }
+
+  /** Draws the light diagram on a white canvas and encodes it as a PNG. */
+  async function renderPng(img: HTMLImageElement): Promise<Blob> {
+    // The SVG's own size is not the drawn size; the build writes that on width and height.
+    const width = Number(img.getAttribute('width'));
+    const height = Number(img.getAttribute('height'));
+    const source = new Image();
+    source.src = img.src;
+    await source.decode();
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width * SCALE;
+    canvas.height = height * SCALE;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas is unavailable');
+    context.fillStyle = BACKGROUND;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('PNG export failed'))), 'image/png');
+    });
+  }
+
+  function fileName(img: HTMLImageElement) {
+    const slug = img.alt.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return `${slug || 'diagram'}.png`;
+  }
+
+  function download(blob: Blob, name: string) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function announce(message: string) {
+    if (!status) {
+      status = document.createElement('p');
+      status.className = 'visually-hidden';
+      status.setAttribute('role', 'status');
+      document.body.append(status);
+    }
+    status.textContent = message;
+  }
+
+  function showResult(button: HTMLButtonElement | undefined, label: string) {
+    if (!button?.isConnected || !button.classList.contains('mermaid-diagram__copy')) return;
+    button.textContent = label;
+    setTimeout(() => {
+      button.textContent = 'Copy image';
+    }, 2000);
+  }
+
+  async function copyDiagram(figure: HTMLElement, button?: HTMLButtonElement) {
+    const img = lightImage(figure);
+    if (!img) return;
+    const png = renderPng(img);
+
+    try {
+      // Passing the promise keeps the click's user activation, which the clipboard requires.
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+      showResult(button, 'Copied');
+      announce('Diagram copied as an image.');
+    } catch {
+      try {
+        download(await png, fileName(img));
+        showResult(button, 'Downloaded');
+        announce('This browser blocked copying, so the diagram was downloaded as a PNG instead.');
+      } catch {
+        announce('The diagram could not be copied.');
+      }
+    }
+  }
+
+  function closeMenu() {
+    if (!menu || menu.hidden) return;
+    menu.hidden = true;
+    menuFigure = undefined;
+  }
+
+  function ensureMenu() {
+    if (menu && menuItem) return { menu, menuItem };
+    menu = document.createElement('div');
+    menu.className = 'diagram-menu';
+    menu.setAttribute('role', 'menu');
+    menu.hidden = true;
+
+    menuItem = document.createElement('button');
+    menuItem.type = 'button';
+    menuItem.setAttribute('role', 'menuitem');
+    menuItem.textContent = 'Copy image';
+    menuItem.addEventListener('click', () => {
+      const figure = menuFigure;
+      closeMenu();
+      if (figure) void copyDiagram(figure);
+    });
+    menu.append(menuItem);
+    document.body.append(menu);
+    return { menu, menuItem };
+  }
+
+  function openMenu(figure: HTMLElement, x: number, y: number) {
+    const { menu, menuItem } = ensureMenu();
+    menuFigure = figure;
+    menu.hidden = false;
+
+    // Keep the menu inside the viewport.
+    const { width, height } = menu.getBoundingClientRect();
+    menu.style.left = `${Math.min(x, window.innerWidth - width - 8)}px`;
+    menu.style.top = `${Math.min(y, window.innerHeight - height - 8)}px`;
+    menuItem.focus();
+  }
+
+  function addCopyButtons() {
+    for (const figure of document.querySelectorAll<HTMLElement>('.mermaid-diagram')) {
+      if (figure.querySelector('.mermaid-diagram__copy')) continue;
+      const img = lightImage(figure);
+      if (!img) continue;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'mermaid-diagram__copy';
+      button.textContent = 'Copy image';
+      button.setAttribute('aria-label', `Copy the diagram "${img.alt}" as an image`);
+      button.addEventListener('click', () => void copyDiagram(figure, button));
+      figure.append(button);
+    }
+  }
+
+  document.addEventListener('contextmenu', (event) => {
+    if (event.shiftKey) return;
+    const figure = (event.target as Element | null)?.closest<HTMLElement>('.mermaid-diagram');
+    if (!figure || (event.target as Element).closest('.mermaid-diagram__copy')) return;
+    event.preventDefault();
+    // A context-menu key press reports no pointer position; open beside the figure instead.
+    const fromKeyboard = event.clientX === 0 && event.clientY === 0;
+    const rect = figure.getBoundingClientRect();
+    openMenu(figure, fromKeyboard ? rect.left : event.clientX, fromKeyboard ? rect.top : event.clientY);
+  });
+
+  document.addEventListener('pointerdown', (event) => {
+    if (menu && !menu.contains(event.target as Node)) closeMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeMenu();
+  });
+  window.addEventListener('scroll', closeMenu, { passive: true });
+  window.addEventListener('resize', closeMenu);
+
+  addCopyButtons();
+  document.addEventListener('astro:page-load', () => {
+    closeMenu();
+    addCopyButtons();
+  });
+</script>
